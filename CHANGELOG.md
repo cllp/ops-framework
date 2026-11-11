@@ -9,6 +9,21 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.215.1
+
+Appens märke på de publika sidorna är större: 32 px högt i stället för 24.
+
+### Ändrat
+
+- **Märket på gästens sida, en delad post och en delad händelse är 32 px högt (`PublikMarke`, `PUBLIK_MARKE_KLASS`: `h-8`, förut `h-6`).** CP 2026-11-11 med en skärmbild av en delad lista på telefonen: "Är den fortfarande inte lagad?" och "Logotypen är liten...". Bilden var rätt sedan 0.204.0 (appens breda ordmärke), men 0.192.0 hade krympt rutan till 24 px för ett kompakt huvud, och märket blev cirka 96 x 24 px: mindre än appens eget märke i toppraden (en ruta på 40 px). Nu cirka 128 x 32 px. Huvudet är oförändrat 48 px (`h-12`), med 8 px luft över och under märket, och högst `--logo-bredd` (180 px) brett. Alla tre sidorna ritar samma ruta, så de är fortfarande lika.
+
+### Prov
+
+- `check:skalyta`, gästens gruppsida (d) och de publika märkena: märket mäts till exakt 32 px högt (+-0,5) och 120-140 px brett, i 390 och 1280 px och i riktig CSS. Förut godtogs 20-32 px, ett spann som 24 px-märket klarade och som därför inte kunde fånga att märket var för litet. Rött med 0.215.0 (96 x 24 på alla tre sidorna, åtta brott), grönt med 0.215.1 (128 x 32, inga brott, huvudet 49 px i båda). `--bara-gastgrupp` kör nu också de publika märkena.
+- `gast-grupp-vy.test.jsx`: rutan bär `h-8`. Rött med `h-6`, grönt med `h-8`.
+
+---
+
 ## 0.215.0
 
 Gäst i ett projekt (cllp/lifehub.app#760 skiva 1) och projektets egen chatt (skiva 2, CP "kör chatt"). CP 2026-11-10: "Jag skulle vilja kunna samarbeta med externa i projekt, de har inte tillgång till hela gruppen, men bara projekt." Inget brytande för en app som inte ger `grupp.projekt` och inte slår på `projekt: true`. Inga nya samlingar. Reglerna ändras bara med `samtalsregelfragment({ projekt: true })`: utan den är texten byte för byte densamma. Gästen når bara servern, som förut.

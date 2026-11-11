@@ -19,12 +19,14 @@ export const ORD_PUBLIKMARKE = {
  * Före 0.204.0 ritade bara gästens sida märket (`GastMarke` i `OpsGastSida`). De delade sidorna tog appens `huvud`, och appen skickade där sina fyrkantiga loggor med luft runt i en ruta på 32 px,
  * så att märket blev pyttelitet i en delning och stort på gästens sida, i samma huvud (`PublikHuvud`). Nu är märket en komponent, och sidorna tar samma prop `marke`.
  *
- * 0.190.0 ritade märket 40 px högt. 0.192.0 ritar det 24 px högt: huvudet är orientering, och sidans rubrik är rubriken. Högst `--logo-bredd` brett.
+ * 0.190.0 ritade märket 40 px högt och 0.192.0 24 px högt, för att huvudet är orientering och sidans rubrik är rubriken. 0.215.1 ritar det 32 px högt. CP 2026-11-11 om en delad lista
+ * på telefonen: "Är den fortfarande inte lagad?" och "Logotypen är liten...". Märket var rätt bild men cirka 100 x 24 px (appens bild, 1079 x 260; provets bild i exakt 4:1 mäts till 96 x 24), mindre än appens eget märke i toppraden (en ruta på 40 px).
+ * 32 px ryms i huvudet (48 px, `h-12`) med 8 px luft över och under, och appens bild blir cirka 133 x 32 px (provets 128 x 32). Högst `--logo-bredd` (180 px) brett.
  *
  * ⛔ BILDEN ÄR ETT BRETT, TÄTT BESKURET ORDMÄRKE, INTE FYRKANTIG KONST MED LUFT (granskningen av PR 524). Den första formen tog appens fyrkantiga bilder, ritade dem 64 px
  * höga och beskar uppe och nere som inloggningen. Märket blev ändå cirka 50 x 22 px i appens montage, eftersom en fyrkant med luft runt inte kan bli bredare än sin höjd i
- * en ruta som är 40 px hög. CP:s klagomål var just att loggan var "typ obefintligt liten". Nu fyller bilden rutans höjd, bredden följer bildens form (ett märke i 4:1 blir
- * cirka 96 x 24 px), och ingenting beskärs: `object-contain` och `object-left` håller hela märket synligt och mot vänsterkanten. En bild per tema, som i inloggningen.
+ * en ruta som är 40 px hög. CP:s klagomål var just att loggan var "typ obefintligt liten". Nu fyller bilden rutans höjd, bredden följer bildens form (appens bild blir
+ * cirka 133 x 32 px), och ingenting beskärs: `object-contain` och `object-left` håller hela märket synligt och mot vänsterkanten. En bild per tema, som i inloggningen.
  *
  * ⛔ MED `lank` ÄR MÄRKET EN LÄNK TILL APPENS EGEN SIDA, I EN NY FLIK (0.195.0), så att besökarens session eller delning ligger kvar där den var. Länkens namn säger vart den går och att den
  * öppnar en ny flik (`etikett`); bildens alternativtext hade bara sagt appens namn.
@@ -75,9 +77,9 @@ export function publikMarkeLank(omAppen, sprak) {
 }
 
 /**
- * Märkets ruta, en gång. 24 px hög (`h-6`) och högst `--logo-bredd` bred; länken har fokusringen.
+ * Märkets ruta, en gång. 32 px hög (`h-8`, 0.215.1) och högst `--logo-bredd` bred; länken har fokusringen.
  */
 export const PUBLIK_MARKE_KLASS = Object.freeze({
-  bild: "flex h-6 max-w-(--logo-bredd) shrink-0 items-center",
-  lank: "flex h-6 max-w-(--logo-bredd) shrink-0 items-center rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+  bild: "flex h-8 max-w-(--logo-bredd) shrink-0 items-center",
+  lank: "flex h-8 max-w-(--logo-bredd) shrink-0 items-center rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
 });

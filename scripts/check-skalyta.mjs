@@ -58,7 +58,7 @@
  *       node scripts/check-skalyta.mjs --bara-htmlzoom  bara avsnitt 62, zoomen i HTML-rutan: ett dokument på 1800 px ryms i förvalet, knapparna och Ctrl+hjul med och utan fokus, 390 och 1280 px (0.192.0)
  *       node scripts/check-skalyta.mjs --bara-kategori  bara avsnitt 54, formuläret "Lägg till kategori": ett namn räcker (0.130.0)
  *       node scripts/check-skalyta.mjs --bara-gaster    bara avsnitt 55, gästernas lista och gästens egen sida, 390 och 1280 px (0.131.0)
- *       node scripts/check-skalyta.mjs --bara-gastgrupp  bara avsnitt 56, gästens bantade gränssnitt för hela gruppen och inbjudningsdialogen, 390 och 1280 px (0.132.0), och avsnitt 57, ärenden till en gäst (fliken, kommentar, Markera klar, väljaren och märket)
+ *       node scripts/check-skalyta.mjs --bara-gastgrupp  bara avsnitt 56, gästens bantade gränssnitt för hela gruppen och inbjudningsdialogen, 390 och 1280 px (0.132.0), de publika märkena (0.215.1), och avsnitt 57, ärenden till en gäst (fliken, kommentar, Markera klar, väljaren och märket)
  *       node scripts/check-skalyta.mjs --bara-etiketter  bara avsnitt 48, etiketterna inom sina dagsrutor i månadsvyn (0.106.0); med --tema dark som CP:s skärm
  *       node scripts/check-skalyta.mjs --chattbredder 390,1024   29g i andra bredder än 390 och 1280
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
@@ -1174,6 +1174,7 @@ if (argv.includes("--bara-gastgrupp")) {
   await gastGrupp();
   await gastArenden();
   await gastTelefon();
+  await publikMarken();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -8141,7 +8142,7 @@ async function gastGrupp() {
         krav(telefon ? m.tablist === 0 && m.bottenrad === 1 && m.radknappar === 0 : m.tablist === 1 && m.bottenrad === 0, `${namn} sida (d): ${m.tablist} flikrader och ${m.bottenrad} bottenrader med ${m.radknappar} knappar, väntat ${telefon ? "ingen flikrad och en bottenrad utan plus och utan Meny" : "en flikrad och ingen bottenrad"}.`);
         krav(m.h1 === 1 && !m.overflow, `${namn} sida (d): ${m.h1} h1 (väntat 1), sidled ${m.overflow}.`);
         krav(m.lankar.length === 0 && !/Inställningar|Ekonomi|Appar|Hubb|Agent/.test(m.sidtext), `${namn} sida (d): sidan har en väg ut eller ett ord ur appens skal (${JSON.stringify(m.lankar)}).`);
-        // (d) ORDMÄRKET. 0.190.0 krävde minst 120 x 28 för att märket inte skulle bli obefintligt. 0.192.0 gör huvudet kompakt (CP: chatten ska bara vara chatt): märket är 24 px högt, hela märket syns, och det är mindre än det förra 40 px-huvudet. Golv: en synlig, laddad bild.
+        // (d) ORDMÄRKET. 0.190.0 krävde minst 120 x 28 för att märket inte skulle bli obefintligt. 0.192.0 gör huvudet kompakt (CP: chatten ska bara vara chatt): märket är 24 px högt (0.215.1 gör det 32 px högt, CP 2026-11-11: "Logotypen är liten..."), hela märket syns, och det är mindre än det förra 40 px-huvudet. Golv: en synlig, laddad bild.
         const mk = await page.evaluate(() => {
           const ruta = document.querySelector("[data-gast-marke]");
           const bilder = ruta ? [...ruta.querySelectorAll("img")].filter((b) => getComputedStyle(b).display !== "none") : [];
@@ -8164,7 +8165,8 @@ async function gastGrupp() {
         matt.push(`${namn} sida: ordmärket ${mk.golv ? `målat ${mk.malad.w.toFixed(0)}x${mk.malad.h.toFixed(0)}, synligt ${mk.synlig.w.toFixed(0)}x${mk.synlig.h.toFixed(0)} i rutan ${mk.ruta.w.toFixed(0)}x${mk.ruta.h.toFixed(0)} px` : `hittades inte (${mk.antal} synliga bilder)`}`);
         krav(mk.golv, `${namn} sida (d, golv): märket har ${mk.antal} synliga, laddade bilder, väntat 1.`);
         if (mk.golv) {
-          krav(mk.synlig.h >= 20 && mk.synlig.h <= 32 && mk.synlig.w >= 80 && mk.synlig.w <= 140, `${namn} sida (d): ordmärket syns som ${mk.synlig.w.toFixed(0)}x${mk.synlig.h.toFixed(0)} px, väntat ett kompakt märke i 4:1, 24 px högt.`);
+          // ⛔ (0.215.1, CP 2026-11-11: "Logotypen är liten...") Exakt 32 px högt. Förut 20-32, ett spann som 24 px-märket klarade och som därför inte hade fångat att märket var för litet.
+          krav(Math.abs(mk.synlig.h - 32) <= 0.5 && mk.synlig.w >= 120 && mk.synlig.w <= 140, `${namn} sida (d): ordmärket syns som ${mk.synlig.w.toFixed(0)}x${mk.synlig.h.toFixed(0)} px, väntat ett märke i 4:1, 32 px högt (cirka 128 x 32).`);
           krav(Math.abs(mk.synlig.w - mk.malad.w) <= 0.5 && Math.abs(mk.synlig.h - mk.malad.h) <= 0.5, `${namn} sida (d): ordmärket är beskuret: ${mk.malad.w.toFixed(0)}x${mk.malad.h.toFixed(0)} px målat, ${mk.synlig.w.toFixed(0)}x${mk.synlig.h.toFixed(0)} syns. Ett tätt beskuret märke ska synas helt.`);
         }
         const over = await page.evaluate(() => ({
@@ -8519,7 +8521,7 @@ async function gastGrupp() {
 // delningar och gästvy. VI måste ha enhetlighet.") ──
 // Före 0.204.0 ritade bara gästens sida märket; delningarna tog appens `huvud`, och appens fyrkantiga loggor med luft i en ruta på 32 px blev ett pyttelitet märke. Mätt per sida, i 390 och 1280 px:
 // märkets ruta och den målade, synliga bilden (samma mätning som gästens märke i `gastGrupp`), att märket är en länk i ny flik med samma namn, huvudets höjd och spaltens bredd, och språkväljarens
-// och temaknappens storlek. Kravet är att alla tre är lika (inom en halv pixel) och att märket är det kompakta 24 px-märket. Golv: tre sidor med en laddad bild var.
+// och temaknappens storlek. Kravet är att alla tre är lika (inom en halv pixel) och att märket är 32 px högt (0.215.1, CP 2026-11-11: "Logotypen är liten...", förut 24). Golv: tre sidor med en laddad bild var.
 async function publikMarken() {
   const SIDOR = ["gast", "delad", "dh"];
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
@@ -8560,7 +8562,7 @@ async function publikMarken() {
       krav(m.golv, `${namn} (golv): ${s} har ${m.antal} synliga, laddade bilder i märket, väntat 1. Då mättes inte märket.`);
       krav(!m.overflow, `${namn}: ${s} flödar över i sidled.`);
       if (!m.golv) continue;
-      krav(m.malad.h >= 20 && m.malad.h <= 32 && m.malad.w >= 80 && m.malad.w <= 140, `${namn}: märket på ${s} är ${m.malad.w.toFixed(0)}x${m.malad.h.toFixed(0)} px, väntat det kompakta märket i 4:1, 24 px högt.`);
+      krav(Math.abs(m.malad.h - 32) <= 0.5 && m.malad.w >= 120 && m.malad.w <= 140, `${namn}: märket på ${s} är ${m.malad.w.toFixed(0)}x${m.malad.h.toFixed(0)} px, väntat märket i 4:1, 32 px högt (0.215.1).`);
       krav(m.tagg === "A" && m.href === "https://life-hub.app" && m.target === "_blank" && m.etikett === "Om LifeHub, öppnas i en ny flik", `${namn}: märket på ${s} är ${m.tagg} ${JSON.stringify({ href: m.href, target: m.target, etikett: m.etikett })}, väntat en länk i ny flik med namnet "Om LifeHub, öppnas i en ny flik".`);
     }
     const g = per.gast;
