@@ -377,8 +377,8 @@ export const GASTLISTFALT = /** @type {const} */ ([
  * Fälten i det svar en gäst får, och inget annat lämnar servern (`hamta`): inte gruppen, medlemmarna, andra gäster, adresser, chatten eller något av
  * appens fält som appen inte uttryckligen listat i `sak.falt`. En öppen lista, som `HANDELSESVARSFALT`: allt som skickas ut är något som kan läcka.
  * `grupp` (0.132.0) är gruppens namn och vilka funktioner gästen har, för en gruppinbjudan. `delta` (0.146.0) är händelsen (`GASTDELTAHANDELSEFALT`) och gästens eget svar (`mitt`), för en `delta`-inbjudan.
- * `gruppnamn` (0.215.0, lifehub.app#760 skiva 3) är namnet på gruppen, bara för en gäst i hela gruppen eller i ett projekt: gästsidans växlare samlar inbjudningarna under det. För ett projekt är `grupp.namn`
- * projektets namn och `gruppnamn` gruppens. ⛔ ALDRIG FÖR EN OMRÖSTNING ELLER EN HÄNDELSE: den gästen ser ingenting om gruppen (provat i `gast-delta.test.js`), och växlaren samlar dem under Händelser.
+ * `gruppnamn` (0.215.0, lifehub.app#760 skiva 3) är namnet på gruppen, bara för en gäst i hela gruppen: gästsidans växlare samlar inbjudningarna under det. ⛔ ALDRIG FÖR ETT PROJEKT, EN OMRÖSTNING ELLER EN
+ * HÄNDELSE: de gästerna ser ingenting om gruppen (provat i `gast-delta.test.js` och `gast-projekt.test.js`). Växlaren samlar ett projekt under projektets namn och de andra under Händelser.
  */
 export const GASTSVARSFALT = /** @type {const} */ (["ok", "namn", "funktion", "sak", "grupp", "delta", "gruppnamn"]);
 

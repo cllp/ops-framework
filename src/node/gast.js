@@ -1884,8 +1884,9 @@ export function createGastService(konfig) {
       .filter((x) => x.text !== "" && x.rubrik.sv !== "");
     const kort = vitlista({ tagg, status: par(p.status), texter }, GASTPROJEKTKORTFALT);
     const funktioner = GS.funktioner.filter((f) => /** @type {readonly string[]} */ (GASTPROJEKTFUNKTIONER).includes(f));
-    const g = await kalla.read(GS.samlingar.grupper, s.inbjudan.groupId);
-    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", gruppnamn: text(g?.namn), grupp: vitlista({ namn: text(p.namn), funktioner, nedladdning: nedladdningTillaten(s.inbjudan), kommentera: false, beskrivning: "", projekt: kort }, GASTGRUPPSVARSFALT.hamta) };
+    // ⛔ (0.215.0, #760) INGET `gruppnamn` FÖR ETT PROJEKT: en projektgäst ser aldrig gruppens namn (skiva 1, brevet och sidan säger projektets). Mätt 2026-11-11: skiva 3 gav det här, och appens prov för skiva 1
+    // ("hamta läcker GRUPPENS-NAMN") blev rött. Växlaren samlar projektet under projektets eget namn.
+    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", grupp: vitlista({ namn: text(p.namn), funktioner, nedladdning: nedladdningTillaten(s.inbjudan), kommentera: false, beskrivning: "", projekt: kort }, GASTGRUPPSVARSFALT.hamta) };
     return Object.fromEntries(Object.entries(svar).filter(([k]) => /** @type {readonly string[]} */ (GASTSVARSFALT).includes(k)));
   }
 

@@ -57,6 +57,7 @@ export const ORD_OPSGASTSIDA = {
   vaxlareEtikett: { sv: "Dina inbjudningar", en: "Your invitations" },
   vaxlareHelaGruppen: { sv: "Hela gruppen", en: "The whole group" },
   vaxlareHandelser: { sv: "Händelser och omröstningar", en: "Events and polls" },
+  vaxlareProjekt: { sv: "Projekt", en: "Projects" },
   vaxlareOmrostning: { sv: "Omröstning", en: "Poll" },
   vaxlareVisas: { sv: "Visas nu", en: "Showing now" },
   vaxlareFel: { sv: "Inbjudan gick inte att öppna. Den kan ha dragits tillbaka.", en: "The invitation could not be opened. It may have been withdrawn." },

@@ -24,6 +24,7 @@ const OMROSTNING = "d".repeat(64);
 const S = (/** @type {string} */ c) => c.repeat(43);
 const SVAR = {
   [S("G")]: { ok: true, namn: "Per", funktion: "grupp", gruppnamn: "Källan", grupp: { namn: "Källan", funktioner: ["chatt"] } },
+  // Servern ger aldrig `gruppnamn` för ett projekt. Svaret bär det här ändå, för att visa att växlaren inte läser det för ett projekt.
   [S("P")]: { ok: true, namn: "Per", funktion: "grupp", gruppnamn: "Källan", grupp: { namn: "Köket", funktioner: ["chatt"], projekt: { tagg: "koket" } } },
   [S("A")]: { ok: false, orsak: "aterkallad" },
   [S("O")]: { ok: true, namn: "Per", funktion: "rosta", sak: { titel: "Rep" } },
@@ -95,9 +96,9 @@ const klicka = async (/** @type {Element} */ el) => {
 };
 
 describe("växlaren", () => {
-  it("raderna ur svaren: gruppens namn som rubrik, projektets namn, en omröstning utan grupp", () => {
+  it("raderna ur svaren: gruppens namn som rubrik, ett projekt med sitt eget namn och aldrig gruppens, en omröstning utan grupp", () => {
     expect(vaxlarrad(GRUPP, SVAR[S("G")])).toEqual({ id: GRUPP, grupp: "Källan", namn: "" });
-    expect(vaxlarrad(PROJEKT, SVAR[S("P")])).toEqual({ id: PROJEKT, grupp: "Källan", namn: "Köket" });
+    expect(vaxlarrad(PROJEKT, SVAR[S("P")])).toEqual({ id: PROJEKT, grupp: null, namn: "Köket", projekt: true });
     expect(vaxlarrad(OMROSTNING, SVAR[S("O")])).toEqual({ id: OMROSTNING, grupp: null, namn: "" });
     expect(vaxlarrad(ATERKALLAD, SVAR[S("A")])).toBeNull();
   });
@@ -110,7 +111,12 @@ describe("växlaren", () => {
     expect(new Set(onHamta.mock.calls.map(([a]) => a.sessionsnyckel)).size).toBeGreaterThanOrEqual(4);
     const kallan = /** @type {HTMLElement} */ (nav.querySelector('[data-gast-vaxlare-grupp="Källan"]'));
     expect(within(kallan).getByRole("heading")).toHaveTextContent("Källan");
-    expect(within(kallan).getAllByRole("button").map((b) => b.textContent)).toEqual(["Hela gruppenVisas nu", "Köket"]);
+    expect(within(kallan).getAllByRole("button").map((b) => b.textContent)).toEqual(["Hela gruppenVisas nu"]);
+    // ⛔ Projektet under Projekt, aldrig under gruppens namn.
+    const projekt = /** @type {HTMLElement} */ (nav.querySelector('[data-gast-vaxlare-grupp="projekt"]'));
+    expect(within(projekt).getByRole("heading")).toHaveTextContent("Projekt");
+    expect(within(projekt).getAllByRole("button").map((b) => b.textContent)).toEqual(["Köket"]);
+    expect([...nav.querySelectorAll("[data-gast-vaxlare-grupp]")].map((e) => e.getAttribute("data-gast-vaxlare-grupp"))).toEqual(["Källan", "projekt", "handelser"]);
     const handelser = /** @type {HTMLElement} */ (nav.querySelector('[data-gast-vaxlare-grupp="handelser"]'));
     expect(within(handelser).getByRole("heading")).toHaveTextContent("Händelser och omröstningar");
     expect(nav.querySelector(`[data-gast-vaxlare-rad="${ATERKALLAD}"]`)).toBeNull();

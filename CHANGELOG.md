@@ -36,7 +36,7 @@ Gäst i ett projekt (cllp/lifehub.app#760 skiva 1) och projektets egen chatt (sk
 - **`GASTNYLANK_GOLV_MS`**: `nyLank` svarar tidigast efter 1 200 ms på varje väg. `createGastService({ nyLankGolvMs })` för prov.
 - **`GASTNYLANK_GILTIG_MS`**: länkarna i brevet Mina inbjudningar gäller en gång och ett dygn (`engangs` på inbjudan). `los` förbrukar, `prova` inte. Andra rotationer ger vanliga länkar.
 - **Taket på fem länkar står kvar**, och brevet bär `fler` och `engangs` (`Gastbrev`), så att appen skriver "och N till".
-- **`hamta` bär `gruppnamn`** för en gäst i gruppen eller ett projekt (aldrig för en omröstning eller händelse).
+- **`hamta` bär `gruppnamn`** för en gäst i hela gruppen, aldrig för ett projekt, en omröstning eller en händelse (de gästerna ser ingenting om gruppen). Växlaren samlar ett projekt under projektets namn.
 - **`OpsGastSida`**: växlaren överst (`GastVaxlare`), Mina inbjudningar sist, och Logga ut tar bort allt med `ops-gast:`.
 
 ### Skiva 4: projektet via kontot

@@ -283,6 +283,9 @@ describe("vad en projektgäst ser: bara projektet, urvalet görs på servern", (
     expect(svar.grupp.projekt.texter.map((x) => x.rubrik.sv)).toEqual(["Syfte", "Nuläge", "Öppna frågor"]);
     expect(Object.keys(svar.grupp.projekt).sort()).toEqual([...GASTPROJEKTKORTFALT].sort());
     for (const s of UTANFOR_PROJEKTET) expect(allaTexter(svar), s).not.toContain(s);
+    // ⛔ (skiva 3) Inget `gruppnamn` och inget gruppnamn alls: växlaren samlar ett projekt under Projekt. Skiva 3 gav det här en gång, och appens prov för skiva 1 fångade det.
+    expect(svar).not.toHaveProperty("gruppnamn");
+    expect(allaTexter(svar)).not.toContain("Källan");
   });
 
   it("kalendern: projektets egen kalender, aldrig gruppens förvalda, en annan kalender, ett annat projekt eller en annan grupp", async () => {
