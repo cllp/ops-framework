@@ -312,6 +312,7 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  * Kan platsen ha "I repot" (0.217.0, cllp/lifehub.app#785)? Gruppens eget bibliotek (grupp-id:t, `ID_FORM`) och en egen plats (`plats~<grupp>~<id>`). Mitt bibliotek, en händelses och ett ärendes plats bär `~` och har aldrig något repo.
  * ⛔ FORMEN, INTE BESLUTET: om platsen faktiskt har ett repo avgör appen, genom att skicka `repoLasare` eller inte.
  * @param {unknown} plats
+ * @returns {plats is string}
  */
 const repoplatsForm = (plats) => typeof plats === "string" && (arPlatsBibliotek(plats) || ID_FORM.test(plats));
 
