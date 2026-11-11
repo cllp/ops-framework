@@ -144,13 +144,28 @@ describe("trädet", () => {
     expect(container.querySelector("[data-bibliotek-repo-tillbaka]")).toBeNull();
   });
 
-  it("syns inte på gruppens eget bibliotek, Mitt bibliotek eller i en inbäddad lista", () => {
+  // ⛔ RÖTT UTAN 0.217.0 (cllp/lifehub.app#785): gruppens eget bibliotek fick ingen I repot fast appen skickade `repoLasare`, eftersom raden krävde en egen plats (`arPlatsBibliotek`).
+  it("0.217.0: gruppens eget bibliotek får I repot när appen skickar repoLasare, och läsaren frågas med gruppens id", async () => {
     const lasare = vi.fn(repo);
-    const a = render(<OpsBibliotek poster={[]} jag={JAG} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" platser={PLATSER} plats="cps-ab" onPlats={() => {}} repoLasare={lasare} />);
-    expect(a.container.querySelector("[data-bibliotek-repo]")).toBeNull();
-    a.unmount();
+    const { container } = render(<OpsBibliotek poster={[]} jag={JAG} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" platser={PLATSER} plats="cps-ab" onPlats={() => {}} repoLasare={lasare} />);
+    expect(container.querySelector("[data-bibliotek-repo]")).not.toBeNull();
+    fallUt(container);
+    await waitFor(() => expect(lasare).toHaveBeenCalled());
+    expect(lasare.mock.calls[0][0]).toEqual({ plats: "cps-ab", sokvag: "" });
+  });
+
+  it("syns inte i Mitt bibliotek, på en händelses eller ett ärendes plats, i en inbäddad lista eller utan repoLasare", () => {
+    const lasare = vi.fn(repo);
+    for (const plats of ["mitt~u1", "handelse~cps-ab~h1", "arende~cps-ab~a1"]) {
+      const a = render(<OpsBibliotek poster={[]} jag={JAG} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" platser={PLATSER} plats={plats} onPlats={() => {}} repoLasare={lasare} />);
+      expect(a.container.querySelector("[data-bibliotek-repo]"), plats).toBeNull();
+      a.unmount();
+    }
     const b = render(<OpsBibliotek poster={[]} jag={JAG} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" inbaddad repoLasare={lasare} />);
     expect(b.container.querySelector("[data-bibliotek-repo]")).toBeNull();
+    b.unmount();
+    const c = render(<OpsBibliotek poster={[]} jag={JAG} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" platser={PLATSER} plats="cps-ab" onPlats={() => {}} />);
+    expect(c.container.querySelector("[data-bibliotek-repo]")).toBeNull();
     expect(lasare).not.toHaveBeenCalled();
   });
 
