@@ -266,6 +266,8 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
   const [vaxlare, setVaxlare] = useState(/** @type {import("./GastVaxlare.jsx").Vaxlarrad[] | null} */ (null));
   const [vaxlarFel, setVaxlarFel] = useState(false);
   const levande = useRef(true);
+  // (0.215.0, #760 skiva 3) Inbjudningar som servern redan nekat i den här sidvisningen (återkallad, saknas eller okänd). Växlaren frågar inte om dem en gång till: svaret finns, och varje fråga kostar serverns tak.
+  const nekadeNu = useRef(/** @type {Set<string>} */ (new Set()));
   useEffect(() => {
     levande.current = true;
     return () => {
@@ -338,6 +340,7 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
         }
         const o = r && typeof r.orsak === "string" ? r.orsak : "nej";
         if (o === "for-manga") return { ok: false, orsak: o };
+        nekadeNu.current.add(id);
         if (o === "aterkallad" || o === "saknas") {
           kvarOrsak ??= o;
           continue;
@@ -463,6 +466,7 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
   /*
    * (0.215.0, lifehub.app#760 skiva 3) VÄXLAREN: när en inbjudan visas frågas servern om varje annan sparad session, en gång per sidvisning. Bara de som svarar står i växlaren, med det namn servern gav.
    * ⛔ EN FRÅGA PER SPARAD SESSION, MOT SAMMA `hamta` SOM SIDAN REDAN GÖR: ingen ny väg in, och varje svar prövar sessionen och inbjudan på nytt (en återkallad svarar `aterkallad` och står inte med).
+ * En session som servern redan nekat i den här sidvisningen (`nekadeNu`) frågas inte om igen (mätt 2026-11-11: utan det frågades en återkallad grupp två gånger vid varje sidvisning).
    */
   const visasId = lage.fas === "klar" ? aktivId.current : null;
   useEffect(() => {
@@ -474,7 +478,7 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
       /** @type {import("./GastVaxlare.jsx").Vaxlarrad[]} */
       const rader = nu ? [nu] : [];
       for (const id of sparadeIds()) {
-        if (id === nuId) continue;
+        if (id === nuId || nekadeNu.current.has(id)) continue;
         const nyckel = mem.current.las(sessionsnyckelFor(id));
         if (!nyckel || !GASTNYCKELFORM.test(nyckel)) continue;
         let r;

@@ -84,7 +84,7 @@ describe("OpsGastGrupp för en projektgäst", () => {
     expect(document.querySelector("[data-gast-roll]")).toHaveTextContent("Du är gäst i projektet.");
     const kort = document.querySelector("[data-gast-projektkort]");
     expect(kort).not.toBeNull();
-    expect(kort.querySelector("[data-gast-projekt-lage]")).toHaveTextContent("Läge: Pågår");
+    expect(kort.querySelector("[data-gast-projekt-lage]")).toHaveTextContent("Status: Pågår");
     expect([...kort.querySelectorAll("[data-gast-projekt-text] h2")].map((h) => h.textContent)).toEqual(["Syfte", "Öppna frågor"]);
     expect(kort).toHaveTextContent("Nytt kök före jul");
     expect(document.querySelector("[data-gast-grupp-beskrivning]")).toBeNull();
