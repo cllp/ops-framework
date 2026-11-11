@@ -560,3 +560,63 @@ describe("skiva 2: projektets chatt för gästen (CP \"kör chatt\")", () => {
     expect((await h.grund.list(`samtal/${GRUPP}|projekt|badrum/meddelanden`)).map((m) => m.text)).toEqual(["BADRUMMETS-CHATT"]);
   });
 });
+
+describe("skiva 4: projektet i hubbens lista och öppnat med kontot", () => {
+  it("minaGruppgaster ger projektet med gruppens och projektets namn, bara med bevisad adress, och aldrig ett arkiverat projekt", async () => {
+    const h = bygg();
+    const g = await projektGast(h);
+    await h.tjanst.bjud({ uid: AGARE, slag: "grupp", groupId: GRUPP, epost: "per@extern.se" });
+    const ut = await h.tjanst.minaGruppgaster({ epost: "per@extern.se", epostBekraftad: true });
+    expect(ut.gruppgaster.map((r) => [r.namn, r.projekt?.namn ?? null])).toEqual([
+      ["Källan", null],
+      ["Källan", "Ombyggnad av köket"],
+    ]);
+    expect(ut.gruppgaster[1]).toEqual({ id: g.id, groupId: GRUPP, namn: "Källan", projekt: { tagg: "koket", namn: "Ombyggnad av köket" } });
+    expect(await h.tjanst.minaGruppgaster({ epost: "per@extern.se", epostBekraftad: false })).toEqual({ gruppgaster: [] });
+    /** @type {any} */ (PROJEKT.koket).arkiverad = true;
+    try {
+      expect((await h.tjanst.minaGruppgaster({ epost: "per@extern.se", epostBekraftad: true })).gruppgaster.map((r) => r.projekt?.tagg ?? "grupp")).toEqual(["grupp"]);
+    } finally {
+      delete (/** @type {any} */ (PROJEKT.koket).arkiverad);
+    }
+  });
+
+  it("⛔ (a) öppnat med kontot ger exakt det länken ger: projektets chatt, kalender och bibliotek, aldrig gruppens, och inget medlemskap skrivs", async () => {
+    const h = bygg();
+    const g = await projektGast(h);
+    const medlemskapFore = JSON.stringify(await h.grund.list("memberships"));
+    const oppnad = await h.tjanst.oppnaGruppgast({ id: g.id, epost: "per@extern.se", epostBekraftad: true, ip: "198.51.100.20" });
+    expect(oppnad.ok).toBe(true);
+    const nyckel = /** @type {any} */ (oppnad).sessionsnyckel;
+    for (const [namn, anrop] of /** @type {const} */ ([
+      ["hamta", (k) => h.tjanst.hamta({ sessionsnyckel: k })],
+      ["chatt", (k) => h.tjanst.chatt({ sessionsnyckel: k })],
+      ["kalender", (k) => h.tjanst.kalender({ sessionsnyckel: k })],
+      ["bibliotek", (k) => h.tjanst.bibliotek({ sessionsnyckel: k })],
+      ["arenden", (k) => h.tjanst.arenden({ sessionsnyckel: k })],
+    ])) {
+      const viaKonto = await anrop(nyckel);
+      const viaLank = await anrop(g.sessionsnyckel);
+      expect(viaKonto, namn).toEqual(viaLank);
+      for (const s of UTANFOR_PROJEKTET) expect(allaTexter(viaKonto), `${namn}/${s}`).not.toContain(s);
+    }
+    expect(JSON.stringify(await h.grund.list("memberships"))).toBe(medlemskapFore);
+    // Fel adress eller obevisad adress öppnar inget.
+    expect(await h.tjanst.oppnaGruppgast({ id: g.id, epost: "annan@extern.se", epostBekraftad: true, ip: "198.51.100.21" })).toEqual({ ok: false, orsak: "nej" });
+    expect(await h.tjanst.oppnaGruppgast({ id: g.id, epost: "per@extern.se", epostBekraftad: false, ip: "198.51.100.22" })).toEqual({ ok: false, orsak: "nej" });
+  });
+
+  it("⛔ (c) en återkallad inbjudan stoppar en session som redan getts, både länkens och kontots", async () => {
+    const h = bygg();
+    const g = await projektGast(h);
+    const oppnad = /** @type {any} */ (await h.tjanst.oppnaGruppgast({ id: g.id, epost: "per@extern.se", epostBekraftad: true, ip: "198.51.100.23" }));
+    for (const k of [g.sessionsnyckel, oppnad.sessionsnyckel]) expect((await h.tjanst.chatt({ sessionsnyckel: k })).ok).toBe(true);
+    await h.tjanst.aterkalla({ uid: AGARE, id: g.id });
+    for (const k of [g.sessionsnyckel, oppnad.sessionsnyckel]) {
+      expect(await h.tjanst.chatt({ sessionsnyckel: k })).toEqual({ ok: false, orsak: "aterkallad" });
+      expect(await h.tjanst.hamta({ sessionsnyckel: k })).toEqual({ ok: false, orsak: "aterkallad" });
+    }
+    expect(await h.tjanst.oppnaGruppgast({ id: g.id, epost: "per@extern.se", epostBekraftad: true, ip: "198.51.100.24" })).toEqual({ ok: false, orsak: "aterkallad" });
+    expect((await h.tjanst.minaGruppgaster({ epost: "per@extern.se", epostBekraftad: true })).gruppgaster).toEqual([]);
+  });
+});

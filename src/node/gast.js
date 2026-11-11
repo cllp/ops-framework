@@ -1505,23 +1505,42 @@ export function createGastService(konfig) {
    * bekräftade adressen, samma bevis som `nyLank` använder för att skicka en ny länk, och en gäst som inte svarat på 30 dagar ska inte försvinna ur hubben för att mejlet blev gammalt. En inbjudan till en omröstning eller en händelse är inte en grupp och listas inte.
    * ⛔ INGEN ADRESS, INGET NAMN PÅ ANDRA OCH INGEN NYCKEL I SVARET: `{ id, groupId, namn }`, med gruppens namn ur appens egen läsning.
    *
+   * ⛔ (0.215.0, lifehub.app#760 skiva 4) OCKSÅ ETT PROJEKT: en levande inbjudan till ett projekt som finns (appens `grupp.projekt.urval`, som varje projektåtgärd läser) ger en rad med `projekt: { tagg, namn }`,
+   * projektets namn ur appen och taggen ur inbjudan. Ett projekt som tagits bort eller arkiverats ger ingen rad: raden hade lett till en sida som säger att projektet saknas. Ett urval som kastar ger ingen rad, och de
+   * andra raderna står kvar. Kontot är bara en genväg: raden öppnar gästsidan, med samma session som länken ger (`oppnaGruppgast`).
+   *
    * @param {Record<string, any>} b `{ epost, epostBekraftad }`.
-   * @returns {Promise<{ gruppgaster: Array<{ id: string, groupId: string, namn: string }> }>}
+   * @returns {Promise<{ gruppgaster: Array<{ id: string, groupId: string, namn: string, projekt?: { tagg: string, namn: string } }> }>}
    */
   async function minaGruppgaster(b) {
     if (b?.epostBekraftad !== true) return { gruppgaster: [] };
     const epost = normaliseraGastepost(b?.epost, extraSparrade);
     if (epost === null || !GS) return { gruppgaster: [] };
-    // ⛔ (0.215.0) BARA HELA GRUPPEN, MED FLIT: hubbens rad säger gruppens namn och öppnar gruppen. En projektgäst öppnar sitt projekt med länken i mejlet; en rad i hubben för ett projekt är ett eget beslut (lifehub.app#760).
-    const rader = (await kalla.list(INB, { where: { epost } })).filter((r) => r.omfang?.slag === "grupp" && r.aterkallad === null);
-    /** @type {Array<{ id: string, groupId: string, namn: string }>} */
+    const rader = (await kalla.list(INB, { where: { epost } })).filter((r) => (r.omfang?.slag === "grupp" || (r.omfang?.slag === "projekt" && GS.projekt)) && r.aterkallad === null);
+    /** @type {Array<{ id: string, groupId: string, namn: string, projekt?: { tagg: string, namn: string } }>} */
     const ut = [];
     for (const r of rader) {
       const g = await kalla.read(GS.samlingar.grupper, r.groupId);
       if (!g) continue;
+      if (r.omfang.slag === "projekt") {
+        const tagg = r.omfang.tagg;
+        if (typeof tagg !== "string" || !PROJEKTTAGGFORM.test(tagg)) continue;
+        /** @type {Gastprojekturval | null} */
+        let p = null;
+        try {
+          p = await projektUrval(String(r.groupId), tagg);
+        } catch (fel) {
+          rapportera(fel);
+          p = null;
+        }
+        if (!p) continue;
+        ut.push({ id: String(r.id), groupId: String(r.groupId), namn: text(g.namn), projekt: { tagg, namn: text(p.namn) } });
+        continue;
+      }
       ut.push({ id: String(r.id), groupId: String(r.groupId), namn: text(g.namn) });
     }
-    return { gruppgaster: ut.sort((x, y) => x.namn.localeCompare(y.namn, "sv") || x.id.localeCompare(y.id)) };
+    const etikett = (/** @type {{ namn: string, projekt?: { namn: string } }} */ x) => `${x.namn}${x.projekt ? ` ${x.projekt.namn}` : ""}`;
+    return { gruppgaster: ut.sort((x, y) => x.namn.localeCompare(y.namn, "sv") || Number(Boolean(x.projekt)) - Number(Boolean(y.projekt)) || etikett(x).localeCompare(etikett(y), "sv") || x.id.localeCompare(y.id)) };
   }
 
   /**
@@ -1547,7 +1566,8 @@ export function createGastService(konfig) {
     const epost = normaliseraGastepost(b?.epost, extraSparrade);
     // Båda jämförelserna görs alltid, så att tiden inte säger vilken av dem som var fel.
     const epostStammer = epost !== null && likaHash(hash(epost), hash(text(rad.epost)));
-    if (b?.epostBekraftad !== true || !epostStammer || rad.omfang?.slag !== "grupp" || !GS) return nej();
+    // (0.215.0, lifehub.app#760 skiva 4) Hela gruppen eller ett projekt (`arGruppslag`): samma session som länken ger, och sessionens egen prövning (taggens form, projektet i varje åtgärd) gäller som för länken.
+    if (b?.epostBekraftad !== true || !epostStammer || !arGruppslag(rad.omfang) || (rad.omfang?.slag === "projekt" && !GS?.projekt) || !GS) return nej();
     const ge = () => aterlamna(RAKNARE, ipRes.id, RAKNEFALT, ipRes.fonster);
     if (rad.aterkallad !== null) {
       await ge();
