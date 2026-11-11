@@ -1,4 +1,7 @@
+import { useState } from "react";
+
 import { cx } from "../lib/cx.js";
+import { OpsSpinner } from "./OpsSpinner.jsx";
 
 /**
  * (0.215.0, cllp/lifehub.app#760 skiva 3) Växlaren överst på gästsidan: enhetens inbjudningar, samlade under sina grupper, och Mina inbjudningar sist.
@@ -47,6 +50,16 @@ export function vaxlarrad(id, r) {
  * @param {boolean} [props.fel] Ett byte som inte gick.
  */
 export function GastVaxlare({ rader, visas, t, onVaxla, onMina, fel = false }) {
+  // Inbjudan som håller på att öppnas: raden är upptagen (snurra, `aria-busy`) och de andra väntar, så att två tryck inte öppnar två sessioner om vartannat.
+  const [byter, setByter] = useState(/** @type {string | null} */ (null));
+  const vaxla = async (/** @type {string} */ id) => {
+    setByter(id);
+    try {
+      await onVaxla(id);
+    } finally {
+      setByter(null);
+    }
+  };
   const minaKnapp = (/** @type {boolean} */ liten) => (
     <button
       type="button"
@@ -101,14 +114,16 @@ export function GastVaxlare({ rader, visas, t, onVaxla, onMina, fel = false }) {
                     type="button"
                     data-gast-vaxlare-rad={r.id}
                     aria-current={aktiv ? "true" : undefined}
-                    disabled={aktiv}
-                    onClick={() => void onVaxla(r.id)}
+                    aria-busy={byter === r.id || undefined}
+                    disabled={aktiv || byter !== null}
+                    onClick={() => void vaxla(r.id)}
                     className={cx(
                       "inline-flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 rounded-card px-2 text-left text-etikett focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                       aktiv ? "cursor-default bg-hover font-medium text-ink" : "text-accent hover:bg-hover",
                     )}
                   >
                     <span className="min-w-0 truncate">{namn}</span>
+                    {byter === r.id ? <OpsSpinner size="sm" decorative /> : null}
                     {aktiv ? <span className="shrink-0 text-meta text-ink-muted">{t.vaxlareVisas}</span> : null}
                   </button>
                 </li>

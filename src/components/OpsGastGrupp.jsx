@@ -205,7 +205,7 @@ export const ORD_OPSGASTGRUPP = {
   projekt_arendenAntal: { sv: "{n} i projektet", en: "{n} in the project" },
   projekt_arendenInga: { sv: "Inga ärenden", en: "No cases" },
   projekt_kort: { sv: "Projektet", en: "The project" },
-  projekt_lage: { sv: "Läge", en: "Status" },
+  projekt_lage: { sv: "Status", en: "Status" },
   vadKanJagGora: { sv: "Vad kan jag göra här?", en: "What can I do here?" },
 };
 
