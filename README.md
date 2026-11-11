@@ -203,7 +203,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**168 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**170 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
