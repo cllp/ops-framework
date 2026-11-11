@@ -255,6 +255,7 @@ export { gruppikonSvg } from "./lib/gruppikonsvg.js";
 export { arGiltigProfilikon } from "./lib/markeformer.js";
 export { GRUPPKULORFORSLAG, GRUPPKULOR_FORM, fargTillKulor, kulorTillFarg, gruppKulor, narmasteKulornamn } from "./lib/gruppfarg.js";
 export { STANDARDPALETT, PALETT_LAGEN, PALETT_NYCKLAR, PALETT_HEXFORM, PALETT_TOKEN, PALETT_STIL_ID, arHexfarg, normaliseraHex, lasPalett, byggPalett, kontrastkvot, harledPalett, granskaPalett, palettTillCss, palettStil, tillampaPalett } from "./lib/palett.js";
+export { OpsFargruta, OpsPalettForhandsvisning } from "./components/OpsPalett.jsx";
 export { GRUPPIKON_SVENSKA, gruppikonEtikett } from "./lib/gruppikonnamn.js";
 export { GRUPPIKONKATALOG } from "./lib/gruppikonkatalog.generated.js";
 export { sokGruppikoner, forslagUrGruppnamn, VANLIGA_GRUPPIKONER } from "./lib/gruppikonsok.js";

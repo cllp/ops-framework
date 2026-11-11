@@ -3149,6 +3149,7 @@ CP 2026-11-11 (cllp/lifehub.app#786): en hubbs administratör ska kunna sätta h
 | `granskaPalett`, `kontrastkvot` | paren komponenterna ritar, med samma ribba som `check-kontrast` (4,5:1 brödtext, 3:1 grafik), på de härledda värdena. Varje fynd bär en mening på svenska och engelska. Tom lista betyder att paletten håller |
 | `palettTillCss`, `tillampaPalett`, `PALETT_STIL_ID` | stilen i dokumentet: ljust i lagret `theme` som `--color-*`, mörkt olagrat som `--dark-*`, alltså brandkontraktets platser. `null` tar bort stilen helt, och då är appen exakt som utan funktionen |
 | `palettStil` | ett läges token som stil på ett element, för en förhandsvisning i en avgränsad ruta |
+| `OpsPalettForhandsvisning`, `OpsFargruta` | förhandsvisningen av en palett i ett tema (bakgrund, ett kort med rubrik och detalj, en linje, en knapp i accenten, texterna är appens) och rutan bredvid ett färgfält. ⛔ I ramverket och inte i appen: båda behöver en färg som bara finns vid körning, och appens ESLint fäller varje `style` och hexsträng |
 
 ⛔ **Vilket värde som vinner var:** inne i appen hubbens färger när de är satta, annars ramverkets token (också över en brandfil, stilen ligger sist). Webbläsarens kant (`theme-color`), manifestet och den inbyggda startskärmen är instansens färger vid bygget och rörs inte: de läses före inloggningen och startskärmen går inte att byta vid körning. Statusfärgerna (fel, varning, klart, info, diagram, gruppkulörer) är ramverkets och följer inte med.
 

@@ -18,6 +18,7 @@ En hubbs egna färger vid körning (cllp/lifehub.app#786), större menyrader på
 ### Nytt
 
 - **`src/lib/palett.js`:** fyra färger per läge (`bakgrund`, `yta`, `text`, `accent`) som skriver över ramverkets egna token vid körning, på brandkontraktets platser (ljust i lagret `theme`, mörkt olagrat som `--dark-*`). Resten av ytstegen och texttonerna härleds. `granskaPalett` nekar ett oläsligt par med samma ribba som `check-kontrast`, med en mening på svenska och engelska. Se README, "En hubbs egna färger vid körning".
+- **`OpsPalettForhandsvisning`, `OpsFargruta`:** förhandsvisningen av en palett i ett tema och rutan bredvid ett färgfält. I ramverket eftersom båda behöver en färg vid körning (`style`), som appens ESLint med rätta fäller.
 - **`STANDARDPALETT`** genereras av `scripts/generate-tokens.mjs` ur fixturen, till `src/lib/standardpalett.generated.js`. `--kontrollera` prövar den också.
 
 ### Ändrat
@@ -32,6 +33,7 @@ En hubbs egna färger vid körning (cllp/lifehub.app#786), större menyrader på
 
 - `tangentbord.test.jsx`: pluginens händelser gömmer och tar fram raden fast viewporten inte krympt, par av Will och Did flera gånger i följd och ett Will utan sitt Did lämnar aldrig raden fast, höjd 0 och under 150 px räknas som nere, och utan händelserna gäller mätningen som förut. Rött med 0.217.0 (2 av de 4 nya; höjd 0 och utan händelser är gröna i båda, som de ska).
 - `talk-kanlyssna.test.jsx`: med `kanLyssna` som säger nej utanför en ren igenkänningsomgång (som iOS-appen) ger ett låst mål och Spela in i stället på WebKit ingen platstext och ingen felrad, och `starta` anropas aldrig; en omgång med bara igenkänningen anropar `starta`; en igenkänning utan `kanLyssna` lyssnar som förut; en `kanLyssna` som kastar rapporteras och omgången blir en inspelning utan levande text. Rött med 0.217.0 (4 av 5, provet utan `kanLyssna` är grönt i båda, som det ska).
+- `palett-komponenter.test.jsx`: förhandsvisningen bär det valda temats token på rutan och inte på dokumentet, färgrutan ritar bara `#rrggbb`.
 - `palett.test.js`: ingen palett ger ingen stil och Återställ tar bort den, varje token paletten skriver finns i `tokens.css` i båda lägena, ljust och mörkt skrivs på rätt plats, oläsligt nekas, bara `#rrggbb` godtas. Rött med mutationer (granskningen släpper allt, `null` tar inte bort stilen, formen godtar vad som helst): 6 av 15 röda.
 - `menyrad-pekskarm.test.jsx`: menyns rad, arkets rader och utloggningen löser till `text-brod` på telefon och iPad och till `text-meta` på dator med mus. Rött med 0.217.0 (3 av 4, det fjärde provet prövar att andra rader INTE ändrats och är grönt i båda).
 
