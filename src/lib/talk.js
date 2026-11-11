@@ -1050,6 +1050,10 @@ export function skapaIgenkanningsniva({ nu = () => Date.now() } = {}) {
  *   `tystnad` (`onspeechend`). Valfri: en egen igenkänning från appen som inte känner till den får bara `onText`, och prickarna drivs då av texten ensam.
  *   `sammanhang` (0.213.0, cllp/lifehub.app#253) ger de fält den som startade vill ha med i felrapporten `igenkanning` (omgången, förra omgången och
  *   liknande). Den läses när felet rapporteras, och ett kast i den fäller aldrig rapporten. Se `meld` i `webblasarensIgenkanning`.
+ * @property {(lage: { baraIgenkanning: boolean }) => boolean} [kanLyssna] (0.218.0) Om igenkänningen lyssnar i omgången som börjar. `baraIgenkanning`
+ *   är sant när omgången bara kör igenkänningen (TALK med valen på WebKit) och falskt när en inspelare också har mikrofonen (ett låst mål,
+ *   "Spela in i stället", Chrome). `false` gör omgången till en ren inspelning utan textyta, och `starta` anropas inte. Saknas den lyssnar
+ *   igenkänningen alltid, som förut. Ett kast räknas som `false` och rapporteras. Händelsen står vid `kanLyssnaI` i `OpsTalk.jsx`.
  * @property {() => Promise<string>} stoppa Slutar och ger den slutliga texten, eller tom sträng när den inte går att lita på.
  * @property {() => void} kasta Slutar utan att vänta.
  * @property {() => Igenkanningsdiagnos} [diagnos] (0.114.0, cllp/ops-framework#402) Vad den här omgångens igenkänning gjorde, för felrapporten
