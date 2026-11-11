@@ -26,7 +26,7 @@ import { PublikMarke, publikMarkeLank } from "./PublikMarke.jsx";
  * @param {import("react").ReactNode | ((sprak: "sv" | "en") => import("react").ReactNode)} props.children Innehållet, oftast `OpsDelad`. En funktion får sidans språk.
  * @param {import("react").ReactNode} [props.huvud] Appens märke, till vänster i huvudet. (0.204.0) Med `marke` står det efter märket.
  * @param {{ ljus: string, mork: string, namn: string }} [props.marke] (0.204.0) Appens ordmärke, samma prop och samma ritning som på gästens sida (`PublikMarke`): en bild per tema, bred och tätt beskuren,
- *   24 px hög. Med `omAppen` är det en länk till appens sida i en ny flik. Står före `huvud`, som finns kvar som förut.
+ *   32 px hög. Med `omAppen` är det en länk till appens sida i en ny flik. Står före `huvud`, som finns kvar som förut.
  * @param {string} [props.sprak] Språket om appen styr det.
  * @param {(sprak: string) => void} [props.onSprak] Anropas när besökaren väljer språk.
  * @param {{ href: string, namn: string }} [props.omAppen] (0.202.0) Appens namn och adress för sista raden, "Delat från {namn} ... Läs mer". Prövas som på gästens sida: bara https.
