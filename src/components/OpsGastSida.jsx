@@ -206,8 +206,8 @@ function provatOmAppen(omAppen) {
  *   anropa den när en åtgärd nekas (`aterkallad`), så byts allt mot texten direkt i stället för vid nästa minut. Utan den visas en text om att inbjudan inte går att visa.
  * @param {import("react").ReactNode} [props.huvud] Appens logga eller namn, till vänster i huvudet. Med `marke` står det efter märket (en länk tillbaka till hubben).
  * @param {{ ljus: string, mork: string, namn: string }} [props.marke] (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del A) Appens ordmärke, en URL per tema: en BRED bild som är
- *   tätt beskuren runt märket, som appens headerbild (1079 x 260, ungefär 4:1), inte fyrkantig konst med luft runt. Den ritas i samma ruta som skalets märke (40 px hög, högst
- *   `--logo-bredd` bred), fyller höjden och beskärs inte, så ett märke i 4:1 blir cirka 133 x 32 px (`PublikMarke`, 0.215.1). `namn` är bildens alternativtext.
+ *   tätt beskuren runt märket, som appens headerbild (1079 x 260, ungefär 4:1), inte fyrkantig konst med luft runt. Den ritas i `PublikMarke`s ruta (32 px hög sedan 0.215.1, högst
+ *   `--logo-bredd` bred), fyller höjden och beskärs inte, så appens bild (1079 x 260) blir cirka 133 x 32 px. `namn` är bildens alternativtext.
  * @param {{ href: string, namn: string }} [props.omAppen] (0.195.0, CP 2026-11-06) Appens egen sida om sig själv. Med den blir märket i huvudet en länk dit (ny flik), och sist i gruppens
  *   översikt står "{gruppens namn} samlar chatt, kalender och filer i {namn}. Läs mer" (0.198.0), med Läs mer som länk. Ramverket känner inte appens adresser, därför en prop.
  *   `href` måste vara `https:`; allt annat kastar. Utan den är märket en bild och raden saknas.

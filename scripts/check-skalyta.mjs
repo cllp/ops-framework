@@ -8142,7 +8142,7 @@ async function gastGrupp() {
         krav(telefon ? m.tablist === 0 && m.bottenrad === 1 && m.radknappar === 0 : m.tablist === 1 && m.bottenrad === 0, `${namn} sida (d): ${m.tablist} flikrader och ${m.bottenrad} bottenrader med ${m.radknappar} knappar, väntat ${telefon ? "ingen flikrad och en bottenrad utan plus och utan Meny" : "en flikrad och ingen bottenrad"}.`);
         krav(m.h1 === 1 && !m.overflow, `${namn} sida (d): ${m.h1} h1 (väntat 1), sidled ${m.overflow}.`);
         krav(m.lankar.length === 0 && !/Inställningar|Ekonomi|Appar|Hubb|Agent/.test(m.sidtext), `${namn} sida (d): sidan har en väg ut eller ett ord ur appens skal (${JSON.stringify(m.lankar)}).`);
-        // (d) ORDMÄRKET. 0.190.0 krävde minst 120 x 28 för att märket inte skulle bli obefintligt. 0.192.0 gör huvudet kompakt (CP: chatten ska bara vara chatt): märket är 24 px högt, hela märket syns, och det är mindre än det förra 40 px-huvudet. Golv: en synlig, laddad bild.
+        // (d) ORDMÄRKET. 0.190.0 krävde minst 120 x 28 för att märket inte skulle bli obefintligt. 0.192.0 gör huvudet kompakt (CP: chatten ska bara vara chatt): märket är 24 px högt (0.215.1 gör det 32 px högt, CP 2026-11-11: "Logotypen är liten..."), hela märket syns, och det är mindre än det förra 40 px-huvudet. Golv: en synlig, laddad bild.
         const mk = await page.evaluate(() => {
           const ruta = document.querySelector("[data-gast-marke]");
           const bilder = ruta ? [...ruta.querySelectorAll("img")].filter((b) => getComputedStyle(b).display !== "none") : [];
