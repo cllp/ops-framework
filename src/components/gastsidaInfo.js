@@ -10,6 +10,8 @@ import { createContext, useContext } from "react";
  *
  * `minne` och `inbjudan` är till för senast valda flik. Inbjudan är id:t, 64 hextecken. Minnet får bara flikens namn.
  * `omAppen` (0.195.0) är raden om appen sist i översikten, eller `null` när appen inte gett `omAppen` till `OpsGastSida`.
+ * `vaxlare` (0.215.0) är växlaren och Mina inbjudningar, överst i översikten. ⛔ Bara där: ovanför chatten tog den 68 px av loggen på en telefon och sköt
+ * Spara under tangentbordet (`check:skalyta`, gäster hela gruppen 390).
  *
  * @typedef {{
  *   integritet: import("react").ReactNode,
@@ -17,6 +19,7 @@ import { createContext, useContext } from "react";
  *   minne: import("../lib/gastminne.js").Gastminne | null,
  *   inbjudan: string | null,
  *   omAppen?: import("react").ReactNode,
+ *   vaxlare?: import("react").ReactNode,
  * }} GastsidaOversikt
  */
 

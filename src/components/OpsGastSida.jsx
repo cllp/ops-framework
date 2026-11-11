@@ -804,6 +804,7 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
 
   const grupplage = lage.fas === "klar" && svar?.funktion === "grupp";
   // Raden om appen sist i översikten (0.195.0). Bara i gruppen: den nämner gruppens namn, och en omröstning eller en händelse har ingen översikt.
+  const vaxlarRad = <GastVaxlare rader={vaxlare} visas={visasId} t={t} onVaxla={vaxla} onMina={() => { setFel(""); setLage({ fas: "mina" }); }} fel={vaxlarFel} />;
   const omAppenRad = appen && grupplage && typeof svar?.grupp?.namn === "string" ? (
     <p data-gast-om-appen="" className="m-0 max-w-prose text-meta text-publik-ljus-dampad">
       {t.omAppenRad.replace("{grupp}", svar.grupp.namn).replace("{namn}", appen.namn)}{" "}
@@ -937,11 +938,12 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
           </div>
         ) : (
           <div data-gast-klar="" key={sessionsnyckel ?? ""} className="flex min-w-0 flex-col gap-6">
-            {/* (0.215.0, lifehub.app#760 skiva 3) Växlaren överst: enhetens andra inbjudningar under sina grupper, och Mina inbjudningar sist. Med en enda inbjudan bara en liten länk. */}
-            <GastVaxlare rader={vaxlare} visas={visasId} t={t} onVaxla={vaxla} onMina={() => { setFel(""); setLage({ fas: "mina" }); }} fel={vaxlarFel} />
+            {/* (0.215.0, lifehub.app#760 skiva 3) Växlaren överst: enhetens andra inbjudningar under sina grupper, och Mina inbjudningar sist. Med en enda inbjudan bara en liten länk.
+                ⛔ För en gäst i en grupp står den överst i översikten (`GastsidaInfo.vaxlare`) och inte här: ovanför chatten tog den 68 px av loggen på en telefon (`check:skalyta`). */}
+            {svar && svar.funktion === "grupp" && renderGrupp ? null : vaxlarRad}
             {svar && svar.funktion === "grupp" ? (
               renderGrupp ? (
-                <GastsidaInfo.Provider value={{ integritet: gruppInfo, namn: gruppNamnBlock, minne: mem.current, inbjudan: aktivId.current, omAppen: omAppenRad }}>
+                <GastsidaInfo.Provider value={{ integritet: gruppInfo, namn: gruppNamnBlock, minne: mem.current, inbjudan: aktivId.current, omAppen: omAppenRad, vaxlare: vaxlarRad }}>
                   {renderGrupp({ grupp: svar.grupp, namn: typeof svar.namn === "string" ? svar.namn : "", sessionsnyckel: /** @type {string} */ (sessionsnyckel), uppdatera: async () => void (await hamta(/** @type {string} */ (sessionsnyckel), { tyst: true })) })}
                 </GastsidaInfo.Provider>
               ) : (
