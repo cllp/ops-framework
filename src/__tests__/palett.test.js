@@ -124,7 +124,7 @@ describe("oläsligt nekas, med en mening som säger varför", () => {
     const yta = fynd.find((f) => f.lage === "ljus" && f.text === "ink" && f.yta === "raised");
     expect(yta).toBeDefined();
     expect(yta?.kvot).toBeLessThan(4.5);
-    expect(yta?.meddelande.sv).toBe("Ljust läge: texten mot ytan är för svag, 2,32:1 där 4,5:1 behövs för att läsas. Gör texten mörkare eller ytan ljusare, eller tvärtom.");
+    expect(yta?.meddelande.sv).toBe("Ljust tema: texten mot ytan är för svag, 2,32:1 där 4,5:1 behövs för att läsas. Gör texten mörkare eller ytan ljusare, eller tvärtom.");
     expect(yta?.meddelande.en).toMatch(/^Light mode: text on the surface is too weak, 2\.32:1 where 4\.5:1/);
     expect(fynd.every((f) => f.lage === "ljus")).toBe(true);
   });
@@ -148,10 +148,10 @@ describe("bara #rrggbb", () => {
   });
 
   it("byggPalett kastar på en icke-färg, ett okänt fält och ett saknat läge", () => {
-    expect(() => byggPalett({ ...SESSIONSTUDIO, ljus: { ...SESSIONSTUDIO.ljus, text: "svart" } })).toThrow(/text i läget ljus är inte en färg/);
+    expect(() => byggPalett({ ...SESSIONSTUDIO, ljus: { ...SESSIONSTUDIO.ljus, text: "svart" } })).toThrow(/text i temat ljus är inte en färg/);
     expect(() => byggPalett({ ...SESSIONSTUDIO, hemlig: true })).toThrow(/känner inte hemlig/);
     expect(() => byggPalett({ ...SESSIONSTUDIO, ljus: { ...SESSIONSTUDIO.ljus, kant: "#000000" } })).toThrow(/känner inte kant/);
-    expect(() => byggPalett({ ljus: SESSIONSTUDIO.ljus })).toThrow(/saknar läget mork/);
+    expect(() => byggPalett({ ljus: SESSIONSTUDIO.ljus })).toThrow(/saknar temat mork/);
     expect(byggPalett({ ...SESSIONSTUDIO, ljus: { ...SESSIONSTUDIO.ljus, text: "#1A1A1A" } }).ljus.text).toBe("#1a1a1a");
   });
 

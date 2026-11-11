@@ -116,20 +116,20 @@ export function lasPalett(rad) {
  * @returns {Palett}
  */
 export function byggPalett(palett) {
-  if (!palett || typeof palett !== "object") throw new Error("Paletten måste vara ett ljust och ett mörkt läge.");
+  if (!palett || typeof palett !== "object") throw new Error("Paletten måste ha ett ljust och ett mörkt tema.");
   const extra = Object.keys(palett).filter((k) => !PALETT_LAGEN.includes(/** @type {any} */ (k)));
   if (extra.length > 0) throw new Error(`Paletten känner inte ${extra.join(", ")}.`);
   /** @type {any} */
   const ut = {};
   for (const lage of PALETT_LAGEN) {
     const f = /** @type {any} */ (palett)[lage];
-    if (!f || typeof f !== "object") throw new Error(`Paletten saknar läget ${lage}.`);
+    if (!f || typeof f !== "object") throw new Error(`Paletten saknar temat ${lage}.`);
     const okanda = Object.keys(f).filter((k) => !PALETT_NYCKLAR.includes(/** @type {any} */ (k)));
     if (okanda.length > 0) throw new Error(`Paletten känner inte ${okanda.join(", ")}.`);
     ut[lage] = {};
     for (const n of PALETT_NYCKLAR) {
       const v = normaliseraHex(f[n]);
-      if (!v) throw new Error(`${n} i läget ${lage} är inte en färg i formen #rrggbb.`);
+      if (!v) throw new Error(`${n} i temat ${lage} är inte en färg i formen #rrggbb.`);
       ut[lage][n] = v;
     }
   }
@@ -276,7 +276,7 @@ const PAR = Object.freeze([
 ]);
 
 /** Lägenas namn för användaren. */
-const LAGESNAMN = Object.freeze({ ljus: { sv: "Ljust läge", en: "Light mode" }, mork: { sv: "Mörkt läge", en: "Dark mode" } });
+const LAGESNAMN = Object.freeze({ ljus: { sv: "Ljust tema", en: "Light mode" }, mork: { sv: "Mörkt tema", en: "Dark mode" } });
 
 /**
  * @typedef {object} Kontrastfynd
