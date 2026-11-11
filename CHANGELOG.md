@@ -23,6 +23,21 @@ Appens läsning var live, men vyn läste varje mapp en gång, när den fälldes 
 - **"Hämtad från GitHub 11 nov 10:05"**: när projektets mapp hämtades. `RepoLasning.hamtad` (ISO 8601, när appen frågade GitHub) vinner; utan den är det när svaret kom fram. Ett avvisat löfte har ingen tid.
 - **Mappen i repot** (`RepoLasning.kalla`, `{ repo, mapp, url? }`): `ägare/namn/mapp`, eller `ägare/namn (hela repot)`, med en länk till mappen när adressen ligger på github.com. Bara text att visa: vyn läser fortfarande bara vägar inom projektets mapp. En `kalla` med fel form eller en väg uppåt ritas inte.
 
+
+### Huvudmenyn: reglaget säger vad som syns (cllp/lifehub.app#776)
+
+"Visa i huvudmenyn" säger vad som syns i huvudet, inte bara vad som är sparat (cllp/lifehub.app#776, CP 2026-11-11: "Ikonen för bibliotek syns inte i gruppen TAM trots att den står som visas i huvudmeny. Den finns ingenstans."). Inget är brytande: utan `ram.dold` ändras reglaget bara för en pinne till en app som inte är på.
+
+**Skärmtid (frågan till ärendet):** ingen ny vy och inget nytt val. Reglaget slutar påstå något som inte syns, och raden säger varför, så ingen behöver leta efter en ikon som inte finns.
+
+#### Rättat
+
+- **`OpsModulRam`, reglaget "Visa i huvudmenyn"** var på när modulens id stod i `groups.huvudmeny`, också när modulen inte var på. Ikonen ritas ur `moduler` ∩ `huvudmeny` (`huvudmenyPoster`), så reglaget sade på för en ikon som inte stod någonstans. Nu är det på bara när appen är på och fäst.
+
+#### Nytt
+
+- **`ram.dold`** (`{ sv, en }`, frivillig): appen är installerad men syns inte i gruppen, och skälet med ord. I LifeHub är det en app hubbadmin gjort otillgänglig för gruppen: läsvägen filtrerar bort den ur `moduler`, men ramen får den sparade raden, eftersom På och Ordning sparar ur den och inte får tappa det dolda. Med `dold` är "Visa i huvudmenyn" av och låst, skälet står som rad under Allmänt (`data-modul-dold`) och som reglagets hint, och den sparade pinnen står kvar. `kravRam` kastar för ett `dold` utan ord.
+
 ---
 
 ## 0.215.1
