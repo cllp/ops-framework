@@ -1011,8 +1011,6 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   const rubrik = <h1 data-gast-grupp-namn="" className="m-0 min-w-0 text-titel text-ink wrap-anywhere">{grupp.namn}</h1>;
   const oversikt = (
     <div data-gast-oversikt="" className="flex min-w-0 flex-col gap-6 md:max-w-2xl">
-      {/* (0.215.0, #760) Växlaren och Mina inbjudningar överst i översikten och inte ovanför varje flik: på chatten hade den tagit loggens höjd (`gastsidaInfo.js`). */}
-      {sida?.vaxlare ?? null}
       {/* ⛔ (0.198.0, förslag B) Gruppens egen beskrivning och "Du är gäst." på samma rad. Utan beskrivning står bara "Du är gäst.". */}
       <div className="flex min-w-0 flex-col gap-2">
         {smal ? rubrik : null}
@@ -1071,6 +1069,9 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
         <GastHemskarm sprak={sprak} />
         {sida?.integritet ?? null}
       </div>
+      {/* (0.215.0, #760) Växlaren och Mina inbjudningar sist i översikten, före raden om appen, och inte ovanför varje flik: ovanför chatten tog den loggens höjd,
+          och överst i översikten sköt den namnrutans Spara under tangentbordet (`check:skalyta`, gäster hela gruppen 390, se `gastsidaInfo.js`). */}
+      {sida?.vaxlare ?? null}
       {sida?.omAppen ?? null}
     </div>
   );

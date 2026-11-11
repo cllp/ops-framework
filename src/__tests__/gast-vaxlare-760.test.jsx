@@ -61,6 +61,20 @@ const fyra = () =>
     [`ops-gast:flik:${GRUPP}`]: "chatt",
   });
 
+/**
+ * Gruppvyn i proven: som `OpsGastGrupp` ritar den växlaren ur `GastsidaInfo` (0.215.0). Gästsidan ritar den inte själv för en gäst i en grupp.
+ * @param {{ namn: string }} p
+ */
+function Gruppvy({ namn }) {
+  const info = useGastsidaInfo();
+  return (
+    <div>
+      <div data-grupp-visas="">{namn}</div>
+      {info?.vaxlare}
+    </div>
+  );
+}
+
 const rita = (/** @type {Record<string, any>} */ props = {}) => {
   const lagring = props.lagring ?? fyra();
   const onHamta = vi.fn(async ({ sessionsnyckel }) => SVAR[sessionsnyckel] ?? { ok: false, orsak: "nej" });
@@ -71,7 +85,7 @@ const rita = (/** @type {Record<string, any>} */ props = {}) => {
       onLos={vi.fn()}
       onHamta={onHamta}
       onNyLank={onNyLank}
-      renderGrupp={({ grupp }) => <div data-grupp-visas="">{grupp.namn}</div>}
+      renderGrupp={({ grupp }) => <Gruppvy namn={grupp.namn} />}
       renderSak={({ sak }) => <div data-sak="">{sak.titel}</div>}
       intervallMs={0}
       lagring={lagring}
@@ -192,6 +206,7 @@ describe("⛔ Logga ut glömmer allt", () => {
         <div>
           <div data-grupp-visas="">{namn}</div>
           {info?.integritet}
+          {info?.vaxlare}
         </div>
       );
     };
@@ -213,6 +228,7 @@ describe("⛔ Logga ut glömmer allt", () => {
         <div>
           <div data-grupp-visas="">{namn}</div>
           {info?.integritet}
+          {info?.vaxlare}
         </div>
       );
     };
@@ -225,5 +241,14 @@ describe("⛔ Logga ut glömmer allt", () => {
     await waitFor(() => expect(document.querySelector("[data-grupp-visas]")).toHaveTextContent("Källan"));
     await vanta('[data-gast-vaxlare="enkel"]');
     expect(document.querySelector(`[data-gast-vaxlare-rad="${PROJEKT}"]`)).toBeNull();
+  });
+});
+
+describe("⛔ var växlaren står för en gäst i en grupp (check:skalyta, 0.215.0)", () => {
+  it("bara i gruppvyn via GastsidaInfo, aldrig ovanför den: en gruppvy som inte ritar den visar ingen växlare", async () => {
+    rita({ renderGrupp: ({ grupp }) => <div data-grupp-visas="">{grupp.namn}</div> });
+    await waitFor(() => expect(document.querySelector("[data-grupp-visas]")).not.toBeNull());
+    await act(async () => {});
+    expect(document.querySelector("[data-gast-vaxlare]")).toBeNull();
   });
 });

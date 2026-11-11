@@ -939,7 +939,7 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
         ) : (
           <div data-gast-klar="" key={sessionsnyckel ?? ""} className="flex min-w-0 flex-col gap-6">
             {/* (0.215.0, lifehub.app#760 skiva 3) Växlaren överst: enhetens andra inbjudningar under sina grupper, och Mina inbjudningar sist. Med en enda inbjudan bara en liten länk.
-                ⛔ För en gäst i en grupp står den överst i översikten (`GastsidaInfo.vaxlare`) och inte här: ovanför chatten tog den 68 px av loggen på en telefon (`check:skalyta`). */}
+                ⛔ För en gäst i en grupp står den sist i översikten (`GastsidaInfo.vaxlare`) och inte här: ovanför chatten tog den 68 px av loggen på en telefon (`check:skalyta`). */}
             {svar && svar.funktion === "grupp" && renderGrupp ? null : vaxlarRad}
             {svar && svar.funktion === "grupp" ? (
               renderGrupp ? (
