@@ -1534,7 +1534,8 @@ export function createGastService(konfig) {
           p = null;
         }
         if (!p) continue;
-        ut.push({ id: String(r.id), groupId: String(r.groupId), namn: text(g.namn), projekt: { tagg, namn: text(p.namn) } });
+        // ⛔ (#760, granskningen B1) RADEN HETER PROJEKTET, ALDRIG GRUPPEN: en projektgäst ser aldrig gruppens namn (`hamta`, brevet, växlaren). Kontot är en genväg till samma gästsida och får inte säga mer än länken.
+        ut.push({ id: String(r.id), groupId: String(r.groupId), namn: text(p.namn), projekt: { tagg, namn: text(p.namn) } });
         continue;
       }
       ut.push({ id: String(r.id), groupId: String(r.groupId), namn: text(g.namn) });

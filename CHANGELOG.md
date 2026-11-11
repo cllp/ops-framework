@@ -15,11 +15,11 @@ Gäst i ett projekt (cllp/lifehub.app#760 skiva 1) och projektets egen chatt (sk
 
 ### Nytt
 
-- **Omfånget `{ slag: "projekt", tagg }`** (`GASTSLAG`, `gastomfangsnyckel` ger `projekt:<tagg>`, taggen i formen `PROJEKTTAGGFORM`). En gäst i gruppen (`arGruppslag`, `GASTGRUPPSLAG`): samma inloggning, samma flikar, samma fem platser och samma förvaltning som en gruppgäst, men bara `GASTPROJEKTFUNKTIONER` (kalender, bibliotek, ärenden).
+- **Omfånget `{ slag: "projekt", tagg }`** (`GASTSLAG`, `gastomfangsnyckel` ger `projekt:<tagg>`, taggen i formen `PROJEKTTAGGFORM`). En gäst i gruppen (`arGruppslag`, `GASTGRUPPSLAG`): samma inloggning, samma flikar, samma fem platser och samma förvaltning som en gruppgäst, men bara `GASTPROJEKTFUNKTIONER` (kalender, bibliotek, ärenden; projektets egen chatt kommer i skiva 2 nedan).
 - **`createGastService({ grupp: { projekt: { urval } } })`**: appens projekt. `urval({ groupId, tagg })` ger `null` (finns inte, arkiverat) eller `{ namn, status, texter, handelse, arende }`. `bjud({ slag: "projekt", groupId, tagg, ... })` kräver ägare eller admin och att projektet finns.
 - **Urvalet görs på servern i varje anrop** (`gruppSession`): taggen ur inbjudan, aldrig ur anropet. Kalendern och översikten: bara händelser där `handelse(h)` är `true`. Biblioteket, filerna och bilderna: bara projektets plats (`platsBibliotek(groupId, tagg)`). Ärendena: alla där `arende(rad)` är `true`, med `hosDig` (nytt fält i `GASTARENDEFALT`, bara för en projektgäst). Ett urval som kastar eller svarar något annat än `true` är ett nej; ett projekt som försvunnit ger `saknas`.
 - **`hamta` för en projektgäst**: `funktion: "grupp"` (samma vy), `grupp.namn` är projektets namn och `grupp.projekt` kortet (`GASTPROJEKTKORTFALT`: tagg, läge, texter, med appens ord på båda språken).
-- **`OpsGastGrupp`** med `grupp.projekt`: projektets kort på översikten i stället för gruppens beskrivning, orden om projektet, ingen Chatt-flik, ingen svarsrad på en händelse och inget Svara i kalenderrutan. **`OpsGastArenden`**: Markera klar bara när `hosDig` inte är `false`, och orden "Projektets ärenden" (`projekt_`-orden). **`OpsGastLista`** med `projekt={{ tagg }}`: orden och bekräftelsen för ett projekt, en inbjudan heter "Projekt: <tagg>", och Bjud in igen gäller bara projektets egna rader. **`gastBehorighetsrader`**: raderna för en projektgäst.
+- **`OpsGastGrupp`** med `grupp.projekt`: projektets kort på översikten i stället för gruppens beskrivning, orden om projektet, ingen Chatt-flik i skiva 1 (skiva 2 ger projektets chatt), ingen svarsrad på en händelse och inget Svara i kalenderrutan. **`OpsGastArenden`**: Markera klar bara när `hosDig` inte är `false`, och orden "Projektets ärenden" (`projekt_`-orden). **`OpsGastLista`** med `projekt={{ tagg }}`: orden och bekräftelsen för ett projekt, en inbjudan heter "Projekt: <tagg>", och Bjud in igen gäller bara projektets egna rader. **`gastBehorighetsrader`**: raderna för en projektgäst.
 
 ### Skiva 2: projektets chatt
 
@@ -41,7 +41,7 @@ Gäst i ett projekt (cllp/lifehub.app#760 skiva 1) och projektets egen chatt (sk
 
 ### Skiva 4: projektet via kontot
 
-- **`minaGruppgaster`** ger också en levande inbjudan till ett projekt som finns, med `projekt: { tagg, namn }`. **`oppnaGruppgast`** öppnar den med samma session som länken. Inget medlemskap skrivs.
+- **`minaGruppgaster`** ger också en levande inbjudan till ett projekt som finns, med `projekt: { tagg, namn }`. ⛔ Raden heter projektet (`namn` är projektets namn), aldrig gruppen: en projektgäst ser inte gruppens namn på gästsidan, i brevet eller i växlaren, och kontot får inte säga mer än länken (granskningen B1). **`oppnaGruppgast`** öppnar den med samma session som länken. Inget medlemskap skrivs.
 
 ### Med flit inte med
 

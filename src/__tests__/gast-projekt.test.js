@@ -565,16 +565,18 @@ describe("skiva 2: projektets chatt för gästen (CP \"kör chatt\")", () => {
 });
 
 describe("skiva 4: projektet i hubbens lista och öppnat med kontot", () => {
-  it("minaGruppgaster ger projektet med gruppens och projektets namn, bara med bevisad adress, och aldrig ett arkiverat projekt", async () => {
+  it("⛔ minaGruppgaster ger projektet under projektets namn och aldrig gruppens, bara med bevisad adress, och aldrig ett arkiverat projekt", async () => {
     const h = bygg();
     const g = await projektGast(h);
     await h.tjanst.bjud({ uid: AGARE, slag: "grupp", groupId: GRUPP, epost: "per@extern.se" });
     const ut = await h.tjanst.minaGruppgaster({ epost: "per@extern.se", epostBekraftad: true });
     expect(ut.gruppgaster.map((r) => [r.namn, r.projekt?.namn ?? null])).toEqual([
       ["Källan", null],
-      ["Källan", "Ombyggnad av köket"],
+      ["Ombyggnad av köket", "Ombyggnad av köket"],
     ]);
-    expect(ut.gruppgaster[1]).toEqual({ id: g.id, groupId: GRUPP, namn: "Källan", projekt: { tagg: "koket", namn: "Ombyggnad av köket" } });
+    expect(ut.gruppgaster[1]).toEqual({ id: g.id, groupId: GRUPP, namn: "Ombyggnad av köket", projekt: { tagg: "koket", namn: "Ombyggnad av köket" } });
+    // ⛔ Gruppens namn står ingenstans på projektets rad (granskningen B1).
+    expect(JSON.stringify(ut.gruppgaster[1])).not.toContain("Källan");
     expect(await h.tjanst.minaGruppgaster({ epost: "per@extern.se", epostBekraftad: false })).toEqual({ gruppgaster: [] });
     /** @type {any} */ (PROJEKT.koket).arkiverad = true;
     try {
