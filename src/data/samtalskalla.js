@@ -1184,7 +1184,9 @@ export function createSamtalskalla(konfig) {
     await kalla.create(tystvag(sid), { id: uid, tyst: pa });
   }
   const tystfunktioner = tyst === undefined ? {} : { tyst, tystFor, sattTyst };
-  const projektfunktioner = projekt === true ? { oppnaProjekt } : {};
+  // ⛔ (0.215.0, #760) SOM OMRÖSTNINGARNA: spridningen står som `{}` för kompilatorn, och typen nås genom `harProjekt(kalla)`. Med en spridning till blev den härledda typen för lång för
+  // deklarationsfilen (TS7056 i `npm pack`, mätt 2026-11-11 i `samtalskalla.js` och i `OpsMeddelanden.jsx`). I körningen är `oppnaProjekt` där som vanligt.
+  const projektfunktioner = /** @type {{}} */ (projekt === true ? { oppnaProjekt } : {});
 
   return Object.freeze({
     lista,
