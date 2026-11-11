@@ -9,6 +9,26 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.217.0
+
+"I repot" kan stå på gruppens eget bibliotek, inte bara på en egen plats (cllp/lifehub.app#785, CP 2026-11-11: "\"I repot\", kan det vara en standard alternativ för alla bibliotek som är kopplade till Github? inte bara projekt", och "kör"). Inget brytande: en app som bara skickar `repoLasare` på ett projekts plats ser ingen skillnad.
+
+**Skärmtid (frågan till ärendet):** ingen ny vy. Samma rad på fler ställen, så den som söker en fil i gruppens repo inte behöver gå via ett projekt.
+
+### Rotorsaken
+
+`OpsBibliotek` ritade "I repot" bara när platsen var en egen plats (`arPlatsBibliotek(plats)`), alltså ett beslut om VAR repot finns som hörde till appen. En app som skickade `repoLasare` i gruppens eget bibliotek fick ingen rad och inget fel.
+
+### Ändrat
+
+- **`OpsBibliotek`, "I repot":** ritas med `repoLasare` på gruppens eget bibliotek (grupp-id:t, `ID_FORM`) och på en egen plats (`repoplatsForm`). Mitt bibliotek, en händelses och ett ärendes plats får den aldrig, och aldrig en inbäddad lista. Om platsen har ett repo avgör appen genom att skicka `repoLasare` eller inte. Läsaren frågas med platsen som förut (`{ plats: <grupp-id>, sokvag }` på gruppens bibliotek), och en fil öppnas i läsläget med platsen som `groupId`.
+
+### Prov
+
+- `bibliotek-repo.test.jsx`: gruppens eget bibliotek med `repoLasare` får raden, och läsaren frågas med gruppens id. Rött med 0.216.0 (raden saknas), grönt med 0.217.0. Mitt bibliotek, en händelses och ett ärendes plats, en inbäddad lista och ett bibliotek utan `repoLasare` får ingen rad och frågar inte.
+
+---
+
 ## 0.216.0
 
 "I repot" läser om på begäran, säger när det lästes och vilken mapp i repot projektet är kopplat till (cllp/lifehub.app#775, och #774 punkt 2). CP 2026-11-11: "Projekt filer i repot uppdateras inte, behöver reload knapp och ett datum för senaste sync." och "i repot, visa vilken mapp som är kopplad till projektet i repositoriet". Inget brytande: en app som inte skickar de nya fälten får Läs om och tiden då svaret kom fram, och ingen rad om mappen.
