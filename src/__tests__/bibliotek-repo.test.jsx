@@ -451,8 +451,22 @@ describe("Läs om och när det lästes (0.216.0)", () => {
     fallUt(b.container);
     await waitFor(() => expect(b.container.querySelector('[data-bibliotek-repo-lage="fel"]')).not.toBeNull());
     expect(sektion(b.container).querySelector("[data-bibliotek-repo-hamtad]")).toBeNull();
+    b.unmount();
+    // ⛔ Granskningen av PR 575: ett LÖST svar med läget fel är inte heller en läsning. Förut stod "Hämtad från GitHub" bredvid felraden.
+    const c = visa({ repoLasare: async () => ({ lage: "fel", hamtad: "2026-11-11T10:05:00.000Z", kalla: { repo: "cllp/tam", mapp: "" } }) });
+    fallUt(c.container);
+    await waitFor(() => expect(c.container.querySelector('[data-bibliotek-repo-lage="fel"]')).not.toBeNull());
+    expect(sektion(c.container).querySelector("[data-bibliotek-repo-hamtad]")).toBeNull();
+    expect(sektion(c.container).textContent).not.toMatch(/Hämtad från GitHub/);
+    // Statusraden finns ändå, tom, så att den första tiden läses upp när den kommer.
+    expect(sektion(c.container).querySelector('[data-bibliotek-repo-huvud] [role="status"]')).not.toBeNull();
+    c.unmount();
+    const d = visa({ repoLasare: () => Promise.reject(new Error("nätet")) });
+    fallUt(d.container);
+    await waitFor(() => expect(d.container.querySelector('[data-bibliotek-repo-lage="fel"]')).not.toBeNull());
+    const b2 = d;
     // Läs om finns också efter ett fel: det är där den behövs mest.
-    expect(within(sektion(b.container)).getByRole("button", { name: "Läs om mapparna från GitHub" })).toBeTruthy();
+    expect(within(sektion(b2.container)).getByRole("button", { name: "Läs om mapparna från GitHub" })).toBeTruthy();
   });
 
   it("mappen i repot står överst och länkar till mappen på github.com, och hela repot säger det", async () => {
@@ -477,6 +491,11 @@ describe("Läs om och när det lästes (0.216.0)", () => {
       [{ repo: "cllp/tam", mapp: "../hemligt" }, null],
       [{ repo: "inte ett repo", mapp: "a" }, null],
       [{ repo: "cllp/tam", mapp: "a", url: "https://elak.example/a" }, "a"],
+      [{ repo: "cllp/tam", mapp: "a", url: "javascript:alert(1)" }, "a"],
+      [{ repo: "cllp/tam", mapp: "a", url: "//github.com/cllp/tam" }, "a"],
+      [{ repo: "cllp/tam", mapp: "a", url: "https://github.com.evil.com/cllp/tam" }, "a"],
+      [{ repo: "../..", mapp: "" }, null],
+      [{ repo: "cllp/..", mapp: "a" }, null],
       [null, null],
       ["text", null],
     ];

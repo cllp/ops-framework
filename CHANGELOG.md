@@ -23,6 +23,7 @@ Appens läsning var live, men vyn läste varje mapp en gång, när den fälldes 
 - **"Hämtad från GitHub 11 nov 10:05"**: när projektets mapp hämtades. `RepoLasning.hamtad` (ISO 8601, när appen frågade GitHub) vinner; utan den är det när svaret kom fram. Ett avvisat löfte har ingen tid.
 - **Mappen i repot** (`RepoLasning.kalla`, `{ repo, mapp, url? }`): `ägare/namn/mapp`, eller `ägare/namn (hela repot)`, med en länk till mappen när adressen ligger på github.com. Bara text att visa: vyn läser fortfarande bara vägar inom projektets mapp. En `kalla` med fel form eller en väg uppåt ritas inte.
 
+- **Granskningen av PR 575:** ingen tid står när läget är `fel`, eftersom ett löst fel lika lite som ett avvisat löfte är en läsning. Statusraden finns alltid, också tom, så att en skärmläsare läser upp den första tiden. En `kalla` med `.` eller `..` i `repo` ritas inte. Prov för `javascript:`, `//github.com` och `github.com.evil.com` i adressen.
 
 ### Huvudmenyn: reglaget säger vad som syns (cllp/lifehub.app#776)
 

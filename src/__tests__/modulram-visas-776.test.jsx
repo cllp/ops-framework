@@ -5,7 +5,7 @@ import { huvudmenyPoster } from "../lib/hubb.js";
 import { defineModule } from "../lib/modul.js";
 
 /**
- * "Visa i huvudmenyn" säger vad som syns i huvudet, inte bara vad som är sparat (Ej utgivet, cllp/lifehub.app#776).
+ * "Visa i huvudmenyn" säger vad som syns i huvudet, inte bara vad som är sparat (0.216.0, cllp/lifehub.app#776).
  *
  * ⛔ HÄNDELSEN: CP 2026-11-11, gruppen TAM: "Ikonen för bibliotek syns inte i gruppen TAM trots att den står som visas i huvudmeny. Den finns ingenstans."
  * Ikonen ritas ur `moduler` ∩ `huvudmeny` (`huvudmenyPoster`), och i LifeHub ur `moduler` utan de appar hubbadmin gjort otillgängliga för gruppen. Reglaget läste bara

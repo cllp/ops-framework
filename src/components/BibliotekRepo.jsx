@@ -84,7 +84,7 @@ const tidUr = (v) => (typeof v === "string" && v !== "" && !Number.isNaN(Date.pa
 function kallaUr(v) {
   if (v === null) return null;
   const k = /** @type {any} */ (v);
-  if (!k || typeof k !== "object" || typeof k.repo !== "string" || !/^[^/\s]+\/[^/\s]+$/.test(k.repo) || typeof k.mapp !== "string" || (k.mapp !== "" && !arRelativSokvag(k.mapp))) return undefined;
+  if (!k || typeof k !== "object" || typeof k.repo !== "string" || !/^[^/\s]+\/[^/\s]+$/.test(k.repo) || k.repo.split("/").some((/** @type {string} */ d) => d === "." || d === "..") || typeof k.mapp !== "string" || (k.mapp !== "" && !arRelativSokvag(k.mapp))) return undefined;
   return { repo: k.repo, mapp: k.mapp, ...(typeof k.url === "string" && k.url.startsWith("https://github.com/") ? { url: k.url } : {}) };
 }
 
@@ -248,13 +248,15 @@ export function BibliotekRepo({ plats, lasare, githubLasare, onLagg }) {
 
 /**
  * Raden överst i "I repot" (0.216.0, cllp/lifehub.app#775 och #774 punkt 2): mappen i repot, när den hämtades och Läs om. Innan projektets mapp svarat första gången står bara Läs om, så att raden inte hoppar.
- * ⛔ Tiden är appens `hamtad` (när GitHub frågades), och utan den när svaret kom fram. Ett avvisat löfte har ingen tid: inget lästes.
+ * ⛔ Tiden är appens `hamtad` (när GitHub frågades), och utan den när svaret kom fram. Ett avvisat löfte och ett svar med läget `fel` har ingen tid:
+ * inget lästes (granskningen av PR 575: "Hämtad från GitHub" stod förut bredvid felraden, en synk som aldrig skedde, regel 5).
+ * ⛔ Statusraden finns alltid, också tom, så att en skärmläsare läser upp den första tiden (en live-region som monteras med sitt innehåll läses ofta inte).
  *
  * @param {{ rot: { svar: RepoLasning | null, kom: string } | null, lasOm: () => Promise<unknown>, o: (k: string, vard?: Record<string, string>) => string, sprak: string }} props
  */
 function Huvud({ rot, lasOm, o, sprak }) {
   const kalla = rot?.svar?.kalla;
-  const tid = rot?.svar ? rot.svar.hamtad ?? rot.kom : null;
+  const tid = rot?.svar && rot.svar.lage !== "fel" ? rot.svar.hamtad ?? rot.kom : null;
   const vag = kalla ? (kalla.mapp ? `${kalla.repo}/${kalla.mapp}` : `${kalla.repo} (${o("helaRepot")})`) : "";
   return (
     <div data-bibliotek-repo-huvud="" className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
@@ -269,11 +271,9 @@ function Huvud({ rot, lasOm, o, sprak }) {
           )}
         </span>
       ) : null}
-      {tid ? (
-        <span role="status" data-bibliotek-repo-hamtad={tid} className="text-meta text-ink-muted">
-          {o("hamtad", { tid: formatDagOchKlockslag(tid, { locale: sprak }) })}
-        </span>
-      ) : null}
+      <span role="status" data-bibliotek-repo-hamtad={tid ?? undefined} className="text-meta text-ink-muted empty:hidden">
+        {tid ? o("hamtad", { tid: formatDagOchKlockslag(tid, { locale: sprak }) }) : ""}
+      </span>
       <span className="min-w-0 flex-1" aria-hidden="true" />
       <OpsButton variant="secondary" size="sm" ariaLabel={o("lasOmEtikett")} onClick={lasOm}>{o("lasOm")}</OpsButton>
     </div>
