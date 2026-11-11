@@ -9,6 +9,36 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.214.0
+
+Omröstningen i chatten läser alternativ och röster per omröstning (cllp/lifehub.app#742, skiva 2). ⛔ Brytande för den som anropar källans läsningar direkt (se nedan); vyn och reglerna är oförändrade för appen. Inget nytt index och inga nya regler.
+
+### Rättat
+
+- **Äldre omröstningar visade fel antal eller "Inga alternativ än."** (cllp/lifehub.app#742, granskningen av PR 566). Skiva 1 läste de 500 senaste alternativen och de 500 senaste rösterna för hela samtalet, med en lyssnare per samling. Med 30 omröstningar och 20 röster var (600 röster) föll de äldsta omröstningarnas röster ur fönstret och korten visade 0 röster, och en omröstning med 500 alternativ skrivna förbi byggaren (reglerna kan inte räkna) tryckte ut en annan omröstnings alternativ, så att den visade "Inga alternativ än." och "Lägg till alternativ" prövade dubbletten mot en tom lista.
+  - **Nu läser varje kort sin omröstning:** `lasOmrostningsval(sid, mid)`, `lasOmrostningsroster(sid, mid)`, `prenumereraOmrostningsval(sid, mid, lyssnare)` och `prenumereraOmrostningsroster(sid, mid, lyssnare)` frågar med likhet på `mid` och ett tak per omröstning: `OMROSTNINGSVALTAK` (härlett, lika med `MAX_ALTERNATIV`, 20) och `OMROSTNINGSROSTTAK` (500, en **bedömning**, samma tal som skiva 1 hade för hela samtalet). Källan läser en rad över taket, så `fler` betyder att fler finns och inte att taket råkade fyllas. Det som fyller en omröstning rör ingen annan.
+  - **Taket och läsfelet står i kortet** de gäller (`data-omrostning-fler`, `role="status"`, "Alla röster och alternativ i omröstningen visas inte."; `data-omrostningsfel="lasa"`, "Omröstningen kunde inte hämtas."), inte överst i loggen långt från kortet. Texterna `omrostningarFel` och `omrostningarFler` har nya förval. En nekad röst står kvar som en rad i loggen.
+  - **"Lägg till alternativ" erbjuds bara när listan är läst och hel**, så taket och dubbletten prövas alltid mot omröstningens alla alternativ. "Inga alternativ än." står först när läsningen svarat, inte medan den pågår.
+  - ⛔ **Frågan sorterar inte, och det är därför inget index behövs.** Likhet på ett fält klarar sig på Firestores eget enfältsindex; likhet på `mid` och sortering på `tid` hade krävt ett sammansatt index som appen måste deploya före webben. Ordningen i kortet räknas ändå fram i `summeraOmrostning`. Följden: når en omröstning sitt tak är urvalet det Firestore ger (dokument-id), och kortet säger att alla inte visas. Läsregeln är `opsISamtal(sid)` och beror inte på raden, så en fråga filtrerad på `mid` släpps igenom som förut. Provat i Firestore-emulatorn genom appens kedja i den oberoende granskningen (2026-11-11): `chattnatt.test.mjs` med `mid` på raderna 210, 219 och 226 plus ett prov för läsning, lyssnare, tom omröstning och en främling som nekas, 15 av 15 gröna.
+  - ⛔ **(bedömning) En lyssnare per kort i stället för en per samtal.** Två lyssnare per omröstning som är laddad i loggen (en sida är 50 meddelanden). Ärendet föreslog `where mid in [...]` med högst 30 per fråga för färre lyssnare; källans kontrakt har bara likhet, och `in` hade varit ett nytt villkor i alla adaptrar.
+  - Fältet "Nytt alternativ" (ärendets QA-punkt) rättades redan i 0.213.0 och är orört.
+
+### Brytande
+
+- `lasOmrostningsval`, `lasOmrostningsroster`, `prenumereraOmrostningsval` och `prenumereraOmrostningsroster` tar `mid` efter `sid`, och kastar utan den. `OMROSTNINGSTAK` är borttaget (`OMROSTNINGSVALTAK` och `OMROSTNINGSROSTTAK` i stället).
+- ⛔ **Appen:** lifehub.app `rules/__tests__/chattnatt.test.mjs` anropar `lasOmrostningsval(grupp)` och `lasOmrostningsroster(grupp)` utan `mid` (raderna 210, 219 och 226, mätt 2026-11-10 via GitHub). Ompinningen behöver ge dem omröstningens id (`m.id` eller `mid`), och kan då släppa filtreringen på `mid` efteråt. Kod-sökningen i cllp gav inga andra anrop.
+
+### Mätt, inte ändrat
+
+- **TALK:s igenkänningsrad (0.213.0) laddas inte lat.** Appens mätning gav +2 003 byte gzip i `rostsumma` för 0.213.0, och raden pekades ut som orsaken. Mätt med esbuild (minifierat, gzip, paketets `sideEffects`) är TALK:s startväg (`useTalk` och allt den importerar statiskt) 11 804 byte i 0.212.1 och 12 194 i 0.213.0, alltså +390; skalet (`OpsAppShell`) +487. Per modul (minifierat, gzip) växte 0.213.0 i `OpsMeddelanden` +979, `BilageKopiering` +1 001, `OpsMarkdown` +342 och `bibliotekkalla` +258, mot `talk.js` +210 och `OpsTalk` +226. Den större delen av ökningen är alltså chattens, inte TALK:s (**hypotes** för appens bit: att det är just de modulerna som ligger i `rostsumma` är inte mätt i appen). Att lägga raden bakom en dynamisk import provades (lokal gren `natt/0214-talkfelrad-lat`, med prov och en rad i `check:delbarhet`) och gjorde startfilen **större**: mätt med Vite mot det byggda paketet växte `OpsAppShell` från 79 323 till 79 517 byte gzip, eftersom det som flyttas ut är 382 byte gzip och laddaren kostar mer.
+
+- **Lyssnarna per kort, mätt i granskningen:** 50 omröstningar i ett samtal ger 100 aktiva lyssnare, och 0 är kvar efter byte av samtal och avmontering. Att lyssna bara på kort som syns, och den lata laddningen av kortet som tillägget i #742 bad om, är inte gjorda här. De står i cllp/lifehub.app#764.
+
+### Prov
+
+- **`omrostning-per-omrostning-742.test.jsx`**, 4 prov: 30 omröstningar med 20 röster var i samma samtal, där varje kort ska visa "Fredag, 20 röster" och "20 har röstat" (**golv**: alla 30 kort mätta); en omröstning med 500 alternativ förbi byggaren, där en annan omröstning ska visa sina två alternativ, den fulla ska visa 20 och raden om taket i sitt eget kort och inget "Lägg till alternativ", och dubbletten i den andra ska prövas mot dess egna alternativ; källans frågor (likhet på `mid`, taket plus en, ingen sortering) för läsning och lyssnare; och att `fler` är exakt vid taket och en över. Mot 0.213.0 (7692180): 4 av 4 röda. Med rättningen: 4 av 4 gröna.
+- **`chatt-omrostning.test.jsx`** följer det nya gränssnittet (läsningarna tar `mid`, frågan per omröstning, läsfelet i kortet): 21 av 21 gröna.
+
 ## 0.213.0
 
 Chattens bilagor, omnämnanden och omröstningskortets fält (cllp/lifehub.app#751, #742), och kopieringen av en bilaga till Biblioteket (cllp/lifehub.app#752). TALK:s andra omgång på iPhone lämnar en hel felrapport (cllp/lifehub.app#253). Inget brytande. ⛔ Appen behöver ta emot de nya fälten (`DIAGNOS` i lifehub.app `web/src/data/felrapporter.js`), annars utelämnas de.

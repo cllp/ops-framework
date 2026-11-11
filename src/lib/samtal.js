@@ -989,11 +989,33 @@ export const OMROSTNINGSVALFALT = /** @type {const} */ (["mid", "text", "av", "t
 /** Fälten en röst får bära. */
 export const OMROSTNINGSROSTFALT = /** @type {const} */ (["mid", "av", "val", "tid"]);
 
-/**
- * Hur många av de senaste alternativen och rösterna ett samtal läser, var för sig. En lyssnare per samling, inte en per meddelande.
- * ⛔ (bedömning) Samma tal som reaktionerna. Når läsningen taket säger vyn det (regel 5).
+/*
+ * ⛔ ALTERNATIV OCH RÖSTER LÄSES PER OMRÖSTNING (cllp/lifehub.app#742, skiva 2), inte som de senaste i hela samtalet.
+ *
+ * Skiva 1 läste de 500 senaste alternativen och de 500 senaste rösterna per samtal, med en lyssnare per samling. Granskningen av PR 566 räknade
+ * fram att ungefär 25 omröstningar i en grupp med 20 personer fyller rösternas fönster: de äldsta omröstningarna visade då fel antal eller
+ * "Inga alternativ än.", "Lägg till alternativ" prövade taket och dubbletten mot en ofullständig lista, och en medlem som skrev hundratals
+ * alternativ i en omröstning (reglerna kan inte räkna) tryckte ut alla andras. Nu läser varje kort sin egen omröstning: en fråga med likhet
+ * på `mid` och ett tak per omröstning. Det som fyller en omröstning rör ingen annan.
+ *
+ * ⛔ FRÅGAN SORTERAR INTE. Likhet på ett fält ensamt klarar sig på Firestores eget enfältsindex, medan likhet på `mid` och sortering på `tid`
+ * hade krävt ett sammansatt index som varje app måste deploya före webben. Ordningen i kortet räknas ändå fram i `summeraOmrostning`.
+ * Följden: når en omröstning sitt tak är urvalet det Firestore ger (dokument-id), inte de äldsta, och kortet säger då att alla inte visas.
+ *
+ * ⛔ "FLER" BETYDER ATT FLER FINNS. Källan läser en rad över taket och visar taket: ett kort med exakt så många som taket säger inget.
  */
-export const OMROSTNINGSTAK = 500;
+
+/**
+ * Hur många alternativ en omröstning läser. ⛔ Härlett ur `MAX_ALTERNATIV`: en omröstning byggaren släpper igenom ryms alltid hel, och
+ * då är listan som "Lägg till alternativ" prövar taket och dubbletten mot alltid hela listan. Fler finns bara förbi byggaren, och då säger kortet det.
+ */
+export const OMROSTNINGSVALTAK = MAX_ALTERNATIV;
+
+/**
+ * Hur många röster en omröstning läser. En röst per person, så taket är ett tak på hur många som röstat.
+ * ⛔ (bedömning) Samma tal som skiva 1 hade för hela samtalet. Når läsningen taket säger kortet det (regel 5).
+ */
+export const OMROSTNINGSROSTTAK = 500;
 
 /** Nyckelns andra del på ett alternativ. Regeln har samma form, härlett härifrån. */
 export const OMROSTNINGSVAL_REGEL = "[A-Za-z0-9_-]{1,40}";

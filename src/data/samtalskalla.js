@@ -1,7 +1,7 @@
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { FALT_BORT } from "./contract.js";
 import { KOMMENTARBILAGAFALT } from "../lib/handelsemodell.js";
-import { AGENTSTATUS_ID, FASTA_TAK, OMROSTNINGSTAK, REAKTIONSTAK, amnesId, arNamnd, bilagenyckel, byggFastning, byggMeddelande, byggOmrostningsmeddelande, byggOmrostningsrost, byggOmrostningsval, byggReaktion, omrostningsrostnyckel, byggSamtal, byggTrad, kravAmnesrubrik, kravTradnamn, motpart, nyttAmnesId, olastaI, samtalsnyckel, synligText, undersamlingskrock } from "../lib/samtal.js";
+import { AGENTSTATUS_ID, FASTA_TAK, OMROSTNINGSROSTTAK, OMROSTNINGSVALTAK, REAKTIONSTAK, amnesId, arNamnd, bilagenyckel, byggFastning, byggMeddelande, byggOmrostningsmeddelande, byggOmrostningsrost, byggOmrostningsval, byggReaktion, omrostningsrostnyckel, byggSamtal, byggTrad, kravAmnesrubrik, kravTradnamn, motpart, nyttAmnesId, olastaI, samtalsnyckel, synligText, undersamlingskrock } from "../lib/samtal.js";
 
 /**
  * Samtalskällan: läser och skriver ramverkets samtal genom en datakälla (0.34.0, #182, #185).
@@ -923,54 +923,66 @@ export function createSamtalskalla(konfig) {
   const reaktionsfunktioner = reaktioner === undefined ? {} : { reaktioner, lasReaktioner, prenumereraReaktioner, reagera, taBortReaktion };
 
   /*
-   * ══ ⛔ OMRÖSTNINGARNA (cllp/lifehub.app#438 skiva 1) ═════════════════════════════════════════════════════════════════════
+   * ══ ⛔ OMRÖSTNINGARNA (cllp/lifehub.app#438 skiva 1, läsningen skiva 2 #742) ════════════════════════════════════════════════
    *
-   * Modellen och skälen står i `lib/samtal.js`. Samma form som reaktionerna: EN läsning per samling och samtal, de senaste
-   * `OMROSTNINGSTAK`, inte en per meddelande. Bara i samtalet: en omröstning i en tråd finns inte i skiva 1, och reglerna har ingen väg dit.
+   * Modellen och skälen står i `lib/samtal.js`. ⛔ EN LÄSNING PER OMRÖSTNING (skiva 2): likhet på `mid` och ett tak per omröstning
+   * (`OMROSTNINGSVALTAK`, `OMROSTNINGSROSTTAK`), inte de senaste i hela samtalet. Ingen sortering, så frågan behöver inget sammansatt index.
+   * Bara i samtalet: en omröstning i en tråd finns inte, och reglerna har ingen väg dit.
    */
 
   /** @param {string} sid */
   const valvag = (sid) => `${samtal}/${sid}/${omrostningsval}`;
   /** @param {string} sid */
   const rostvag = (sid) => `${samtal}/${sid}/${omrostningsroster}`;
-  const omrostningsfraga = /** @type {const} */ ({ sortBy: "tid", direction: "desc", limit: OMROSTNINGSTAK });
+  /**
+   * Frågan för en omröstning: en rad över taket, så att `fler` betyder att fler finns och inte att taket råkade fyllas.
+   * @param {unknown} mid @param {number} tak @param {string} vem
+   */
+  const omrostningsfraga = (mid, tak, vem) => {
+    if (typeof mid !== "string" || !mid) throw new Error(`samtalskalla.${vem}: mid krävs, omröstningens meddelande. Alternativ och röster läses per omröstning (cllp/lifehub.app#742).`);
+    return { where: { mid }, limit: tak + 1 };
+  };
+  /** @param {any[]} rader @param {number} tak @returns {{ rader: any[], fler: boolean }} */
+  const inomTak = (rader, tak) => ({ rader: rader.length > tak ? rader.slice(0, tak) : rader, fler: rader.length > tak });
 
   /**
-   * Alternativen i ett samtal. `fler`: taket nåddes.
-   * @param {string} sid @returns {Promise<{ rader: any[], fler: boolean }>}
+   * Alternativen i en omröstning, högst `OMROSTNINGSVALTAK`. `fler`: omröstningen har fler än så (bara förbi byggaren).
+   * @param {string} sid @param {string} mid @returns {Promise<{ rader: any[], fler: boolean }>}
    */
-  async function lasOmrostningsval(sid) {
-    const rader = await kalla.list(valvag(sid), omrostningsfraga);
-    return { rader, fler: rader.length >= OMROSTNINGSTAK };
+  function lasOmrostningsval(sid, mid) {
+    const fraga = omrostningsfraga(mid, OMROSTNINGSVALTAK, "lasOmrostningsval");
+    return kalla.list(valvag(sid), fraga).then((rader) => inomTak(rader, OMROSTNINGSVALTAK));
   }
 
   /**
-   * Rösterna i ett samtal. `fler`: taket nåddes.
-   * @param {string} sid @returns {Promise<{ rader: any[], fler: boolean }>}
+   * Rösterna i en omröstning, högst `OMROSTNINGSROSTTAK`. `fler`: fler har röstat än så.
+   * @param {string} sid @param {string} mid @returns {Promise<{ rader: any[], fler: boolean }>}
    */
-  async function lasOmrostningsroster(sid) {
-    const rader = await kalla.list(rostvag(sid), omrostningsfraga);
-    return { rader, fler: rader.length >= OMROSTNINGSTAK };
+  function lasOmrostningsroster(sid, mid) {
+    const fraga = omrostningsfraga(mid, OMROSTNINGSROSTTAK, "lasOmrostningsroster");
+    return kalla.list(rostvag(sid), fraga).then((rader) => inomTak(rader, OMROSTNINGSROSTTAK));
   }
 
   /**
-   * Lyssnar på alternativen, om källan kan prenumerera. Annars `null`, och vyn läser om efter varje egen ändring.
-   * @param {string} sid @param {{ onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }} lyssnare
+   * Lyssnar på en omröstnings alternativ, om källan kan prenumerera. Annars `null`, och vyn läser om efter varje egen ändring.
+   * @param {string} sid @param {string} mid @param {{ onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }} lyssnare
    * @returns {(() => void) | null}
    */
-  function prenumereraOmrostningsval(sid, lyssnare) {
+  function prenumereraOmrostningsval(sid, mid, lyssnare) {
+    const fraga = omrostningsfraga(mid, OMROSTNINGSVALTAK, "prenumereraOmrostningsval");
     if (typeof kalla.subscribe !== "function") return null;
-    return kalla.subscribe(valvag(sid), omrostningsfraga, { onData: (rader) => lyssnare.onData({ rader, fler: rader.length >= OMROSTNINGSTAK }), onError: lyssnare.onError });
+    return kalla.subscribe(valvag(sid), fraga, { onData: (rader) => lyssnare.onData(inomTak(rader, OMROSTNINGSVALTAK)), onError: lyssnare.onError });
   }
 
   /**
-   * Lyssnar på rösterna, om källan kan prenumerera. Annars `null`.
-   * @param {string} sid @param {{ onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }} lyssnare
+   * Lyssnar på en omröstnings röster, om källan kan prenumerera. Annars `null`.
+   * @param {string} sid @param {string} mid @param {{ onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }} lyssnare
    * @returns {(() => void) | null}
    */
-  function prenumereraOmrostningsroster(sid, lyssnare) {
+  function prenumereraOmrostningsroster(sid, mid, lyssnare) {
+    const fraga = omrostningsfraga(mid, OMROSTNINGSROSTTAK, "prenumereraOmrostningsroster");
     if (typeof kalla.subscribe !== "function") return null;
-    return kalla.subscribe(rostvag(sid), omrostningsfraga, { onData: (rader) => lyssnare.onData({ rader, fler: rader.length >= OMROSTNINGSTAK }), onError: lyssnare.onError });
+    return kalla.subscribe(rostvag(sid), fraga, { onData: (rader) => lyssnare.onData(inomTak(rader, OMROSTNINGSROSTTAK)), onError: lyssnare.onError });
   }
 
   /**
@@ -1241,10 +1253,10 @@ export function harReaktioner(kalla) {
  * @typedef {object} Omrostningsfunktioner (cllp/lifehub.app#438 skiva 1) Det en samtalskälla har när appen skickat `omrostningsval` och `omrostningsroster`.
  * @property {string} omrostningsval
  * @property {string} omrostningsroster
- * @property {(sid: string) => Promise<{ rader: any[], fler: boolean }>} lasOmrostningsval
- * @property {(sid: string) => Promise<{ rader: any[], fler: boolean }>} lasOmrostningsroster
- * @property {(sid: string, lyssnare: { onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraOmrostningsval
- * @property {(sid: string, lyssnare: { onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraOmrostningsroster
+ * @property {(sid: string, mid: string) => Promise<{ rader: any[], fler: boolean }>} lasOmrostningsval (#742) En omröstnings alternativ.
+ * @property {(sid: string, mid: string) => Promise<{ rader: any[], fler: boolean }>} lasOmrostningsroster (#742) En omröstnings röster.
+ * @property {(sid: string, mid: string, lyssnare: { onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraOmrostningsval
+ * @property {(sid: string, mid: string, lyssnare: { onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraOmrostningsroster
  * @property {(sid: string, d: { fraga: string, alternativ: ReadonlyArray<string>, av: string }) => Promise<any>} skickaOmrostning
  * @property {(sid: string, d: { mid: string, text: string, av: string, befintliga?: ReadonlyArray<string> }) => Promise<any>} laggTillAlternativ
  * @property {(sid: string, d: { mid: string, val: string, av: string }) => Promise<any>} rosta
