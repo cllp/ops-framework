@@ -92,14 +92,16 @@ export const TALK_UPPTAGEN = ORD_TALK.felUpptagen.sv;
  * @param {import("../lib/talk.js").Igenkanning | null | undefined} kandidat
  * @param {boolean} baraIgenkanning Omgången kör bara igenkänningen och ingen inspelare (TALK med valen på WebKit).
  * @param {boolean} rapportera
+ * @param {() => void} [kastade] Anropas när den kastade, så att omgången inte frågar samma kandidat igen.
  */
-function kanLyssnaI(kandidat, baraIgenkanning, rapportera) {
+function kanLyssnaI(kandidat, baraIgenkanning, rapportera, kastade) {
   if (!kandidat) return false;
   if (typeof kandidat.kanLyssna !== "function") return true;
   try {
     return kandidat.kanLyssna({ baraIgenkanning }) !== false;
   } catch (fel) {
     if (rapportera) rapporteraFel(fel, { yta: "OpsTalk", steg: "kanLyssna", baraIgenkanning });
+    kastade?.();
     return false;
   }
 }
@@ -482,13 +484,22 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
         laastStart.current = false;
         reservNasta.current = false;
         // ⛔ (0.218.0) `kanLyssna`: en igenkänning appen gett kan säga att den inte lyssnar i en viss sorts omgång. Se `kanLyssnaI`.
-        const bara = !laast && !reservStart && typeof onAgentRef.current === "function" && arWebKit() && kanLyssnaI(igk(true), true, true);
+        // ⛔ EN FRÅGA PER KANDIDAT OCH OMGÅNG (granskningen av 0.218.0): förut frågades WebKit-kandidaten två gånger, för valet av väg och
+        // för omgången. En igenkänning som svarade ja och sedan nej gav en ren igenkänningsomgång utan igenkänning, och ett kast rapporterades två gånger.
+        const webbKandidat = !laast && !reservStart && typeof onAgentRef.current === "function" && arWebKit() ? igk(true) : null;
+        /** Kandidater som kastat i den här omgången: de frågas inte igen, och kastet rapporteras en gång. */
+        const kastade = new Set();
+        const fraga = (/** @type {import("../lib/talk.js").Igenkanning | null | undefined} */ g, /** @type {boolean} */ baraIgk) => {
+          if (g && kastade.has(g)) return false;
+          return kanLyssnaI(g, baraIgk, true, () => kastade.add(g));
+        };
+        const bara = fraga(webbKandidat, true);
         barOmgang.current = bara;
         // ⛔ En ny omgång börjar stilla: förra omgångens puls får inte följa med in i den här.
         sistaLangd.current = 0;
         vagorna().nolla();
-        const kandidat = bara ? igk(true) : igk();
-        omgangsIgk.current = kanLyssnaI(kandidat, bara, true) ? kandidat : null;
+        const kandidat = bara ? webbKandidat : igk();
+        omgangsIgk.current = bara || fraga(kandidat, false) ? kandidat : null;
         setOmgangsText(omgangsIgk.current !== null);
         if (mikrofonenUpptagenAv && mikrofonenUpptagenAv !== inspRef) {
           // ⛔ (0.213.0, cllp/lifehub.app#253) RAPPORTERAS. Förut stod felet bara i fältet: en omgång som aldrig startade lämnade ingen rad,

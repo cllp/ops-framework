@@ -174,3 +174,47 @@ describe("WebKit: en igenkänning som inte kan lyssna i omgången står över de
     expect(rapport[0]).toMatchObject({ yta: "OpsTalk", steg: "kanLyssna" });
   });
 });
+
+describe("⛔ kanLyssna frågas en gång per kandidat och omgång (granskningen av 0.218.0)", () => {
+  /** @type {import("vitest").MockInstance} */
+  let ua;
+  /** @type {import("vitest").MockInstance} */
+  let konsol;
+  beforeEach(() => {
+    vi.useFakeTimers();
+    ua = vi.spyOn(navigator, "userAgent", "get").mockReturnValue(IPHONE);
+    konsol = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    ua.mockRestore();
+    konsol.mockRestore();
+    cleanup();
+  });
+
+  it("⛔ en igenkänning som svarar ja och sedan nej: omgången med bara igenkänningen lyssnar, och frågan ställs en gång", async () => {
+    const svar = [true, false];
+    const igk = appensIgenkanning(vi.fn(() => svar.shift() ?? false));
+    // Textytans fråga före första starten (ritningen) räknas inte: mocken nollställs efter ritningen.
+    const t = Skal(igk);
+    igk.kanLyssna.mockClear();
+    svar.splice(0, svar.length, true, false);
+    fireEvent.click(huvudMikrofon());
+    await flush();
+    expect(igk.kanLyssna).toHaveBeenCalledTimes(1);
+    expect(igk.starta).toHaveBeenCalledTimes(1);
+    expect(t.inspelare.starta).not.toHaveBeenCalled();
+    expect(platstext()).not.toBeNull();
+  });
+
+  it("⛔ en kanLyssna som kastar rapporteras en gång per omgång", async () => {
+    const igk = appensIgenkanning(() => {
+      throw new Error("bryggan svarar inte");
+    });
+    Skal(igk);
+    fireEvent.click(huvudMikrofon());
+    await flush();
+    expect(rapporter(konsol, "kanLyssna")).toHaveLength(1);
+    expect(igk.starta).not.toHaveBeenCalled();
+  });
+});
