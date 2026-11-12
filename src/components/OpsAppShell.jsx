@@ -17,7 +17,7 @@ import { OpsTalk, useTalk } from "./OpsTalk.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
 import { kontrolleraSkickarText, talkForifyllt, talkKnappNamn } from "../lib/talk.js";
 import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
-import { MENYRAD_IKON, huvudknappKlass, huvudPlusKlass, huvudTalkKlass, radBehallare, radKlass } from "../lib/radKlass.js";
+import { huvudknappKlass, huvudPlusKlass, huvudTalkKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { rapporteraFel, registreraFelmottagare } from "../lib/felrapport.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsIconLink } from "./OpsIconLink.jsx";
@@ -2552,10 +2552,10 @@ function OpsAppShellRitad({
               }}
               aria-current={entryActive(s, activeHref) ? "page" : undefined}
               // Ligger i raden vid `lg`, alltså inte också här.
-              className={cx(radKlass({ active: entryActive(s, activeHref), meny: true }), smaltTak + i < maxTopNav && "lg:hidden")}
+              className={cx(radKlass({ active: entryActive(s, activeHref) }), smaltTak + i < maxTopNav && "lg:hidden")}
             >
               {s.icon ? (
-                <span aria-hidden="true" className={cx("flex shrink-0 items-center", MENYRAD_IKON)}>
+                <span aria-hidden="true" className="flex shrink-0 items-center [&_svg]:size-4">
                   {s.icon}
                 </span>
               ) : null}
@@ -2994,10 +2994,10 @@ function OpsAppShellRitad({
                                   stangMenyn(false);
                                   onActivate(s.href, e);
                                 }}
-                                className={radKlass({ meny: true })}
+                                className={radKlass()}
                               >
                                 {s.icon ? (
-                                  <span aria-hidden="true" className={cx("flex shrink-0 items-center", MENYRAD_IKON)}>
+                                  <span aria-hidden="true" className="flex shrink-0 items-center [&_svg]:size-4">
                                     {s.icon}
                                   </span>
                                 ) : null}
@@ -3018,11 +3018,11 @@ function OpsAppShellRitad({
                                   stangMenyn(false);
                                   onActivate(s.href, e);
                                 }}
-                                className={cx(radKlass({ active: entryActive(s, activeHref), meny: true }), s.breddklass)}
+                                className={cx(radKlass({ active: entryActive(s, activeHref) }), s.breddklass)}
                                 aria-current={entryActive(s, activeHref) ? "page" : undefined}
                               >
                                 {s.icon ? (
-                                  <span aria-hidden="true" className={cx("flex shrink-0 items-center", MENYRAD_IKON)}>
+                                  <span aria-hidden="true" className="flex shrink-0 items-center [&_svg]:size-4">
                                     {s.icon}
                                   </span>
                                 ) : null}
