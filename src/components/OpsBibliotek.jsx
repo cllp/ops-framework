@@ -32,6 +32,7 @@ import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
 import { ID_FORM } from "../lib/katalog.js";
 import { ARKIVTAGG, arArkiverad, avkodaTextfil, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
+import { bibliotekslank, lasBibliotekslank } from "../lib/postkommentar.js";
 import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
 export { menyPilar, OpsTaggFilter as TaggFilter };
@@ -429,8 +430,12 @@ const repoplatsForm = (plats) => typeof plats === "string" && (arPlatsBibliotek(
  * @param {(bild: { postId: string, plats: string, namn: string }) => boolean | Promise<boolean>} [props.bildIAnteckningFel] (0.207.0, #696 skiva 2) En bild med en adress laddades inte,
  *   troligen för att en signerad adress gått ut (`OpsMarkdown` `onBildFel`). Sant: appen hämtar nya adresser och ger en ny `bildIAnteckningAdress`. Falskt: raden "Ladda om sidan för att se
  *   bilden.". Utan propen står "Bilden kunde inte visas." som förut.
+ * @param {string} [props.postlankBas] (0.220.0, lifehub.app#801) Appens adress till biblioteket, samma `bas` som `bibliotekslank` och kommentarerna
+ *   (till exempel `https://my.life-hub.app/bibliotek`). Kopiera länk på en medlems fil kopierar då postens adress i appen, som kräver inloggning och
+ *   medlemskap. ⛔ Utan den har en medlems fil ingen Kopiera länk: filens nedladdningsadress lämnas aldrig ut, eftersom den öppnas av vem som helst,
+ *   aldrig går ut och inte kan dras tillbaka. En länkpost kopierar sin egen adress som förut, och gästens fil sin signerade adress (gäller en kvart).
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, repoLasare, onLaggRepoFil, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null, onLaggBildIAnteckning, bildIAnteckningAdress, bildIAnteckningFel }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, repoLasare, onLaggRepoFil, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null, onLaggBildIAnteckning, bildIAnteckningAdress, bildIAnteckningFel, postlankBas }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -489,6 +494,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   if (typeof onMejlaLank === "function" && typeof onDelaLank !== "function") {
     throw new Error("OpsBibliotek: onMejlaLank (0.128.0) hör till onDelaLank. Fältet \"Skicka till mejl\" sitter i dialogen Dela länk, och utan den dialogen finns ingen länk att skicka.");
   }
+  // ⛔ (lifehub.app#801) Basen prövas när biblioteket ritas, inte vid första Kopiera länk: en felaktig bas är ett fel i appen.
+  if (postlankBas !== undefined) lasBibliotekslank(postlankBas, "");
   if (onLankInfo !== undefined && typeof onLankInfo !== "function") {
     throw new Error("OpsBibliotek: onLankInfo måste vara en funktion (url) => Promise<{ titel, artist, bild }> (eller utelämnas).");
   }
@@ -780,7 +787,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
    * webbläsarens visning. En rad som kopierar den hade varit en väg att dela filen förbi beslutet. För en fil som inte visas
    * (zip, Word) hade raden dessutom bara gett felet, eftersom servern aldrig signerar den utan nedladdning.
    *
-   * @param {{ typ?: string, url?: string, fil?: { sokvag?: string, klar?: boolean }, skapad?: number }} post
+   * @param {{ id?: string, groupId?: string, typ?: string, url?: string, fil?: { sokvag?: string, klar?: boolean }, skapad?: number }} post
    */
   function kanKopieraLank(post) {
     if (post.typ === "lank") return lankRedanKand(post) !== "";
@@ -788,20 +795,38 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     const sokvag = typeof post.fil?.sokvag === "string" ? post.fil.sokvag.trim() : "";
     if (sokvag === "") return false;
     if (adresserPaBegaran) return !utanNedladdning && typeof hamtaAdress === "function";
-    return lankRedanKand(post) !== "";
+    return postensAdress(post) !== "";
+  }
+
+  /**
+   * Postens adress i appen (`bibliotekslank`), för en medlems fil. Tom utan `postlankBas`.
+   *
+   * ⛔ ALDRIG FILENS NEDLADDNINGSADRESS (lifehub.app#801, QA A01, 2026-11-12). Fram till 0.220.0 kopierade Kopiera länk för en medlem
+   * adressen visningen redan hade, alltså `getDownloadURL`: den bär en token, öppnas utan inloggning, går aldrig ut och kan inte dras
+   * tillbaka. Raden blev en väg förbi Dela länk, som har utgång och kod. Postens adress i appen kräver inloggning och medlemskap, och
+   * den som får den och inte är med i gruppen ser ingenting. Utan basen finns ingen sådan adress, och då har en fil ingen Kopiera länk:
+   * hellre ingen rad än en rad som delar filen med vem som helst.
+   *
+   * @param {{ id?: string, groupId?: string }} post
+   * @returns {string}
+   */
+  function postensAdress(post) {
+    if (typeof postlankBas !== "string" || typeof post.id !== "string" || typeof post.groupId !== "string" || post.groupId === "") return "";
+    return bibliotekslank(postlankBas, { plats: post.groupId, postId: post.id });
   }
 
   /**
    * Kopierar postens adress. Gästens fil hämtar den först om visningen inte redan har den. Nekar hämtningen kopieras
    * ingenting: felet står kvar, och Ladda ned styrs som förut av `utanNedladdning` (hämtningen är visningens, utan bilaga).
    *
-   * @param {{ typ?: string, url?: string, fil?: { sokvag?: string, mime?: string, klar?: boolean }, skapad?: number }} post
+   * @param {{ id?: string, groupId?: string, typ?: string, url?: string, fil?: { sokvag?: string, mime?: string, klar?: boolean }, skapad?: number }} post
    */
   function kopieraPostensLank(post) {
     // ⛔ GÄSTENS FIL HÄMTAS ALLTID PÅ NYTT (granskningen av PR 558). Visningens adress kan ligga i cachen längre än den gäller,
     // och en död adress med kvittensen "kopierad" är ett fel som inte syns.
     const gastfil = adresserPaBegaran && post.typ === "fil";
-    const kand = gastfil ? "" : lankRedanKand(post);
+    // ⛔ En länkpost kopierar sin egen adress, en medlems fil postens adress i appen (`postensAdress`, lifehub.app#801), aldrig filens.
+    const kand = gastfil ? "" : post.typ === "lank" ? lankRedanKand(post) : postensAdress(post);
     if (kand !== "") {
       kopieraLank(kand);
       return;

@@ -9,6 +9,24 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.220.0
+
+Kopiera länk i biblioteket lämnar aldrig ut filens nedladdningsadress (cllp/lifehub.app#801, QA A01). QA i SessionStudio 1.0.1171, 2026-11-12: Kopiera länk på en fil gav en rå firebasestorage-adress med token, som öppnades utan inloggning, aldrig gick ut och inte gick att dra tillbaka. Raden var en väg förbi Dela länk, som har utgång och kod.
+
+**Skärmtid (frågan till ärendet):** oförändrad. Raden finns kvar och gör samma sak för den som delar med en kollega i gruppen. Den som ska dela utanför gruppen har Dela länk, som förut.
+
+### Säkerhet
+
+- **`OpsBibliotek` `postlankBas`:** appens adress till biblioteket, samma `bas` som `bibliotekslank` och kommentarerna. Kopiera länk på en medlems fil kopierar postens adress i appen (`<bas>?plats=<grupp>&post=<id>`), som kräver inloggning och medlemskap. Basen prövas när biblioteket ritas.
+- **Utan `postlankBas` har en medlems fil ingen Kopiera länk.** Fram till 0.219.0 kopierade raden `filUrl`, alltså nedladdningsadressen. En länkpost kopierar sin egen adress som förut, och gästens fil sin signerade adress som gäller en kvart (oförändrat).
+
+### Att göra i appen
+
+- Ge `postlankBas` till `OpsBibliotek` där biblioteket visas för medlemmar. Utan den försvinner Kopiera länk på filer, vilket är det säkra förvalet.
+- Redan kopierade nedladdningsadresser gäller tills filens token byts. Det görs i appens lagring och inte i ramverket.
+
+---
+
 ## 0.219.0
 
 Färgväljaren för en hubbs färger, och granskningens fynd som besked om vilken färg i vilket läge som ska ändras, och åt vilket håll (cllp/lifehub.app#798). CP 2026-11-12, med en skärmbild av Hubbens färger: "vi behöver en color picker och reglage som kommer upp när man trycker på rutan. Låt det vara möjligt att skriva in hex också, men bra att kunna välja. Det måste vara tydligare var på skalan man är fel, om det behöver vara ljusare eller mörkare." Och: han sparade en färg i mörkt, bytte till ljust där den inte höll, och när han gick tillbaka till mörkt stod felet kvar utan att säga att det gällde ljust läge. Inget brytande: `granskaPalett` ger samma fynd som förut.
