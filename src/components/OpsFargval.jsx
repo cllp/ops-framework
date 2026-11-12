@@ -211,80 +211,84 @@ export function OpsFargval({ value, onChange, palett, lage, nyckel, disabled = f
           collisionPadding={8}
           aria-label={t("panel")}
           data-fargval-panel=""
-          className={cx(faltYtaKlass, "flex w-80 max-w-[calc(100vw-1rem)] flex-col gap-3 p-4 max-h-(--radix-popover-content-available-height) overflow-y-auto overscroll-contain")}
+          className={cx(faltYtaKlass, "w-80 max-w-[calc(100vw-1rem)] max-h-(--radix-popover-content-available-height) overflow-y-auto overscroll-contain")}
         >
-          <span aria-hidden="true" data-fargval-stor={form ?? ""} className="block h-12 rounded-base border border-line" style={rutfarg} />
+          {/* ⛔ RUTAN RULLAR OCH INNEHÅLLET I EN EGEN KOLUMN: i en flexkolumn med begränsad höjd krymper ett element utan innehåll (den
+              stora färgrutan) till noll när rutan inte får plats, mätt i montaget på 390 px. */}
+          <div className="flex flex-col gap-3 p-4">
+            <span aria-hidden="true" data-fargval-stor={form ?? ""} className="block h-12 rounded-base border border-line" style={rutfarg} />
 
-          <Fargreglage
-            id={`${id}-kulor`}
-            falt="kulor"
-            etikett={t("kulor")}
-            varde={hsl.kulor}
-            max={359}
-            text={fyll(t("grader"), { v: Math.round(hsl.kulor) })}
-            onChange={(v) => satt({ kulor: v })}
-            skala={kulorSkala}
-          />
-          <Fargreglage
-            id={`${id}-mattnad`}
-            falt="mattnad"
-            etikett={t("mattnad")}
-            varde={hsl.mattnad}
-            max={100}
-            text={fyll(t("procent"), { v: procent(hsl.mattnad) })}
-            onChange={(v) => satt({ mattnad: v })}
-            skala={mattnadSkala}
-          />
-          <Fargreglage
-            id={`${id}-ljushet`}
-            falt="ljushet"
-            etikett={t("ljushet")}
-            varde={hsl.ljushet}
-            max={100}
-            text={ljushetText}
-            onChange={(v) => satt({ ljushet: v })}
-            skala={ljushetSkala}
-            beskrivs={omfang ? statusId : undefined}
-          >
-            {/* ⛔ Det som inte håller tonas ned, det som håller ramas in. Båda behövs: en nedtoning ensam går inte att se på en skala
-                som redan är mörk i ena änden. */}
-            {utanfor.map((d) => (
-              <span key={`u${d.fran}`} data-skala-haller-inte="" className="absolute inset-y-0 bg-canvas/75" style={svep(d)} />
-            ))}
-            {omfang?.intervall.map((d) => (
-              <span key={`h${d.fran}`} data-skala-haller="" className="absolute -inset-y-1 rounded-base border-2 border-ink" style={svep(d)} />
-            ))}
-          </Fargreglage>
-
-          {omfang ? (
-            <div id={statusId} data-fargval-status={omfang.haller ? "haller" : omfang.riktning ?? "ingen"} className="flex flex-col gap-1">
-              <p className="m-0 text-etikett text-ink" aria-live="polite">{besked}</p>
-              <p className="m-0 text-hjalp text-ink-secondary">
-                {spannText ? `${spannText} ` : ""}
-                {fyll(t("star"), { v: procent(omfang.ljushet) })}
-              </p>
-            </div>
-          ) : null}
-          {omfang && !omfang.haller && omfang.narmaste ? (
-            <button
-              type="button"
-              data-fargval-narmaste={omfang.narmaste}
-              onClick={() => {
-                const hex = /** @type {string} */ (omfang.narmaste);
-                setHsl({ ...hsl, ljushet: /** @type {number} */ (omfang.narmasteLjushet) });
-                setSynkad(hex);
-                onChange(hex);
-              }}
-              className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-base border border-line-strong bg-raised px-3 text-etikett font-medium text-ink hover:border-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+            <Fargreglage
+              id={`${id}-kulor`}
+              falt="kulor"
+              etikett={t("kulor")}
+              varde={hsl.kulor}
+              max={359}
+              text={fyll(t("grader"), { v: Math.round(hsl.kulor) })}
+              onChange={(v) => satt({ kulor: v })}
+              skala={kulorSkala}
+            />
+            <Fargreglage
+              id={`${id}-mattnad`}
+              falt="mattnad"
+              etikett={t("mattnad")}
+              varde={hsl.mattnad}
+              max={100}
+              text={fyll(t("procent"), { v: procent(hsl.mattnad) })}
+              onChange={(v) => satt({ mattnad: v })}
+              skala={mattnadSkala}
+            />
+            <Fargreglage
+              id={`${id}-ljushet`}
+              falt="ljushet"
+              etikett={t("ljushet")}
+              varde={hsl.ljushet}
+              max={100}
+              text={ljushetText}
+              onChange={(v) => satt({ ljushet: v })}
+              skala={ljushetSkala}
+              beskrivs={omfang ? statusId : undefined}
             >
-              {t("narmaste")}
-            </button>
-          ) : null}
+              {/* ⛔ Det som inte håller tonas ned, det som håller ramas in. Båda behövs: en nedtoning ensam går inte att se på en skala
+                  som redan är mörk i ena änden. */}
+              {utanfor.map((d) => (
+                <span key={`u${d.fran}`} data-skala-haller-inte="" className="absolute inset-y-0 bg-canvas/75" style={svep(d)} />
+              ))}
+              {omfang?.intervall.map((d) => (
+                <span key={`h${d.fran}`} data-skala-haller="" className="absolute -inset-y-1 rounded-base border-2 border-ink" style={svep(d)} />
+              ))}
+            </Fargreglage>
 
-          <OpsField label={t("fargkod")} hint={t("fargkodHint")} error={value && !form ? t("felForm") : undefined}>
-            {/* ⛔ Inget tal: en färgkod sägs inte in. */}
-            <OpsInput value={value} onChange={onChange} placeholder="#8e7a4e" autoComplete="off" maxLength={7} tal={false} />
-          </OpsField>
+            {omfang ? (
+              <div id={statusId} data-fargval-status={omfang.haller ? "haller" : omfang.riktning ?? "ingen"} className="flex flex-col gap-1">
+                <p className="m-0 text-etikett text-ink" aria-live="polite">{besked}</p>
+                <p className="m-0 text-hjalp text-ink-secondary">
+                  {spannText ? `${spannText} ` : ""}
+                  {fyll(t("star"), { v: procent(omfang.ljushet) })}
+                </p>
+              </div>
+            ) : null}
+            {omfang && !omfang.haller && omfang.narmaste ? (
+              <button
+                type="button"
+                data-fargval-narmaste={omfang.narmaste}
+                onClick={() => {
+                  const hex = /** @type {string} */ (omfang.narmaste);
+                  setHsl({ ...hsl, ljushet: /** @type {number} */ (omfang.narmasteLjushet) });
+                  setSynkad(hex);
+                  onChange(hex);
+                }}
+                className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-base border border-line-strong bg-raised px-3 text-etikett font-medium text-ink hover:border-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+              >
+                {t("narmaste")}
+              </button>
+            ) : null}
+
+            <OpsField label={t("fargkod")} hint={t("fargkodHint")} error={value && !form ? t("felForm") : undefined}>
+              {/* ⛔ Inget tal: en färgkod sägs inte in. */}
+              <OpsInput value={value} onChange={onChange} placeholder="#8e7a4e" autoComplete="off" maxLength={7} tal={false} />
+            </OpsField>
+          </div>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
