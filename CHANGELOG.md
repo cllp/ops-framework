@@ -9,6 +9,18 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.218.1
+
+Ljudspelaren tappar inte längre ett tryck på spela som kommer innan den hunnit koppla sina lyssnare. Inget brytande, ingen ny prop.
+
+### Rättat
+
+- **`OpsLjudspelare`: lyssnarna på `<audio>` kopplas i commit (`useLayoutEffect`), inte i en effekt efteråt (cllp/ops-framework#579, mätt i cllp/lifehub.app#772).** När adressen kom efter ett löfte (`hamtaAdress`, en delad lista som hämtats) satt `<audio>` i DOM en uppgift innan effekten som kopplar `error` och nollställer "någon har tryckt spela" (`begart`). Ett tryck i glappet startade uppspelningen, sedan körde React den väntande effekten och satte `begart` till falskt igen. Ett fel från filen räknades då inte som begärt: inget `onFel`, ingen ny adress för en adress som gått ut, ingen text. Ett fel före effekten nådde ingen lyssnare alls. I lifehub.app syntes det som ett prov som var rött ungefär en gång av sex (`delad-sida.test.jsx`, bara ett anrop till delningen efter felet). I webbläsaren är glappet kort, men den som trycker spela i samma ögonblick som en delad lista visas får samma fel. Ingenting i effekten behövde stå kvar som passivt: lyssnarna är billiga, längdsökningen är asynkron, och nollställningen av tid och läge ritas nu före målningen. Spelaren ritas aldrig på servern, så layouteffekten ger ingen varning där.
+
+### Prov
+
+- `ljudspelare-montering.test.jsx`: adressen kommer ur `hamtaAdress` utan `act`, och provet trycker spela och skickar ett fel på `<audio>` direkt när elementet syns i DOM, före nästa makrouppgift. Rött med 0.218.0 (`onFel` anropas aldrig), grönt med 0.218.1.
+
 ## 0.218.0
 
 En hubbs egna färger vid körning (cllp/lifehub.app#786), större menyrader på pekskärm, `kanLyssna` för en egen taligenkänning i TALK, och bottenraden som göms medan man skriver också i den inbyggda appen. CP 2026-11-11, om färgerna: "Kan man göra det under hubbinställningar i appen där samma ställe där man bestämmer vilka appar som får installeras", och sedan "Kör på färgerna i härdning". Om menyn, med en skärmbild ur TestFlight av menyarket: "Är inte texten lite väl liten i denna menyn?" Inget brytande: en app som inte sätter någon palett ser exakt ut som förut, och på dator med mus är menyn oförändrad.
