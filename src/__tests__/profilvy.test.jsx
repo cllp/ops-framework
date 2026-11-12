@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { useState } from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { OpsProfil } from "../components/OpsProfil.jsx";
 import { OpsIconLink } from "../components/OpsIconLink.jsx";
 import { OpsIdentity } from "../components/OpsIdentity.jsx";
@@ -1064,5 +1064,62 @@ describe("OpsProfil: utkastet när anvandare ändras (#786, punkt 8b)", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Namn" }), { target: { value: "Halvskrivet" } });
     rerender(<OpsProfil anvandare={{ ...ANV, id: "uid-2", namn: "Någon annan" }} onSpara={() => {}} falt={FALT} />);
     expect(varde("Namn")).toBe("Någon annan");
+  });
+});
+
+/*
+ * ══ ⛔ OMGRANSKNINGEN AV #786: DET SOM SPARATS SLÄPPS UR UTKASTET, OCKSÅ NÄR SERVERN ÄNDRADE DET ═══════════════════════════════
+ *
+ * Identity trimmar. Ett utkast "Visby " blev aldrig lika med den sparade raden "Visby", så fältet stod kvar i utkastet: Spara förblev
+ * tänd och fältet slutade följa raden. Rött när utkastet bara släpps på likhet, grönt när det som skickats släpps efter ett ja.
+ * Felet från förra sparningen släpps också när personen ändrar igen, eller när det är en annan person.
+ */
+describe("OpsProfil: utkastet efter en lyckad sparning (omgranskningen av #786)", () => {
+  const FALT = /** @type {const} */ (["namn", "stad"]);
+  const varde = (/** @type {string} */ namn) => /** @type {HTMLInputElement} */ (screen.getByRole("textbox", { name: namn })).value;
+
+  it("⛔ \"Visby \" sparas som \"Visby\": fältet visar raden, Spara släcks, och en senare ändring utifrån syns", async () => {
+    const onSpara = vi.fn(async () => {});
+    const { rerender } = render(<OpsProfil anvandare={ANV} onSpara={onSpara} falt={FALT} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Stad" }), { target: { value: "Visby " } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledWith({ stad: "Visby " }));
+    // Raden som servern skrev: trimmad.
+    rerender(<OpsProfil anvandare={{ ...ANV, stad: "Visby" }} onSpara={onSpara} falt={FALT} />);
+    await waitFor(() => expect(varde("Stad")).toBe("Visby"));
+    expect(screen.getByRole("button", { name: "Spara" }).hasAttribute("disabled")).toBe(true);
+    rerender(<OpsProfil anvandare={{ ...ANV, stad: "Slite" }} onSpara={onSpara} falt={FALT} />);
+    expect(varde("Stad")).toBe("Slite");
+  });
+
+  it("⛔ en ändring medan sparningen pågår står kvar efter ja:et", async () => {
+    /** @type {() => void} */
+    let klar = () => {};
+    const onSpara = vi.fn(() => new Promise((r) => (klar = () => r(undefined))));
+    const { rerender } = render(<OpsProfil anvandare={ANV} onSpara={onSpara} falt={FALT} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Stad" }), { target: { value: "Visby" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByRole("textbox", { name: "Stad" }), { target: { value: "Visby hamn" } });
+    await act(async () => klar());
+    rerender(<OpsProfil anvandare={{ ...ANV, stad: "Visby" }} onSpara={onSpara} falt={FALT} />);
+    expect(varde("Stad")).toBe("Visby hamn");
+    expect(screen.getByRole("button", { name: "Spara" }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("⛔ ett nej försvinner när personen ändrar igen, och när det är en annan person", async () => {
+    const onSpara = vi.fn(async () => {
+      throw new Error("nej");
+    });
+    const { rerender } = render(<OpsProfil anvandare={ANV} onSpara={onSpara} falt={FALT} sparaFelText="Nej." />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Stad" }), { target: { value: "Visby" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Nej.");
+    fireEvent.change(screen.getByRole("textbox", { name: "Stad" }), { target: { value: "Visby hamn" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Nej.");
+    rerender(<OpsProfil anvandare={{ ...ANV, id: "uid-2" }} onSpara={onSpara} falt={FALT} sparaFelText="Nej." />);
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
