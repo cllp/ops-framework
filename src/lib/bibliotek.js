@@ -448,6 +448,10 @@ export const FILMIME = /** @type {const} */ ([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  // ⛔ JSON OCH GEOJSON (0.222.0, cllp/lifehub.app#763, CP 2026-11-11: kartdata till Travel Agent). De laddas ned och visas inte i appen; en kartvy är ett eget
+  // ärende (#570). Samma tak som text och PDF. En webbläsare kör aldrig JSON, så ingen tvingad nedladdning som för HTML. Listan är regelns och Storage-regelns.
+  "application/json",
+  "application/geo+json",
 ]);
 
 /**
@@ -508,7 +512,17 @@ export function filadressFel(e) {
  * @returns {string}
  */
 export function filMimeMonster() {
-  return `^(${FILMIME.join("|")})$`;
+  return `^(${FILMIME.map(mimeLiteral).join("|")})$`;
+}
+
+/**
+ * En MIME som bokstavlig text i ett `matches()`-uttryck. ⛔ `+` OCH `.` SOM TECKENKLASS (0.222.0, #763): `application/geo+json` hade annars blivit `geo` följt av
+ * ett eller flera `o`, och punkterna i Office-typerna matchade vilket tecken som helst. En teckenklass betyder samma sak i RE2 (reglerna) och i JavaScript,
+ * och behöver inget bakstreck som reglernas strängar och JavaScripts mallsträngar läser olika.
+ * @param {string} mime
+ */
+function mimeLiteral(mime) {
+  return mime.replace(/[.+]/g, "[$&]");
 }
 
 /**
@@ -629,7 +643,7 @@ export function avkodaTextfil(bytes, avklippt = false) {
  * @returns {string}
  */
 export function filContentTypeMonster() {
-  return `^(${FILMIME.map((m) => (m.startsWith("text/") ? `${m}(; charset=utf-8)?` : m)).join("|")})$`;
+  return `^(${FILMIME.map((m) => (m.startsWith("text/") ? `${mimeLiteral(m)}(; charset=utf-8)?` : mimeLiteral(m))).join("|")})$`;
 }
 
 /**
@@ -915,7 +929,7 @@ export function filTak(mime) {
 /**
  * MIME ur filnamnet när webbläsaren inte säger någon (Safari ger ofta tom typ för AIFF och FLAC, och Windows för .mov). Bara
  * ljudformaten och videoformaten som annars faller bort, och (0.156.0) `.html` och `.htm`, som ger `text/html`. `.mp4` och `.m4v` ger `video/mp4`, `.mov` ger `video/quicktime`. Tom sträng
- * när ändelsen är okänd. (0.180.0) `.docx`, `.xlsx` och `.pptx` ger sina Office-typer: Windows och Android ger ibland tom typ för dem. (0.209.0) `.md` och `.markdown` ger `text/markdown`.
+ * när ändelsen är okänd. (0.180.0) `.docx`, `.xlsx` och `.pptx` ger sina Office-typer: Windows och Android ger ibland tom typ för dem. (0.209.0) `.md` och `.markdown` ger `text/markdown`. (0.222.0) `.json` och `.geojson` ger sina typer.
  * @param {unknown} namn
  * @returns {string}
  */
@@ -923,7 +937,7 @@ export function mimeUrFilnamn(namn) {
   const m = /\.([a-z0-9]+)$/i.exec(str(namn));
   const andelse = m ? m[1].toLowerCase() : "";
   // (0.133.0) m4a, mp3, aac och ogg: Safari och Android ger ofta tom typ för dem, och utan namnet blev en vald ljudfil "Formatet (tom) går inte att lägga in".
-  return ({ html: "text/html", htm: "text/html", md: "text/markdown", markdown: "text/markdown", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation" })[andelse] ?? "";
+  return ({ html: "text/html", htm: "text/html", md: "text/markdown", markdown: "text/markdown", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", json: "application/json", geojson: "application/geo+json", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation" })[andelse] ?? "";
 }
 
 /**

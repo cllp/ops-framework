@@ -34,8 +34,8 @@ describe("officedokument", () => {
       expect(new RegExp(filMimeMonster()).test(mime), mime).toBe(true);
       expect(new RegExp(filContentTypeMonster()).test(mime), mime).toBe(true);
     }
-    // Lagringsregeln som appen skriver in bär mönstret ordagrant.
-    expect(lagringsregelfragment({ bibliotek: { gruppPrefix: "grupper", postPrefix: "bibliotek", samling: "bibliotek" } })).toContain(DOCX);
+    // Lagringsregeln som appen skriver in bär mönstret ordagrant, med punkterna som teckenklass (0.222.0, #763: en punkt i ett mönster är annars vilket tecken som helst).
+    expect(lagringsregelfragment({ bibliotek: { gruppPrefix: "grupper", postPrefix: "bibliotek", samling: "bibliotek" } })).toContain(DOCX.replace(/[.]/g, "[.]"));
   });
 
   it("⛔ de äldre formaten och makroformaten tas inte emot", () => {
