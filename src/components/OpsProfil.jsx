@@ -1,9 +1,9 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { definierade, forvalda } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { SPRAK, text } from "../lib/sprak.js";
 import { MAX_PRESENTATION } from "../lib/grupp.js";
-import { andringen } from "../lib/profil.js";
+import { PROFILENS_FALT, andringen } from "../lib/profil.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsCard } from "./OpsCard.jsx";
 import { OpsChip } from "./OpsChip.jsx";
@@ -77,13 +77,13 @@ import { KryssIkon } from "./icons.jsx";
  * hade bara varit ett extra klick för något som redan hänt. Samma sak för
  * Ta bort, Återställ och Använd initialer, som rör bilden.
  *
- * ══ ⛔ IKON OCH FÄRG VÄNTAR PÅ SPARA SEDAN cllp/lifehub.app#786 ════════
+ * ══ ⛔ IKON OCH FÄRG: DIREKT, ELLER MED SPARA I `falt`-LÄGET (cllp/lifehub.app#786) ═
  *
  * Väljaren är gruppens (`OpsGruppmarkeValjare`, `person`): tolv kulörer, ett reglage för alla 360, återställning till
  * kulören ur id:t, och ikonkatalogen med sökning. Samma val som Identitys profil (lifehub.identity `markevaljare.ts`).
- * Förut sparade ett tryck på en av sex ikoner eller sex färger direkt. Med ett reglage hade det blivit en sparning per
- * steg medan man drar, och ett konto som tar emot profilen (Identity) har ett tak per minut. Valet ligger därför i
- * utkastet, syns i märket direkt, och skrivs med Spara.
+ * Utan `falt` sparas ett val direkt, som före #786 (bolag-ops och tam sparar i sin egen rad). Med `falt` ligger valet i
+ * utkastet, syns i märket direkt, och skrivs med Spara: med ett reglage hade det annars blivit en sparning per steg medan
+ * man drar, och ett konto som tar emot profilen (Identity) har ett tak per minut.
  *
  * ══ ⛔ TRE SÄTT ATT BÄRA BILDEN, OCH APPEN VÄLJER (cllp/lifehub.app#786) ═
  *
@@ -130,6 +130,10 @@ import { KryssIkon } from "./icons.jsx";
  * @param {string} [props.grupperEtikett]
  * @param {string} [props.sparaEtikett]
  * @param {string} [props.sparaVantarEtikett] Verbet medan Spara väntar.
+ * @param {string | ((fel: unknown) => string | undefined)} [props.sparaFelText] (cllp/lifehub.app#786) Texten när `onSpara` avslås,
+ *   eller en funktion som får felet och ger texten (appen känner sina felkoder: ett tak per minut, ett fält i fel form). Tom eller
+ *   utelämnad: `sparaFelForval`. Texten står med `role="alert"` bredvid Spara, och utkastet står kvar.
+ * @param {string} [props.sparaFelForval] Förvalet när appen inte ger någon text.
  * @param {string} [props.ingaGrupperText]
  * @param {string} [props.profilbildEtikett]
  * @param {string} [props.laddaUppEtikett] Knappen som öppnar filväljaren. #164: förval "Byt" (var "Ladda upp bild").
@@ -204,6 +208,8 @@ function OpsProfilRitad({
   grupperEtikett = ORD_OPSPROFIL.grupperEtikett.sv,
   sparaEtikett = ORD_OPSPROFIL.sparaEtikett.sv,
   sparaVantarEtikett = ORD_OPSPROFIL.sparaVantarEtikett.sv,
+  sparaFelText,
+  sparaFelForval = ORD_OPSPROFIL.sparaFelForval.sv,
   ingaGrupperText = ORD_OPSPROFIL.ingaGrupperText.sv,
   profilbildEtikett = ORD_OPSPROFIL.profilbildEtikett.sv,
   laddaUppEtikett = ORD_OPSPROFIL.laddaUppEtikett.sv,
@@ -251,18 +257,20 @@ function OpsProfilRitad({
   children,
 }) {
   const markeId = useId();
-  const [valtSprak, setValtSprak] = useState(anvandare.sprak);
-  const [namn, setNamn] = useState(anvandare.namn);
-  const [telefon, setTelefon] = useState(anvandare.telefon);
-  const [stad, setStad] = useState(anvandare.stad);
-  const [presentation, setPresentation] = useState(anvandare.presentation);
-  const [lankar, setLankar] = useState(anvandare.lankar);
   /*
-   * ⛔ MÄRKETS UTKAST ÄR BARA DET PERSONEN RÖRT. Ett fält som inte står här läses ur `anvandare`, så en bild som
-   * laddats upp direkt (och kommit tillbaka i `anvandare`) inte skrivs över av ett gammalt utkast när Spara trycks.
+   * ══ ⛔ UTKASTET ÄR BARA DET PERSONEN RÖRT (cllp/lifehub.app#786, granskningen 8b) ═══════════════════════════════════
+   *
+   * Förut var varje fält ett `useState` ur den FÖRSTA `anvandare`, och en profil som ändrades utifrån (en annan flik, appens
+   * omläsning efter en sparning, en annan person i samma vy) stod kvar med de gamla värdena. Nu står bara de fält personen
+   * ändrat i utkastet, och resten läses ur `anvandare` vid varje ritning. Regeln:
+   *   - ett fält i utkastet släpps när den sparade raden kommit ikapp det (samma värde), alltså efter en lyckad sparning;
+   *   - ett fält personen ändrat och som skiljer sig från raden står kvar, också när raden ändras: mitt i en ändring vinner personen;
+   *   - en annan person (`anvandare.id`) tömmer utkastet helt.
    */
-  const [marke, setMarke] = useState(/** @type {{ ikon?: string, farg?: string, bild?: string, bildSokvag?: string, utanBild?: boolean }} */ ({}));
+  const [utkastet, setUtkastet] = useState(/** @type {Record<string, any>} */ ({}));
+  const satt = (/** @type {string} */ f, /** @type {any} */ v) => setUtkastet((u) => ({ ...u, [f]: v }));
   const [sparar, setSparar] = useState(false);
+  const [sparaFel, setSparaFel] = useState("");
   const [bildLaddar, setBildLaddar] = useState(false);
   const [bildFel, setBildFel] = useState("");
   const filValjare = useRef(/** @type {HTMLInputElement | null} */ (null));
@@ -282,14 +290,28 @@ function OpsProfilRitad({
   const visas = (/** @type {string} */ f) => !falt || falt.includes(/** @type {any} */ (f));
   const doldBildLage = !lagring && typeof utanBild === "boolean";
   const bas = doldBildLage ? { ...anvandare, utanBild } : anvandare;
-  const nu = { ...bas, ...marke };
+  const nu = /** @type {typeof bas & { utanBild?: boolean }} */ ({ ...bas, ...utkastet });
+  const { sprak: valtSprak, namn, telefon, stad, presentation, lankar } = nu;
+
+  // Regeln ovan, i två steg. En annan person: tomt utkast.
+  useEffect(() => {
+    setUtkastet({});
+  }, [anvandare.id]);
+  // Den sparade raden har kommit ikapp ett fält: fältet släpps ur utkastet.
+  const sparadNyckel = JSON.stringify(PROFILENS_FALT.map((f) => /** @type {any} */ (bas)[f] ?? null));
+  useEffect(() => {
+    setUtkastet((u) => {
+      const kvar = Object.fromEntries(Object.entries(u).filter(([f, v]) => JSON.stringify(v ?? null) !== JSON.stringify(/** @type {any} */ (bas)[f] ?? null)));
+      return Object.keys(kvar).length === Object.keys(u).length ? u : kvar;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- nyckeln ÄR raden: bas byts vid varje ritning, värdena gör det inte.
+  }, [sparadNyckel]);
   const visadBild = doldBildLage ? (nu.utanBild ? "" : inloggningsBild || anvandare.bild) : nu.bild;
 
   /* ⛔ Beslutet ligger i `andringen`, inte här. Skälet står i profil.js:
      Radix Select går inte att driva i jsdom, så logiken flyttades dit ett
      prov kan se den i stället för att få ett prov som inte kan faila. */
-  const utkast = { sprak: valtSprak, namn, telefon, stad, presentation, lankar, ...marke };
-  const beslut = andringen(bas, utkast, falt);
+  const beslut = andringen(bas, utkastet, falt);
   let { andrat } = beslut;
   const { andring } = beslut;
   // Utan `falt` men med `utanBild`: hela raden som förut, plus valet om bilden när det ändrats.
@@ -298,10 +320,23 @@ function OpsProfilRitad({
     andrat = true;
   }
 
+  /*
+   * ⛔ ETT NEJ FRÅN SPARNINGEN SÄGS VID KNAPPEN (granskningen av #786, punkt 1). Förut `try/finally` utan `catch`: Spara blev tryckbar
+   * igen och ingenting sades, så den som fått ett nej (ett telefonnummer i fel form, taket per minut) trodde att det sparats. Felet står
+   * nu med `role="alert"` bredvid Spara, i appens ord (`sparaFelText`) eller med förvalet, och utkastet står kvar så att det går att rätta.
+   */
+  const felTexten = (/** @type {unknown} */ fel) => {
+    const egen = typeof sparaFelText === "function" ? sparaFelText(fel) : sparaFelText;
+    return typeof egen === "string" && egen.trim() ? egen : sparaFelForval;
+  };
+
   const spara = async () => {
     setSparar(true);
+    setSparaFel("");
     try {
       await onSpara?.(falt ? { ...andring } : { ...andring, lankar: [...andring.lankar] });
+    } catch (fel) {
+      setSparaFel(felTexten(fel));
     } finally {
       setSparar(false);
     }
@@ -309,7 +344,7 @@ function OpsProfilRitad({
 
   /** Det som sparats direkt ska inte stå kvar i utkastet. @param {ReadonlyArray<string>} falten */
   const glom = (falten) =>
-    setMarke((m) => {
+    setUtkastet((m) => {
       const ut = { ...m };
       for (const f of falten) delete (/** @type {any} */ (ut))[f];
       return ut;
@@ -398,6 +433,41 @@ function OpsProfilRitad({
     } finally {
       setBildLaddar(false);
     }
+  }
+
+  /*
+   * ══ ⛔ IKON OCH FÄRG: DIREKT UTAN `falt`, I UTKASTET MED (granskningen av #786, punkt 5) ═══════════════════════════════
+   *
+   * Utan `falt` sparas ett ikonval och ett färgval direkt, som före #786, så att appar som sparar i sin egen rad (bolag-ops, tam)
+   * inte ändrar beteende. Med `falt` (appen sparar i ett konto med tak per minut, Identity) står valet i utkastet och skrivs med
+   * Spara: reglaget hade annars gett en sparning per steg.
+   * ⛔ En ikon ovanpå en kvarvarande bild hade synts som "inget hände" (`OpsIdentity` ritar bilden först), så ikonvalet rensar bilden,
+   * som förut. Inte med `utanBild`: där är bilden kontots och döljs med knappen.
+   */
+  const ikonRensarBild = !doldBildLage && visas("bild");
+  /** @param {Record<string, any>} varden */
+  async function direkt(varden) {
+    setBildFel("");
+    setBildLaddar(true);
+    try {
+      await onSpara?.(varden);
+      glom(Object.keys(varden));
+    } catch (e) {
+      setBildFel(felTexten(e));
+    } finally {
+      setBildLaddar(false);
+    }
+  }
+  /** @param {string} f */
+  function valjFarg(f) {
+    if (falt) satt("farg", f);
+    else void direkt({ farg: f });
+  }
+  /** @param {string} i */
+  function valjIkon(i) {
+    const varden = { ikon: i, ...(ikonRensarBild ? { bild: "", bildSokvag: "" } : {}) };
+    if (falt) setUtkastet((u) => ({ ...u, ...varden }));
+    else void direkt(varden);
   }
 
   const obeskrivnaPlattformar = plattformar.filter((p) => !lankar.some((l) => l.plattform === p.id));
@@ -552,7 +622,7 @@ function OpsProfilRitad({
             ) : null}
             {/* ⛔ cllp/lifehub.app#786: bilden är inloggningens. Ett val, visa eller inte, i utkastet och med Spara. */}
             {doldBildLage && inloggningsBild && visas("utanBild") ? (
-              <OpsButton variant="secondary" size="sm" onClick={() => setMarke((m) => ({ ...m, utanBild: !nu.utanBild }))}>
+              <OpsButton variant="secondary" size="sm" onClick={() => satt("utanBild", !nu.utanBild)}>
                 {nu.utanBild ? visaBildEtikett : doljBildEtikett}
               </OpsButton>
             ) : null}
@@ -590,10 +660,8 @@ function OpsProfilRitad({
                 seed={anvandare.id}
                 farg={nu.farg}
                 ikon={nu.ikon}
-                onFarg={(f) => setMarke((m) => ({ ...m, farg: f }))}
-                // ⛔ En ikon ovanpå en kvarvarande bild hade synts som "inget hände" (`OpsIdentity` ritar bilden först), så
-                // ikonvalet rensar bilden i utkastet, som förut. Inte med `utanBild`: där är bilden kontots och döljs med knappen.
-                onIkon={(i) => setMarke((m) => ({ ...m, ikon: i, ...(doldBildLage || !visas("bild") ? {} : { bild: "", bildSokvag: "" }) }))}
+                onFarg={valjFarg}
+                onIkon={valjIkon}
                 sprak={sprak === "en" ? "en" : "sv"}
                 t={markeT}
                 idPrefix={markeId}
@@ -612,23 +680,23 @@ function OpsProfilRitad({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {visas("namn") ? (
                 <OpsField label={namnEtikett} labelSize="liten">
-                  <OpsInput value={namn} onChange={setNamn} />
+                  <OpsInput value={namn} onChange={(v) => satt("namn", v)} />
                 </OpsField>
               ) : null}
               {visas("telefon") ? (
                 <OpsField label={telefonEtikett} hint={telefonHint} labelSize="liten">
-                  <OpsInput type="tel" value={telefon} onChange={setTelefon} />
+                  <OpsInput type="tel" value={telefon} onChange={(v) => satt("telefon", v)} />
                 </OpsField>
               ) : null}
               {visas("stad") ? (
                 <OpsField label={stadEtikett} labelSize="liten">
-                  <OpsInput value={stad} onChange={setStad} />
+                  <OpsInput value={stad} onChange={(v) => satt("stad", v)} />
                 </OpsField>
               ) : null}
             </div>
             {visas("presentation") ? (
               <OpsField label={presentationEtikett} hint={`${presentation.length}/${MAX_PRESENTATION}`} labelSize="liten">
-                <OpsTextarea value={presentation} onChange={setPresentation} maxLength={MAX_PRESENTATION} />
+                <OpsTextarea value={presentation} onChange={(v) => satt("presentation", v)} maxLength={MAX_PRESENTATION} />
               </OpsField>
             ) : null}
           </div>
@@ -660,7 +728,7 @@ function OpsProfilRitad({
                     <OpsInput
                       type="url"
                       value={rad.url}
-                      onChange={(v) => setLankar(lankar.map((l, j) => (i === j ? { ...l, url: v } : l)))}
+                      onChange={(v) => satt("lankar", lankar.map((l, j) => (i === j ? { ...l, url: v } : l)))}
                     />
                   </OpsField>
                 </div>
@@ -669,7 +737,7 @@ function OpsProfilRitad({
                   size="sm"
                   iconOnly
                   ariaLabel={`${taBortLankEtikett}: ${rad.plattform}`}
-                  onClick={() => setLankar(lankar.filter((_l, j) => j !== i))}
+                  onClick={() => satt("lankar", lankar.filter((_l, j) => j !== i))}
                 >
                   <KryssIkon size={16} />
                 </OpsButton>
@@ -682,7 +750,7 @@ function OpsProfilRitad({
             <p className="mb-1 text-meta text-ink-secondary">{laggTillLankEtikett}</p>
             <div className="flex flex-wrap gap-2">
               {obeskrivnaPlattformar.map((p) => (
-                <OpsChip key={p.id} onClick={() => setLankar([...lankar, { plattform: p.id, url: "" }])}>
+                <OpsChip key={p.id} onClick={() => satt("lankar", [...lankar, { plattform: p.id, url: "" }])}>
                   {p.label}
                 </OpsChip>
               ))}
@@ -704,7 +772,7 @@ function OpsProfilRitad({
             <OpsSelect
               options={SPRAK.map((s) => ({ value: s, label: sprakNamn[s] || s }))}
               value={valtSprak}
-              onChange={(v) => setValtSprak(v)}
+              onChange={(v) => satt("sprak", v)}
             />
           </OpsField>
         </OpsCard>
@@ -714,6 +782,11 @@ function OpsProfilRitad({
         <OpsButton variant="primary" onClick={spara} disabled={!andrat} busy={sparar} busyLabel={sparaVantarEtikett}>
           {sparaEtikett}
         </OpsButton>
+        {sparaFel ? (
+          <p role="alert" className="m-0 self-center text-etikett text-danger" data-profil-sparafel="">
+            {sparaFel}
+          </p>
+        ) : null}
       </div>
 
       {/* ⛔ cllp/lifehub.app#786: det som inte hör till appen (inloggning, säkerhet, radering) bor i kontot. Länkarna dit,
@@ -757,6 +830,7 @@ export const ORD_OPSPROFIL = {
   grupperEtikett: { sv: "Mina grupper", en: "My groups" },
   sparaEtikett: { sv: "Spara", en: "Save" },
   sparaVantarEtikett: { sv: "Sparar…", en: "Saving…" },
+  sparaFelForval: { sv: "Profilen kunde inte sparas. Försök igen.", en: "Your profile could not be saved. Try again." },
   ingaGrupperText: { sv: "Du är inte med i någon grupp än.", en: "You are not in any group yet." },
   profilbildEtikett: { sv: "Profilbild", en: "Profile picture" },
   laddaUppEtikett: { sv: "Byt", en: "Change" },

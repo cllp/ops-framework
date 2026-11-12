@@ -197,9 +197,9 @@ describe("OpsProfil", () => {
       expect(screen.queryByText("Egna initialer")).toBeNull();
     });
 
-    it("⛔ #786: ett ikonval står i utkastet, syns i märket och skickas med Spara, och rensar bilden som förut", async () => {
+    it("⛔ #786, med falt: ett ikonval står i utkastet, syns i märket och skickas med Spara, och rensar bilden som förut", async () => {
       const onSpara = vi.fn(async () => {});
-      render(<OpsProfil anvandare={{ ...ANV, bild: "https://x/y.png", bildSokvag: "profilbilder/uid-1/y.jpg" }} onSpara={onSpara} />);
+      render(<OpsProfil anvandare={{ ...ANV, bild: "https://x/y.png", bildSokvag: "profilbilder/uid-1/y.jpg" }} onSpara={onSpara} falt={["ikon", "farg", "bild", "bildSokvag"]} />);
       const hus = document.querySelector('[data-profilmarke] [data-ikonnamn="house"]');
       expect(hus, "golv: katalogens ikon finns").toBeTruthy();
       fireEvent.click(/** @type {Element} */ (hus));
@@ -207,7 +207,25 @@ describe("OpsProfil", () => {
       expect(screen.getByRole("img", { name: "Claes Philip" }).querySelector("img")).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Spara" }));
       await waitFor(() => expect(onSpara).toHaveBeenCalledTimes(1));
-      expect(onSpara.mock.calls[0][0]).toMatchObject({ ikon: "house", bild: "", bildSokvag: "" });
+      expect(onSpara.mock.calls[0][0]).toEqual({ ikon: "house", bild: "", bildSokvag: "" });
+    });
+
+    /*
+     * ⛔ GRANSKNINGEN AV #786, PUNKT 5: UTAN `falt` SPARAS IKON OCH FÄRG DIREKT, SOM FÖRE #786. bolag-ops och tam sparar i sin egen
+     * rad och ska inte ändra beteende. Rött med utkastet i båda lägena, grönt med direktsparningen utan `falt`.
+     */
+    it("⛔ #786, utan falt: ett ikonval sparas DIREKT och rensar bild/bildSokvag, som förut", async () => {
+      const onSpara = vi.fn(async () => {});
+      render(<OpsProfil anvandare={{ ...ANV, bild: "https://x/y.png", bildSokvag: "profilbilder/uid-1/y.jpg" }} onSpara={onSpara} />);
+      fireEvent.click(/** @type {Element} */ (document.querySelector('[data-profilmarke] [data-ikonnamn="house"]')));
+      await waitFor(() => expect(onSpara).toHaveBeenCalledWith({ ikon: "house", bild: "", bildSokvag: "" }));
+    });
+
+    it("⛔ #786, utan falt: ett färgval sparas DIREKT och rör inte ikon eller bild, som förut", async () => {
+      const onSpara = vi.fn(async () => {});
+      render(<OpsProfil anvandare={{ ...ANV, ikon: "krona" }} onSpara={onSpara} />);
+      fireEvent.click(screen.getByRole("button", { name: "Hallon" }));
+      await waitFor(() => expect(onSpara).toHaveBeenCalledWith({ farg: "kulor:15" }));
     });
 
     it("⛔ #786: en kulör står i utkastet och skickas som kulor:N med Spara, och rör inte ikon eller bild", async () => {
@@ -963,5 +981,88 @@ describe("OpsProfil: falt, utanBild, det redigerbara kontot och telefonens exemp
     render(<OpsProfil anvandare={ANV} onSpara={() => {}} sprak="en" />);
     expect(screen.getByText("For example +46701234567")).toBeTruthy();
     expect(screen.queryByText("T.ex. +46701234567")).toBeNull();
+  });
+});
+
+/*
+ * ══ ⛔ GRANSKNINGEN AV #786, PUNKT 1: ETT NEJ FRÅN SPARNINGEN SÄGS ════════════════════════════════════════════════════════
+ *
+ * `spara` var `try/finally` utan `catch`: ett nej (Identitys 400 för ett telefonnummer, taket 429) gav en tryckbar Spara och ingen rad.
+ * Rött utan `catch` (felet når inte vyn, och provet ser ett ohanterat avslag), grönt med.
+ */
+describe("OpsProfil: ett nej från onSpara (#786, punkt 1)", () => {
+  const FALT = /** @type {const} */ (["namn", "telefon", "stad"]);
+  const avslag = (/** @type {string} */ kod, /** @type {string} */ text) => Object.assign(new Error(text), { code: kod });
+
+  it("⛔ 400: appens text står som alert vid Spara, och utkastet står kvar", async () => {
+    const onSpara = vi.fn(async () => {
+      throw avslag("invalid-argument", "telefon: +46 saknas");
+    });
+    render(<OpsProfil anvandare={ANV} onSpara={onSpara} falt={FALT} sparaFelText={(fel) => (/** @type {any} */ (fel).code === "invalid-argument" ? "Telefonnumret ska börja med +46." : undefined)} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Telefon" }), { target: { value: "0701234567" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Telefonnumret ska börja med +46.");
+    expect(/** @type {HTMLInputElement} */ (screen.getByRole("textbox", { name: "Telefon" })).value).toBe("0701234567");
+    expect(screen.getByRole("button", { name: "Spara" }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("⛔ 429: utan appens text står förvalet, på vyns språk", async () => {
+    const onSpara = vi.fn(async () => {
+      throw avslag("resource-exhausted", "För många sparningar");
+    });
+    render(<OpsProfil anvandare={ANV} onSpara={onSpara} falt={FALT} sprak="en" />);
+    fireEvent.change(screen.getByRole("textbox", { name: "City" }), { target: { value: "Visby" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Your profile could not be saved. Try again.");
+    expect(/** @type {HTMLInputElement} */ (screen.getByRole("textbox", { name: "City" })).value).toBe("Visby");
+  });
+
+  it("⛔ ett nej på ett direkt färgval (utan falt) sägs också", async () => {
+    const onSpara = vi.fn(async () => {
+      throw avslag("resource-exhausted", "tak");
+    });
+    render(<OpsProfil anvandare={ANV} onSpara={onSpara} sparaFelText="Vänta en minut." />);
+    fireEvent.click(screen.getByRole("button", { name: "Hallon" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Vänta en minut.");
+  });
+});
+
+/*
+ * ══ ⛔ GRANSKNINGEN AV #786, PUNKT 8b: UTKASTET FÖLJER RADEN, UTOM DET PERSONEN ÄNDRAT ════════════════════════════════
+ *
+ * Fälten var `useState` ur den första `anvandare` och stod kvar när raden ändrades. Rött med de gamla `useState`, grönt med regeln:
+ * orörda fält följer raden, ändrade fält står kvar, och en annan person tömmer utkastet.
+ */
+describe("OpsProfil: utkastet när anvandare ändras (#786, punkt 8b)", () => {
+  const FALT = /** @type {const} */ (["namn", "stad"]);
+  const varde = (/** @type {string} */ namn) => /** @type {HTMLInputElement} */ (screen.getByRole("textbox", { name: namn })).value;
+
+  it("⛔ ett orört fält följer raden när den ändras utifrån", () => {
+    const { rerender } = render(<OpsProfil anvandare={ANV} onSpara={() => {}} falt={FALT} />);
+    rerender(<OpsProfil anvandare={{ ...ANV, stad: "Visby" }} onSpara={() => {}} falt={FALT} />);
+    expect(varde("Stad")).toBe("Visby");
+  });
+
+  it("⛔ mitt i en ändring står det personen skrivit kvar, och det orörda fältet följer raden", () => {
+    const { rerender } = render(<OpsProfil anvandare={ANV} onSpara={() => {}} falt={FALT} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Namn" }), { target: { value: "Halvskrivet" } });
+    rerender(<OpsProfil anvandare={{ ...ANV, namn: "Från annan flik", stad: "Visby" }} onSpara={() => {}} falt={FALT} />);
+    expect(varde("Namn")).toBe("Halvskrivet");
+    expect(varde("Stad")).toBe("Visby");
+  });
+
+  it("⛔ när raden kommit ikapp en sparning släpps fältet, och nästa ändring utifrån syns", () => {
+    const { rerender } = render(<OpsProfil anvandare={ANV} onSpara={() => {}} falt={FALT} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Stad" }), { target: { value: "Visby" } });
+    rerender(<OpsProfil anvandare={{ ...ANV, stad: "Visby" }} onSpara={() => {}} falt={FALT} />);
+    rerender(<OpsProfil anvandare={{ ...ANV, stad: "Slite" }} onSpara={() => {}} falt={FALT} />);
+    expect(varde("Stad")).toBe("Slite");
+  });
+
+  it("⛔ en annan person tömmer utkastet", () => {
+    const { rerender } = render(<OpsProfil anvandare={ANV} onSpara={() => {}} falt={FALT} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Namn" }), { target: { value: "Halvskrivet" } });
+    rerender(<OpsProfil anvandare={{ ...ANV, id: "uid-2", namn: "Någon annan" }} onSpara={() => {}} falt={FALT} />);
+    expect(varde("Namn")).toBe("Någon annan");
   });
 });
