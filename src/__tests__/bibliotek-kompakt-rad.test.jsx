@@ -3,7 +3,8 @@
 import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
 import { OpsBibliotek, byggPost } from "../index.js";
-import { kortTidpunkt, kortRubrik, kortTyp } from "../components/OpsBibliotek.jsx";
+import { kortTidpunkt, kortTyp } from "../components/OpsBibliotek.jsx";
+import { kortRubrik } from "../lib/bibliotek.js";
 
 const s = { uid: "uid-1", namn: "CP", typ: "manniska", kalla: "bibliotek" };
 const tid = new Date(2026, 9, 31, 10).getTime();

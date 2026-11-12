@@ -160,7 +160,7 @@ const LANK = somGast(byggPost(med({ typ: "lank", rubrik: "Kartan", url: LANK_URL
 const MEDLEMSFIL = { id: "mf", ...byggPost(med({ groupId: "g1", typ: "fil", rubrik: "Avtal", fil: { sokvag: "mf", namn: "avtal.pdf", mime: "application/pdf", byte: 2048 } })) };
 /** Filens nedladdningsadress. ⛔ (0.220.0, lifehub.app#801) Den lämnas aldrig ut av Kopiera länk. */
 const FILENS_ADRESS = "https://lagring.exempel/avtal.pdf?token=hemlig";
-/** Postens adress i appen, som Kopiera länk ger en medlem (`postlankBas` + `bibliotekslank`). */
+/** Postens adress i appen, som Kopiera länk ger en medlem (`postlank`). */
 const MEDLEMS_ADRESS = "https://app.exempel/bibliotek?plats=g1&post=mf";
 const KVITTO = { sv: "Länken är kopierad.", en: "The link is copied." };
 
@@ -176,7 +176,7 @@ function Medlem({ sprak }) {
         onSkapa={() => {}}
         onSpara={async () => false}
         filUrl={() => FILENS_ADRESS}
-        postlankBas="https://app.exempel/bibliotek"
+        postlank={(p) => `https://app.exempel/bibliotek?plats=${p.groupId}&post=${p.id}`}
         utanHubb
       />
     </OpsSprakProvider>

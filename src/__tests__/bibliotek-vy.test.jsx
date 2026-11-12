@@ -568,7 +568,7 @@ describe("OpsBibliotek", () => {
     render(<Harness start={[ljud]} filUrl={() => "https://exempel.se/ide.webm"} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Idé 2026-10-08 21:05" }));
     const meny = screen.getByRole("menu", { name: "Idé 2026-10-08 21:05" });
-    // ⛔ ÄNDRAT I 0.220.0 (lifehub.app#801): utan `postlankBas` har en medlems fil ingen Kopiera länk, eftersom filens nedladdningsadress aldrig
+    // ⛔ ÄNDRAT I 0.220.0 (lifehub.app#801): utan `postlank` har en medlems fil ingen Kopiera länk, eftersom filens nedladdningsadress aldrig
     // lämnas ut. Med basen står raden på samma plats (`bibliotek-kopiera-lank-801.test.jsx`).
     expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Byt namn", "Lägg till tagg", "Lägg i lista", "Nåla fast", "Arkivera", "Radera"]);
     for (const borta of ["Hastighet", "10 sekunder bakåt", "10 sekunder framåt", "Taggar", "Öppna", "Ladda ned", "Redigera"]) {

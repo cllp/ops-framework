@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
 import { byggPost } from "../lib/bibliotek.js";
+import { bibliotekslank } from "../lib/postkommentar.js";
 
 /**
  * ⛔ KOPIERA LÄNK LÄMNAR ALDRIG UT FILENS NEDLADDNINGSADRESS (lifehub.app#801, QA A01, 2026-11-12).
@@ -11,7 +12,7 @@ import { byggPost } from "../lib/bibliotek.js";
  * raden adressen visningen redan hade (`filUrl`, i appen `getDownloadURL`). Rött på 0.219.0, grönt med 0.220.0:
  *
  *   medlemmens fil kopierar `filUrl`                RÖTT: urklippet får tokenadressen
- *   Kopiera länk utan `postlankBas`                 RÖTT: raden finns och kopierar tokenadressen
+ *   Kopiera länk utan `postlank`                    RÖTT: raden finns och kopierar tokenadressen
  *
  * Golv: urklippet har fått exakt ett värde, så att "inte tokenadressen" inte blir grönt av att ingenting kopierades.
  */
@@ -39,7 +40,7 @@ function Vy({ postlankBas, poster = [FIL, LANK] }) {
       onRadera={() => {}}
       filUrl={() => TOKENADRESS}
       hubHref="/hub"
-      {...(postlankBas === undefined ? {} : { postlankBas })}
+      {...(postlankBas === undefined ? {} : { postlank: (/** @type {{ id: string, groupId: string }} */ p) => bibliotekslank(postlankBas, { plats: p.groupId, postId: p.id }) })}
     />
   );
 }
@@ -84,14 +85,5 @@ describe("⛔ Kopiera länk på en medlems fil (lifehub.app#801)", () => {
     expect(screen.getByText("Avtal")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Konstig" }));
     expect(screen.queryByRole("menuitem", { name: "Kopiera länk" })).toBeNull();
-  });
-
-  it("en bas som inte är en adress är ett fel när biblioteket ritas", () => {
-    const fel = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      expect(() => render(<Vy postlankBas="bibliotek" />)).toThrow(/bas/);
-    } finally {
-      fel.mockRestore();
-    }
   });
 });

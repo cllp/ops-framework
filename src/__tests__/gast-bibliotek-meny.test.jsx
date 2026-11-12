@@ -198,7 +198,7 @@ describe("medlemmens meny har kvar Kopiera länk och de andra raderna", () => {
         onSkapa={() => {}}
         onSpara={async () => false}
         filUrl={() => "https://lagring.exempel/avtal.pdf?token=hemlig"}
-        postlankBas="https://app.exempel/bibliotek"
+        postlank={(p) => `https://app.exempel/bibliotek?plats=${p.groupId}&post=${p.id}`}
         hubHref="/hubb"
         kommentarer={KOMMENTARER}
       />,

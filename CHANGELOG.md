@@ -9,6 +9,35 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.221.0
+
+Kopiera länk i biblioteket tar en funktion från appen (`postlank`) i stället för appens adress (`postlankBas`, 0.220.0), och kortets rubrik (`kortRubrik`) bor i `lib/bibliotek.js`. Båda för att 0.220.0 gjorde lifehub.app:s startfiler större än vakten `check:jsstorlek` släpper igenom (cllp/lifehub.app#801).
+
+**Mätt i lifehub.app, per modul med källkartor, 2026-11-12:**
+
+| Version | Före första vyn, gzip | Mot taket 815 543 |
+|---|---|---|
+| 0.219.0 | 815 524 | 19 under |
+| 0.220.0 | 816 104 | 561 över: `OpsBibliotek` importerade `bibliotekslank`, och hela `postkommentar.js` (+2 119 ominifierade byte) följde med in i startfilen |
+| `bibliotekslank` i en egen fil | | 479 över: filen (+1 619) låg ändå i startfilen |
+| `postlank` som funktion | | 38 över: bara `OpsBibliotek` (+260) |
+| 0.221.0, med `kortRubrik` flyttad | 815 524 | 19 under, samma som 0.219.0 |
+
+`kortRubrik` flyttades för att postkortet i chatten (`bibliotekPostkortVisning.jsx`) importerade den ur `OpsBibliotek.jsx`. Flytten tog bort 150 ominifierade byte ur startfilen, och det räckte. Hela `OpsBibliotek` ligger fortfarande i startfilen av ett annat skäl, och det är ett eget arbete.
+
+**Skärmtid:** oförändrad. Ingenting syns annorlunda.
+
+### Ändrat
+
+- **`OpsBibliotek` tar `postlank`**, en funktion som ger postens adress i appen, i stället för `postlankBas`. Appen bygger länken där den redan har koden, till exempel `(p) => bibliotekslank(bas, { plats: p.groupId, postId: p.id })`. Biblioteket prövar postens form (`POSTIDFORM` och `groupId`, granskningen A1) innan funktionen anropas, så en post med ett avvikande id saknar raden i stället för att ta ned listan.
+- **`kortRubrik` bor i `lib/bibliotek.js`.** Den importeras inte längre ur `OpsBibliotek.jsx`.
+
+### Att göra i appen
+
+- Byt `postlankBas={bas}` mot `postlank={(p) => bibliotekslank(bas, { plats: p.groupId, postId: p.id })}`. Utan den har en medlems fil ingen Kopiera länk, som förut.
+
+---
+
 ## 0.220.0
 
 Kopiera länk i biblioteket lämnar aldrig ut filens nedladdningsadress (cllp/lifehub.app#801, QA A01). QA i SessionStudio 1.0.1171, 2026-11-12: Kopiera länk på en fil gav en rå firebasestorage-adress med token, som öppnades utan inloggning, aldrig gick ut och inte gick att dra tillbaka. Raden var en väg förbi Dela länk, som har utgång och kod.
