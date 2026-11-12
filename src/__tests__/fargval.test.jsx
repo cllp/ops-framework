@@ -127,10 +127,22 @@ describe("OpsFargval", () => {
     fireEvent.change(falt, { target: { value: "#12" } });
     expect(fick).toHaveBeenLastCalledWith("#12");
     expect(screen.getByText("Skriv sex tecken efter #, till exempel #8e7a4e.")).toBeTruthy();
+    // ⛔ En hel kod går vidare i palettens form (granskningen av PR 581): versaler och mellanslag hade annars gjort paletten ogiltig utan fel.
     fireEvent.change(falt, { target: { value: "#1F1F25" } });
-    expect(fick).toHaveBeenLastCalledWith("#1F1F25");
+    expect(fick).toHaveBeenLastCalledWith("#1f1f25");
+    fireEvent.change(falt, { target: { value: " 1f1f25 " } });
+    expect(fick).toHaveBeenLastCalledWith("#1f1f25");
     // Reglagen följer en kod som skrivits.
     expect(reglage("Ljushet").getAttribute("aria-valuetext")).toBe("13 procent");
+  });
+
+  it("⛔ en kort kod som #abc går vidare som den står och säger formen, så att den går att skriva klart", () => {
+    const fick = vi.fn();
+    render(<Styrd start="#94a37e" onChange={fick} />);
+    oppna();
+    fireEvent.change(screen.getByLabelText("Färgkod"), { target: { value: "#abc" } });
+    expect(fick).toHaveBeenLastCalledWith("#abc");
+    expect(screen.getByText("Skriv sex tecken efter #, till exempel #8e7a4e.")).toBeTruthy();
   });
 
   it("⛔ en skriven svart kod tar inte kulören: reglaget står kvar, och tillbaka från svart blir samma kulör", () => {

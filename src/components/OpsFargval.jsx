@@ -105,10 +105,27 @@ function Fargreglage({ id, etikett, varde, max, steg = 1, text, onChange, skala,
   );
 }
 
+/** Färgkoden som paletten lagrar: `#` och sex små hexsiffror (`lasPalett`). */
+const HEL_KOD = /^#[0-9a-f]{6}$/;
+
+/**
+ * Det som skrivs i färgkoden, på väg till appen.
+ *
+ * ⛔ EN HEL KOD GÅR VIDARE I PALETTENS FORM, EN HALV SOM DEN STÅR (granskningen av PR 581). `#1F1F25` eller ` #1f1f25 ` hade annars gått
+ * vidare som det skrevs. Paletten kräver små bokstäver och sex siffror, så skalan hade försvunnit för varje färg på panelen utan att något
+ * fel visades: samma fastlåsta läge som CP beskrev. En halv kod (`#12`, `#abc`) går vidare som den står, så att den kan skrivas klart, och
+ * fältet säger formen. `#abc` görs inte om till `#aabbcc` medan man skriver: då hade `#abcdef` inte gått att skriva.
+ * @param {string} text
+ */
+function skrivenKod(text) {
+  const t = String(text ?? "").trim();
+  return /^#?[0-9a-fA-F]{6}$/.test(t) ? `#${t.replace(/^#/, "").toLowerCase()}` : String(text ?? "");
+}
+
 /**
  * @param {object} props
  * @param {string} props.value Färgen som den står i appens utkast: `#rrggbb`, eller det som skrivs, också en halv kod.
- * @param {(value: string) => void} props.onChange Reglagen och knappen ger `#rrggbb`; färgkoden ger det som skrivs.
+ * @param {(value: string) => void} props.onChange Reglagen och knappen ger `#rrggbb`. Färgkoden ger en hel kod som `#rrggbb`, och en halv som den står.
  * @param {import("../lib/palett.js").Palett | null} [props.palett] Paletten med de andra färgerna. Med `lage` och `nyckel` visar ljusheten var
  *   färgen håller. `value` ersätter `palett[lage][nyckel]`. Utelämnad, eller något som inte är en palett (ett annat fält är halvskrivet):
  *   reglagen utan skala.
@@ -284,9 +301,9 @@ export function OpsFargval({ value, onChange, palett, lage, nyckel, disabled = f
               </button>
             ) : null}
 
-            <OpsField label={t("fargkod")} hint={t("fargkodHint")} error={value && !form ? t("felForm") : undefined}>
+            <OpsField label={t("fargkod")} hint={t("fargkodHint")} error={value && !HEL_KOD.test(value) ? t("felForm") : undefined}>
               {/* ⛔ Inget tal: en färgkod sägs inte in. */}
-              <OpsInput value={value} onChange={onChange} placeholder="#8e7a4e" autoComplete="off" maxLength={7} tal={false} />
+              <OpsInput value={value} onChange={(text) => onChange(skrivenKod(text))} placeholder="#8e7a4e" autoComplete="off" maxLength={12} tal={false} />
             </OpsField>
           </div>
         </Popover.Content>
