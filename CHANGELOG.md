@@ -11,14 +11,17 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.218.1
 
-Ljudspelaren tappar inte längre ett tryck på spela som kommer innan den hunnit koppla sina lyssnare. Inget brytande, ingen ny prop.
+Ljudspelaren tappar inte längre ett tryck på spela som kommer innan den hunnit koppla sina lyssnare, och agentens Gemini-modeller är bytta till 3.5 sedan Google pensionerat 2.5. Inget brytande, ingen ny prop.
 
 ### Rättat
+
+- **`AGENTMODELLER`: Gemini Flash Lite är `gemini-3.5-flash-lite` och Gemini Flash `gemini-3.5-flash` (cllp/lifehub.app#786).** Google stängde 2.5-modellerna för nya projekt när de pensionerades 2026-10-20. SessionStudio-instansens projekt skapades 2026-11-10 och fick 404 på varje anrop, så agenten svarade inte. Mätt 2026-11-12 i båda projekten: 3.5-modellerna svarar (i platsen `global`, inte i `europe-west1`). Nytt: `ERSATTA_AGENTMODELLER`, och `modellUrId` slår upp ett pensionerat id till modellen som ersatt det. Ett sparat val med ett 2.5-id blir alltså inte tyst förvalet. `modellUrId` och `ERSATTA_AGENTMODELLER` exporteras också från `ops-framework/node`, så att appens funktioner läser samma tabell.
 
 - **`OpsLjudspelare`: lyssnarna på `<audio>` kopplas i commit (`useLayoutEffect`), inte i en effekt efteråt (cllp/ops-framework#579, mätt i cllp/lifehub.app#772).** När adressen kom efter ett löfte (`hamtaAdress`, en delad lista som hämtats) satt `<audio>` i DOM en uppgift innan effekten som kopplar `error` och nollställer "någon har tryckt spela" (`begart`). Ett tryck i glappet startade uppspelningen, sedan körde React den väntande effekten och satte `begart` till falskt igen. Ett fel från filen räknades då inte som begärt: inget `onFel`, ingen ny adress för en adress som gått ut, ingen text. Ett fel före effekten nådde ingen lyssnare alls. I lifehub.app syntes det som ett prov som var rött ungefär en gång av sex (`delad-sida.test.jsx`, bara ett anrop till delningen efter felet). I webbläsaren är glappet kort, men den som trycker spela i samma ögonblick som en delad lista visas får samma fel. Ingenting i effekten behövde stå kvar som passivt: lyssnarna är billiga, längdsökningen är asynkron, och nollställningen av tid och läge ritas nu före målningen. Spelaren ritas aldrig på servern, så layouteffekten ger ingen varning där.
 
 ### Prov
 
+- `agentmodeller.test.js`: ett pensionerat id ger modellen som ersatt det, varje ersättare står i listan och inget pensionerat id gör det. Rött med 0.218.0 (4 av 5), grönt med 0.218.1.
 - `ljudspelare-montering.test.jsx`: adressen kommer ur `hamtaAdress` utan `act`, och provet trycker spela och skickar ett fel på `<audio>` direkt när elementet syns i DOM, före nästa makrouppgift. Rött med 0.218.0 (`onFel` anropas aldrig), grönt med 0.218.1.
 
 ## 0.218.0

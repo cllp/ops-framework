@@ -278,7 +278,7 @@ export { UTSKRIFT_FALT, UTSKRIFT_TAK_MS, UTSKRIFT_TIMEOUT_TEXT, UTSKRIFTJOBB_STA
  * `functions/apikonfig.js` kom inte med. Tillagda, ur samma källmoduler som huvudingången: `arkiveraKalender`, `byggGruppkalender`, `kalenderIdUrNamn`, `nastaOrdning`, `valjForvald`,
  * `validateGruppkalendrar` (appens functions, via bron `functions/ramverkskalendrar.js`) och `postFel`, `olastaI`, `STANDARD_TIDSZON`, `byggMinKalender`, `INBJUDNING_GILTIGHET_DAGAR` (appens prov).
  */
-export { AGENTMODELLER, FORVALD_AGENTMODELL } from "../lib/agentmodeller.js";
+export { AGENTMODELLER, ERSATTA_AGENTMODELLER, FORVALD_AGENTMODELL, modellUrId } from "../lib/agentmodeller.js";
 export { GRUPPIKONKATALOG } from "../lib/gruppikonkatalog.generated.js";
 export { KALENDERFARGER, KALENDERIKONER, forvaldKalender, arkiveraKalender, byggGruppkalender, byggMinKalender, kalenderIdUrNamn, nastaOrdning, STANDARD_TIDSZON, valjForvald, validateGruppkalendrar } from "../lib/kalendrar.js";
 export { MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, arLjudpost, arMittBibliotek, byggPost, ljudRubrik, postFel, utskriftFel } from "../lib/bibliotek.js";
