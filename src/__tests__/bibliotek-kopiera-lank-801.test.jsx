@@ -26,11 +26,11 @@ const med = (extra) => ({ groupId: "cps-ab", skapadAv: skapare, skapad: tid, and
 const FIL = { ...byggPost(med({ typ: "fil", rubrik: "Avtal", fil: { sokvag: "grupper/cps-ab/bibliotek/f1/a.pdf", namn: "a.pdf", mime: "application/pdf", byte: 2048 } })), id: "f1" };
 const LANK = { ...byggPost(med({ typ: "lank", rubrik: "Kartan", url: "https://exempel.se/karta" })), id: "k1" };
 
-/** @param {{ postlankBas?: string }} p */
-function Vy({ postlankBas }) {
+/** @param {{ postlankBas?: string, poster?: any[] }} p */
+function Vy({ postlankBas, poster = [FIL, LANK] }) {
   return (
     <OpsBibliotek
-      poster={[FIL, LANK]}
+      poster={poster}
       jag={JAG}
       onOppna={() => {}}
       onStang={() => {}}
@@ -75,6 +75,15 @@ describe("⛔ Kopiera länk på en medlems fil (lifehub.app#801)", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Kopiera länk" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     expect(writeText).toHaveBeenCalledWith("https://exempel.se/karta");
+  });
+
+  it("⛔ en post med ett id som inte är ett postid tar inte ned listan: den saknar bara Kopiera länk, och de andra raderna står kvar (granskningen, A1)", () => {
+    const konstig = { ...FIL, id: "konstigt.id", rubrik: "Konstig" };
+    render(<Vy postlankBas={BAS} poster={[konstig, FIL]} />);
+    expect(screen.getByText("Konstig")).toBeInTheDocument();
+    expect(screen.getByText("Avtal")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Konstig" }));
+    expect(screen.queryByRole("menuitem", { name: "Kopiera länk" })).toBeNull();
   });
 
   it("en bas som inte är en adress är ett fel när biblioteket ritas", () => {

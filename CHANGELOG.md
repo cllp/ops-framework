@@ -19,6 +19,11 @@ Kopiera länk i biblioteket lämnar aldrig ut filens nedladdningsadress (cllp/li
 
 - **`OpsBibliotek` `postlankBas`:** appens adress till biblioteket, samma `bas` som `bibliotekslank` och kommentarerna. Kopiera länk på en medlems fil kopierar postens adress i appen (`<bas>?plats=<grupp>&post=<id>`), som kräver inloggning och medlemskap. Basen prövas när biblioteket ritas.
 - **Utan `postlankBas` har en medlems fil ingen Kopiera länk.** Fram till 0.219.0 kopierade raden `filUrl`, alltså nedladdningsadressen. En länkpost kopierar sin egen adress som förut, och gästens fil sin signerade adress som gäller en kvart (oförändrat).
+- **En post vars id inte är ett postid (`POSTIDFORM`) får ingen Kopiera länk** i stället för att `bibliotekslank` kastar. Menyn byggs för varje rad när listan ritas, så en enda sådan post hade tagit ned hela biblioteket (den oberoende granskningen, A1).
+
+### Kvar, i eget ärende
+
+- Medlemmens filnamn och Ladda ned är fortfarande `<a href>` med lagringsadressen, så "Kopiera länkadress" på filnamnet ger samma token. Rotorsaken är visningen, inte menyn: cllp/ops-framework#583.
 
 ### Att göra i appen
 

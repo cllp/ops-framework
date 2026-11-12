@@ -31,7 +31,7 @@ import { githubDokument } from "../lib/githubdokument.js";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
 import { ID_FORM } from "../lib/katalog.js";
-import { ARKIVTAGG, arArkiverad, avkodaTextfil, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
+import { ARKIVTAGG, POSTIDFORM, arArkiverad, avkodaTextfil, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
 import { bibliotekslank, lasBibliotekslank } from "../lib/postkommentar.js";
 import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
@@ -811,7 +811,9 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
    * @returns {string}
    */
   function postensAdress(post) {
-    if (typeof postlankBas !== "string" || typeof post.id !== "string" || typeof post.groupId !== "string" || post.groupId === "") return "";
+    // ⛔ EN POST SOM INTE HAR ETT POSTID I RÄTT FORM FÅR INGEN ADRESS, OCH DÅ INGEN RAD "KOPIERA LÄNK" (granskningen av #801, A1). `bibliotekslank` kastar för en sådan, och
+    // `menyFor` körs för varje rad redan när listan ritas: en enda post med ett avvikande id hade tagit ned hela biblioteket. Samma prövning som `bibliotekslank`, före anropet.
+    if (typeof postlankBas !== "string" || typeof post.id !== "string" || !POSTIDFORM.test(post.id) || typeof post.groupId !== "string" || post.groupId === "") return "";
     return bibliotekslank(postlankBas, { plats: post.groupId, postId: post.id });
   }
 
