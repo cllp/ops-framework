@@ -16,9 +16,12 @@
  * kontrastfärg räknas fram här (`harledPalett`). De lagras aldrig: en härledd färg som sparas bredvid sin källa är två
  * sanningar som går isär den dag någon ändrar den ena (arbetsreglernas punkt 2).
  *
- * ⛔ STATUSFÄRGERNA RÖRS INTE (fel, varning, klart, info, märket, diagrammen, gruppkulörerna). De är ramverkets egna och mätta
- * mot ramverkets ytor (`scripts/check-kontrast.mjs`, `check-gruppfarg`). En hubb som sätter en yta långt från förvalet kan
- * därför ge dem sämre kontrast än förvalet; granskningen nedan prövar bara det hubben själv väljer.
+ * ⛔ STATUSFÄRGERNA RÖRS INTE (fel, varning, klart, info, märket, diagrammen, gruppkulörerna), och inte heller `line-strong`,
+ * `divider`, `ink-inverse` och kontrastpanelen. Statusfärgerna är ramverkets egna, och granskningen prövar dem mot HUBBENS ytor
+ * (`granskaPalett`, samma par som `check-kontrast`): en yta långt från förvalet nekas i stället för att göra felraden oläslig.
+ * `line-strong` och `divider` är svart respektive vit med låg täckning och följer därför ytan av sig själva, så länge temat är
+ * det det heter (granskningen kräver ljusare yta än text i ljust tema och tvärtom). `ink-inverse` står bara på kontrastpanelen,
+ * som inte följer paletten. Diagrammen och gruppkulörerna mäts mot ramverkets ytor och är kvar som en känd lucka (PR-texten).
  *
  * ══ ⛔ SAMMA TOKENSYSTEM, INGET PARALLELLT ═══════════════════════════════════════════════════════════════════════════
  *
@@ -37,12 +40,13 @@
  *
  * ══ ⛔ OLÄSLIGT NEKAS, INTE VARNAS ═══════════════════════════════════════════════════════════════════════════════════
  *
- * `granskaPalett` prövar de par komponenterna faktiskt ritar med samma ribba som `scripts/check-kontrast.mjs` (WCAG AA:
+ * `granskaPalett` prövar samma par som `scripts/check-kontrast.mjs`, ur samma lista (`kontrastpar.js`), med samma ribbor (WCAG AA:
  * 4,5:1 för brödtext, 3:1 för grafik), på de HÄRLEDDA värdena, alltså det som ritas och inte bara det som valdes. En lista
  * med fynd betyder att paletten inte ska sparas. En tom lista är ett svar: alla par håller.
  */
 
-import { STANDARDPALETT } from "./standardpalett.generated.js";
+import { RAMVERKETS_PARTOKEN, STANDARDPALETT } from "./standardpalett.generated.js";
+import { BROD, GRAFIK, PAR } from "./kontrastpar.js";
 
 export { STANDARDPALETT };
 
@@ -58,9 +62,9 @@ export const PALETT_NYCKLAR = Object.freeze(/** @type {const} */ (["bakgrund", "
  */
 export const PALETT_HEXFORM = /^#[0-9a-f]{6}$/;
 
-/** Taket för brödtext och grafik, samma som `scripts/check-kontrast.mjs`. */
-export const KONTRAST_BROD = 4.5;
-export const KONTRAST_GRAFIK = 3;
+/** Ribborna för brödtext och grafik, samma som `check-kontrast` (de bor i `kontrastpar.js`). */
+export const KONTRAST_BROD = BROD;
+export const KONTRAST_GRAFIK = GRAFIK;
 
 /**
  * @typedef {{ bakgrund: string, yta: string, text: string, accent: string }} Lagesfarger
@@ -233,85 +237,120 @@ export const PALETT_TOKEN = Object.freeze(Object.keys(harledLage(STANDARDPALETT.
 
 // ── Granskningen ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-/**
- * Paren som prövas, ur `scripts/check-kontrast.mjs` (samma par, samma ribba), uttryckta i palettens ord.
- * `text` och `yta` är tokennamn, `vad` och `rad` vad användaren läser.
- */
-const PAR = Object.freeze([
-  {
-    text: "ink", yta: "canvas", krav: KONTRAST_BROD,
-    vad: { sv: "Texten mot bakgrunden", en: "Text on the background" },
-    rad: { sv: "Gör texten mörkare eller bakgrunden ljusare, eller tvärtom.", en: "Make the text darker or the background lighter, or the other way round." },
-  },
-  {
-    text: "ink", yta: "raised", krav: KONTRAST_BROD,
-    vad: { sv: "Texten mot ytan", en: "Text on the surface" },
-    rad: { sv: "Gör texten mörkare eller ytan ljusare, eller tvärtom.", en: "Make the text darker or the surface lighter, or the other way round." },
-  },
-  {
-    text: "ink-secondary", yta: "raised", krav: KONTRAST_BROD,
-    vad: { sv: "Den dämpade texten mot ytan", en: "Secondary text on the surface" },
-    rad: { sv: "Den dämpade texten blandas av texten och ytan. Öka skillnaden mellan dem.", en: "Secondary text is mixed from the text and the surface. Increase the difference between them." },
-  },
-  {
-    text: "accent-contrast", yta: "accent", krav: KONTRAST_BROD,
-    vad: { sv: "Texten på en knapp i accentfärgen", en: "Text on an accent button" },
-    rad: { sv: "Välj en accent som är tydligt ljus eller tydligt mörk.", en: "Choose an accent that is clearly light or clearly dark." },
-  },
-  {
-    text: "accent-contrast", yta: "accent-hover", krav: KONTRAST_BROD,
-    vad: { sv: "Texten på en knapp i accentfärgen när pekaren är över", en: "Text on an accent button under the pointer" },
-    rad: { sv: "Välj en accent som är tydligt ljus eller tydligt mörk.", en: "Choose an accent that is clearly light or clearly dark." },
-  },
-  {
-    text: "accent", yta: "canvas", krav: KONTRAST_GRAFIK,
-    vad: { sv: "Accenten mot bakgrunden", en: "The accent on the background" },
-    rad: { sv: "Knappar och reglage syns inte. Gör accenten mer olik bakgrunden.", en: "Buttons and switches disappear. Make the accent more different from the background." },
-  },
-  {
-    text: "accent", yta: "raised", krav: KONTRAST_GRAFIK,
-    vad: { sv: "Accenten mot ytan", en: "The accent on the surface" },
-    rad: { sv: "Knappar och reglage syns inte. Gör accenten mer olik ytan.", en: "Buttons and switches disappear. Make the accent more different from the surface." },
-  },
-]);
-
 /** Lägenas namn för användaren. */
 const LAGESNAMN = Object.freeze({ ljus: { sv: "Ljust tema", en: "Light mode" }, mork: { sv: "Mörkt tema", en: "Dark mode" } });
+
+/** Token paletten inte skriver, alltså ramverkets egna: statusfärgerna, märket, räknemärkets kontrast. */
+const FASTA = new Set(["danger", "success", "warning", "info", "info-bg", "badge", "badge-contrast", "marke-accent"]);
+
+/**
+ * Vad som hjälper, ur vilka av palettens färger paret hänger på.
+ * @param {{ text: string, yta: string }} p
+ * @returns {{ sv: string, en: string }}
+ */
+function hjalp(p) {
+  if (FASTA.has(p.text) || FASTA.has(p.yta)) {
+    return {
+      sv: "Fel, varning, klart och info har ramverkets egna färger. Välj en bakgrund och yta närmare standardfärgernas ljushet i det här temat.",
+      en: "Error, warning, success and info keep the framework's colours. Choose a background and surface closer to the default lightness in this mode.",
+    };
+  }
+  if (p.text.startsWith("accent") || p.yta.startsWith("accent")) {
+    return {
+      sv: "Välj en accent som är tydligt ljusare eller mörkare än bakgrunden och ytan, och tydligt ljus eller tydligt mörk.",
+      en: "Choose an accent that is clearly lighter or darker than the background and surface, and clearly light or clearly dark.",
+    };
+  }
+  if (p.text === "ink-secondary") {
+    return {
+      sv: "Den dämpade texten blandas av texten och ytan. Öka skillnaden mellan texten och bakgrunden och ytan.",
+      en: "Secondary text is mixed from the text and the surface. Increase the difference between the text and the background and surface.",
+    };
+  }
+  return { sv: "Gör texten mörkare eller bakgrunden och ytan ljusare, eller tvärtom.", en: "Make the text darker or the background and surface lighter, or the other way round." };
+}
+
+/**
+ * Ett token som färg, med en halvgenomskinlig lagd över sin bas (samma sätt som `check-kontrast` räknar `info-bg`).
+ * @param {Record<string, string>} t @param {string} namn @param {string} [bas]
+ * @returns {string}
+ */
+function tokenfarg(t, namn, bas) {
+  const v = t[namn];
+  if (v.startsWith("#")) return v;
+  const d = (v.match(/[\d.]+/g) ?? []).map(Number);
+  const a = d[3] ?? 1;
+  if (a >= 1 || !bas) return hex([d[0], d[1], d[2]]);
+  const u = rgb(tokenfarg(t, bas));
+  return hex([d[0], d[1], d[2]].map((c, i) => c * a + u[i] * (1 - a)));
+}
 
 /**
  * @typedef {object} Kontrastfynd
  * @property {Palettlage} lage
- * @property {string} text Tokenet som är texten (eller grafiken).
+ * @property {string} text Tokenet som är texten (eller grafiken). `ordning` när bakgrunden eller ytan står på fel sida om texten.
  * @property {string} yta Tokenet det ligger på.
- * @property {number} kvot Uppmätt, avrundad nedåt till två decimaler.
+ * @property {string} [bas] Ytan under en halvgenomskinlig `yta` (`info-bg`), när paret har en.
+ * @property {number} kvot Uppmätt, avrundad nedåt till två decimaler. 0 för `ordning`.
  * @property {number} krav
- * @property {{ sv: string, en: string }} meddelande En hel mening för användaren, med läget, kvoten och vad som hjälper.
+ * @property {{ sv: string, en: string }} meddelande En hel mening för användaren, med temat, kvoten och vad som hjälper.
  */
 
 /**
- * Paren som inte håller. ⛔ TOM LISTA BETYDER ATT ALLA HÅLLER, och en palett med fynd sparas inte.
+ * Paren som inte håller. ⛔ TOM LISTA BETYDER ATT ALLA HÅLLER, och en palett med fynd sparas inte och läggs inte på.
+ *
+ * ⛔ SAMMA PAR SOM `check-kontrast`, UR SAMMA LISTA (`kontrastpar.js`), mot palettens härledda token och ramverkets egna för det
+ * paletten inte skriver. Första versionen hade en egen lista på sju par och släppte igenom paletter där dämpad text på sidan gav
+ * 2,45:1 och felraden 1,17:1 (granskningen av 0.218.0). Se filhuvudet i `kontrastpar.js`.
+ *
+ * ⛔ OCH TEMAT MÅSTE VARA DET DET HETER: i ljust tema ljusare bakgrund och yta än texten, i mörkt mörkare. Annars blir ramverkets
+ * linjer och avdelare (`line-strong`, `divider`: svart respektive vit med låg täckning) och mörkerplumbingen fel åt hållet, fast
+ * kontrasten håller.
+ *
  * @param {Palett} palett
  * @returns {Kontrastfynd[]}
  */
 export function granskaPalett(palett) {
-  const t = harledPalett(palett);
+  const p = lasPalett(palett);
+  if (!p) throw new Error("granskaPalett: det här är inte en palett i formen { ljus, mork } med fyra #rrggbb var.");
   /** @type {Kontrastfynd[]} */
   const fynd = [];
   for (const lage of PALETT_LAGEN) {
-    for (const p of PAR) {
-      const kvot = Math.floor(kontrastkvot(t[lage][p.text], t[lage][p.yta]) * 100) / 100;
-      if (kvot >= p.krav) continue;
-      const kvotSv = kvot.toFixed(2).replace(".", ",");
-      const kravSv = String(p.krav).replace(".", ",");
+    const f = p[lage];
+    const ljusare = (/** @type {string} */ a, /** @type {string} */ b) => luminans(a) > luminans(b);
+    const ratt = lage === "ljus" ? ljusare(f.yta, f.text) && ljusare(f.bakgrund, f.text) : ljusare(f.text, f.yta) && ljusare(f.text, f.bakgrund);
+    if (!ratt) {
       fynd.push({
         lage,
-        text: p.text,
-        yta: p.yta,
+        text: "ordning",
+        yta: "ordning",
+        kvot: 0,
+        krav: 0,
+        meddelande:
+          lage === "ljus"
+            ? { sv: "Ljust tema: bakgrunden och ytan ska vara ljusare än texten.", en: "Light mode: the background and surface must be lighter than the text." }
+            : { sv: "Mörkt tema: bakgrunden och ytan ska vara mörkare än texten.", en: "Dark mode: the background and surface must be darker than the text." },
+      });
+    }
+    const t = { ...RAMVERKETS_PARTOKEN[lage], ...harledLage(f) };
+    for (const par of PAR) {
+      const kvot = Math.floor(kontrastkvot(tokenfarg(t, par.text), tokenfarg(t, par.yta, par.bas)) * 100) / 100;
+      if (kvot >= par.niva) continue;
+      // Samma par kan stå två gånger i listan (två ställen ritar det); användaren behöver det en gång.
+      if (fynd.some((x) => x.lage === lage && x.text === par.text && x.yta === par.yta && x.bas === par.bas)) continue;
+      const h = hjalp(par);
+      const kvotSv = kvot.toFixed(2).replace(".", ",");
+      const kravSv = String(par.niva).replace(".", ",");
+      fynd.push({
+        lage,
+        text: par.text,
+        yta: par.yta,
+        ...(par.bas ? { bas: par.bas } : {}),
         kvot,
-        krav: p.krav,
+        krav: par.niva,
         meddelande: {
-          sv: `${LAGESNAMN[lage].sv}: ${p.vad.sv.toLowerCase()} är för svag, ${kvotSv}:1 där ${kravSv}:1 behövs för att läsas. ${p.rad.sv}`,
-          en: `${LAGESNAMN[lage].en}: ${p.vad.en.toLowerCase()} is too weak, ${kvot.toFixed(2)}:1 where ${p.krav}:1 is needed to read it. ${p.rad.en}`,
+          sv: `${LAGESNAMN[lage].sv}: ${par.vad} är för svag, ${kvotSv}:1 där ${kravSv}:1 behövs. ${h.sv}`,
+          en: `${LAGESNAMN[lage].en}: ${par.text} on ${par.yta} is too weak, ${kvot.toFixed(2)}:1 where ${par.niva}:1 is needed. ${h.en}`,
         },
       });
     }
@@ -330,7 +369,10 @@ export const PALETT_STIL_ID = "ops-palett";
  * @returns {string}
  */
 export function palettTillCss(palett) {
-  const t = harledPalett(palett);
+  // ⛔ PRÖVAS FÖRST (granskningen av 0.218.0): en sträng i en färg hade annars gått rakt in i stilen, `}` och allt.
+  const p = lasPalett(palett);
+  if (!p) throw new Error("palettTillCss: det här är inte en palett i formen { ljus, mork } med fyra #rrggbb var.");
+  const t = harledPalett(p);
   const ljus = PALETT_TOKEN.map((n) => `    --color-${n}: ${t.ljus[n]};`).join("\n");
   const mork = PALETT_TOKEN.map((n) => `  --dark-${n}: ${t.mork[n]};`).join("\n");
   return `@layer theme {\n  :root {\n${ljus}\n  }\n}\n:root {\n${mork}\n}\n`;
@@ -339,19 +381,21 @@ export function palettTillCss(palett) {
 /**
  * Lägger paletten i dokumentet, eller tar bort den. `null` (ingen palett) tar bort stilen helt, så att ingenting av
  * hubbens finns kvar och appen är exakt som utan funktionen.
- * @param {Palett | null} palett
+ * @param {unknown} palett En palett, `null`, eller något som inte är en palett (tas bort som `null`).
  * @param {Document} [dokument]
  */
 export function tillampaPalett(palett, dokument = globalThis.document) {
   if (!dokument) return;
   const finns = dokument.getElementById(PALETT_STIL_ID);
-  if (!palett) {
+  // ⛔ EN OGILTIG PALETT ÄR INGEN PALETT: stilen tas bort, som för `null`. Ett kast här hade fällt sidan för en färg.
+  const p = lasPalett(palett);
+  if (!p) {
     finns?.remove();
     return;
   }
   const stil = finns ?? dokument.createElement("style");
   stil.id = PALETT_STIL_ID;
-  stil.textContent = palettTillCss(palett);
+  stil.textContent = palettTillCss(p);
   // ⛔ SIST I <head>, ALLTID: en senare regel med samma vikt vinner, och stilen ska stå efter ramverkets och brandfilens.
   dokument.head.appendChild(stil);
 }
@@ -365,7 +409,10 @@ export function tillampaPalett(palett, dokument = globalThis.document) {
  * @returns {Record<string, string>}
  */
 export function palettStil(palett, lage) {
-  const t = harledLage(palett[lage]);
+  // ⛔ En ogiltig palett ger ingen stil (rutan ritas i sidans egna färger), aldrig en sträng rakt in i en variabel.
+  const p = lasPalett(palett);
+  if (!p || !PALETT_LAGEN.includes(lage)) return {};
+  const t = harledLage(p[lage]);
   /** @type {Record<string, string>} */
   const ut = { colorScheme: lage === "mork" ? "dark" : "light" };
   for (const n of PALETT_TOKEN) ut[`--color-${n}`] = t[n];

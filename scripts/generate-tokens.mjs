@@ -33,6 +33,8 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { lasTokens } from "./check-kontrast.mjs";
+import { PAR } from "../src/lib/kontrastpar.js";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixturVag = path.join(rot, "tokens", "sessionstudio-profil.json");
@@ -247,16 +249,37 @@ export function byggIkonlagerBlock(f) {
 /**
  * Förvalets palett ur fixturen: `bakgrund` är canvas, `yta` raised (kortet), `text` ink och `accent` accent, per läge.
  * @param {any} f
+ * @param {string} css tokens.css, som den skrivs.
  * @returns {string} Modulens text.
  */
-export function byggStandardpalett(f) {
+export function byggStandardpalett(f, css) {
   /** @param {any} l */
   const lage = (l) => ({ bakgrund: l.canvas.varde.toLowerCase(), yta: l.raised.varde.toLowerCase(), text: l.ink.varde.toLowerCase(), accent: l.accent.varde.toLowerCase() });
   const palett = { ljus: lage(f.farger.ljus), mork: lage(f.farger.mork) };
+  /*
+   * ⛔ RAMVERKETS VÄRDEN FÖR VARJE TOKEN ETT KONTRASTPAR NÄMNER (0.218.0, granskningen av lifehub.app#786). En hubbs palett skriver
+   * bara sina egna token; statusfärgerna, märket och kontrastfärgerna står kvar på ramverkets. `granskaPalett` prövar dem mot
+   * hubbens ytor och behöver därför ramverkets tal, ur tokens.css och inte avskrivna (samma läsning som `check-kontrast`).
+   */
+  const namn = [...new Set(PAR.flatMap((p) => [p.text, p.yta, p.bas].filter(Boolean)))].sort();
+  /** @param {"light" | "dark"} tema */
+  const varden = (tema) => {
+    const t = lasTokens(css, tema);
+    /** @type {Record<string, string>} */
+    const ut = {};
+    for (const n of namn) {
+      if (!t[n]) throw new Error(`generate-tokens: kontrastparet nämner --color-${n}, som inte finns i tokens.css (${tema}).`);
+      ut[n] = t[n].trim().toLowerCase();
+    }
+    return ut;
+  };
+  const ramverket = { ljus: varden("light"), mork: varden("dark") };
   return [
-    "// GENERERAD av scripts/generate-tokens.mjs ur tokens/sessionstudio-profil.json. Rör inte: ändra fixturen och kör \"npm run generate:tokens\".",
+    "// GENERERAD av scripts/generate-tokens.mjs ur tokens/sessionstudio-profil.json och tokens/tokens.css. Rör inte: kör \"npm run generate:tokens\".",
     "/** Förvalets fyra färger per läge, samma tal som tokens.css. @type {import(\"./palett.js\").Palett} */",
     `export const STANDARDPALETT = Object.freeze(${JSON.stringify(palett)});`,
+    "/** Ramverkets värde för varje token ett kontrastpar nämner (`kontrastpar.js`), per tema. @type {{ ljus: Record<string, string>, mork: Record<string, string> }} */",
+    `export const RAMVERKETS_PARTOKEN = Object.freeze(${JSON.stringify(ramverket)});`,
     "",
   ].join("\n");
 }
@@ -302,7 +325,7 @@ function main() {
   kalla = skrivMellanMarkorer(kalla, MARKORER.publikSteg, block.publikSteg);
 
   const { fixtur } = generera();
-  const palett = byggStandardpalett(fixtur);
+  const palett = byggStandardpalett(fixtur, kalla);
   const kontrollera = process.argv.includes("--kontrollera");
   if (kontrollera) {
     const nuPalett = fs.existsSync(standardpalettVag) ? fs.readFileSync(standardpalettVag, "utf8") : "";
