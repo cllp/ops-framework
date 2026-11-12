@@ -9,6 +9,32 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## Ej utgivet
+
+Profilen redigerad i hubben och sparad i kontot (cllp/lifehub.app#786). CP 2026-11-11: "Det är ganska tydligt att mitt konto är en web site. Går det att få en mer integrerad upplevelse?" och "Kör, ta profilvyn i härdningen". En app som inte skickar de nya propsen får samma vy som förut, utom märkets väljare (se Ändrat).
+
+**Skärmtid (frågan till ärendet):** ingen ny vy. Profilen som redan finns i appen går att ändra där, i stället för att öppna en webbsida i ett ark.
+
+### Nytt
+
+- **`OpsProfil` `falt`:** fälten appen sparar. Bara de ritas, och Spara skickar bara de av dem som ändrats. Ett konto som äger personen (LifeHubs Identity) nekar `lankar` och `tema`, och hela raden hade nekats varje gång.
+- **`OpsProfil` `utanBild`:** när bilden är inloggningens och inte appens egen (ingen `lagring`). Bildraden blir en knapp, "Visa inte bilden" eller "Visa bilden", och Spara skickar `utanBild`. Varken Ta bort eller Återställ, som skickar `bild` som text.
+- **`OpsProfil` `konto={{ sakerhetHref, raderaHref }}`:** det redigerbara kontot. Formuläret sparas genom `onSpara`, och en sektion Konto bär länkarna "Inloggning och säkerhet" och "Radera kontot". `konto={{ href }}` är det skrivskyddade läget som förut; båda samtidigt kastar.
+- **`OpsProfil` `telefonHint`** och resten av de nya etiketterna i `ORD_OPSPROFIL`, på svenska och engelska. Telefonens exempel var hårdkodad svenska.
+- **`andringen(anvandare, utkast, falt)`** och **`PROFILENS_FALT`**: bara det som ändrats bland fälten i listan. Ett okänt namn kastar.
+- **`OpsGruppmarkeValjare`** exporteras, med `person` för personens form: ingen rad med förslag ur namnet och inga egna initialer (`byggAnvandare` nekar `initialer:AB` för en person).
+
+### Ändrat
+
+- **`OpsProfil`, märket:** gruppens väljare i stället för sex ikoner och sex färger: tolv kulörer, reglaget för alla 360, återställning till kulören ur id:t, och ikonkatalogen med sökning. Samma val som Identitys profil. Ikon och färg står i utkastet och sparas med Spara, inte vid trycket: med ett reglage hade varje steg blivit en sparning, och Identity har ett tak per minut. Ett ikonval rensar fortfarande en kvarvarande bild i utkastet. `valjIkonEtikett` heter som förval "Ikon eller initialer". `ikonNamn` tas emot men används inte. Sparade värden ur de äldre sex (`krona`, `"3"`) ritas som förut.
+- **Spara** visar "Sparar…" medan den väntar (`busyLabel`).
+
+### Prov
+
+- `profilvy.test.jsx`: väljaren (tolv kulörer, reglaget, sökningen, inga förslag och inga egna initialer), ikon och kulör i utkastet och med Spara, `falt` (bara det ändrade, bara de fälten ritas), `utanBild` (en knapp, inga Ta bort eller Återställ, Spara skickar valet), det redigerbara kontot och dess fel, telefonens exempel på båda språken. `profil.test.js`: `andringen` med `falt`. Alla 13 röda mot 0.217.0, gröna efter; de 80 andra är gröna mot båda.
+
+---
+
 ## 0.217.0
 
 "I repot" kan stå på gruppens eget bibliotek, inte bara på en egen plats (cllp/lifehub.app#785, CP 2026-11-11: "\"I repot\", kan det vara en standard alternativ för alla bibliotek som är kopplade till Github? inte bara projekt", och "kör"). Inget brytande: en app som bara skickar `repoLasare` på ett projekts plats ser ingen skillnad.
