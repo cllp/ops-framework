@@ -9,6 +9,16 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.222.0
+
+**Profilen i kontoläget blir en kort sida (cllp/lifehub.app#813).** CP 2026-11-12, med en skärmbild: "Det ser rörigt ut. Massa saker som syns. Not clean." Med `konto={{ sakerhetHref, raderaHref }}` visar `OpsProfil` nu personen, Språk, Nycklar och kopplingar, Mina grupper och Konto. Bild, färg, ikon, uppgifter och länkar ligger i arket "Redigera profil", med Spara och Avbryt. Språket sparas direkt. Radera kontot är en diskret länk under Konto. Nytt: `konto.nycklarHref` ger raden Nycklar och kopplingar. De andra lägena (utan `konto`, och `konto.href`) ritas som förut.
+
+**JSON och GeoJSON i Biblioteket (cllp/lifehub.app#763).** `application/json` och `application/geo+json` står i `FILMIME`, och `mimeUrFilnamn` känner `.json` och `.geojson`. Filerna laddas ned och visas inte i appen.
+
+**MIME som bokstavlig text i reglernas mönster.** `filMimeMonster` och `filContentTypeMonster` skriver `+` och `.` som teckenklasser (`[+]`, `[.]`). Annars hade `geo+json` blivit en kvantifierare, och punkterna i Office-typerna matchade redan vilket tecken som helst. **Appen måste generera om sina regler och deploya dem före klienten**, eftersom regeltexten ändras för alla typer med punkt.
+
+---
+
 ## 0.221.0
 
 Kopiera länk i biblioteket tar en funktion från appen (`postlank`) i stället för appens adress (`postlankBas`, 0.220.0), och kortets rubrik (`kortRubrik`) bor i `lib/bibliotek.js`. Båda för att 0.220.0 gjorde lifehub.app:s startfiler större än vakten `check:jsstorlek` släpper igenom (cllp/lifehub.app#801).

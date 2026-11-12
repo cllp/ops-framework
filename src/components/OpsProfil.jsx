@@ -832,8 +832,9 @@ function OpsProfilRitad({
       try {
         await onSpara?.({ sprak: v });
       } catch (fel) {
+        // Ett nej släpper valet, så att väljaren visar det som faktiskt är sparat. Ett ja står kvar i utkastet tills raden kommit ikapp
+        // (effekten på `sparadNyckel` släpper det då), annars visar väljaren det gamla språket ett ögonblick efter bytet.
         setSprakFel(felTexten(fel));
-      } finally {
         glom(["sprak"]);
       }
     };
