@@ -247,6 +247,22 @@ describe("OpsAgenter", () => {
     expect(onSparaModell).toHaveBeenLastCalledWith({ id: "gpt-4.1-mini", leverantor: "openai" });
     expect(document.body.textContent).not.toContain("super-secret");
     expect(document.body.textContent).not.toContain("gemini-2.5-flash");
+    expect(document.body.textContent).not.toContain("gemini-3.5-flash");
+  });
+
+  it("⛔ ett sparat val med ett pensionerat id visas som sin ersättare och sparas tillbaka med det nya id:t (lifehub.app#786)", () => {
+    const onSparaModell = vi.fn();
+    rita({
+      activeHref: "/agenter?agent=ops&lage=installningar&avsnitt=modell",
+      installning: { namn: "Ops", roll: "Assistent", beskrivning: "Hjälper" },
+      modell: { id: "gemini-2.5-flash", leverantor: "google" },
+      kopplade: ["google"],
+      modellvalAktivt: true,
+      onSparaModell,
+    });
+    expect(screen.getByRole("radio", { name: /Mer utrymme/ })).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(onSparaModell).toHaveBeenLastCalledWith({ id: "gemini-3.5-flash", leverantor: "google" });
   });
 
   it("en okänd avsnittsparameter är översikten, och utan sparfunktion står felet", () => {

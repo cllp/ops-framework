@@ -2,8 +2,8 @@
  * Modellerna en agent kan svara med (0.90.2).
  *
  * CP: han ska kunna välja och byta modell. Ingen förteckning fanns, varken i
- * ramverket eller i funktionerna. Lifehub har en enda konstant,
- * `gemini-3.5-flash-lite` (förut `gemini-2.5-flash-lite`), och Identity tar en leverantör (`vertex`, `google`,
+ * ramverket eller i funktionerna. Lifehub hade en enda konstant (`MODELL`),
+ * och Identity tar en leverantör (`vertex`, `google`,
  * `openai`, `anthropic`) utan modellnamn. Den här listan är den lilla
  * förteckningen, en modell per leverantör som kan chatta: `vertex`, `google`,
  * `openai`, `anthropic` och `xai`. Grok kräver att `xai` står i `kopplade`.
@@ -69,7 +69,7 @@ if (utanNyckel.length !== 1) {
   throw new Error("AGENTMODELLER: exakt en modell ska gå att välja utan nyckel. Annars vet varken vyn eller funktionen vad som är förvalet.");
 }
 
-/** Modellen som svarar när ingen nyckel är kopplad. Samma id som lifehubs `MODELL` i dag. */
+/** Modellen som svarar när ingen nyckel är kopplad. Appens egen konstant för projektets modell (lifehubs `MODELL`) ska bära samma id. */
 export const FORVALD_AGENTMODELL = utanNyckel[0];
 
 /**
@@ -100,7 +100,7 @@ export function modellUrId(id) {
   if (typeof id !== "string") return null;
   const s = id.trim();
   if (!s) return null;
-  const nu = ERSATTA_AGENTMODELLER[/** @type {keyof typeof ERSATTA_AGENTMODELLER} */ (s)] ?? s;
+  const nu = Object.hasOwn(ERSATTA_AGENTMODELLER, s) ? ERSATTA_AGENTMODELLER[/** @type {keyof typeof ERSATTA_AGENTMODELLER} */ (s)] : s;
   return AGENTMODELLER.find((m) => m.id === nu || m.namn.sv === s || m.namn.en === s) ?? null;
 }
 
