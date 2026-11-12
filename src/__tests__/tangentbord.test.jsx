@@ -425,3 +425,45 @@ describe("den inbyggda appens tangentbordshändelser", () => {
     expect(gomd(rad())).toBe(false);
   });
 });
+
+/** ⛔ Granskningen av 0.218.0: ett native-besked som aldrig fick sitt hide fick inte låsa raden. */
+describe("den inbyggda appens besked fastnar inte", () => {
+  /** @param {string} namn @param {number} [hojd] */
+  const skicka = (namn, hojd) =>
+    act(async () => {
+      const e = new Event(namn);
+      if (hojd !== undefined) Object.assign(e, { keyboardHeight: hojd });
+      window.dispatchEvent(e);
+    });
+  /** @param {"visible" | "hidden"} lage */
+  const synlighet = (lage) =>
+    act(async () => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => lage });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+  afterEach(() => {
+    delete (/** @type {any} */ (document)).visibilityState;
+  });
+
+  it("⛔ keyboardWillShow, appen i bakgrunden, tillbaka utan keyboardWillHide: raden kommer tillbaka", async () => {
+    falskVv();
+    const { rad, falt } = rita();
+    await fokusera(falt);
+    await skicka("keyboardWillShow", 300);
+    expect(gomd(rad())).toBe(true);
+    await synlighet("hidden");
+    // Fokus står kvar i fältet (iOS lämnar det), men inget hide kom.
+    await synlighet("visible");
+    expect(gomd(rad())).toBe(false);
+  });
+
+  it("⛔ keyboardWillShow och sedan fokus ut ur fältet utan hide: raden kommer tillbaka", async () => {
+    falskVv();
+    const { rad, falt } = rita();
+    await fokusera(falt);
+    await skicka("keyboardWillShow", 300);
+    expect(gomd(rad())).toBe(true);
+    await lamna(falt);
+    expect(gomd(rad())).toBe(false);
+  });
+});

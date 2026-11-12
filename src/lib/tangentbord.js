@@ -144,7 +144,9 @@ export const NATIVA_TANGENTBORDSHANDELSER = Object.freeze([
  */
 export function tangentbordUppe() {
   if (typeof document === "undefined") return false;
-  if (nativtUppe !== null) return nativtUppe;
+  // ⛔ OCKSÅ HÄR KRÄVS ETT TEXTFÄLT (granskningen av 0.218.0): ett `keyboardWillShow` vars `keyboardWillHide` aldrig kom (appen gick i
+  // bakgrunden, fokus försvann) hade annars hållit raden gömd för alltid, förbi PR 462:s återhämtning.
+  if (nativtUppe !== null) return nativtUppe && arTextfalt(document.activeElement);
   return arTextfalt(document.activeElement) && viewportKrympt();
 }
 
@@ -174,6 +176,14 @@ function starta() {
       matOm();
     }, 0);
   };
+  /*
+   * ⛔ TILLBAKA SYNLIG: den inbyggda appens senaste besked glöms (granskningen av 0.218.0). Medan sidan låg i bakgrunden kan ett
+   * `keyboardWillHide` ha gått förlorat; nästa `keyboardWillShow` säger till om tangentbordet faktiskt är uppe igen.
+   */
+  const synlig = () => {
+    if (document.visibilityState === "visible") nativtUppe = null;
+    matOm();
+  };
   const vv = window.visualViewport;
   document.addEventListener("focusin", matOm);
   document.addEventListener("focusout", efterFokus);
@@ -182,7 +192,7 @@ function starta() {
   // ⛔ TILLBAKA FRÅN BAKGRUNDEN (granskningen av PR 462): en sida som återställs ur bfcache, eller en flik som blir synlig igen, kan ha missat både fokus- och viewporthändelserna medan den
   // låg stilla. Utan en omätning kunde raden stå gömd tills nästa fokus.
   window.addEventListener("pageshow", matOm);
-  document.addEventListener("visibilitychange", matOm);
+  document.addEventListener("visibilitychange", synlig);
   vv?.addEventListener("resize", matOm);
   vv?.addEventListener("scroll", matOm);
   /** @type {Array<[string, (e: Event) => void]>} */
@@ -203,7 +213,7 @@ function starta() {
     window.removeEventListener("resize", matOm);
     window.removeEventListener("orientationchange", matOm);
     window.removeEventListener("pageshow", matOm);
-    document.removeEventListener("visibilitychange", matOm);
+    document.removeEventListener("visibilitychange", synlig);
     vv?.removeEventListener("resize", matOm);
     vv?.removeEventListener("scroll", matOm);
   };
