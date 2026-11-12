@@ -268,9 +268,13 @@ function OpsProfilRitad({
    *   - en annan person (`anvandare.id`) tömmer utkastet helt.
    */
   const [utkastet, setUtkastet] = useState(/** @type {Record<string, any>} */ ({}));
-  const satt = (/** @type {string} */ f, /** @type {any} */ v) => setUtkastet((u) => ({ ...u, [f]: v }));
   const [sparar, setSparar] = useState(false);
   const [sparaFel, setSparaFel] = useState("");
+  // ⛔ En ny ändring tar bort ett gammalt nej (omgranskningen av #786): felet gällde det som skickades, inte det som står nu.
+  const satt = (/** @type {string} */ f, /** @type {any} */ v) => {
+    setSparaFel("");
+    setUtkastet((u) => ({ ...u, [f]: v }));
+  };
   const [bildLaddar, setBildLaddar] = useState(false);
   const [bildFel, setBildFel] = useState("");
   const filValjare = useRef(/** @type {HTMLInputElement | null} */ (null));
@@ -293,11 +297,15 @@ function OpsProfilRitad({
   const nu = /** @type {typeof bas & { utanBild?: boolean }} */ ({ ...bas, ...utkastet });
   const { sprak: valtSprak, namn, telefon, stad, presentation, lankar } = nu;
 
-  // Regeln ovan, i två steg. En annan person: tomt utkast.
+  // Regeln ovan, i tre steg. En annan person: tomt utkast och inget gammalt nej.
   useEffect(() => {
     setUtkastet({});
+    setSparaFel("");
   }, [anvandare.id]);
-  // Den sparade raden har kommit ikapp ett fält: fältet släpps ur utkastet.
+  /*
+   * Den sparade raden har kommit ikapp ett fält ändrat utifrån: fältet släpps ur utkastet. Det som personen själv sparade släpps i stället
+   * när sparningen lyckats (se `spara`), eftersom servern kan ha ändrat värdet på vägen och raden då aldrig blir lika med utkastet.
+   */
   const sparadNyckel = JSON.stringify(PROFILENS_FALT.map((f) => /** @type {any} */ (bas)[f] ?? null));
   useEffect(() => {
     setUtkastet((u) => {
@@ -330,11 +338,22 @@ function OpsProfilRitad({
     return typeof egen === "string" && egen.trim() ? egen : sparaFelForval;
   };
 
+  /*
+   * ⛔ DET SOM SKICKATS SLÄPPS UR UTKASTET NÄR SPARNINGEN LYCKATS, OCKSÅ OM SERVERN ÄNDRADE VÄRDET (omgranskningen av #786, punkt 1).
+   * Förut släpptes ett fält bara när raden blev lika med utkastet. Identity trimmar, så ett utkast "Visby " blev aldrig lika med den
+   * sparade "Visby": Spara stod kvar tänd och fältet slutade följa raden. Nu släpps varje skickat fält, utom det som personen hunnit
+   * ändra medan sparningen pågick, och då står den nya ändringen kvar. Likhetsprovet ovan står kvar för ändringar utifrån.
+   */
   const spara = async () => {
+    const skickat = utkastet;
     setSparar(true);
     setSparaFel("");
     try {
       await onSpara?.(falt ? { ...andring } : { ...andring, lankar: [...andring.lankar] });
+      setUtkastet((u) => {
+        const kvar = Object.fromEntries(Object.entries(u).filter(([f, v]) => !(f in skickat) || JSON.stringify(v ?? null) !== JSON.stringify(skickat[f] ?? null)));
+        return Object.keys(kvar).length === Object.keys(u).length ? u : kvar;
+      });
     } catch (fel) {
       setSparaFel(felTexten(fel));
     } finally {
