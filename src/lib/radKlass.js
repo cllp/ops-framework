@@ -12,17 +12,18 @@ import { cx } from "./cx.js";
  * fältens villkor (`md:pointer-fine:`), och CI föll i `check-skalyta` (release-PR 577): huvudets meny blev 16 px på 390 och
  * rollskalan läste `text-brod` där 12 px ritades. Två beslut av CP, två ytor.
  *
- * ⛔ INGET PEKARVILLKOR: arket finns bara under `md` (`OpsBottomNav` är `md:hidden`), så en variant för `md` hade aldrig gällt, och
- * rollen som står i klassen är den som ritas.
+ * ⛔ INGET PEKARVILLKOR: arket finns bara under `md` (`OpsBottomNav` är `md:hidden`), så rollen utan variant är den som ritas, och
+ * rollskalan i `check-skalyta` läser den rätt. `md:text-meta` står ändå, i den form `check-typografi` kräver av `text-brod` utanför en
+ * läsyta (som fältens `text-brod md:text-etikett`): skulle arket någon gång ritas från `md` är det huvudets 12 px som gäller där.
  *
  * ⛔ BARA ARKETS RADER, inte varje `radKlass`. Samma funktion ritar täta listor (filter, väljare, Bibliotekets rader, plusset).
  *
  * Höjden: 16 px text med `leading-6` (24) och `py-2.5` (2 x 10) är 44 px, samma som radens golv `min-h-11`. Raden växer alltså
  * inte på höjden, och etiketten bryts aldrig (`truncate` i varje menyrad).
  */
-export const ARKRAD_TEXT = "text-brod leading-6";
-/** Ikonen i en rad i menyarket: 20 px. Läggs på ikonens omslag. */
-export const ARKRAD_IKON = "[&_svg]:size-5";
+export const ARKRAD_TEXT = "text-brod leading-6 md:text-meta md:leading-4";
+/** Ikonen i en rad i menyarket: 20 px (16 px från `md`, samma skäl som texten). Läggs på ikonens omslag. */
+export const ARKRAD_IKON = "[&_svg]:size-5 md:[&_svg]:size-4";
 
 /** @type {Record<number, string>} */
 const PY = { 1.5: "py-1.5", 2: "py-2", 2.5: "py-2.5", 3: "py-3" };

@@ -269,7 +269,7 @@ export function MenyAppPoster({ poster, activeHref, onNavigate, stang, badgeText
             {ikon}
           </span>
         ) : nagonIkon && !barn ? (
-          <span aria-hidden="true" data-ikonplats="" className={cx("shrink-0", ark ? "size-5" : "size-4")} />
+          <span aria-hidden="true" data-ikonplats="" className={cx("shrink-0", ark ? "size-5 md:size-4" : "size-4")} />
         ) : null}
         <span className="min-w-0 flex-1 truncate">{p.label}</span>
         {typeof badge === "number" ? <OpsCountBadge count={badge} text={badgeText} placement="inline" /> : null}
