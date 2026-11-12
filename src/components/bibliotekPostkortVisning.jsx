@@ -1,5 +1,5 @@
 import { TypIkon, typEtikett } from "./BibliotekPostvisning.jsx";
-import { kortRubrik } from "./OpsBibliotek.jsx";
+import { kortRubrik } from "../lib/bibliotek.js";
 
 /**
  * Kortet för en bibliotekspost i chatten: titel, typ och ikon, ur posten som den är nu (0.191.0, cllp/lifehub.app#663). Samma rubrik, typetikett och ikon som listan i biblioteket

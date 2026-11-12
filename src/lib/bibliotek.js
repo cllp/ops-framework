@@ -1565,3 +1565,21 @@ export function filtreraBibliotek(poster, val = {}) {
     })
     .sort((a, b) => forst(a) - forst(b) || b.andrad - a.andrad || a.rubrik.localeCompare(b.rubrik, "sv"));
 }
+
+/**
+ * Rubriken på kortet (0.165.0): en fil utan sin filändelse när rubriken är filens namn ("sang-v1.html" blir "sang-v1"). En rubrik som någon har gett posten (Byt namn) visas som den är.
+ * Ändelsen står i stället först i metaraden (`kortTyp`). Gäller alla filtyper.
+ *
+ * ⛔ HÄR OCH INTE I `OpsBibliotek.jsx` (0.221.0): postkortet i chatten (`bibliotekPostkortVisning.jsx`) behöver rubriken, och importen ur komponentens fil drog hela
+ * biblioteket (146 kB ominifierat) in i appens startfiler. Mätt i lifehub.app med källkartor per modul, 2026-11-12.
+ *
+ * @param {{ typ: string, rubrik?: string, fil?: { namn?: string } | null }} post
+ */
+export function kortRubrik(post) {
+  const rubrik = trimSomRegeln(post.rubrik) || "Post";
+  if (post.typ !== "fil") return rubrik;
+  const ext = /\.([a-z0-9]{1,6})$/i.exec(rubrik)?.[1];
+  const filExt = /\.([a-z0-9]{1,6})$/i.exec(post.fil?.namn ?? "")?.[1];
+  if (!ext || !filExt || ext.toLowerCase() !== filExt.toLowerCase()) return rubrik;
+  return rubrik.slice(0, -(ext.length + 1)).trim() || rubrik;
+}
