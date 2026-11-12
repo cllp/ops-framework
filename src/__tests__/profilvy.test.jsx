@@ -955,11 +955,13 @@ describe("OpsProfil: falt, utanBild, det redigerbara kontot och telefonens exemp
     render(
       <OpsProfil anvandare={ANV} onSpara={() => {}} falt={FALT} konto={{ sakerhetHref: "https://konto.example/profile?hubb=my", raderaHref: "https://konto.example/profile?hubb=my#radera-konto" }} />,
     );
+    // Ändrat prov (regel 9, cllp/lifehub.app#813): fälten ligger i arket "Redigera profil" sedan kontoläget blev en kort sida.
+    expect(screen.getByRole("link", { name: "Inloggning och säkerhet" }).getAttribute("href")).toBe("https://konto.example/profile?hubb=my");
+    expect(screen.getByRole("link", { name: "Radera kontot" }).getAttribute("href")).toBe("https://konto.example/profile?hubb=my#radera-konto");
+    fireEvent.click(screen.getByRole("button", { name: "Redigera profil" }));
     expect(screen.getByRole("textbox", { name: "Namn" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Spara" })).toBeTruthy();
     expect(screen.getByText("Det du ändrar här gäller i alla dina hubbar.")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Inloggning och säkerhet" }).getAttribute("href")).toBe("https://konto.example/profile?hubb=my");
-    expect(screen.getByRole("link", { name: "Radera kontot" }).getAttribute("href")).toBe("https://konto.example/profile?hubb=my#radera-konto");
     expect(screen.queryByRole("link", { name: "Ändra i Mitt konto" })).toBeNull();
   });
 

@@ -12,6 +12,7 @@ import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsGruppmarkeValjare } from "./OpsGruppmarkeValjare.jsx";
 import { personmarkeProps } from "../lib/gruppikoner.js";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
+import { OpsModal } from "./OpsModal.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 import { OpsSectionLabel } from "./OpsSectionLabel.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
@@ -98,6 +99,15 @@ import { KryssIkon } from "./icons.jsx";
  * Med `falt` ritas bara de fälten, och Spara skickar bara de av dem som ändrats (`andringen`). Utan `falt` skickas
  * hela raden, som förut. Ett konto som äger personen nekar `lankar` och `tema`, så en app som sparar dit listar fälten.
  *
+ * ══ ⛔ KONTOLÄGET ÄR EN KORT SIDA OCH ETT ARK FÖR ATT REDIGERA (cllp/lifehub.app#813) ═
+ *
+ * CP 2026-11-12 om profilen i lifehub.app: "Det ser rörigt ut. Massa saker som syns. Not clean." Kulörrutnätet, reglaget,
+ * ikonsökningen, Presentation och Spara stod alla framme på en gång, fast man oftast bara vill se vem man är och vart man går.
+ * I det redigerbara kontoläget (`konto.sakerhetHref`/`raderaHref`) visar sidan därför bara personen med "Redigera profil",
+ * Språk (som sparas direkt), Nycklar och kopplingar när appen har en adress dit, appens sektioner, grupperna och Konto. Allt
+ * som ändrar personen ligger i ett ark (`OpsModal`) med Spara och Avbryt. De andra lägena (utan `konto`, och `konto.href`)
+ * ritas som förut: bolag-ops och tam använder dem, och ingen har bett om en ändring där.
+ *
  * @param {object} props
  * @param {import("../lib/grupp.js").Anvandare} props.anvandare
  * @param {string} [props.roll] Personens EGEN roll, som en liten pill bredvid namnet (#164, korrigering C:
@@ -176,19 +186,25 @@ import { KryssIkon } from "./icons.jsx";
  * @param {Record<string, string>} [props.rollNamn] Vad rollerna heter på raden.
  * @param {import("react").ReactNode} [props.children] Appens EGNA sektioner (t.ex. SessionStudios kreativa profil),
  *   ritade efter Länkar och före Spara/Logga ut. Ramverket bestämmer platsen, appen innehållet.
- * @param {{ href: string } | { sakerhetHref?: string, raderaHref?: string }} [props.konto] Personen ägs av ett konto
+ * @param {{ href: string } | { sakerhetHref?: string, raderaHref?: string, nycklarHref?: string }} [props.konto] Personen ägs av ett konto
  *   utanför appen (LifeHubs Identity). Två former:
  *   `{ href }` (0.53.0, cllp/lifehub.app#32): personen ritas skrivskyddad med länken "Ändra i Mitt konto", inga fält och
  *   ingen Spara. `onSpara` anropas aldrig. Grupperna och appens egna sektioner står kvar.
  *   `{ sakerhetHref, raderaHref }` (cllp/lifehub.app#786): formuläret är redigerbart och sparar genom `onSpara`, och
  *   kontot får en sektion med länkarna "Inloggning och säkerhet" och "Radera kontot", dit det som inte hör till appen
  *   bor. Minst en av dem krävs. ⛔ `href` ihop med någon av dem kastar: två lägen, en vy kan inte vara båda.
+ *   `nycklarHref` (cllp/lifehub.app#813, valfri, bara i den redigerbara formen): en rad "Nycklar och kopplingar" som leder dit
+ *   appens anslutningar och nycklar bor. Utelämnad ritas ingen rad. Den ensam räcker inte som konto: säkerhet eller radering krävs.
  * @param {string} [props.kontoText]
  * @param {string} [props.kontoLankEtikett]
  * @param {string} [props.kontoRedigerbarText] Meningen under personen i det redigerbara kontoläget.
  * @param {string} [props.kontoRubrik] Rubriken över kontots länkar.
  * @param {string} [props.kontoSakerhetEtikett]
  * @param {string} [props.kontoRaderaEtikett]
+ * @param {string} [props.kontoNycklarEtikett] (cllp/lifehub.app#813) Raden till `konto.nycklarHref`.
+ * @param {string} [props.kontoNycklarText] (cllp/lifehub.app#813) Meningen under den raden.
+ * @param {string} [props.redigeraEtikett] (cllp/lifehub.app#813) Knappen som öppnar arket i kontoläget, och arkets rubrik.
+ * @param {string} [props.avbrytEtikett] (cllp/lifehub.app#813) Arkets knapp som slänger utkastet och stänger.
  */
 function OpsProfilRitad({
   anvandare,
@@ -254,6 +270,10 @@ function OpsProfilRitad({
   kontoRubrik = ORD_OPSPROFIL.kontoRubrik.sv,
   kontoSakerhetEtikett = ORD_OPSPROFIL.kontoSakerhetEtikett.sv,
   kontoRaderaEtikett = ORD_OPSPROFIL.kontoRaderaEtikett.sv,
+  kontoNycklarEtikett = ORD_OPSPROFIL.kontoNycklarEtikett.sv,
+  kontoNycklarText = ORD_OPSPROFIL.kontoNycklarText.sv,
+  redigeraEtikett = ORD_OPSPROFIL.redigeraEtikett.sv,
+  avbrytEtikett = ORD_OPSPROFIL.avbrytEtikett.sv,
   children,
 }) {
   const markeId = useId();
@@ -278,9 +298,12 @@ function OpsProfilRitad({
   const [bildLaddar, setBildLaddar] = useState(false);
   const [bildFel, setBildFel] = useState("");
   const filValjare = useRef(/** @type {HTMLInputElement | null} */ (null));
+  // cllp/lifehub.app#813: arket i kontoläget, och ett nej på ett språkbyte (som sparas direkt där).
+  const [redigerar, setRedigerar] = useState(false);
+  const [sprakFel, setSprakFel] = useState("");
 
   const kontoLasning = Boolean(konto && "href" in konto && konto.href !== undefined);
-  const kontoLankar = konto && !kontoLasning ? /** @type {{ sakerhetHref?: string, raderaHref?: string }} */ (konto) : null;
+  const kontoLankar = konto && !kontoLasning ? /** @type {{ sakerhetHref?: string, raderaHref?: string, nycklarHref?: string }} */ (konto) : null;
   if (konto && kontoLasning && ("sakerhetHref" in konto || "raderaHref" in konto)) {
     throw new Error("OpsProfil: konto.href (skrivskyddad) och konto.sakerhetHref/raderaHref (redigerbar) går inte ihop. Skicka det ena.");
   }
@@ -343,6 +366,8 @@ function OpsProfilRitad({
    * Förut släpptes ett fält bara när raden blev lika med utkastet. Identity trimmar, så ett utkast "Visby " blev aldrig lika med den
    * sparade "Visby": Spara stod kvar tänd och fältet slutade följa raden. Nu släpps varje skickat fält, utom det som personen hunnit
    * ändra medan sparningen pågick, och då står den nya ändringen kvar. Likhetsprovet ovan står kvar för ändringar utifrån.
+   * cllp/lifehub.app#813: svaret är sant efter ett ja och falskt efter ett nej, så att arket i kontoläget stängs bara när det sparats.
+   * @returns {Promise<boolean>}
    */
   const spara = async () => {
     const skickat = utkastet;
@@ -354,8 +379,10 @@ function OpsProfilRitad({
         const kvar = Object.fromEntries(Object.entries(u).filter(([f, v]) => !(f in skickat) || JSON.stringify(v ?? null) !== JSON.stringify(skickat[f] ?? null)));
         return Object.keys(kvar).length === Object.keys(u).length ? u : kvar;
       });
+      return true;
     } catch (fel) {
       setSparaFel(felTexten(fel));
+      return false;
     } finally {
       setSparar(false);
     }
@@ -608,6 +635,311 @@ function OpsProfilRitad({
    *   - NAMN, TELEFON OCH STAD STÅR I TRE KOLUMNER FRÅN `sm`, SS `grid grid-cols-1 sm:grid-cols-3 gap-3` (`:243`).
    * Vakten är check-skalyta avsnitt 27, vid 390 och 1280.
    */
+  // ⛔ cllp/lifehub.app#813: bitarna står här en gång, och ritas både i den vanliga profilen och i kontolägets ark.
+  const bildOchMarke = (
+    <>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {lagring && visas("bild") ? (
+          <>
+            <input
+              ref={filValjare}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const fil = e.target.files?.[0];
+                e.target.value = "";
+                if (fil) ladda(fil);
+              }}
+            />
+            <OpsButton variant="secondary" size="sm" busy={bildLaddar} onClick={() => filValjare.current?.click()}>
+              {laddaUppEtikett}
+            </OpsButton>
+          </>
+        ) : null}
+        {/* ⛔ cllp/lifehub.app#786: bilden är inloggningens. Ett val, visa eller inte, i utkastet och med Spara. */}
+        {doldBildLage && inloggningsBild && visas("utanBild") ? (
+          <OpsButton variant="secondary" size="sm" onClick={() => satt("utanBild", !nu.utanBild)}>
+            {nu.utanBild ? visaBildEtikett : doljBildEtikett}
+          </OpsButton>
+        ) : null}
+        {!doldBildLage && anvandare.bild && visas("bild") ? (
+          <OpsButton variant="ghost" size="sm" disabled={bildLaddar} onClick={taBortBild}>
+            {taBortEtikett}
+          </OpsButton>
+        ) : null}
+        {!doldBildLage && inloggningsBild && inloggningsBild !== anvandare.bild && visas("bild") ? (
+          <OpsButton variant="ghost" size="sm" disabled={bildLaddar} onClick={aterstallBild}>
+            {aterstallEtikett}
+          </OpsButton>
+        ) : null}
+        {/* ⛔ "ANVÄND INITIALER" RITAS ÄVEN UTAN `lagring`: den nollställer ikonen
+            lika gärna som bilden, och kräver ingen Storage. Inte med `utanBild`: där är
+            initialerna "Aa" i väljaren, och bilden rörs med knappen ovanför. */}
+        {!doldBildLage && (anvandare.bild || anvandare.ikon) && visas("ikon") && visas("bild") ? (
+          <OpsButton variant="ghost" size="sm" disabled={bildLaddar} onClick={anvandInitialer}>
+            {anvandInitialerEtikett}
+          </OpsButton>
+        ) : null}
+      </div>
+      {bildFel ? (
+        <p role="alert" className="mt-2 text-etikett text-danger">
+          {bildFel}
+        </p>
+      ) : null}
+
+      {/* ⛔ cllp/lifehub.app#786: gruppens väljare, i personens form. Samma val som Identitys profil. */}
+      {visaMarke ? (
+        <div className="mt-3 flex flex-col gap-3" data-profilmarke="">
+          <OpsGruppmarkeValjare
+            person
+            namn={namn}
+            seed={anvandare.id}
+            farg={nu.farg}
+            ikon={nu.ikon}
+            onFarg={valjFarg}
+            onIkon={valjIkon}
+            sprak={sprak === "en" ? "en" : "sv"}
+            t={markeT}
+            idPrefix={markeId}
+          />
+        </div>
+      ) : null}
+    </>
+  );
+
+  const uppgifterna = visaUppgifter ? (
+    <OpsCard kant>
+      <div className="mb-3">
+        <OpsSectionLabel>{personuppgifterEtikett}</OpsSectionLabel>
+      </div>
+      <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {visas("namn") ? (
+            <OpsField label={namnEtikett} labelSize="liten">
+              <OpsInput value={namn} onChange={(v) => satt("namn", v)} />
+            </OpsField>
+          ) : null}
+          {visas("telefon") ? (
+            <OpsField label={telefonEtikett} hint={telefonHint} labelSize="liten">
+              <OpsInput type="tel" value={telefon} onChange={(v) => satt("telefon", v)} />
+            </OpsField>
+          ) : null}
+          {visas("stad") ? (
+            <OpsField label={stadEtikett} labelSize="liten">
+              <OpsInput value={stad} onChange={(v) => satt("stad", v)} />
+            </OpsField>
+          ) : null}
+        </div>
+        {visas("presentation") ? (
+          <OpsField label={presentationEtikett} hint={`${presentation.length}/${MAX_PRESENTATION}`} labelSize="liten">
+            <OpsTextarea value={presentation} onChange={(v) => satt("presentation", v)} maxLength={MAX_PRESENTATION} />
+          </OpsField>
+        ) : null}
+      </div>
+    </OpsCard>
+  ) : null;
+
+  /* ⛔ LÄNKSEKTIONEN RITAS BARA NÄR APPEN HAR PLATTFORMAR. Utan `plattformar` finns
+     inget att lägga till, och en rubrik "Länkar" över ingenting följdes av Språk
+     och Utseende, som då såg ut att höra till länkarna (skärmbild #164, 2026-09-28).
+     Tomheten är ett svar i appens beslut att inte skicka plattformar, inte en rad här. */
+  const lankarna =
+    visas("lankar") && (plattformar.length > 0 || lankar.length > 0) ? (
+      <OpsCard kant>
+        <div className="mb-3">
+          <OpsSectionLabel>{lankarEtikett}</OpsSectionLabel>
+        </div>
+        <div className="flex flex-col gap-2">
+          {lankar.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {lankar.map((rad, i) => (
+                // ⛔ INDEX SOM NYCKEL, MED FLIT: en länkrad har ingen egen
+                // identitet innan den sparats (ingen id, ingen unik url ännu),
+                // och radernas ANTAL och ORDNING är det enda listan känner till.
+                <div key={i} className="flex items-center gap-2">
+                  <span className="w-28 shrink-0 truncate text-etikett text-ink-secondary">
+                    {plattformar.find((p) => p.id === rad.plattform)?.label || rad.plattform}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <OpsField label={`${rad.plattform} ${urlEtikett}`}>
+                      <OpsInput
+                        type="url"
+                        value={rad.url}
+                        onChange={(v) => satt("lankar", lankar.map((l, j) => (i === j ? { ...l, url: v } : l)))}
+                      />
+                    </OpsField>
+                  </div>
+                  <OpsButton
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    ariaLabel={`${taBortLankEtikett}: ${rad.plattform}`}
+                    onClick={() => satt("lankar", lankar.filter((_l, j) => j !== i))}
+                  >
+                    <KryssIkon size={16} />
+                  </OpsButton>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {obeskrivnaPlattformar.length > 0 ? (
+            <div>
+              <p className="mb-1 text-meta text-ink-secondary">{laggTillLankEtikett}</p>
+              <div className="flex flex-wrap gap-2">
+                {obeskrivnaPlattformar.map((p) => (
+                  <OpsChip key={p.id} onClick={() => satt("lankar", [...lankar, { plattform: p.id, url: "" }])}>
+                    {p.label}
+                  </OpsChip>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </OpsCard>
+    ) : null;
+
+  const sparaFelRaden = sparaFel ? (
+    <p role="alert" className="m-0 self-center text-etikett text-danger" data-profil-sparafel="">
+      {sparaFel}
+    </p>
+  ) : null;
+
+  /*
+   * ══ ⛔ KONTOLÄGET, REDIGERBART: EN KORT SIDA OCH ETT ARK (cllp/lifehub.app#813) ═══════════════════════════════════════
+   *
+   * CP 2026-11-12: "Det ser rörigt ut. Massa saker som syns. Not clean." Sidan visar bara vem du är och vart du går, och det som
+   * ändrar personen ligger i arket "Redigera profil". Tre beslut, med skälen:
+   *   - SPRÅKET SPARAS DIREKT. Det är ett enda val, och en Spara för det ensamt hade varit ett klick till för något som redan är
+   *     bestämt. Valet syns direkt (utkastet), och släpps ur utkastet efter svaret: efter ett ja står raden för det, efter ett nej
+   *     visar väljaren det som faktiskt är sparat, med felet bredvid, i stället för ett val som aldrig nådde kontot.
+   *   - AVBRYT, ESCAPE OCH KRYSSET SLÄNGER UTKASTET. Ett stängt ark med ett osparat utkast hade lämnat en ändring ingen ser,
+   *     och som nästa Spara skickar med.
+   *   - SPARA STÄNGER ARKET BARA EFTER ETT JA. Efter ett nej står arket kvar med felet och det som skrevs, så att det går att rätta.
+   * Radera kontot är en diskret textlänk under Konto, inte en knapp bredvid säkerheten: det man sällan gör och inte kan ångra
+   * ska inte stå lika framme som det man gör ofta.
+   */
+  if (kontoLankar) {
+    const stangArket = () => {
+      setUtkastet({});
+      setSparaFel("");
+      setRedigerar(false);
+    };
+    /** @param {string} v */
+    const sparaSprak = async (v) => {
+      setSprakFel("");
+      setUtkastet((u) => ({ ...u, sprak: v }));
+      try {
+        await onSpara?.({ sprak: v });
+      } catch (fel) {
+        setSprakFel(felTexten(fel));
+      } finally {
+        glom(["sprak"]);
+      }
+    };
+    return (
+      <OpsView width="narrow">
+        <OpsViewHeader title={rubrik} />
+
+        <OpsCard kant>
+          {identitet}
+          <div className="mt-3">
+            <OpsButton variant="secondary" size="sm" onClick={() => setRedigerar(true)}>
+              {redigeraEtikett}
+            </OpsButton>
+          </div>
+        </OpsCard>
+
+        {visas("sprak") ? (
+          <OpsCard kant>
+            <OpsField label={sprakEtikett}>
+              <OpsSelect options={SPRAK.map((s) => ({ value: s, label: sprakNamn[s] || s }))} value={valtSprak} onChange={sparaSprak} />
+            </OpsField>
+            {sprakFel ? (
+              <p role="alert" className="mt-2 text-etikett text-danger">
+                {sprakFel}
+              </p>
+            ) : null}
+          </OpsCard>
+        ) : null}
+
+        {kontoLankar.nycklarHref ? (
+          // En rad som är en länk, inte en rubrik med en knapp som säger samma sak en gång till.
+          <OpsCard kant flush>
+            <OpsList ariaLabel={kontoNycklarEtikett}>
+              <OpsListRow interactive href={kontoLankar.nycklarHref}>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium text-ink">{kontoNycklarEtikett}</span>
+                  <span className="block text-etikett text-ink-secondary">{kontoNycklarText}</span>
+                </span>
+              </OpsListRow>
+            </OpsList>
+          </OpsCard>
+        ) : null}
+
+        {children}
+
+        {grupplistan}
+
+        {kontoLankar.sakerhetHref ? (
+          <OpsCard kant>
+            <div className="mb-3">
+              <OpsSectionLabel>{kontoRubrik}</OpsSectionLabel>
+            </div>
+            <div className="flex flex-wrap gap-2" data-profilkonto="">
+              <OpsButton variant="secondary" size="sm" href={kontoLankar.sakerhetHref}>
+                {kontoSakerhetEtikett}
+              </OpsButton>
+            </div>
+          </OpsCard>
+        ) : null}
+        {kontoLankar.raderaHref ? (
+          <div data-profilradera="">
+            <OpsButton variant="ghost" size="sm" href={kontoLankar.raderaHref}>
+              {kontoRaderaEtikett}
+            </OpsButton>
+          </div>
+        ) : null}
+
+        <OpsModal
+          open={redigerar}
+          onOpenChange={(oppen) => (oppen ? setRedigerar(true) : stangArket())}
+          title={redigeraEtikett}
+          footer={
+            <>
+              {sparaFelRaden}
+              <OpsButton variant="ghost" onClick={stangArket}>
+                {avbrytEtikett}
+              </OpsButton>
+              <OpsButton
+                variant="primary"
+                onClick={async () => {
+                  if (await spara()) setRedigerar(false);
+                }}
+                disabled={!andrat}
+                busy={sparar}
+                busyLabel={sparaVantarEtikett}
+              >
+                {sparaEtikett}
+              </OpsButton>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-3">
+            {/* ⛔ Personen överst också i arket: på telefonen täcker arket sidan, och den som väljer en kulör ska se den. */}
+            <div>
+              {identitet}
+              <p className="mt-3 text-etikett text-ink-secondary">{kontoRedigerbarText}</p>
+              {bildOchMarke}
+            </div>
+            {uppgifterna}
+            {lankarna}
+          </div>
+        </OpsModal>
+      </OpsView>
+    );
+  }
+
   return (
     <OpsView width="narrow">
       <OpsViewHeader title={rubrik} />
@@ -618,167 +950,13 @@ function OpsProfilRitad({
             <OpsSectionLabel>{profilbildEtikett}</OpsSectionLabel>
           </div>
           {identitet}
-          {kontoLankar ? <p className="mt-3 text-etikett text-ink-secondary">{kontoRedigerbarText}</p> : null}
-
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {lagring && visas("bild") ? (
-              <>
-                <input
-                  ref={filValjare}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const fil = e.target.files?.[0];
-                    e.target.value = "";
-                    if (fil) ladda(fil);
-                  }}
-                />
-                <OpsButton variant="secondary" size="sm" busy={bildLaddar} onClick={() => filValjare.current?.click()}>
-                  {laddaUppEtikett}
-                </OpsButton>
-              </>
-            ) : null}
-            {/* ⛔ cllp/lifehub.app#786: bilden är inloggningens. Ett val, visa eller inte, i utkastet och med Spara. */}
-            {doldBildLage && inloggningsBild && visas("utanBild") ? (
-              <OpsButton variant="secondary" size="sm" onClick={() => satt("utanBild", !nu.utanBild)}>
-                {nu.utanBild ? visaBildEtikett : doljBildEtikett}
-              </OpsButton>
-            ) : null}
-            {!doldBildLage && anvandare.bild && visas("bild") ? (
-              <OpsButton variant="ghost" size="sm" disabled={bildLaddar} onClick={taBortBild}>
-                {taBortEtikett}
-              </OpsButton>
-            ) : null}
-            {!doldBildLage && inloggningsBild && inloggningsBild !== anvandare.bild && visas("bild") ? (
-              <OpsButton variant="ghost" size="sm" disabled={bildLaddar} onClick={aterstallBild}>
-                {aterstallEtikett}
-              </OpsButton>
-            ) : null}
-            {/* ⛔ "ANVÄND INITIALER" RITAS ÄVEN UTAN `lagring`: den nollställer ikonen
-                lika gärna som bilden, och kräver ingen Storage. Inte med `utanBild`: där är
-                initialerna "Aa" i väljaren, och bilden rörs med knappen ovanför. */}
-            {!doldBildLage && (anvandare.bild || anvandare.ikon) && visas("ikon") && visas("bild") ? (
-              <OpsButton variant="ghost" size="sm" disabled={bildLaddar} onClick={anvandInitialer}>
-                {anvandInitialerEtikett}
-              </OpsButton>
-            ) : null}
-          </div>
-          {bildFel ? (
-            <p role="alert" className="mt-2 text-etikett text-danger">
-              {bildFel}
-            </p>
-          ) : null}
-
-          {/* ⛔ cllp/lifehub.app#786: gruppens väljare, i personens form. Samma val som Identitys profil. */}
-          {visaMarke ? (
-            <div className="mt-3 flex flex-col gap-3" data-profilmarke="">
-              <OpsGruppmarkeValjare
-                person
-                namn={namn}
-                seed={anvandare.id}
-                farg={nu.farg}
-                ikon={nu.ikon}
-                onFarg={valjFarg}
-                onIkon={valjIkon}
-                sprak={sprak === "en" ? "en" : "sv"}
-                t={markeT}
-                idPrefix={markeId}
-              />
-            </div>
-          ) : null}
+          {bildOchMarke}
         </OpsCard>
       </div>
 
-      {visaUppgifter ? (
-        <OpsCard kant>
-          <div className="mb-3">
-            <OpsSectionLabel>{personuppgifterEtikett}</OpsSectionLabel>
-          </div>
-          <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {visas("namn") ? (
-                <OpsField label={namnEtikett} labelSize="liten">
-                  <OpsInput value={namn} onChange={(v) => satt("namn", v)} />
-                </OpsField>
-              ) : null}
-              {visas("telefon") ? (
-                <OpsField label={telefonEtikett} hint={telefonHint} labelSize="liten">
-                  <OpsInput type="tel" value={telefon} onChange={(v) => satt("telefon", v)} />
-                </OpsField>
-              ) : null}
-              {visas("stad") ? (
-                <OpsField label={stadEtikett} labelSize="liten">
-                  <OpsInput value={stad} onChange={(v) => satt("stad", v)} />
-                </OpsField>
-              ) : null}
-            </div>
-            {visas("presentation") ? (
-              <OpsField label={presentationEtikett} hint={`${presentation.length}/${MAX_PRESENTATION}`} labelSize="liten">
-                <OpsTextarea value={presentation} onChange={(v) => satt("presentation", v)} maxLength={MAX_PRESENTATION} />
-              </OpsField>
-            ) : null}
-          </div>
-        </OpsCard>
-      ) : null}
+      {uppgifterna}
 
-      {/* ⛔ LÄNKSEKTIONEN RITAS BARA NÄR APPEN HAR PLATTFORMAR. Utan `plattformar` finns
-          inget att lägga till, och en rubrik "Länkar" över ingenting följdes av Språk
-          och Utseende, som då såg ut att höra till länkarna (skärmbild #164, 2026-09-28).
-          Tomheten är ett svar i appens beslut att inte skicka plattformar, inte en rad här. */}
-      {visas("lankar") && (plattformar.length > 0 || lankar.length > 0) ? (
-      <OpsCard kant>
-        <div className="mb-3">
-          <OpsSectionLabel>{lankarEtikett}</OpsSectionLabel>
-        </div>
-        <div className="flex flex-col gap-2">
-        {lankar.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            {lankar.map((rad, i) => (
-              // ⛔ INDEX SOM NYCKEL, MED FLIT: en länkrad har ingen egen
-              // identitet innan den sparats (ingen id, ingen unik url ännu),
-              // och radernas ANTAL och ORDNING är det enda listan känner till.
-              <div key={i} className="flex items-center gap-2">
-                <span className="w-28 shrink-0 truncate text-etikett text-ink-secondary">
-                  {plattformar.find((p) => p.id === rad.plattform)?.label || rad.plattform}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <OpsField label={`${rad.plattform} ${urlEtikett}`}>
-                    <OpsInput
-                      type="url"
-                      value={rad.url}
-                      onChange={(v) => satt("lankar", lankar.map((l, j) => (i === j ? { ...l, url: v } : l)))}
-                    />
-                  </OpsField>
-                </div>
-                <OpsButton
-                  variant="ghost"
-                  size="sm"
-                  iconOnly
-                  ariaLabel={`${taBortLankEtikett}: ${rad.plattform}`}
-                  onClick={() => satt("lankar", lankar.filter((_l, j) => j !== i))}
-                >
-                  <KryssIkon size={16} />
-                </OpsButton>
-              </div>
-            ))}
-          </div>
-        ) : null}
-        {obeskrivnaPlattformar.length > 0 ? (
-          <div>
-            <p className="mb-1 text-meta text-ink-secondary">{laggTillLankEtikett}</p>
-            <div className="flex flex-wrap gap-2">
-              {obeskrivnaPlattformar.map((p) => (
-                <OpsChip key={p.id} onClick={() => satt("lankar", [...lankar, { plattform: p.id, url: "" }])}>
-                  {p.label}
-                </OpsChip>
-              ))}
-            </div>
-          </div>
-        ) : null}
-        </div>
-      </OpsCard>
-      ) : null}
+      {lankarna}
 
       {children}
 
@@ -801,34 +979,8 @@ function OpsProfilRitad({
         <OpsButton variant="primary" onClick={spara} disabled={!andrat} busy={sparar} busyLabel={sparaVantarEtikett}>
           {sparaEtikett}
         </OpsButton>
-        {sparaFel ? (
-          <p role="alert" className="m-0 self-center text-etikett text-danger" data-profil-sparafel="">
-            {sparaFel}
-          </p>
-        ) : null}
+        {sparaFelRaden}
       </div>
-
-      {/* ⛔ cllp/lifehub.app#786: det som inte hör till appen (inloggning, säkerhet, radering) bor i kontot. Länkarna dit,
-          inte en andra kopia av sidorna. */}
-      {kontoLankar ? (
-        <OpsCard kant>
-          <div className="mb-3">
-            <OpsSectionLabel>{kontoRubrik}</OpsSectionLabel>
-          </div>
-          <div className="flex flex-wrap gap-2" data-profilkonto="">
-            {kontoLankar.sakerhetHref ? (
-              <OpsButton variant="secondary" size="sm" href={kontoLankar.sakerhetHref}>
-                {kontoSakerhetEtikett}
-              </OpsButton>
-            ) : null}
-            {kontoLankar.raderaHref ? (
-              <OpsButton variant="ghost" size="sm" href={kontoLankar.raderaHref}>
-                {kontoRaderaEtikett}
-              </OpsButton>
-            ) : null}
-          </div>
-        </OpsCard>
-      ) : null}
 
       {grupplistan}
     </OpsView>
@@ -895,6 +1047,11 @@ export const ORD_OPSPROFIL = {
   kontoRubrik: { sv: "Konto", en: "Account" },
   kontoSakerhetEtikett: { sv: "Inloggning och säkerhet", en: "Sign-in and security" },
   kontoRaderaEtikett: { sv: "Radera kontot", en: "Delete account" },
+  // cllp/lifehub.app#813: kontolägets korta sida och arket.
+  kontoNycklarEtikett: { sv: "Nycklar och kopplingar", en: "Keys and connections" },
+  kontoNycklarText: { sv: "Anslutningar, AI-nycklar och API-nycklar.", en: "Connections, AI keys and API keys." },
+  redigeraEtikett: { sv: "Redigera profil", en: "Edit profile" },
+  avbrytEtikett: { sv: "Avbryt", en: "Cancel" },
 };
 
 /**
