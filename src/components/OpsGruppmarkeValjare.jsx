@@ -41,8 +41,12 @@ import { BockIkon } from "./icons.jsx";
  * @param {"sv"|"en"} props.sprak
  * @param {{ farg: string, initialer: string, ikonEllerLogotyp: string, egnaInitialer: string, egnaInitialerHint: string, aterstallInitialer: string, kulorExakt: string, kulorGrader: string, kulorAterstall: string, kulorHint: string, sokIkon: string, sokIkonPlatshallare: string, forslagUrNamn: string, forslagInga: string, forslagSkrivNamn: string, senastAnvanda: string, senastInga: string, vanliga: string, traffar: string, ingaTraffar: string, traffarStatus: string, ingetMatchar: string }} props.t Formulärets etiketter.
  * @param {string} props.idPrefix
+ * @param {boolean} [props.person] (cllp/lifehub.app#786) Väljaren för en PERSON, i `OpsProfil`: ingen rad "Förslag ur namnet" och inga egna
+ *   initialer. Samma skillnader som Identitys väljare (lifehub.identity `web/src/markevaljare.ts`): ett personnamn ("Claes Philip") säger
+ *   ingenting om vilken ikon som passar, och `byggAnvandare` nekar formen `initialer:AB` för en person. `t.forslag*`, `t.egnaInitialer*` och
+ *   `t.aterstallInitialer` läses då inte. Utelämnad: gruppens väljare, som förut.
  */
-export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, sprak, t, idPrefix }) {
+export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, sprak, t, idPrefix, person = false }) {
   const sokId = useId();
   const [fraga, setFraga] = useState("");
   const [senaste, setSenaste] = useState(/** @type {string[]} */ ([]));
@@ -54,7 +58,7 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
   const initialerAktiva = ikon === "" || GRUPPINITIALER_FORM.test(ikon);
   const egnaInitialer = GRUPPINITIALER_FORM.exec(ikon)?.[1] ?? "";
 
-  const forslag = useMemo(() => forslagUrGruppnamn(namn).slice(0, 12), [namn]);
+  const forslag = useMemo(() => (person ? [] : forslagUrGruppnamn(namn).slice(0, 12)), [namn, person]);
   const traffar = useMemo(() => (fraga.trim() ? sokGruppikoner(fraga) : []), [fraga]);
 
   const valjIkon = (/** @type {string} */ n) => {
@@ -186,7 +190,7 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
             rad({ id: "traffar", rubrik: `${t.traffar} (${traffar.length})`, namn: traffar.slice(0, 48), tomText: t.ingaTraffar.replace("{fraga}", fraga.trim()) })
           ) : (
             <>
-              {rad({ id: "forslag", rubrik: t.forslagUrNamn, namn: forslag, tomText: namn.trim() ? t.forslagInga : t.forslagSkrivNamn })}
+              {person ? null : rad({ id: "forslag", rubrik: t.forslagUrNamn, namn: forslag, tomText: namn.trim() ? t.forslagInga : t.forslagSkrivNamn })}
               {rad({ id: "senaste", rubrik: t.senastAnvanda, namn: senaste, tomText: t.senastInga })}
               {rad({ id: "vanliga", rubrik: t.vanliga, namn: VANLIGA_GRUPPIKONER, tomText: "", medInitialer: true })}
             </>
@@ -194,7 +198,7 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
         </div>
       </div>
 
-      {initialerAktiva ? (
+      {initialerAktiva && !person ? (
         <div className="flex flex-col gap-1">
           <label htmlFor={`${idPrefix}-init`} className="text-hjalp text-ink-muted">
             {t.egnaInitialer}
