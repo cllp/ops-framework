@@ -9,6 +9,30 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.219.0
+
+Färgväljaren för en hubbs färger, och granskningens fynd som besked om vilken färg i vilket läge som ska ändras, och åt vilket håll (cllp/lifehub.app#798). CP 2026-11-12, med en skärmbild av Hubbens färger: "vi behöver en color picker och reglage som kommer upp när man trycker på rutan. Låt det vara möjligt att skriva in hex också, men bra att kunna välja. Det måste vara tydligare var på skalan man är fel, om det behöver vara ljusare eller mörkare." Och: han sparade en färg i mörkt, bytte till ljust där den inte höll, och när han gick tillbaka till mörkt stod felet kvar utan att säga att det gällde ljust läge. Inget brytande: `granskaPalett` ger samma fynd som förut.
+
+**Skärmtid (frågan till ärendet):** färre försök. I dag gissar den som väljer en färg vilket håll som hjälper och provar igen; skalan visar det, och knappen tar närmaste färg som håller i ett tryck.
+
+### Nytt
+
+- **`OpsFargval`:** ett fält med rutan och färgkoden, och ett tryck öppnar en ruta vid fältet med reglage för kulör, mättnad och ljushet och färgkoden att skriva i. Med `palett`, `lage` och `nyckel` tonas den del av ljusheten som inte håller ned och den som håller ramas in, och under reglaget står var det håller ("Håller mellan 0 och 35 % och mellan 41 och 51 %"), var färgen står, åt vilket håll den ska ändras och knappen "Använd närmaste som fungerar". Riktiga `<input type="range">` med etiketter och värden i ord, Escape stänger och fokus går tillbaka till fältet, 44 px träffytor. HSL och inte OKLCH: varje punkt är en riktig `#rrggbb`, så ljushetsreglaget ändrar aldrig mättnaden (skälet i `palettomfang.js`). En ruta vid fältet på alla bredder, som `OpsDatePicker`, och inget ark nerifrån (samma beslut som `OpsAtgardsblad` 0.102.0).
+- **`hallbarLjushet(palett, lage, nyckel, farg, skala?)`:** delarna av ljushetsskalan där varje par med färgen håller, om färgen själv håller, åt vilket håll närmaste som håller ligger (`"ljusare"`, `"morkare"`, `null`) och den färgen. Prövat genom granskningen (`granskaLage`, samma par och ribbor som `granskaPalett` och `check-kontrast`), och bara med paren som hänger på färgen: en oläslig text gör inte accentens skala röd.
+- **`palettBesked(palett)`:** "Accenten i ljust tema är för ljus. Gör den mörkare." i stället för kvoterna, en rad per färg och läge, med närmaste färg och de mätta kvoterna kvar. `lagenMedFel` för en röd prick på lägets flik, och `iAnnatLage` för raden i det andra läget ("Ljust tema behöver ändras innan du kan spara."). ⛔ "Tema" och inte "läge" som i ärendet: granskningens meningar och appens växel säger tema, och "läge" är statusens ord (`check-statusord`). Färgen som behöver minst ändring står först, och en färg står bara om den lagar något: på CP:s palett hänger accenten mot sidan också på bakgrunden, men ingen ljushet av bakgrunden lagar det, och raden om bakgrunden står därför inte.
+- **`riktningsbesked(omfang)`:** det korta beskedet utan färgens namn, det färgväljaren skriver under reglaget.
+
+### Ändrat
+
+- **`granskaPalett` är `granskaLage` för båda lägena.** Samma fynd i samma ordning; `granskaLage` tar en delmängd av paren så att skalan inte prövar alla par hundra gånger per reglagedrag. Temats ordning läser `ORDNINGENS_NYCKLAR`, samma lista som skalan använder för att veta vilka färger ett `ordning`-fynd hänger på.
+- **`tokens.css`:** `.ops-reglage.ops-fargreglage` gör skenan genomskinlig, så att färgskalan under reglaget syns. Tummen och skenans höjd är oförändrade.
+
+### Prov
+
+- `palettomfang.test.js`: CP:s palett (accenten #94a37e i ljust läge, 2,62:1 mot kortet där 3:1 behövs) ger "mörkare", och närmaste färg ger noll fynd i `granskaPalett` medan en halv procent ljusare inte gör det; förvalets åtta färger håller; skalan stämmer med granskningen mitt i varje intervall och varje lucka (golv: 20 vardera); en oläslig text lämnar accentens skala ifred; en palett där ingen ljushet håller ger tom lista; `palettBesked` på CP:s palett, på förvalet (tomt), på fel i båda lägena, och på 60 slumpvisa paletter där varje fynd står i en rad och varje rads närmaste färg tar bort radens fynd (golv: 25 med fynd); hex till HSL och tillbaka för 4096 färger.
+- `fargval.test.jsx`: reglagen, etiketterna och värdena i ord, att reglagen ger `#rrggbb` och att kulören står kvar genom svart (också när svart skrivs som kod), skalans delar och beskedet på CP:s palett, knappen, engelska, ingen skala utan palett, färgkoden som skrivs, Escape och fokus tillbaka.
+- Rött utan ändringen: båda filerna faller på HEAD (modulerna saknas). Åtta planterade fel i en kopia, alla fällda: alla fynd räknas för färgen (2 röda), ingen ordning i `palettBesked` (2), vänd riktning (7), närmaste på fel sida av intervallet (1), ingen inramning (1), kulören läses om vid svart (1), temats ordning hoppas över (3), `iAnnatLage` pekar på samma läge (2).
+
 ## 0.218.1
 
 Ljudspelaren tappar inte längre ett tryck på spela som kommer innan den hunnit koppla sina lyssnare, och agentens Gemini-modeller är bytta till 3.5 sedan Google pensionerat 2.5. Inget brytande, ingen ny prop.

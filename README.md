@@ -203,7 +203,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**171 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**172 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -3151,6 +3151,10 @@ CP 2026-11-11 (cllp/lifehub.app#786): en hubbs administratör ska kunna sätta h
 | `palettTillCss`, `tillampaPalett`, `PALETT_STIL_ID` | stilen i dokumentet: ljust i lagret `theme` som `--color-*`, mörkt olagrat som `--dark-*`, alltså brandkontraktets platser. `null` tar bort stilen helt, och då är appen exakt som utan funktionen |
 | `palettStil` | ett läges token som stil på ett element, för en förhandsvisning i en avgränsad ruta |
 | `OpsPalettForhandsvisning`, `OpsFargruta` | förhandsvisningen av en palett i ett tema (bakgrund, ett kort med rubrik och detalj, en linje, en knapp i accenten, texterna är appens) och rutan bredvid ett färgfält. ⛔ I ramverket och inte i appen: båda behöver en färg som bara finns vid körning, och appens ESLint fäller varje `style` och hexsträng |
+| `OpsFargval`, `ORD_OPSFARGVAL` | (0.219.0, cllp/lifehub.app#798) färgväljaren: ett fält med rutan och färgkoden, och ett tryck öppnar en ruta vid fältet (alla bredder, som `OpsDatePicker`) med reglage för kulör, mättnad och ljushet (HSL) och färgkoden att skriva i. Props: `value` (det som står i utkastet, också en halv kod), `onChange` (reglagen ger `#rrggbb`, koden det som skrivs), och `palett`, `lage`, `nyckel` för skalan: med dem tonas den del av ljusheten som inte håller ned och den som håller ramas in, och under reglaget står var det håller, var färgen står, åt vilket håll den ska ändras och knappen "Använd närmaste som fungerar". `value` ersätter `palett[lage][nyckel]`; något som inte är en palett ger reglagen utan skala. I en `OpsField` (etikett, hjälp, fel) eller med `ariaLabel`. Escape stänger och fokus går tillbaka till fältet |
+| `hallbarLjushet(palett, lage, nyckel, farg, skala?)` | (0.219.0) var på ljushetsskalan färgen håller mot palettens andra färger, prövat genom samma granskning som `granskaPalett` och bara med paren som hänger på färgen. Ger `intervall` (procent, `{ fran, till }`, tom lista: ingen ljushet håller med den kulören och mättnaden), `haller`, `riktning` (`"ljusare"`, `"morkare"` eller `null`), `narmaste` (närmaste `#rrggbb` som håller, samma kulör och mättnad), `narmasteLjushet` och `fynd` med de mätta kvoterna. `skala` (`{ kulor, mattnad }`) är kulören och mättnaden för skalan, för grått som saknar egen kulör |
+| `palettBesked(palett)` | (0.219.0) granskningens fynd som besked per läge och färg: `rader` ("Accenten i ljust tema är för ljus. Gör den mörkare.", med `riktning`, `narmaste` och fynden; färgen som behöver minst ändring står först, och en färg står bara om den lagar något), `lagenMedFel` (för en röd prick på lägets flik, tom: båda håller), `iAnnatLage` (raden i det ena läget när det andra har fel: `iAnnatLage.mork` är "Ljust tema behöver ändras innan du kan spara.") och `ovriga` (fynd ingen färg kunde knytas till, ska vara tom) |
+| `riktningsbesked(omfang)` | (0.219.0) det korta beskedet om åt vilket håll, utan färgens namn ("För ljus. Gör den mörkare."), på svenska och engelska. Det färgväljaren skriver under reglaget |
 
 ⛔ **Vilket värde som vinner var:** inne i appen hubbens färger när de är satta, annars ramverkets token (också över en brandfil, stilen ligger sist). Webbläsarens kant (`theme-color`), manifestet och den inbyggda startskärmen är instansens färger vid bygget och rörs inte: de läses före inloggningen och startskärmen går inte att byta vid körning. Statusfärgerna (fel, varning, klart, info, diagram, gruppkulörer) är ramverkets och följer inte med.
 
