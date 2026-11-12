@@ -3328,7 +3328,12 @@ const MENYYTOR = [
   { id: "datum", namn: "OpsDatePicker, dagarna", scen: "menyer", oppna: (p) => p.locator('[data-m="datum"] button').press("Enter"), rader: '[role="grid"] button', valt: null, font: 12, padX: null, padY: null, minRader: 28, dialog: true, viktUndantag: 1 },
   { id: "aktivitet", namn: "Aktivitet, Mer-menyn", scen: "menyer", oppna: (p) => p.locator('[data-m="aktivitet"] button[aria-label="Mer"]').press("Enter"), rader: '[data-radix-popper-content-wrapper] button', valt: null, font: 12, padX: 12, padY: 10, hojd: 36, minRader: 1 },
   { id: "gruppvaljare", namn: "OpsGruppvaljare", scen: "menyer", oppna: async () => {}, rader: '[data-m="gruppvaljare"] ul button', valt: '[aria-current="true"]', font: 12, padX: 12, padY: 8, bock: true, minRader: 3 },
-  { id: "header-meny", namn: "Huvudets meny", scen: "full", oppna: async (p) => { const v = p.viewportSize(); if (v && v.width < 800) await p.getByRole("button", { name: "Meny" }).last().click(); else await p.getByRole("button", { name: /Meny, fler/ }).click(); }, rader: '[role="dialog"] a[href], [role="dialog"] button[class*="rounded-base"][class*="min-h-11"]', valt: null, font: 12, padX: 12, padY: 10, minRader: 3, dialog: true },
+  { id: "header-meny", namn: "Huvudets meny", scen: "full", bredd: [1280], oppna: (p) => p.getByRole("button", { name: /Meny, fler/ }).click(), rader: '[role="dialog"] a[href], [role="dialog"] button[class*="rounded-base"][class*="min-h-11"]', valt: null, font: 12, padX: 12, padY: 10, minRader: 3, dialog: true },
+  // ⛔ MENYARKET PÅ TELEFONEN ÄR EN EGEN YTA MED ETT EGET BESLUT (0.218.0). CP 2026-11-11, med en skärmbild ur TestFlight av arket som
+  // bottenradens Meny öppnar: "Är inte texten lite väl liten i denna menyn?" Raderna var 12 px; iOS egna listrader är 17 pt. Arket är 16 px
+  // (`text-brod`, `ARKRAD_TEXT` i `radKlass.js`) med 20 px ikoner. Huvudets meny ovan står kvar på SS 12 px (CP 2026-09-29, "Stor text").
+  // Före 0.218.0 mätte raden ovan arket vid 390 px under huvudets namn, med huvudets krav; nu mäts varje yta mot sitt eget beslut, lika exakt.
+  { id: "menyarket", namn: "Menyarket (bottenradens Meny)", scen: "full", bredd: [390], oppna: (p) => p.getByRole("button", { name: "Meny" }).last().click(), rader: '[role="dialog"] a[href], [role="dialog"] button[class*="rounded-base"][class*="min-h-11"]', valt: null, font: 16, padX: 12, padY: 10, minRader: 3, dialog: true },
   { id: "skapa-dropdown", namn: "Skapa-menyn (plus)", scen: "skapa", bredd: [1280], oppna: (p) => p.getByRole("button", { name: "Skapa", exact: true }).last().click(), rader: '[role="dialog"] button[class*="min-h-11"]', valt: null, font: 14, vikt: 500, padX: 16, padY: 10, minRader: 1, dialog: true },
   { id: "hub-dropdown", namn: "Hub-rullgardinen", scen: "full", bredd: [1280], oppna: (p) => p.getByRole("button", { name: "Visa sidorna under Appar" }).click(), rader: '[role="dialog"] a[href]', valt: null, font: 12, padX: 12, padY: 10, minRader: 2, dialog: true },
   { id: "skapa-i", namn: "Skapa i, dialogen", scen: "skapa", aktiv: "g1", oppna: async (p) => { await p.getByRole("button", { name: "Skapa", exact: true }).last().click(); await p.getByRole("button", { name: "Ny händelse" }).click(); await p.getByRole("button", { name: /^Skapas i:/ }).click(); }, rader: '[role="dialog"][aria-label="Skapa i"] section button, [role="dialog"] section button', valt: null, font: 14, padX: 12, padY: 12, minRader: 2, dialog: true },
@@ -3400,7 +3405,7 @@ for (const y of MENYYTOR) {
     await context.close();
   }
 }
-krav(ytorMatta >= 28, `valmenyerna: bara ${ytorMatta} ytor mätta, väntat minst 28 (14 ytor i två bredder, 2 i en). Golv.`);
+krav(ytorMatta >= 28, `valmenyerna: bara ${ytorMatta} ytor mätta, väntat minst 28 (13 ytor i två bredder, 4 i en, alltså 30). Golv.`);
 
 // ══ 19. HUB, TILLBAKA-RAD OCH MENYHÖJD (0.31.2, CP 2026-09-29 20:57) ══════════
 // CP, med två bilder från telefonen (bolag-ops, mörkt, 390 px): "Hubbens kort måste få lite distans från headern. Ekonomi fäller

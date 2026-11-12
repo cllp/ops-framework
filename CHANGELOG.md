@@ -9,6 +9,76 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.218.0
+
+En hubbs egna färger vid körning (cllp/lifehub.app#786), större menyrader på pekskärm, `kanLyssna` för en egen taligenkänning i TALK, och bottenraden som göms medan man skriver också i den inbyggda appen. CP 2026-11-11, om färgerna: "Kan man göra det under hubbinställningar i appen där samma ställe där man bestämmer vilka appar som får installeras", och sedan "Kör på färgerna i härdning". Om menyn, med en skärmbild ur TestFlight av menyarket: "Är inte texten lite väl liten i denna menyn?" Inget brytande: en app som inte sätter någon palett ser exakt ut som förut, och på dator med mus är menyn oförändrad.
+
+**Skärmtid (frågan till ärendet):** färgerna lägger inget val i vardagen, bara en inställning en hubbadmin gör en gång. Menyn blir lättare att träffa och läsa, inte större till innehållet.
+
+### Nytt
+
+- **`src/lib/palett.js`:** fyra färger per läge (`bakgrund`, `yta`, `text`, `accent`) som skriver över ramverkets egna token vid körning, på brandkontraktets platser (ljust i lagret `theme`, mörkt olagrat som `--dark-*`). Resten av ytstegen och texttonerna härleds. `granskaPalett` nekar ett oläsligt par med samma ribba som `check-kontrast`, med en mening på svenska och engelska. Se README, "En hubbs egna färger vid körning".
+- **`OpsPalettForhandsvisning`, `OpsFargruta`:** förhandsvisningen av en palett i ett tema och rutan bredvid ett färgfält. I ramverket eftersom båda behöver en färg vid körning (`style`), som appens ESLint med rätta fäller.
+- **`STANDARDPALETT`** genereras av `scripts/generate-tokens.mjs` ur fixturen, till `src/lib/standardpalett.generated.js`. `--kontrollera` prövar den också.
+
+### Ändrat
+
+- **Menyarkets rader på telefonen** (arket som bottenradens Meny öppnar, `OpsBottomNav`): `text-brod` (16 px) och 20 px ikoner. Nytt val `radKlass({ ark: true })`, `OpsPanelRow ark` och `ark` på `menySektioner`, `menyAppAvdelning` och `menyFot`, som bara arket skickar. ⛔ Huvudets meny (popovern bakom "Meny, fler" från `md`) är oförändrad på SS 12 px, CP 2026-09-29 "Stor text": första versionen av 0.218.0 gjorde båda större med fältens villkor (`md:pointer-fine:`) och föll i `check-skalyta` i release-PR 577. Arket finns bara under `md`, så det har inget pekarvillkor och klassen säger den roll som ritas. `check-skalyta` avsnitt 18 mäter nu arket (16 px vid 390) och huvudets meny (12 px vid 1280) var för sig. Andra rader ur samma funktion (panelens rader, filter, väljare, Bibliotekets rader, plusset) är oförändrade. Raden är 44 px som förut (16 px text, `leading-6`, `py-2.5`), och etiketten bryts inte.
+
+- **TALK, `Igenkanning.kanLyssna({ baraIgenkanning })`** (valfri). På iOS visade varje röstinspelning "Texten kan inte visas just nu…". Rotorsaken, mätt i `OpsTalk.jsx`: `igkRef` och `igkWebRef` kommer båda ur samma `igenkanning`, så en igenkänning appen gett kunde inte stå över en omgång som spelar in (ett låst mål som Röstinspelning, och Spela in i stället på WebKit). `medText` var alltid sant, och igenkänningen kunde bara säga fel (`TALK_TEXTFEL`) eller tiga (platshållaren stod kvar, punkt 5-felet 0.99.0 stängde), och den dolde dessutom målvalet (`onAgent && medText`). Nu frågas `kanLyssna` vid start; `false` gör omgången till en ren inspelning utan textyta och `starta` anropas inte. Valet av en omgång med bara igenkänningen kräver också `kanLyssna({ baraIgenkanning: true }) !== false`. Ett kast räknas som `false` och rapporteras (`steg: "kanLyssna"`). En igenkänning utan `kanLyssna` beter sig som förut. ⛔ Appen behöver ompinningen: lifehub.app ger `skaletsIgenkanning` `kanLyssna: ({ baraIgenkanning }) => plattform !== "ios" || baraIgenkanning === true`.
+
+- **Bottenraden göms igen medan man skriver i den inbyggda appen** (`src/lib/tangentbord.js`, cllp/ops-framework#461 igen). Händelsen: appen fick `@capacitor/keyboard` 8.0.6 för att dölja iOS-raden ovanför tangentbordet (CP: "det känns inte så native"). Pluginens `load` tar alltid bort WKWebViews egna tangentbordsobservatörer, och i läget `resize: native` krymper hela webbvyn, så layoutfönstret krymper med `visualViewport` och mätningen såg inget tangentbord: raden stod kvar mellan skrivfältet och tangentbordet, som i CP:s skärmbild 2026-10-28. Nu lyssnar mätningen också på pluginens händelser på `window`, lästa ur dess källa (`Keyboard.m`, `definitions.d.ts`): `keyboardWillShow` och `keyboardDidShow` med `keyboardHeight` på händelsen, `keyboardWillHide` och `keyboardDidHide`. När de kommer gäller de; en höjd under 150 px (0 är pluginens QuickType-rad, ett externt tangentbord) räknas som nere. Kommer de aldrig (webben, äldre byggen av appen) gäller mätningen som förut. Inget beroende på `@capacitor`.
+
+### Rättat efter granskningen (före utgivningen)
+
+En oberoende granskning av grenen hittade sex fel, och alla är rättade i samma version:
+
+- **Palettens granskning prövar check-kontrasts par, ur samma lista** (`src/lib/kontrastpar.js`). Granskningen hade en egen lista på sju par och släppte igenom slumpvisa paletter där dämpad text på sidan gav 2,45:1, accenten mot headern 2,69:1, text på hover 4,12:1 och felraden 1,17:1. Listan bor nu på ett ställe och läses av båda (arbetsreglernas punkt 2), utökad med de par komponenterna ritar på sidan, i fält och på hover, accenten mot kortet, och fel, klart, varning, info, märket och märkets accent mot sidan, headern och kortet. Ramverkets värden för det paletten inte skriver genereras ur `tokens.css` (`RAMVERKETS_PARTOKEN`). `ink-muted` står med flit inte med: den bär aldrig information.
+- **Temat måste vara det det heter:** ljust tema kräver ljusare bakgrund och yta än texten, mörkt tvärtom. `line-strong` och `divider` (svart respektive vit med låg täckning) följer då ytan av sig själva och härleds inte; `ink-inverse` står bara på kontrastpanelen, som inte följer paletten. Diagrammen och gruppkulörerna prövas fortfarande bara mot ramverkets ytor.
+- **Ingen sträng rakt in i stilen:** `palettTillCss` och `granskaPalett` kastar, `tillampaPalett` tar bort stilen och `palettStil` ger ingen stil för något som inte är en palett (`text: "red}}body{display:none}..."` skrevs förut ordagrant).
+- **Tangentbordet fastnade inte längre gömt:** ett native-besked kräver också ett textfält med fokus, och glöms när sidan blir synlig igen, så PR 462:s återhämtning gäller också i appen.
+- **`kanLyssna` frågas en gång per kandidat och omgång**, och ett kast rapporteras en gång. En igenkänning som svarade ja och sedan nej gav förut en ren igenkänningsomgång utan igenkänning.
+
+### Prov
+
+- `palett.test.js`, efter granskningen: vakten och granskningen läser samma lista och den bär 37 utskrivna par; en palett per par som beror på paletten fäller just det paret (36, `badge-contrast` mot `badge` beror inte på paletten); granskningens två exempel nekas; vänt tema nekas; strängen i stilen nekas på tre sätt. Rött med palett.js före rättelsen (7 röda), och ett borttaget par ur listan dödar två prov.
+- `tangentbord.test.jsx`, efter granskningen: show, bakgrund och tillbaka utan hide, och show följt av fokus ut, ger båda raden tillbaka. Rött före rättelsen (2).
+- `talk-kanlyssna.test.jsx`, efter granskningen: ja-sedan-nej ger en lyssnande omgång med en fråga, och ett kast rapporteras en gång. Rött före rättelsen (2).
+- `tangentbord.test.jsx`: pluginens händelser gömmer och tar fram raden fast viewporten inte krympt, par av Will och Did flera gånger i följd och ett Will utan sitt Did lämnar aldrig raden fast, höjd 0 och under 150 px räknas som nere, och utan händelserna gäller mätningen som förut. Rött med 0.217.0 (2 av de 4 nya; höjd 0 och utan händelser är gröna i båda, som de ska).
+- `talk-kanlyssna.test.jsx`: med `kanLyssna` som säger nej utanför en ren igenkänningsomgång (som iOS-appen) ger ett låst mål och Spela in i stället på WebKit ingen platstext och ingen felrad, och `starta` anropas aldrig; en omgång med bara igenkänningen anropar `starta`; en igenkänning utan `kanLyssna` lyssnar som förut; en `kanLyssna` som kastar rapporteras och omgången blir en inspelning utan levande text. Rött med 0.217.0 (4 av 5, provet utan `kanLyssna` är grönt i båda, som det ska).
+- `palett-komponenter.test.jsx`: förhandsvisningen bär det valda temats token på rutan och inte på dokumentet, färgrutan ritar bara `#rrggbb`.
+- `palett.test.js`: ingen palett ger ingen stil och Återställ tar bort den, varje token paletten skriver finns i `tokens.css` i båda lägena, ljust och mörkt skrivs på rätt plats, oläsligt nekas, bara `#rrggbb` godtas. Rött med mutationer (granskningen släpper allt, `null` tar inte bort stilen, formen godtar vad som helst): 6 av 15 röda.
+- `menyarket-rader.test.jsx`: arkets rader (navigeringens överlopp, appens sektion, utloggningen) bär `text-brod` utan pekarvillkor och 20 px ikoner, och huvudets meny bär `text-meta` och 16 px ikoner. Rött med 0.217.0 (arket) och med första versionen av 0.218.0 (arket och huvudets meny). `check-skalyta` rött med första versionen (2 brott: "Huvudets meny (390 px): textstorlek 16 px, väntat 12 px" och 6 avvikelser från rollskalan), grönt efter.
+
+### Profilen redigerad i hubben
+
+Profilen redigerad i hubben och sparad i kontot (cllp/lifehub.app#786). CP 2026-11-11: "Det är ganska tydligt att mitt konto är en web site. Går det att få en mer integrerad upplevelse?" och "Kör, ta profilvyn i härdningen". En app som inte skickar de nya propsen får samma vy som förut, utom märkets väljare (se Ändrat).
+
+**Skärmtid (frågan till ärendet):** ingen ny vy. Profilen som redan finns i appen går att ändra där, i stället för att öppna en webbsida i ett ark.
+
+#### Nytt
+
+- **`OpsProfil` `falt`:** fälten appen sparar. Bara de ritas, och Spara skickar bara de av dem som ändrats. Ett konto som äger personen (LifeHubs Identity) nekar `lankar` och `tema`, och hela raden hade nekats varje gång.
+- **`OpsProfil` `utanBild`:** när bilden är inloggningens och inte appens egen (ingen `lagring`). Bildraden blir en knapp, "Visa inte bilden" eller "Visa bilden", och Spara skickar `utanBild`. Varken Ta bort eller Återställ, som skickar `bild` som text.
+- **`OpsProfil` `konto={{ sakerhetHref, raderaHref }}`:** det redigerbara kontot. Formuläret sparas genom `onSpara`, och en sektion Konto bär länkarna "Inloggning och säkerhet" och "Radera kontot". `konto={{ href }}` är det skrivskyddade läget som förut; båda samtidigt kastar.
+- **`OpsProfil` `sparaFelText`** (text, eller en funktion som får felet) och förvalet `sparaFelForval`: ett nej från `onSpara` står som `role="alert"` bredvid Spara, och utkastet står kvar så att det går att rätta. Förut svaldes felet (`try/finally` utan `catch`).
+- **`OpsProfil` `telefonHint`** och resten av de nya etiketterna i `ORD_OPSPROFIL`, på svenska och engelska. Telefonens exempel var hårdkodad svenska.
+- **`andringen(anvandare, utkast, falt)`** och **`PROFILENS_FALT`**: bara det som ändrats bland fälten i listan. Ett okänt namn kastar.
+- **`OpsGruppmarkeValjare`** exporteras, med `person` för personens form: ingen rad med förslag ur namnet och inga egna initialer (`byggAnvandare` nekar `initialer:AB` för en person).
+
+#### Ändrat
+
+- **`OpsProfil`, märket:** gruppens väljare i stället för sex ikoner och sex färger: tolv kulörer, reglaget för alla 360, återställning till kulören ur id:t, och ikonkatalogen med sökning. Samma val som Identitys profil. **Utan `falt` sparas ikon och färg direkt, som förut**, så att appar som sparar i sin egen rad inte ändrar beteende. Med `falt` står valet i utkastet och sparas med Spara: med ett reglage hade varje steg blivit en sparning, och Identity har ett tak per minut. Ett ikonval rensar fortfarande en kvarvarande bild.
+- **`OpsProfil`, utkastet:** bara det personen ändrat står i utkastet, resten läses ur `anvandare` vid varje ritning. Ett fält som sparats med Spara släpps när sparningen lyckats, också när servern ändrat värdet på vägen (Identity trimmar, så "Visby " blev aldrig lika med "Visby" och Spara stod kvar tänd), utom om personen hunnit ändra det medan sparningen pågick. Ett fält ändrat utifrån släpps när raden kommit ikapp det, ett ändrat fält står kvar också när raden ändras, och en annan `anvandare.id` tömmer utkastet. Förut var fälten `useState` ur den första `anvandare` och stod kvar när raden ändrades utifrån. `valjIkonEtikett` heter som förval "Ikon eller initialer". `ikonNamn` tas emot men används inte. Sparade värden ur de äldre sex (`krona`, `"3"`) ritas som förut.
+- **Ett nej vid Spara** försvinner när personen ändrar igen och när `anvandare.id` byts.
+- **Spara** visar "Sparar…" medan den väntar (`busyLabel`).
+
+#### Prov
+
+- `profilvy.test.jsx`: väljaren (tolv kulörer, reglaget, sökningen, inga förslag och inga egna initialer), ikon och kulör i utkastet och med Spara, `falt` (bara det ändrade, bara de fälten ritas), `utanBild` (en knapp, inga Ta bort eller Återställ, Spara skickar valet), det redigerbara kontot och dess fel, telefonens exempel på båda språken. `profil.test.js`: `andringen` med `falt`. Alla 13 röda mot 0.217.0, gröna efter; de 80 andra är gröna mot båda. Efter granskningen: ett nej från `onSpara` (400 med appens text, 429 med förvalet, ett direkt färgval), direktsparningen utan `falt` för ikon och färg, och utkastet när `anvandare` ändras (orört fält följer raden, ändrat står kvar, sparat släpps, annan person tömmer). Röda med var och en av ändringarna borttagen. Efter omgranskningen: "Visby " sparad som "Visby" (fältet följer raden, Spara släcks, en senare ändring utifrån syns), en ändring under sparningen står kvar, och ett nej försvinner vid nästa ändring och vid en annan person. Röda med var och en av ändringarna borttagen.
+
+---
+
 ## 0.217.0
 
 "I repot" kan stå på gruppens eget bibliotek, inte bara på en egen plats (cllp/lifehub.app#785, CP 2026-11-11: "\"I repot\", kan det vara en standard alternativ för alla bibliotek som är kopplade till Github? inte bara projekt", och "kör"). Inget brytande: en app som bara skickar `repoLasare` på ett projekts plats ser ingen skillnad.

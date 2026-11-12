@@ -235,3 +235,28 @@ describe("⛔ en rad med tom epost (#316)", () => {
     expect(sparad).toMatchObject({ tema: "morkt", epost: "" });
   });
 });
+
+/*
+ * ⛔ cllp/lifehub.app#786: `andringen` med `falt`. Ett konto som äger personen (Identity) tar bara emot sina fält och nekar `lankar` och `tema`,
+ * så en app som sparar dit ska få bara det som ändrats, bland de fält den listat. Rött mot 0.217.0 (hela raden kom tillbaka), grönt efter.
+ */
+describe("andringen med falt (#786)", () => {
+  const RAD = { id: "u", namn: "A", epost: "a@x.se", bild: "", sprak: "sv", tema: "system", telefon: "", stad: "", presentation: "", lankar: [{ plattform: "x", url: "https://x" }], bildSokvag: "", ikon: "", farg: "", utanBild: false };
+
+  it("⛔ bara det som ändrats, och bara bland fälten i listan", () => {
+    const ut = andringen(RAD, { stad: "Visby", tema: "dark", utanBild: true }, ["stad", "utanBild", "namn"]);
+    expect(ut).toEqual({ andrat: true, andring: { stad: "Visby", utanBild: true } });
+  });
+
+  it("ingenting ändrat: tom ändring och andrat falskt", () => {
+    expect(andringen(RAD, { stad: "" }, ["stad"])).toEqual({ andrat: false, andring: {} });
+  });
+
+  it("⛔ ett okänt fält i listan kastar, i stället för en Spara som aldrig sparar det", () => {
+    expect(() => andringen(RAD, {}, /** @type {any} */ (["stad", "roll"]))).toThrow(/roll/);
+  });
+
+  it("utan listan: hela raden som förut", () => {
+    expect(Object.keys(andringen(RAD, { stad: "Visby" }).andring)).toContain("lankar");
+  });
+});

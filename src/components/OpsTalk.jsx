@@ -77,6 +77,36 @@ let mikrofonenUpptagenAv = null;
 export const TALK_UPPTAGEN = ORD_TALK.felUpptagen.sv;
 
 /**
+ * Lyssnar igenkänningen i den här sortens omgång? (0.218.0)
+ *
+ * ⛔ HÄNDELSEN: på iOS visade varje röstinspelning "Texten kan inte visas just nu…". Appens egen igenkänning (den inbyggda i
+ * telefonen) kan inte lyssna medan inspelaren har mikrofonen, alltså inte i en omgång som spelar in (ett låst mål som Röstinspelning,
+ * och "Spela in i stället" på WebKit). `igkRef` och `igkWebRef` kommer båda ur samma `igenkanning`, så omgången fick den ändå,
+ * `medText` var alltid sant, och igenkänningen kunde bara välja mellan `onFel` (felraden, `TALK_TEXTFEL`) och tystnad (platshållaren
+ * stod kvar: punkt 5-felet som 0.99.0 stängde). Med `kanLyssna` säger den nej i förväg, och omgången är då en ren inspelning utan
+ * textyta, som en webbläsare utan igenkänning.
+ *
+ * ⛔ ETT KAST ÄR ETT NEJ, OCH DET RAPPORTERAS (`rapportera`, vid start): en igenkänning som inte kan svara ska inte få textytan att
+ * lova en text. Vid ritningen (`medText` före första starten) frågas den tyst, så samma kast inte rapporteras en gång per ritning.
+ *
+ * @param {import("../lib/talk.js").Igenkanning | null | undefined} kandidat
+ * @param {boolean} baraIgenkanning Omgången kör bara igenkänningen och ingen inspelare (TALK med valen på WebKit).
+ * @param {boolean} rapportera
+ * @param {() => void} [kastade] Anropas när den kastade, så att omgången inte frågar samma kandidat igen.
+ */
+function kanLyssnaI(kandidat, baraIgenkanning, rapportera, kastade) {
+  if (!kandidat) return false;
+  if (typeof kandidat.kanLyssna !== "function") return true;
+  try {
+    return kandidat.kanLyssna({ baraIgenkanning }) !== false;
+  } catch (fel) {
+    if (rapportera) rapporteraFel(fel, { yta: "OpsTalk", steg: "kanLyssna", baraIgenkanning });
+    kastade?.();
+    return false;
+  }
+}
+
+/**
  * @param {TalkVal & { onKlick: () => void }} val `onKlick` är det ett vanligt tryck gör, Skapa.
  */
 export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, inspelare, igenkanning, skickarText, maxSekunder = MAX_SEKUNDER }) {
@@ -453,12 +483,23 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
         const reservStart = reservNasta.current;
         laastStart.current = false;
         reservNasta.current = false;
-        const bara = !laast && !reservStart && typeof onAgentRef.current === "function" && arWebKit() && igk(true) !== null;
+        // ⛔ (0.218.0) `kanLyssna`: en igenkänning appen gett kan säga att den inte lyssnar i en viss sorts omgång. Se `kanLyssnaI`.
+        // ⛔ EN FRÅGA PER KANDIDAT OCH OMGÅNG (granskningen av 0.218.0): förut frågades WebKit-kandidaten två gånger, för valet av väg och
+        // för omgången. En igenkänning som svarade ja och sedan nej gav en ren igenkänningsomgång utan igenkänning, och ett kast rapporterades två gånger.
+        const webbKandidat = !laast && !reservStart && typeof onAgentRef.current === "function" && arWebKit() ? igk(true) : null;
+        /** Kandidater som kastat i den här omgången: de frågas inte igen, och kastet rapporteras en gång. */
+        const kastade = new Set();
+        const fraga = (/** @type {import("../lib/talk.js").Igenkanning | null | undefined} */ g, /** @type {boolean} */ baraIgk) => {
+          if (g && kastade.has(g)) return false;
+          return kanLyssnaI(g, baraIgk, true, () => kastade.add(g));
+        };
+        const bara = fraga(webbKandidat, true);
         barOmgang.current = bara;
         // ⛔ En ny omgång börjar stilla: förra omgångens puls får inte följa med in i den här.
         sistaLangd.current = 0;
         vagorna().nolla();
-        omgangsIgk.current = bara ? igk(true) : igk();
+        const kandidat = bara ? webbKandidat : igk();
+        omgangsIgk.current = bara || fraga(kandidat, false) ? kandidat : null;
         setOmgangsText(omgangsIgk.current !== null);
         if (mikrofonenUpptagenAv && mikrofonenUpptagenAv !== inspRef) {
           // ⛔ (0.213.0, cllp/lifehub.app#253) RAPPORTERAS. Förut stod felet bara i fältet: en omgång som aldrig startade lämnade ingen rad,
@@ -980,7 +1021,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, insp
     textFel,
     /** (0.97.0) Om texten kan komma alls: igenkänningen är påslagen och finns i webbläsaren. Fältet ritar då textytan. */
     // (0.114.0) Efter första starten är det omgångens egen igenkänning som gäller: "Spela in i stället" har ingen, och TALK med valen på WebKit har en.
-    medText: omgangsText ?? ((typeof onAgent === "function" && arWebKit() && igk(true) !== null) || igk() !== null),
+    medText: omgangsText ?? ((typeof onAgent === "function" && arWebKit() && kanLyssnaI(igk(true), true, false)) || kanLyssnaI(igk(), false, false)),
     // ⛔ (0.114.0) Anteckning sparar i appen men är inte agentens arbete: appens `skickarText` ("Agenten arbetar…") hade varit osann där.
     skickarText: malSynligt === "anteckning" ? TALK_SKICKAR_TEXT : (skickarText ?? TALK_SKICKAR_TEXT),
     /** (0.97.0) Kvittot i läget sparat, eller `null`. */
