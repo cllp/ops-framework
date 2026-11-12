@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { AGENTMODELLER, FORVALD_AGENTMODELL, modellKanValjas, modellUrId } from "../lib/agentmodeller.js";
+import { AGENTMODELLER, ERSATTA_AGENTMODELLER, FORVALD_AGENTMODELL, modellKanValjas, modellUrId } from "../lib/agentmodeller.js";
 
 describe("agentens modellista", () => {
   it("har en modell per leverantör som kan chatta, och exakt en utan nyckel", () => {
     expect(AGENTMODELLER.map((m) => m.leverantor)).toEqual(["vertex", "google", "openai", "anthropic", "xai"]);
     expect(new Set(AGENTMODELLER.map((m) => m.id)).size).toBe(AGENTMODELLER.length);
-    expect(FORVALD_AGENTMODELL.id).toBe("gemini-2.5-flash-lite");
+    expect(FORVALD_AGENTMODELL.id).toBe("gemini-3.5-flash-lite");
     expect(FORVALD_AGENTMODELL.nyckel).toBe(false);
     expect(AGENTMODELLER.filter((m) => m.nyckel === false)).toEqual([FORVALD_AGENTMODELL]);
     for (const m of AGENTMODELLER) {
@@ -19,12 +19,12 @@ describe("agentens modellista", () => {
     expect(modellUrId("  ")).toBeNull();
     expect(modellUrId(null)).toBeNull();
     expect(modellUrId("okand-modell")).toBeNull();
-    expect(modellUrId("gemini-2.5-flash-lite")?.namn.sv).toBe("Gemini Flash Lite");
-    expect(modellUrId("Gemini Flash Lite")?.id).toBe("gemini-2.5-flash-lite");
+    expect(modellUrId("gemini-3.5-flash-lite")?.namn.sv).toBe("Gemini Flash Lite");
+    expect(modellUrId("Gemini Flash Lite")?.id).toBe("gemini-3.5-flash-lite");
   });
 
   it("en modell med nyckel är valbar bara när leverantören är kopplad", () => {
-    const google = modellUrId("gemini-2.5-flash");
+    const google = modellUrId("gemini-3.5-flash");
     expect(modellKanValjas(FORVALD_AGENTMODELL, [])).toBe(true);
     expect(modellKanValjas(FORVALD_AGENTMODELL, undefined)).toBe(true);
     expect(modellKanValjas(google, [])).toBe(false);
@@ -46,5 +46,18 @@ describe("agentens modellista", () => {
     expect(modellKanValjas(grok, undefined)).toBe(false);
     expect(modellKanValjas(grok, ["openai", "anthropic", "google"])).toBe(false);
     expect(modellKanValjas(grok, ["xai"])).toBe(true);
+  });
+
+  it("⛔ ett sparat val med ett pensionerat id ger modellen som ersatt det, aldrig null (lifehub.app#786)", () => {
+    expect(modellUrId("gemini-2.5-flash-lite")?.id).toBe("gemini-3.5-flash-lite");
+    expect(modellUrId("gemini-2.5-flash")?.id).toBe("gemini-3.5-flash");
+    expect(modellUrId("gemini-2.5-flash")?.leverantor).toBe("google");
+    // Varje ersättare står i listan, och inget pensionerat id står kvar i den.
+    const ids = AGENTMODELLER.map((m) => m.id);
+    expect(Object.keys(ERSATTA_AGENTMODELLER).length).toBeGreaterThanOrEqual(2);
+    for (const [gammal, ny] of Object.entries(ERSATTA_AGENTMODELLER)) {
+      expect(ids).toContain(ny);
+      expect(ids).not.toContain(gammal);
+    }
   });
 });

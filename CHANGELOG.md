@@ -9,6 +9,21 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.218.1
+
+Ljudspelaren tappar inte längre ett tryck på spela som kommer innan den hunnit koppla sina lyssnare, och agentens Gemini-modeller är bytta till 3.5 sedan Google pensionerat 2.5. Inget brytande, ingen ny prop.
+
+### Rättat
+
+- **`AGENTMODELLER`: Gemini Flash Lite är `gemini-3.5-flash-lite` och Gemini Flash `gemini-3.5-flash` (cllp/lifehub.app#786).** Google stängde 2.5-modellerna för nya projekt när de pensionerades 2026-10-20. SessionStudio-instansens projekt skapades 2026-11-10 och fick 404 på varje anrop, så agenten svarade inte. Mätt 2026-11-12 i båda projekten: 3.5-modellerna svarar (i platsen `global`, inte i `europe-west1`). Nytt: `ERSATTA_AGENTMODELLER`, och `modellUrId` slår upp ett pensionerat id till modellen som ersatt det. Ett sparat val med ett 2.5-id visas alltså i vyn som rätt modell och sparas tillbaka med det nya id:t. `modellUrId` och `ERSATTA_AGENTMODELLER` exporteras också från `ops-framework/node`. ⛔ **Appen måste göra sin del i samma ompinning:** slå upp sitt sparade val genom `ERSATTA_AGENTMODELLER` (annars faller en grupp med Gemini Flash tyst till appens modell), byta sin egen modellkonstant till `gemini-3.5-flash-lite` och anropa Vertex i platsen `global`.
+
+- **`OpsLjudspelare`: lyssnarna på `<audio>` kopplas i commit (`useLayoutEffect`), inte i en effekt efteråt (cllp/ops-framework#579, mätt i cllp/lifehub.app#772).** När adressen kom efter ett löfte (`hamtaAdress`, en delad lista som hämtats) satt `<audio>` i DOM en uppgift innan effekten som kopplar `error` och nollställer "någon har tryckt spela" (`begart`). Ett tryck i glappet startade uppspelningen, sedan körde React den väntande effekten och satte `begart` till falskt igen. Ett fel från filen räknades då inte som begärt: inget `onFel`, ingen ny adress för en adress som gått ut, ingen text. Ett fel före effekten nådde ingen lyssnare alls. I lifehub.app syntes det som ett prov som var rött ungefär en gång av sex (`delad-sida.test.jsx`, bara ett anrop till delningen efter felet). I webbläsaren är glappet kort, men den som trycker spela i samma ögonblick som en delad lista visas får samma fel. Ingenting i effekten behövde stå kvar som passivt: lyssnarna är billiga, längdsökningen är asynkron, och nollställningen av tid och läge ritas nu före målningen. Spelaren ritas aldrig på servern, så layouteffekten ger ingen varning där.
+
+### Prov
+
+- `agentmodeller.test.js`: ett pensionerat id ger modellen som ersatt det, varje ersättare står i listan och inget pensionerat id gör det. Rött med 0.218.0 (4 av 5), grönt med 0.218.1.
+- `ljudspelare-montering.test.jsx`: adressen kommer ur `hamtaAdress` utan `act`, och provet trycker spela och skickar ett fel på `<audio>` direkt när elementet syns i DOM, före nästa makrouppgift. Rött med 0.218.0 (`onFel` anropas aldrig), grönt med 0.218.1.
+
 ## 0.218.0
 
 En hubbs egna färger vid körning (cllp/lifehub.app#786), större menyrader på pekskärm, `kanLyssna` för en egen taligenkänning i TALK, och bottenraden som göms medan man skriver också i den inbyggda appen. CP 2026-11-11, om färgerna: "Kan man göra det under hubbinställningar i appen där samma ställe där man bestämmer vilka appar som får installeras", och sedan "Kör på färgerna i härdning". Om menyn, med en skärmbild ur TestFlight av menyarket: "Är inte texten lite väl liten i denna menyn?" Inget brytande: en app som inte sätter någon palett ser exakt ut som förut, och på dator med mus är menyn oförändrad.

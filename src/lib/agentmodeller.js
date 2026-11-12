@@ -2,8 +2,8 @@
  * Modellerna en agent kan svara med (0.90.2).
  *
  * CP: han ska kunna välja och byta modell. Ingen förteckning fanns, varken i
- * ramverket eller i funktionerna. Lifehub har en enda konstant,
- * `gemini-2.5-flash-lite`, och Identity tar en leverantör (`vertex`, `google`,
+ * ramverket eller i funktionerna. Lifehub hade en enda konstant (`MODELL`),
+ * och Identity tar en leverantör (`vertex`, `google`,
  * `openai`, `anthropic`) utan modellnamn. Den här listan är den lilla
  * förteckningen, en modell per leverantör som kan chatta: `vertex`, `google`,
  * `openai`, `anthropic` och `xai`. Grok kräver att `xai` står i `kopplade`.
@@ -28,14 +28,14 @@
 /** @type {readonly AgentModell[]} */
 export const AGENTMODELLER = Object.freeze([
   Object.freeze({
-    id: "gemini-2.5-flash-lite",
+    id: "gemini-3.5-flash-lite",
     leverantor: "vertex",
     nyckel: false,
     namn: { sv: "Gemini Flash Lite", en: "Gemini Flash Lite" },
     beskrivning: { sv: "Snabb och kort. Körs i gruppens moln, utan egen nyckel.", en: "Fast and short. Runs in the group's cloud, without your own key." },
   }),
   Object.freeze({
-    id: "gemini-2.5-flash",
+    id: "gemini-3.5-flash",
     leverantor: "google",
     nyckel: true,
     namn: { sv: "Gemini Flash", en: "Gemini Flash" },
@@ -69,8 +69,25 @@ if (utanNyckel.length !== 1) {
   throw new Error("AGENTMODELLER: exakt en modell ska gå att välja utan nyckel. Annars vet varken vyn eller funktionen vad som är förvalet.");
 }
 
-/** Modellen som svarar när ingen nyckel är kopplad. Samma id som lifehubs `MODELL` i dag. */
+/** Modellen som svarar när ingen nyckel är kopplad. Appens egen konstant för projektets modell (lifehubs `MODELL`) ska bära samma id. */
 export const FORVALD_AGENTMODELL = utanNyckel[0];
+
+/**
+ * Pensionerade id:n och modellen som ersatt dem (0.218.1, cllp/lifehub.app#786).
+ *
+ * ⛔ HÄNDELSEN: Google stängde `gemini-2.5-flash` och `gemini-2.5-flash-lite` för nya projekt när
+ * modellerna pensionerades 2026-10-20. SessionStudio-instansens projekt skapades 2026-11-10 och fick
+ * 404 på varje anrop, så agenten svarade inte alls. Mätt 2026-11-12 från båda projekten: 3.5-modellerna
+ * svarar, 2.5 bara i projektet som skapades före brytdagen.
+ *
+ * ⛔ ETT SPARAT VAL MED ETT GAMMALT ID ÄR FORTFARANDE ETT VAL. En grupps agent bär `{ id, leverantor }`
+ * i sitt dokument, och ett id som inte längre står i listan hade tyst blivit förvalet. Därför slås det
+ * gamla id:t upp här, och svaret är modellen som ersatt det.
+ */
+export const ERSATTA_AGENTMODELLER = Object.freeze({
+  "gemini-2.5-flash-lite": "gemini-3.5-flash-lite",
+  "gemini-2.5-flash": "gemini-3.5-flash",
+});
 
 /**
  * Modellen med det id:t, eller med samma visningsnamn. Tom sträng och ett okänt
@@ -83,7 +100,8 @@ export function modellUrId(id) {
   if (typeof id !== "string") return null;
   const s = id.trim();
   if (!s) return null;
-  return AGENTMODELLER.find((m) => m.id === s || m.namn.sv === s || m.namn.en === s) ?? null;
+  const nu = Object.hasOwn(ERSATTA_AGENTMODELLER, s) ? ERSATTA_AGENTMODELLER[/** @type {keyof typeof ERSATTA_AGENTMODELLER} */ (s)] : s;
+  return AGENTMODELLER.find((m) => m.id === nu || m.namn.sv === s || m.namn.en === s) ?? null;
 }
 
 /**
