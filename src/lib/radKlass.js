@@ -1,25 +1,29 @@
 import { cx } from "./cx.js";
 
 /**
- * Menyradens text och ikon på en pekskärm (0.218.0).
+ * Radens text och ikon i MENYARKET på telefonen, det som bottenradens Meny öppnar (0.218.0).
  *
  * ⛔ HÄNDELSEN: CP 2026-11-11, med en skärmbild ur TestFlight av menyarket (Aktivitet, Notiser, Inställningar, Hubben, Hjälp,
  * Rapportera fel eller önskemål, Sök, Fråga agenten, Logga ut): "Är inte texten lite väl liten i denna menyn?" Mätt samma kväll
- * på main: raderna var `text-meta` (12 px, SS dropdown `text-xs`) med 16 px ikoner, och iOS egna listrader är 17 pt. Talet kom
- * ur SessionStudios dropdown, som ritades för en mus.
+ * på main: raderna var `text-meta` (12 px, SS dropdown `text-xs`) med 16 px ikoner, och iOS egna listrader är 17 pt.
  *
- * ⛔ SAMMA VILLKOR SOM FÄLTEN (`faltKlass`): den lilla storleken gäller bara från `md` OCH med en exakt pekare. En iPad i
- * stående läge är 768 px bred och har ett finger, så bredden ensam hade gett den musens storlek. På dator är raden oförändrad.
+ * ⛔ BARA ARKET, INTE HUVUDETS MENY. Huvudets meny (popovern bakom "Meny, fler" från `md`) står kvar på SS 12 px: CP 2026-09-29,
+ * "Stor text", och `check-skalyta` avsnitt 18 vaktar den. Första versionen av 0.218.0 lade den större raden på båda ytorna med
+ * fältens villkor (`md:pointer-fine:`), och CI föll i `check-skalyta` (release-PR 577): huvudets meny blev 16 px på 390 och
+ * rollskalan läste `text-brod` där 12 px ritades. Två beslut av CP, två ytor.
  *
- * ⛔ BARA MENYNS RADER, inte varje `radKlass`. Samma funktion ritar täta listor (filter, väljare, Bibliotekets rader, plusset),
- * och de rördes inte: klagomålet gällde menyn. Därför ett val (`meny`) och inte ett nytt förval.
+ * ⛔ INGET PEKARVILLKOR: arket finns bara under `md` (`OpsBottomNav` är `md:hidden`), så rollen utan variant är den som ritas, och
+ * rollskalan i `check-skalyta` läser den rätt. `md:text-meta` står ändå, i den form `check-typografi` kräver av `text-brod` utanför en
+ * läsyta (som fältens `text-brod md:text-etikett`): skulle arket någon gång ritas från `md` är det huvudets 12 px som gäller där.
+ *
+ * ⛔ BARA ARKETS RADER, inte varje `radKlass`. Samma funktion ritar täta listor (filter, väljare, Bibliotekets rader, plusset).
  *
  * Höjden: 16 px text med `leading-6` (24) och `py-2.5` (2 x 10) är 44 px, samma som radens golv `min-h-11`. Raden växer alltså
  * inte på höjden, och etiketten bryts aldrig (`truncate` i varje menyrad).
  */
-export const MENYRAD_TEXT = "text-brod leading-6 md:pointer-fine:text-meta md:pointer-fine:leading-4";
-/** Ikonen i en menyrad: 20 px på pekskärm, 16 px som förut med en exakt pekare från `md`. Läggs på ikonens omslag. */
-export const MENYRAD_IKON = "[&_svg]:size-5 md:pointer-fine:[&_svg]:size-4";
+export const ARKRAD_TEXT = "text-brod leading-6 md:text-meta md:leading-4";
+/** Ikonen i en rad i menyarket: 20 px (16 px från `md`, samma skäl som texten). Läggs på ikonens omslag. */
+export const ARKRAD_IKON = "[&_svg]:size-5 md:[&_svg]:size-4";
 
 /** @type {Record<number, string>} */
 const PY = { 1.5: "py-1.5", 2: "py-2", 2.5: "py-2.5", 3: "py-3" };
@@ -56,15 +60,15 @@ const PY = { 1.5: "py-1.5", 2: "py-2", 2.5: "py-2.5", 3: "py-3" };
  * ⛔ `py: 1.5` ger OCKSÅ `font-medium` (500): ThemedDropdown-raden är `font-medium` (`ThemedDropdown.jsx:122`), mätt i skalyta avsnitt 18.
  * @param {boolean} [val.stor] Raden bär mer än en textrad (märke, namn, antal): `text-sm`, `gap-3`. SS `InviteGroupPickerDialog.jsx:33-36` (`gap-3`, `text-sm`) och `EventStatusDropdown.jsx:34` (`px-3 py-2`, `text-sm`).
  * @param {boolean} [val.accentFarg] Raden är en åtgärd i accentfärg ('Rensa'), inte ett val och inte plussets stora rad.
- * @param {boolean} [val.meny] (0.218.0) Raden står i MENYN (arket på telefon, popovern på dator): `text-brod` (16 px) på en
- *   pekskärm och `text-meta` som förut med en exakt pekare från `md`. Ikonen följer med `MENYRAD_IKON`. Se rutan vid `MENYRAD_TEXT`.
+ * @param {boolean} [val.ark] (0.218.0) Raden står i MENYARKET på telefonen: `text-brod` (16 px). Ikonen följer med `ARKRAD_IKON`.
+ *   Huvudets meny har inte valet. Se rutan vid `ARKRAD_TEXT`.
  * @returns {string}
  */
-export function radKlass({ accent = false, active = false, klickbar = true, accentFarg = false, stor = false, meny = false, vald, py = 2.5 } = {}) {
+export function radKlass({ accent = false, active = false, klickbar = true, accentFarg = false, stor = false, ark = false, vald, py = 2.5 } = {}) {
   const luft = PY[py] ?? PY[2.5];
   return cx(
     "flex min-h-11 md:min-h-0 w-full items-center rounded-base text-left transition-colors duration-(--duration-fast) ease-standard",
-    accent ? "gap-3 px-4 py-2.5 text-etikett leading-5 font-medium text-accent hover:bg-raised" : stor ? cx("gap-3 px-3 text-etikett leading-5", luft) : cx("gap-2.5 px-3", meny ? MENYRAD_TEXT : "text-meta leading-4", luft, py === 1.5 && "font-medium"),
+    accent ? "gap-3 px-4 py-2.5 text-etikett leading-5 font-medium text-accent hover:bg-raised" : stor ? cx("gap-3 px-3 text-etikett leading-5", luft) : cx("gap-2.5 px-3", ark ? ARKRAD_TEXT : "text-meta leading-4", luft, py === 1.5 && "font-medium"),
     !accent && vald !== undefined && (vald ? "bg-accent-subtle text-ink" : "text-ink-secondary hover:bg-hover hover:text-ink"),
     !accent && vald === undefined && (active ? "bg-raised text-accent" : accentFarg ? "text-accent hover:bg-raised" : "text-ink-secondary hover:bg-raised hover:text-ink"),
     // ⛔ 0.31.2: FOKUS ÄR EN YTA, INTE EN RAM. Radix flyttar fokus in i en öppnad meny, och första raden

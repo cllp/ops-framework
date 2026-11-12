@@ -6,7 +6,7 @@ import { ChevronVansterIkon, LoggaUtIkon } from "./icons.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { cx } from "../lib/cx.js";
 import { avdelningsBreddklass, validateNav } from "../lib/nav.js";
-import { MENYRAD_IKON, radKlass } from "../lib/radKlass.js";
+import { ARKRAD_IKON, radKlass } from "../lib/radKlass.js";
 import { text } from "../lib/sprak.js";
 import { OPS_FRAMEWORK_VERSION } from "../lib/frameworkVersion.generated.js";
 
@@ -179,9 +179,10 @@ export function kordarePafunktion(onStang) {
  * @param {MenyRad[][]} props.sektioner
  * @param {(fn?: () => void) => () => void} props.kor
  * @param {(rad: MenyRad) => void} [props.visaUndervy] Krävs om någon rad har `undervy`.
+ * @param {boolean} [props.ark] (0.218.0) Raderna står i menyarket på telefonen (`OpsBottomNav`): större text och ikon. Inte huvudets meny.
  * @returns {MenyAvdelning[]}
  */
-export function menySektioner({ sektioner, kor, visaUndervy }) {
+export function menySektioner({ sektioner, kor, visaUndervy, ark = false }) {
   return sektioner
     .filter((sektion) => sektion.length > 0)
     .map((sektion, i) => ({
@@ -196,7 +197,7 @@ export function menySektioner({ sektioner, kor, visaUndervy }) {
           badge={rad.badge}
           badgeText={rad.badgeText}
           onClick={rad.undervy ? () => visaUndervy?.(rad) : kor(rad.onClick)}
-          meny
+          ark={ark}
         />
       )),
     }));
@@ -240,8 +241,9 @@ export function MenyAvdelningar({ avdelningar }) {
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {() => void} props.stang Stänger menyn innan navigeringen körs.
  * @param {string} [props.badgeText]
+ * @param {boolean} [props.ark] (0.218.0) Raderna står i menyarket på telefonen (`OpsBottomNav`): större text och ikon. Inte huvudets meny.
  */
-export function MenyAppPoster({ poster, activeHref, onNavigate, stang, badgeText = "nya" }) {
+export function MenyAppPoster({ poster, activeHref, onNavigate, stang, badgeText = "nya", ark = false }) {
   // ⛔ 0.31.0 (CP: raden "Primitiver" hade ingen ikon och låg därför inte i linje med raderna ovanför): en rad utan ikon
   // får en TOM 16 px-plats när någon av de andra raderna har en, så etiketterna står i samma kolumn. Har ingen rad en
   // ikon reserveras ingen plats. Alternativet, att kräva ikon, hade tvingat appen att hitta på en bild åt "Primitiver".
@@ -260,14 +262,14 @@ export function MenyAppPoster({ poster, activeHref, onNavigate, stang, badgeText
           stang();
           onNavigate?.(p.href, e);
         }}
-        className={cx(radKlass({ active: aktiv, meny: true }), barn && "ml-6 w-auto")}
+        className={cx(radKlass({ active: aktiv, ark }), barn && "ml-6 w-auto")}
       >
         {ikon ? (
-          <span aria-hidden="true" className={cx("flex shrink-0 items-center", MENYRAD_IKON)}>
+          <span aria-hidden="true" className={cx("flex shrink-0 items-center", ark ? ARKRAD_IKON : "[&_svg]:size-4")}>
             {ikon}
           </span>
         ) : nagonIkon && !barn ? (
-          <span aria-hidden="true" data-ikonplats="" className="size-5 shrink-0 md:pointer-fine:size-4" />
+          <span aria-hidden="true" data-ikonplats="" className={cx("shrink-0", ark ? "size-5 md:size-4" : "size-4")} />
         ) : null}
         <span className="min-w-0 flex-1 truncate">{p.label}</span>
         {typeof badge === "number" ? <OpsCountBadge count={badge} text={badgeText} placement="inline" /> : null}
@@ -300,9 +302,10 @@ export function MenySektionsrubrik({ children }) {
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {() => void} props.stang
  * @param {string} [props.badgeText]
+ * @param {boolean} [props.ark] (0.218.0) Raderna står i menyarket på telefonen (`OpsBottomNav`): större text och ikon. Inte huvudets meny.
  * @returns {MenyAvdelning | null}
  */
-export function menyAppAvdelning({ meny, activeHref, onNavigate, stang, badgeText }) {
+export function menyAppAvdelning({ meny, activeHref, onNavigate, stang, badgeText, ark = false }) {
   if (!meny.app || meny.app.length === 0) return null;
   const rubrik = text(meny.appRubrik ?? { sv: "Appen", en: "App" }, meny.sprak ?? "sv");
   return {
@@ -312,7 +315,7 @@ export function menyAppAvdelning({ meny, activeHref, onNavigate, stang, badgeTex
     innehall: (
       <>
         <MenySektionsrubrik>{rubrik}</MenySektionsrubrik>
-        <MenyAppPoster poster={meny.app} activeHref={activeHref} onNavigate={onNavigate} stang={stang} badgeText={badgeText} />
+        <MenyAppPoster poster={meny.app} activeHref={activeHref} onNavigate={onNavigate} stang={stang} badgeText={badgeText} ark={ark} />
       </>
     ),
   };
@@ -393,8 +396,9 @@ export const ORD_LOGGAUT = {
  * @param {string} props.etikett
  * @param {string} [props.vantarEtikett]
  * @param {(fn?: () => void) => () => void} props.kor
+ * @param {boolean} [props.ark] (0.218.0) Raderna står i menyarket på telefonen (`OpsBottomNav`): större text och ikon. Inte huvudets meny.
  */
-function LoggaUtRad({ onLoggaUt, etikett, vantarEtikett, kor }) {
+function LoggaUtRad({ onLoggaUt, etikett, vantarEtikett, kor, ark = false }) {
   const sprak = useOpsSprak();
   const [pagar, setPagar] = useState(false);
   const spar = useRef(false);
@@ -425,7 +429,7 @@ function LoggaUtRad({ onLoggaUt, etikett, vantarEtikett, kor }) {
       throw fel;
     });
   };
-  return <OpsPanelRow icon={<LoggaUtIkon />} label={pagar ? (vantarEtikett ?? ordet(ORD_LOGGAUT, "loggarUt", sprak)) : etikett} busy={pagar} onClick={klick} meny />;
+  return <OpsPanelRow icon={<LoggaUtIkon />} label={pagar ? (vantarEtikett ?? ordet(ORD_LOGGAUT, "loggarUt", sprak)) : etikett} busy={pagar} onClick={klick} ark={ark} />;
 }
 
 /**
@@ -441,11 +445,12 @@ function LoggaUtRad({ onLoggaUt, etikett, vantarEtikett, kor }) {
  *   ⛔ SAKNAS DEN skrivs raden ändå, med ramverkets ensam: tomhet är ett svar,
  *   inte en utelämnad rad (arbetsreglernas punkt 5).
  * @param {(fn?: () => void) => () => void} props.kor
+ * @param {boolean} [props.ark] (0.218.0) Raderna står i menyarket på telefonen (`OpsBottomNav`): större text och ikon. Inte huvudets meny.
  * @returns {MenyAvdelning[]}
  */
-export function menyFot({ onLoggaUt, loggaUtEtikett = "Logga ut", loggarUtEtikett, appVersion, kor }) {
+export function menyFot({ onLoggaUt, loggaUtEtikett = "Logga ut", loggarUtEtikett, appVersion, kor, ark = false }) {
   return [
-    { key: "loggaut", innehall: <LoggaUtRad onLoggaUt={onLoggaUt} etikett={loggaUtEtikett} vantarEtikett={loggarUtEtikett} kor={kor} /> },
+    { key: "loggaut", innehall: <LoggaUtRad onLoggaUt={onLoggaUt} etikett={loggaUtEtikett} vantarEtikett={loggarUtEtikett} kor={kor} ark={ark} /> },
     {
       // ⛔ TVÅ RADER, INTE EN. Ramverkets rad kommer ur en konstant som
       // skrivs vid bygget ur package.json, ALDRIG en handskriven kopia här:
