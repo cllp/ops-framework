@@ -70,6 +70,7 @@ export const KONTRAST_GRAFIK = GRAFIK;
  * @typedef {{ bakgrund: string, yta: string, text: string, accent: string }} Lagesfarger
  * @typedef {{ ljus: Lagesfarger, mork: Lagesfarger }} Palett
  * @typedef {"ljus" | "mork"} Palettlage
+ * @typedef {"bakgrund" | "yta" | "text" | "accent"} PalettNyckel
  */
 
 /** @param {unknown} v */
@@ -297,6 +298,13 @@ function tokenfarg(t, namn, bas) {
  */
 
 /**
+ * Färgerna temats ordning gäller: i ljust tema ska bakgrunden och ytan vara ljusare än texten, i mörkt mörkare. Accenten står
+ * utanför. Exporterad så att färgväljarens skala (`palettomfang.js`) vet vilka färger ett `ordning`-fynd hänger på, ur samma
+ * lista som granskningen prövar (arbetsreglernas punkt 2).
+ */
+export const ORDNINGENS_NYCKLAR = Object.freeze(/** @type {const} */ (["bakgrund", "yta", "text"]));
+
+/**
  * Paren som inte håller. ⛔ TOM LISTA BETYDER ATT ALLA HÅLLER, och en palett med fynd sparas inte och läggs inte på.
  *
  * ⛔ SAMMA PAR SOM `check-kontrast`, UR SAMMA LISTA (`kontrastpar.js`), mot palettens härledda token och ramverkets egna för det
@@ -313,47 +321,65 @@ function tokenfarg(t, namn, bas) {
 export function granskaPalett(palett) {
   const p = lasPalett(palett);
   if (!p) throw new Error("granskaPalett: det här är inte en palett i formen { ljus, mork } med fyra #rrggbb var.");
+  return PALETT_LAGEN.flatMap((lage) => granskaLage(lage, p[lage]));
+}
+
+/**
+ * Ett lägets fynd, med samma par och samma ribbor som `granskaPalett` (som är den här funktionen för båda lägena).
+ *
+ * ⛔ FINNS FÖR FÄRGVÄLJARENS SKALA (0.219.0, cllp/lifehub.app#798): `hallbarLjushet` prövar hundra ljusheter av en färg och
+ * behöver svaret för ett läge i taget. Den prövar genom den här funktionen och inte genom en egen lista, annars hade skalan
+ * kunnat säga "håller" om något granskningen nekar.
+ *
+ * ⛔ `val` SMALNAR AV, DET LÄGGER INTE TILL: `par` är en delmängd av `PAR` (skalan prövar bara paren som hänger på färgen den
+ * flyttar, annars blev ett reglagedrag hundra granskningar av alla par), och `ordning: false` hoppar över temats ordning för en
+ * färg som inte ingår i den. Utan `val` är det hela granskningen.
+ *
+ * @param {Palettlage} lage
+ * @param {Lagesfarger} f Färgerna i formen (`#rrggbb`). Prövas inte här: anroparen har redan läst paletten.
+ * @param {{ par?: typeof PAR, ordning?: boolean }} [val]
+ * @returns {Kontrastfynd[]}
+ */
+export function granskaLage(lage, f, { par: paren = PAR, ordning = true } = {}) {
   /** @type {Kontrastfynd[]} */
   const fynd = [];
-  for (const lage of PALETT_LAGEN) {
-    const f = p[lage];
-    const ljusare = (/** @type {string} */ a, /** @type {string} */ b) => luminans(a) > luminans(b);
-    const ratt = lage === "ljus" ? ljusare(f.yta, f.text) && ljusare(f.bakgrund, f.text) : ljusare(f.text, f.yta) && ljusare(f.text, f.bakgrund);
-    if (!ratt) {
-      fynd.push({
-        lage,
-        text: "ordning",
-        yta: "ordning",
-        kvot: 0,
-        krav: 0,
-        meddelande:
-          lage === "ljus"
-            ? { sv: "Ljust tema: bakgrunden och ytan ska vara ljusare än texten.", en: "Light mode: the background and surface must be lighter than the text." }
-            : { sv: "Mörkt tema: bakgrunden och ytan ska vara mörkare än texten.", en: "Dark mode: the background and surface must be darker than the text." },
-      });
-    }
-    const t = { ...RAMVERKETS_PARTOKEN[lage], ...harledLage(f) };
-    for (const par of PAR) {
-      const kvot = Math.floor(kontrastkvot(tokenfarg(t, par.text), tokenfarg(t, par.yta, par.bas)) * 100) / 100;
-      if (kvot >= par.niva) continue;
-      // Samma par kan stå två gånger i listan (två ställen ritar det); användaren behöver det en gång.
-      if (fynd.some((x) => x.lage === lage && x.text === par.text && x.yta === par.yta && x.bas === par.bas)) continue;
-      const h = hjalp(par);
-      const kvotSv = kvot.toFixed(2).replace(".", ",");
-      const kravSv = String(par.niva).replace(".", ",");
-      fynd.push({
-        lage,
-        text: par.text,
-        yta: par.yta,
-        ...(par.bas ? { bas: par.bas } : {}),
-        kvot,
-        krav: par.niva,
-        meddelande: {
-          sv: `${LAGESNAMN[lage].sv}: ${par.vad} är för svag, ${kvotSv}:1 där ${kravSv}:1 behövs. ${h.sv}`,
-          en: `${LAGESNAMN[lage].en}: ${par.text} on ${par.yta} is too weak, ${kvot.toFixed(2)}:1 where ${par.niva}:1 is needed. ${h.en}`,
-        },
-      });
-    }
+  const ljusare = (/** @type {string} */ a, /** @type {string} */ b) => luminans(a) > luminans(b);
+  const ytor = ORDNINGENS_NYCKLAR.filter((n) => n !== "text").map((n) => f[n]);
+  const ratt = !ordning || (lage === "ljus" ? ytor.every((y) => ljusare(y, f.text)) : ytor.every((y) => ljusare(f.text, y)));
+  if (!ratt) {
+    fynd.push({
+      lage,
+      text: "ordning",
+      yta: "ordning",
+      kvot: 0,
+      krav: 0,
+      meddelande:
+        lage === "ljus"
+          ? { sv: "Ljust tema: bakgrunden och ytan ska vara ljusare än texten.", en: "Light mode: the background and surface must be lighter than the text." }
+          : { sv: "Mörkt tema: bakgrunden och ytan ska vara mörkare än texten.", en: "Dark mode: the background and surface must be darker than the text." },
+    });
+  }
+  const t = { ...RAMVERKETS_PARTOKEN[lage], ...harledLage(f) };
+  for (const par of paren) {
+    const kvot = Math.floor(kontrastkvot(tokenfarg(t, par.text), tokenfarg(t, par.yta, par.bas)) * 100) / 100;
+    if (kvot >= par.niva) continue;
+    // Samma par kan stå två gånger i listan (två ställen ritar det); användaren behöver det en gång.
+    if (fynd.some((x) => x.text === par.text && x.yta === par.yta && x.bas === par.bas)) continue;
+    const h = hjalp(par);
+    const kvotSv = kvot.toFixed(2).replace(".", ",");
+    const kravSv = String(par.niva).replace(".", ",");
+    fynd.push({
+      lage,
+      text: par.text,
+      yta: par.yta,
+      ...(par.bas ? { bas: par.bas } : {}),
+      kvot,
+      krav: par.niva,
+      meddelande: {
+        sv: `${LAGESNAMN[lage].sv}: ${par.vad} är för svag, ${kvotSv}:1 där ${kravSv}:1 behövs. ${h.sv}`,
+        en: `${LAGESNAMN[lage].en}: ${par.text} on ${par.yta} is too weak, ${kvot.toFixed(2)}:1 where ${par.niva}:1 is needed. ${h.en}`,
+      },
+    });
   }
   return fynd;
 }

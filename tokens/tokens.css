@@ -1900,6 +1900,19 @@
   }
 
   /*
+   * ⛔ FÄRGVÄLJARENS REGLAGE (`OpsFargval`, 0.219.0, cllp/lifehub.app#798): samma tumme, men skenan är genomskinlig, så att
+   * färgskalan under elementet syns (kulören, mättnaden, ljusheten och var på ljusheten färgen håller). Skenans höjd och tummens
+   * plats är oförändrade, så tummen står mitt på skalan i båda motorerna.
+   */
+  .ops-reglage.ops-fargreglage::-webkit-slider-runnable-track {
+    background: transparent;
+  }
+
+  .ops-reglage.ops-fargreglage::-moz-range-track {
+    background: transparent;
+  }
+
+  /*
    * OpsKnob — kompakt simuleringsratt. Mått från godkänd mock
    * (inline-reglage-v2): 28px dial, 44px kolumn, varm laborera-accent.
    */
