@@ -7,7 +7,6 @@ import { forvalda } from "../lib/ord.js";
 import { ChevronNedIkon, KalenderIkon } from "./icons.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsSegmented } from "./OpsSegmented.jsx";
-import { OpsSwitch } from "./OpsToggle.jsx";
 import { LANGTRYCK_KLASS, useLangtryck } from "./useLangtryck.js";
 import { ValRad } from "./ValRad.jsx";
 
@@ -34,7 +33,7 @@ export const ORD_OPSKALENDERLISTA = {
 };
 
 /**
- * Listan Kalendrar (0.134.0, cllp/lifehub.app#402): EN rad per kalender med färgprick, namn, en `OpsSwitch` för om den syns, och en utfällning för
+ * Listan Kalendrar (0.134.0, cllp/lifehub.app#402): EN rad per kalender med färgprick, namn, en bock när den syns (`ValRad`, 0.225.0; förut `OpsSwitch`), och en utfällning för
  * hur den visas (Händelser, Ram eller Båda).
  *
  * ══ ⛔ DEN ERSÄTTER "VISA BARA" OCH KALENDERLAGREN, INTE BARA KOMPLETTERAR DEM ═══════════════════════════════════════
@@ -44,7 +43,7 @@ export const ORD_OPSKALENDERLISTA = {
  * saker som skall fixas." Nu är varje kalender en rad, raden har en växel, och växeln är det enda som avgör om kalendern syns. Ett tryck
  * på en rad slår AV den (och på igen), aldrig "visa bara denna".
  *
- * ⛔ INGA RÅA KRYSSRUTOR. Växeln är `OpsSwitch` (`placering="rad"`), samma som resten av ramverkets inställningsrader: hela raden är träffytan.
+ * ⛔ INGA RÅA KRYSSRUTOR. Raden är `ValRad` (0.225.0), samma valrad som filtermenyerna: hela raden är träffytan och bocken visar att kalendern syns.
  *
  * ⛔ RAMVERKET KÄNNER INGA SEKTIONER. Appen skickar `sektion` per kalender ("Gruppens kalendrar", "Mina kalendrar", "Från Mitt konto", "Ärenden"), och
  * ordningen är raderna första uppträdande, utom att gruppens kommer före mina när appen inte skickat `sektioner`. En sektion utan rader ritas bara
@@ -141,14 +140,17 @@ function Kalenderrad({ k, syn, o, oppen, onOppna }) {
   return (
     <div data-kalenderrad={k.id} data-syns={syns ? "ja" : "nej"} data-visning={visning} className="flex flex-col">
       <div {...lang.handelser} data-kalenderrad-yta="" className={cx(lang.aktiv && LANGTRYCK_KLASS)}>
-        <OpsSwitch
-          placering="rad"
-          label={k.namn}
-          hint={k.marke || undefined}
-          checked={syns}
-          onChange={() => syn.vaxla(k.id)}
+        {/* ⛔ EN VALRAD MED BOCK, INTE EN STRÖMBRYTARE (CP 2026-11-13). Idag ritade sina kalendrar som nedtonade rader där på och av knappt syntes ("färgen ... blev
+            så det syns inte. Blek"), Kalender med strömbrytare. CP: "en liten högerställd bock när den är vald" och "VI skall ha enhetligt, alltså så lite dublicerad kod
+            som möjligt." Raden är nu `ValRad`, samma som filtermenyerna, "Alla kalendrar" ovanför och Flytta och Kopiera: tonad yta och en bock till höger när den syns. */}
+        <ValRad
+          chosen={syns}
+          onClick={() => syn.vaxla(k.id)}
+          under={k.marke || undefined}
           ikon={<span data-kalenderprick={lagerFarg(k)} className={cx("block size-2.5 rounded-full", KALENDERPRICK[lagerFarg(k)])} />}
-        />
+        >
+          {k.namn}
+        </ValRad>
       </div>
       {/* ⛔ VISNINGEN FINNS BARA FÖR EN KALENDER SOM SYNS. Hur en dold kalender skulle visas är ingen fråga någon ställer, och en rad per kalender
           med ett val under hade gjort listan dubbelt så hög på en telefon. Ordet står kvar på knappen, så att valet syns utan att fällas ut.

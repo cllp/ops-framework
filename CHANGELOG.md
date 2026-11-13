@@ -9,6 +9,25 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.225.0
+
+### Ändrat
+
+- ⛔ **Ett val ser likadant ut överallt: en valrad med bock till höger** (CP 2026-11-13). Idag ritade
+  kalendrarna som nedtonade rader där på och av knappt syntes ("färgen ... blev så det syns inte.
+  Blek"), Kalender med strömbrytare. CP: "en liten högerställd bock när den är vald" och "VI skall ha
+  enhetligt, alltså så lite dublicerad kod som möjligt."
+  - `OpsKalenderLista` ritar varje kalender som `ValRad` (samma rad som filtermenyerna och "Alla
+    kalendrar"), med pricken till vänster, märket på en andra rad och bocken när kalendern syns.
+    Långtrycket "visa bara den här", visningen och knappen för den som inte har ett långtryck är kvar.
+  - `OpsToggleRow` får samma bock, i samma kolumn, när raden räknas.
+  - Inställningar som är på eller av (till exempel "Kräv svar") är fortfarande `OpsSwitch`: det är en
+    inställning, inte ett val i en lista.
+
+### Tillagt
+
+- `OpsKalenderLista` exporteras, så att appens Idag kan rita samma lista i stället för en egen.
+
 ## 0.224.1
 
 ### Rättat

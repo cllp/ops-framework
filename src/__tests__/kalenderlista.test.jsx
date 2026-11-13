@@ -8,6 +8,13 @@ import { kalenderSynlighetNyckel } from "../lib/kalendersynlighet.js";
 import { useKalenderSynlighet } from "../lib/useKalenderSynlighet.js";
 
 /**
+ * ⛔ RADEN ÄR EN VALRAD MED BOCK (0.225.0), INTE EN STRÖMBRYTARE. Namnet är kalenderns namn, följt av märket när det finns ("Delad av Anna. Bara läsning"),
+ * så det matchas från början. Raden "Alla kalendrar" har ett annat namn och träffas inte.
+ * @param {string} namn
+ */
+const kalenderrad = (namn) => new RegExp("^" + namn.replace(/[.*+?^$()|[\]\\{}]/g, "\\$&") + "(\\s|$)");
+
+/**
  * Kalendrarna som en lista med ett minne, visning per kalender, läspanel för en extern händelse och Kopiera till… (0.134.0, cllp/lifehub.app#402).
  *
  * ⛔ Händelsen: CP 2026-10-20, med bild: "Men varför kommer dom upp som både kalendrar och kalenderlager? Kaka på kaka. Det är allvarliga saker som skall fixas." Och 2026-10-21: "Utan fördröjning.
@@ -102,15 +109,15 @@ describe("listan Kalendrar: en rad per kalender, en växel per rad", () => {
     const apple = /** @type {HTMLElement} */ (lista.querySelector('[data-kalenderrad="apple"]'));
     expect(within(apple).getByText("Apple, skrivskyddad")).toBeTruthy();
     expect(apple.querySelector('[data-kalenderprick="2"]')?.className).toContain("bg-identity-2");
-    expect(within(lista).getByRole("switch", { name: "Apple Calendar" })).toBeChecked();
-    expect(within(lista).getByRole("switch", { name: "Styrelsen" })).toBeChecked();
-    expect(within(lista).getByRole("switch", { name: "Ärenden" })).not.toBeChecked();
+    expect(within(lista).getByRole("button", { name: kalenderrad("Apple Calendar") })).toHaveAttribute("aria-pressed", "true");
+    expect(within(lista).getByRole("button", { name: kalenderrad("Styrelsen") })).toHaveAttribute("aria-pressed", "true");
+    expect(within(lista).getByRole("button", { name: kalenderrad("Ärenden") })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("⛔ inga råa kryssrutor: varje rad är en OpsSwitch, och ingen kontroll i listan har rollen kryssruta", async () => {
     rita();
     const lista = await oppnaListan();
-    expect(within(lista).getAllByRole("switch")).toHaveLength(4);
+    expect(lista.querySelectorAll("[data-kalenderrad] [aria-pressed]")).toHaveLength(4);
     expect(within(lista).queryAllByRole("checkbox")).toHaveLength(0);
   });
 
@@ -127,6 +134,21 @@ describe("listan Kalendrar: en rad per kalender, en växel per rad", () => {
     const lista = await oppnaListan();
     expect(within(lista).getByText("Mina kalendrar")).toBeTruthy();
     expect(within(lista).queryByText("Gruppens kalendrar")).toBeNull();
+  });
+});
+
+describe("⛔ samma valrad som resten av ramverket: bock till höger, ingen strömbrytare (0.225.0, CP 2026-11-13)", () => {
+  // CP: "en liten högerställd bock när den är vald" och "VI skall ha enhetligt, alltså så lite dublicerad kod som möjligt." Röd utan ändringen: raderna var `role="switch"` utan bock.
+  it("en synlig kalender har bocken, en dold har den inte, och listan har ingen strömbrytare", async () => {
+    rita();
+    const lista = await oppnaListan();
+    expect(within(lista).queryAllByRole("switch")).toHaveLength(0);
+    const bock = (/** @type {string} */ id) => lista.querySelector(`[data-kalenderrad="${id}"] [aria-pressed] svg`);
+    // Golv: en rad med bock och en utan, båda lästa.
+    expect(bock("apple")).not.toBeNull();
+    expect(bock("arenden")).toBeNull();
+    fireEvent.click(within(lista).getByRole("button", { name: kalenderrad("Apple Calendar") }));
+    expect(bock("apple")).toBeNull();
   });
 });
 
@@ -149,7 +171,7 @@ describe("⛔ lagren är borta: varje kalender finns EN gång, och Ärenden är 
     const lista = await oppnaListan();
     // Av från start: ärendet på den 13:e syns inte.
     expect(dagnamn("2026-10-13")).toBe("13");
-    fireEvent.click(within(lista).getByRole("switch", { name: "Ärenden" }));
+    fireEvent.click(within(lista).getByRole("button", { name: kalenderrad("Ärenden") }));
     expect(dagnamn("2026-10-13")).toBe("13, 1 post");
     const rad = /** @type {HTMLElement} */ (lista.querySelector('[data-kalenderrad="arenden"]'));
     expect(rad.querySelector('[data-kalenderprick="6"]')).toBeTruthy();
@@ -166,7 +188,7 @@ describe("valet: ändras direkt och sparas efteråt, per person och grupp", () =
     rita({ lagring });
     expect(dagnamn("2026-10-12")).toBe("12, 3 poster");
     const lista = await oppnaListan();
-    fireEvent.click(within(lista).getByRole("switch", { name: "Apple Calendar" }));
+    fireEvent.click(within(lista).getByRole("button", { name: kalenderrad("Apple Calendar") }));
     expect(dagnamn("2026-10-12")).toBe("12, 2 poster");
     await waitFor(() => expect(lagring.varden.has(kalenderSynlighetNyckel("person-a:grupp-1"))).toBe(true));
     expect(JSON.parse(/** @type {string} */ (lagring.varden.get("ops-kalender-synlighet:person-a:grupp-1")))).toEqual({ v: 1, syns: { apple: false }, visning: {} });
@@ -175,7 +197,7 @@ describe("valet: ändras direkt och sparas efteråt, per person och grupp", () =
   it("minnet överlever en ny montering, och en annan grupp har sitt eget", async () => {
     const lagring = minne();
     const forsta = rita({ lagring });
-    fireEvent.click(within(await oppnaListan()).getByRole("switch", { name: "Apple Calendar" }));
+    fireEvent.click(within(await oppnaListan()).getByRole("button", { name: kalenderrad("Apple Calendar") }));
     await waitFor(() => expect(lagring.varden.size).toBe(1));
     forsta.unmount();
 
@@ -204,8 +226,8 @@ describe("valet: ändras direkt och sparas efteråt, per person och grupp", () =
     rita({ onSynligaKalendrar: (/** @type {string[]} */ ids) => anrop.push(ids) });
     expect(anrop).toEqual([["gruppen", "mina", "apple"]]);
     const lista = await oppnaListan();
-    fireEvent.click(within(lista).getByRole("switch", { name: "Privat" }));
-    fireEvent.click(within(lista).getByRole("switch", { name: "Ärenden" }));
+    fireEvent.click(within(lista).getByRole("button", { name: kalenderrad("Privat") }));
+    fireEvent.click(within(lista).getByRole("button", { name: kalenderrad("Ärenden") }));
     expect(anrop.at(-1)).toEqual(["gruppen", "apple", "arenden"]);
     expect(anrop).toHaveLength(3);
   });
@@ -213,19 +235,19 @@ describe("valet: ändras direkt och sparas efteråt, per person och grupp", () =
   it("Alla kalendrar tar fram allt som är på från start igen, och rör inte visningen", async () => {
     rita();
     const lista = await oppnaListan();
-    fireEvent.click(within(lista).getByRole("switch", { name: "Apple Calendar" }));
-    fireEvent.click(within(lista).getByRole("switch", { name: "Ärenden" }));
+    fireEvent.click(within(lista).getByRole("button", { name: kalenderrad("Apple Calendar") }));
+    fireEvent.click(within(lista).getByRole("button", { name: kalenderrad("Ärenden") }));
     expect(screen.getByRole("button", { name: "Kalendrar: 3 kalendrar" })).toBeTruthy();
     fireEvent.click(within(lista).getByRole("button", { name: "Alla kalendrar" }));
     expect(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" })).toBeTruthy();
-    expect(within(lista).getByRole("switch", { name: "Ärenden" })).not.toBeChecked();
-    expect(within(lista).getByRole("switch", { name: "Apple Calendar" })).toBeChecked();
+    expect(within(lista).getByRole("button", { name: kalenderrad("Ärenden") })).toHaveAttribute("aria-pressed", "false");
+    expect(within(lista).getByRole("button", { name: kalenderrad("Apple Calendar") })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("utan kalenderMinne fungerar listan för den här visningen, och inget skrivs", async () => {
     const lagring = minne();
     rita({ lagring, kalenderMinne: undefined });
-    fireEvent.click(within(await oppnaListan()).getByRole("switch", { name: "Apple Calendar" }));
+    fireEvent.click(within(await oppnaListan()).getByRole("button", { name: kalenderrad("Apple Calendar") }));
     expect(dagnamn("2026-10-12")).toBe("12, 2 poster");
     await new Promise((klar) => setTimeout(klar, 20));
     expect(lagring.varden.size).toBe(0);
@@ -258,7 +280,7 @@ describe("⛔ utan fördröjning: ett tryck ändrar kalendern direkt, mätt", ()
     for (let d = 1; d <= 28; d++) for (let m = 0; m < 3; m++) manga.push(post(`a-${m}-${d}`, `Apple ${m}-${d}`, `2026-10-${String(d).padStart(2, "0")}`, { kalender: kal(KALENDRAR[2]), extern: { kalla: "Från Apple, ändras i Apple" } }));
     render(<OpsCalendar ariaLabel="Kalender" today={IDAG} entries={manga} kalendrar={KALENDRAR} kalenderMinne="p:g" lagring={lagring} />);
     const lista = await oppnaListan();
-    const vaxel = within(lista).getByRole("switch", { name: "Apple Calendar" });
+    const vaxel = within(lista).getByRole("button", { name: kalenderrad("Apple Calendar") });
 
     const foreMarken = document.querySelectorAll("[data-prick]").length;
     expect(dagnamn("2026-10-20")).toBe("20, 3 poster");
@@ -333,7 +355,7 @@ describe("visning per kalender: Händelser, Ram eller Båda", () => {
     const lista = await oppnaListan();
     await valjVisning(lista, "apple", "Ram");
     expect(ramTon("2026-10-12")).toBe("2");
-    fireEvent.click(within(lista).getByRole("switch", { name: "Apple Calendar" }));
+    fireEvent.click(within(lista).getByRole("button", { name: kalenderrad("Apple Calendar") }));
     expect(ramTon("2026-10-12")).toBeNull();
   });
 
