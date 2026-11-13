@@ -439,7 +439,9 @@ function platsKlass(active) {
  * @param {boolean} active
  */
 function ikonPlatta(active) {
-  return cx("relative inline-flex items-center justify-center rounded-full px-3 py-0.5 [&_svg]:size-6", active ? "bg-accent-subtle" : "");
+  // ⛔ `-my-0.5` TAR TILLBAKA PLATTANS `py-0.5`: plattan ritas 2 px utanför ikonen, men ikonen står kvar där `check-skalyta` mäter den
+  // (8 px under radens överkant, bolag-ops#565). Utan den flyttade plattan ikonen 2 px nedåt, och `scaffold` blev röd på 30 kontroller (PR 591, 56793fc).
+  return cx("relative -my-0.5 inline-flex items-center justify-center rounded-full px-3 py-0.5 [&_svg]:size-6", active ? "bg-accent-subtle" : "");
 }
 
 /** @param {boolean} active */
