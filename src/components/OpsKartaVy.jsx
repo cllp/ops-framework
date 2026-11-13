@@ -34,7 +34,7 @@ export function OpsKartaVy({ samling, texter }) {
     }
     setFel("");
     let kvar = true;
-    /** @type {any} */
+    /** @type {Map} */
     let kartaNu;
     // ⛔ KONSTRUKTORN KASTAR SYNKRONT UTAN WEBGL (MapLibre 6.17.0, `map.ts:4242`, GPUInitializationError), före varje lyssnare, så lyssnaren
     // på "error" nedan når aldrig det felet. Utan fångsten kraschade effekten i stället för att visa kartans egen felrad (ChatGPT:s granskning av 587).
