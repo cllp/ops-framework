@@ -102,6 +102,18 @@ describe("OpsBottomNav", () => {
     expect(kostnader).toHaveAttribute("aria-current", "page");
   });
 
+  it("⛔ den valda platsen syns utan färg: en platta bakom ikonen och halvfet etikett, bara på den valda (CP 2026-11-13: \"oklart vad jag valt\")", () => {
+    render(<OpsBottomNav nav={NAV} activeHref="/inkomster" />);
+    const row = screen.getByRole("navigation", { name: "Snabbnavigering" });
+    const vald = within(row).getByRole("link", { name: /Inkomster/ });
+    const annan = within(row).getByRole("link", { name: "Översikt" });
+    // jsdom kör ingen CSS, så det som mäts är att den valda bär plattan och vikten och att en annan inte gör det.
+    expect(vald.querySelector("[data-bottenplatta]")?.className).toMatch(/\bbg-accent-subtle\b/);
+    expect(within(vald).getByText("Inkomster").className).toMatch(/\bfont-semibold\b/);
+    expect(annan.querySelector("[data-bottenplatta]")).toBeNull();
+    expect(within(annan).getByText("Översikt").className).not.toMatch(/\bfont-semibold\b/);
+  });
+
   it("håller sheeten ur DOM:en tills den öppnas", async () => {
     render(<OpsBottomNav nav={NAV} activeHref="/" />);
     expect(screen.queryByRole("dialog")).toBeNull();
