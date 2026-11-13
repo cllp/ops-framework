@@ -208,6 +208,12 @@ export function OpsSvarsknappar({ vald, onSvara, namn, variant = "inline" }) {
  * @param {string} [props.href] Leder till händelsen.
  */
 export function OpsSvarsrad({ titel, nar, onSvara, href }) {
+  /*
+   * ⛔ KNAPPARNA PÅ EGEN RAD UNDER 768 PX (CP 2026-11-13 07.54, skärmbild ur Inkorgen i telefonen: "Allt ihoptryckta"). Texten var
+   * `flex-1 min-w-0` och knapparna `shrink-0`, så på 390 px krympte texten till ett ord per rad ("Medl…", "Måndag", "16") medan
+   * knapparna stod kvar bredvid. Nu får knapparna sin egen rad under texten i mobil, som i händelsens detalj (`OpsSvar`), och står
+   * bredvid från 768 px.
+   */
   return (
     <div data-ops-svarsrad="" className="flex min-w-0 flex-wrap items-center gap-3 rounded-card border border-line bg-surface p-3">
       <span className="min-w-0 flex-1">
@@ -220,7 +226,7 @@ export function OpsSvarsrad({ titel, nar, onSvara, href }) {
         )}
         <span className="block text-meta text-ink-muted">{nar} · Svar önskas</span>
       </span>
-      <OpsSvarsknappar onSvara={onSvara} namn={titel} />
+      <OpsSvarsknappar onSvara={onSvara} namn={titel} variant="egen-rad" />
     </div>
   );
 }
