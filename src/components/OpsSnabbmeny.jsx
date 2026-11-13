@@ -137,18 +137,26 @@ export function OpsSnabbmeny({ oppen, onOppen, variant, etikett, poster, ankare,
             }
           }}
           className={cx(
-            "fixed z-(--z-dropdown) m-0 max-h-[70dvh] overflow-auto border-0 bg-transparent p-0 shadow-none outline-none",
+            "fixed z-(--z-dropdown) m-0 overflow-auto overscroll-contain border-0 bg-transparent p-0 shadow-none outline-none",
             "transition duration-150 ease-standard motion-reduce:transition-none",
             inne ? "translate-y-0 opacity-100" : upp ? "translate-y-2 opacity-0" : "-translate-y-2 opacity-0",
           )}
           style={
+            // ⛔ HÖJDEN ÄR PLATSEN SOM FINNS, INTE 70 PROCENT (CP 2026-11-13, skärmbild av Appar i TestFlight: "Liten visuell bug").
+            // Med fem appar på en telefon med 667 punkters höjd räckte inte 70dvh: listan rullade, den översta appens cirkel klipptes
+            // mot kanten, och rullningslisten låg över etiketten Meddelanden. Nu får menyn hela höjden mellan knappen och skärmens
+            // överkant (minus säker yta och en halv rem), och den rullar bara när den platsen inte räcker.
             ruta
               ? variant === "appar"
-                ? { left: ruta.left + ruta.width / 2, bottom: `calc(100dvh - ${ruta.top}px + 8px)`, transform: "translateX(-50%)" }
+                ? { left: ruta.left + ruta.width / 2, bottom: `calc(100dvh - ${ruta.top}px + 8px)`, transform: "translateX(-50%)", maxHeight: ovanfor(ruta.top, 8) }
                 : upp
-                  ? { right: `calc(100vw - ${ruta.right}px)`, bottom: `calc(100dvh - ${ruta.top}px + 12px)` }
-                  : { right: `calc(100vw - ${ruta.right}px)`, top: ruta.bottom + 12 }
-              : { right: 16, bottom: 96 }
+                  ? { right: `calc(100vw - ${ruta.right}px)`, bottom: `calc(100dvh - ${ruta.top}px + 12px)`, maxHeight: ovanfor(ruta.top, 12) }
+                  : {
+                      right: `calc(100vw - ${ruta.right}px)`,
+                      top: ruta.bottom + 12,
+                      maxHeight: `calc(100dvh - ${ruta.bottom + 12}px - env(safe-area-inset-bottom, 0px) - 0.5rem)`,
+                    }
+              : { right: 16, bottom: 96, maxHeight: "70dvh" }
           }
         >
           <Dialog.Title className="sr-only">{etikett}</Dialog.Title>
@@ -169,7 +177,8 @@ export function OpsSnabbmeny({ oppen, onOppen, variant, etikett, poster, ankare,
               ))}
             </div>
           ) : (
-            <div className="relative flex flex-col items-center gap-3 pb-2" data-snabbmeny="appar">
+            // Luft runt kolumnen: cirkelns skugga klipps inte mot kanten, och telefonens rullningsindikator ligger utanför etiketterna.
+            <div className="relative flex flex-col items-center gap-3 px-4 pt-2 pb-2" data-snabbmeny="appar">
               {rader.map((p) => (
                 <button
                   key={p.id}
@@ -178,7 +187,9 @@ export function OpsSnabbmeny({ oppen, onOppen, variant, etikett, poster, ankare,
                   className="flex min-h-11 min-w-11 flex-col items-center gap-1 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-surface"
                 >
                   <IkonCirkel post={p} />
-                  <span className="max-w-24 truncate text-meta font-medium text-white">{p.etikett}</span>
+                  {/* ⛔ Etiketten i ett mörkt märke, som i skapa-menyn: vit text direkt på dimman hade låg kontrast i ljust läge
+                      (CP 2026-11-13: "Syns mest i ljust läge"), eftersom dimman där är grå och inte mörk. */}
+                  <span className="max-w-28 truncate rounded-full bg-ink px-2 py-0.5 text-meta font-medium text-canvas" data-snabbmeny-etikett="">{p.etikett}</span>
                 </button>
               ))}
               <span
@@ -192,6 +203,15 @@ export function OpsSnabbmeny({ oppen, onOppen, variant, etikett, poster, ankare,
       </Dialog.Portal>
     </Dialog.Root>
   );
+}
+
+/**
+ * Höjden ovanför knappen som menyn får använda: från knappens överkant, minus avståndet till knappen, upp till den säkra ytan.
+ * @param {number} topp Knappens överkant i px.
+ * @param {number} avstand Avståndet mellan menyn och knappen i px.
+ */
+export function ovanfor(topp, avstand) {
+  return `calc(${topp - avstand}px - env(safe-area-inset-top, 0px) - 0.5rem)`;
 }
 
 /**
