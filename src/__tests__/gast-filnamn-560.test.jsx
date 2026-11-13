@@ -158,7 +158,10 @@ describe("ljud utan spelarskal (granskningen av PR 561)", () => {
 const LANK_URL = "https://exempel.se/karta";
 const LANK = somGast(byggPost(med({ typ: "lank", rubrik: "Kartan", url: LANK_URL })), "k1");
 const MEDLEMSFIL = { id: "mf", ...byggPost(med({ groupId: "g1", typ: "fil", rubrik: "Avtal", fil: { sokvag: "mf", namn: "avtal.pdf", mime: "application/pdf", byte: 2048 } })) };
-const MEDLEMS_ADRESS = "https://lagring.exempel/avtal.pdf";
+/** Filens nedladdningsadress. ⛔ (0.220.0, lifehub.app#801) Den lämnas aldrig ut av Kopiera länk. */
+const FILENS_ADRESS = "https://lagring.exempel/avtal.pdf?token=hemlig";
+/** Postens adress i appen, som Kopiera länk ger en medlem (`postlank`). */
+const MEDLEMS_ADRESS = "https://app.exempel/bibliotek?plats=g1&post=mf";
 const KVITTO = { sv: "Länken är kopierad.", en: "The link is copied." };
 
 function Medlem({ sprak }) {
@@ -172,7 +175,8 @@ function Medlem({ sprak }) {
         onStang={() => {}}
         onSkapa={() => {}}
         onSpara={async () => false}
-        filUrl={() => MEDLEMS_ADRESS}
+        filUrl={() => FILENS_ADRESS}
+        postlank={(p) => `https://app.exempel/bibliotek?plats=${p.groupId}&post=${p.id}`}
         utanHubb
       />
     </OpsSprakProvider>
@@ -229,10 +233,11 @@ describe("kvittot för medlem, länkpost och nedladdning av", () => {
     return user;
   }
 
-  it("⛔ medlemmens kvittens är den korta, på svenska och engelska, och adressen är filens", async () => {
+  it("⛔ medlemmens kvittens är den korta, på svenska och engelska, och adressen är postens i appen, aldrig filens (0.220.0)", async () => {
     const { unmount } = render(<Medlem sprak="sv" />);
     await kopiera("Avtal", "sv");
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(MEDLEMS_ADRESS));
+    expect(writeText).not.toHaveBeenCalledWith(FILENS_ADRESS);
     unmount();
 
     render(<Medlem sprak="en" />);

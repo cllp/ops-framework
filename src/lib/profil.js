@@ -181,20 +181,38 @@ export async function sparaInstallningar({ kalla, anvandare, andring, samling = 
  * array. `JSON.stringify` räcker: `lankar` är alltid `{ plattform, url }`,
  * alltså platt data utan datum eller annat som kodas olika mellan varv.
  *
- * @param {import("./grupp.js").Anvandare} anvandare Den sparade raden.
- * @param {Partial<Record<typeof PERSONFALT[number], any>>} utkast Det vyn just nu visar.
- * @returns {{ andrat: boolean, andring: Record<typeof PERSONFALT[number], any> }}
+ * ══ ⛔ MED `falt`: BARA DET SOM ÄR ÄNDRAT, OCH BARA DET APPEN LISTAT (cllp/lifehub.app#786) ═══════════
+ *
+ * Utan `falt` är svaret hela raden, som förut: en app som sparar med `sparaInstallningar` skriver hela raden. Med
+ * `falt` är `andring` bara de fält i listan som skiljer sig från den sparade raden. Skälet är en app där personen
+ * ägs av ett konto utanför appen (LifeHubs Identity): kontot tar bara emot sina egna fält och nekar `lankar` och
+ * `tema`, och en sparning av hela raden hade nekats varje gång. `utanBild` är ett sådant fält: kontots "visa inte
+ * bilden", som inte finns i `users`-raden och därför bara kan stå i `falt` (`PROFILENS_FALT`).
+ *
+ * ⛔ ETT OKÄNT FÄLT I `falt` KASTAR. En lista med ett felstavat namn hade tyst gett en Spara som aldrig sparar det.
+ *
+ * @param {import("./grupp.js").Anvandare & { utanBild?: boolean }} anvandare Den sparade raden.
+ * @param {Partial<Record<typeof PROFILENS_FALT[number], any>>} utkast Det vyn just nu visar.
+ * @param {ReadonlyArray<typeof PROFILENS_FALT[number]>} [falt] Fälten appen sparar. Utelämnad: hela raden, som förut.
+ * @returns {{ andrat: boolean, andring: Record<string, any> }}
  */
-export function andringen(anvandare, utkast = {}) {
+export function andringen(anvandare, utkast = {}, falt) {
+  if (falt !== undefined) {
+    const okanda = falt.filter((n) => !PROFILENS_FALT.includes(/** @type {any} */ (n)));
+    if (okanda.length > 0) throw new Error(`andringen: fälten ${okanda.join(", ")} finns inte i profilen. Giltiga: ${PROFILENS_FALT.join(", ")}.`);
+  }
   /** @type {Record<string, any>} */
   const andring = {};
   let andrat = false;
-  for (const falt of PERSONFALT) {
-    const varde = /** @type {any} */ (utkast)[falt] ?? /** @type {any} */ (anvandare)[falt];
-    andring[falt] = varde;
-    const sparat = /** @type {any} */ (anvandare)[falt];
-    const olika = falt === "lankar" ? JSON.stringify(varde ?? []) !== JSON.stringify(sparat ?? []) : varde !== sparat;
+  for (const f of falt ?? PERSONFALT) {
+    const varde = /** @type {any} */ (utkast)[f] ?? /** @type {any} */ (anvandare)[f];
+    const sparat = /** @type {any} */ (anvandare)[f];
+    const olika = f === "lankar" ? JSON.stringify(varde ?? []) !== JSON.stringify(sparat ?? []) : varde !== sparat;
     if (olika) andrat = true;
+    if (falt === undefined || olika) andring[f] = varde;
   }
   return { andrat, andring: /** @type {any} */ (andring) };
 }
+
+/** Fälten `andringen` kan lista: personens egna (`PERSONFALT`) och `utanBild`, se `andringen`. */
+export const PROFILENS_FALT = Object.freeze([...PERSONFALT, "utanBild"]);

@@ -1,5 +1,5 @@
 /**
- * GeoJSON till en karta (0.214.0, cllp/ops-framework#570).
+ * GeoJSON till en karta (0.223.0, cllp/ops-framework#570).
  *
  * Ingen MapLibre här. Den hämtas av `OpsKartaVy` först när en karta ritas, och `check:delbarhet` mäter att `maplibre-gl` inte ligger i startfilen.
  * Den här filen går att prova utan en karta: läsning, simplestyle, palett, gränser och stilen.

@@ -30,7 +30,8 @@ import { BibliotekRepoLat } from "./BibliotekRepoLat.jsx";
 import { githubDokument } from "../lib/githubdokument.js";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ARKIVTAGG, arArkiverad, avkodaTextfil, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
+import { ID_FORM } from "../lib/katalog.js";
+import { ARKIVTAGG, POSTIDFORM, arArkiverad, kortRubrik, avkodaTextfil, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
 import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
 export { menyPilar, OpsTaggFilter as TaggFilter };
@@ -308,6 +309,14 @@ const tusental = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkivet.`;
 
 /**
+ * Kan platsen ha "I repot" (0.217.0, cllp/lifehub.app#785)? Gruppens eget bibliotek (grupp-id:t, `ID_FORM`) och en egen plats (`plats~<grupp>~<id>`). Mitt bibliotek, en händelses och ett ärendes plats bär `~` och har aldrig något repo.
+ * ⛔ FORMEN, INTE BESLUTET: om platsen faktiskt har ett repo avgör appen, genom att skicka `repoLasare` eller inte.
+ * @param {unknown} plats
+ * @returns {plats is string}
+ */
+const repoplatsForm = (plats) => typeof plats === "string" && (arPlatsBibliotek(plats) || ID_FORM.test(plats));
+
+/**
  * @param {object} props
  * @param {{ las: () => Promise<any>, prenumerera?: (lyssnare: (svar: any) => void, onFel: (fel: Error) => void) => () => void }} [props.kalla] (0.114.0) Bibliotekskällan (`createBibliotekskalla`). Med den läser vyn själv och en ny post syns direkt, se `useBibliotekskalla`. Ges den ska `poster`, `fel`, `trasiga` och `laddar` utelämnas: vyn har då två sanningar om samma lista, och den ena hade vunnit tyst.
  * @param {readonly (import("../lib/bibliotek.js").Bibliotekspost & { id: string })[]} [props.poster] Krävs om inte `kalla` ges (0.114.0).
@@ -370,7 +379,7 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  * @param {(inmatning: { id: string }) => Promise<void> | void} [props.onAterkalla] (0.119.0) Stänger länken, för alltid. "Dra tillbaka" i dialogen (0.201.0, förut "Stäng länken"). En ny delning ger ett nytt token.
  * @param {(inmatning: { id: string, url: string, till: string }) => Promise<void | boolean> | void | boolean} [props.onMejlaLank] (0.128.0, cllp/lifehub.app#356) Skickar en delad länk med mejl, via appens mejlväg. Med den visar dialogen Dela länk fältet "Skicka till mejl" och knappen Skicka, under länkens adress (när länken är nyss skapad, eller en som lever och har en adress). `id` är delningens id och `url` hela adressen. Ramverket prövar adressen (`epostFel`: form och spärrade domäner) innan anropet och visar svaret, lyckat eller inte; ett kast eller `false` är ett fel i dialogen. Hör till `onDelaLank`. Utan den syns inget fält.
  * @param {(post: any) => Promise<import("./GithubDokumentVisning.jsx").GithubLasning>} [props.githubLasare] (0.186.0, cllp/lifehub.app#653) Läser filen en länk pekar på i gruppens GitHub-repo. En länk vars adress är `https://github.com/<ägare>/<repo>/blob/<ref>/<sökväg>` (`githubDokument`) öppnas då i ett läsläge i detaljen, efter filens sort (markdown, html, pdf, bild, text, csv; word, excel och övrigt får Ladda ned), med "Ändrad {datum} av {av}" och en länk Öppna i GitHub, i stället för att skicka personen till github.com. Svaret är `{ lage, text?, base64?, mime?, andrad?, av?, storlek? }` där `lage` är `last`, `saknas`, `obehorig`, `inte-gruppens`, `for-stor` eller `fel`; ett avvisat löfte ritas som `fel`. Ingen ny posttyp: posten är en vanlig länk. Utan den är länken som förut. Se `GithubDokumentVisning` för begränsningarna.
- * @param {(fraga: { plats: string, sokvag: string }) => Promise<import("./BibliotekRepo.jsx").RepoLasning>} [props.repoLasare] (0.205.0, cllp/lifehub.app#653 skiva 3) Läser en mapp i projektets mapp i repot, en nivå: `sokvag` är vägen INOM projektets mapp (`""` är mappen själv), och svaret är `{ lage, poster, fler }` där `lage` är `last`, `saknas`, `obehorig` eller `fel` och varje post är `{ namn, sokvag, sort: "fil" | "mapp", storlek?, url? }`. Med den får en egen plats (`plats~<grupp>~<id>`) raden "I repot" under listan. (0.209.0, cllp/lifehub.app#706) Raden är infälld från början och repot läses först när den fälls ut; utfällningen minns per plats i webbläsaren. Innehållet är ett träd: en mapp fälls ut på plats med en pil och läses först då (aldrig ovanför projektets mapp, och indraget slutar växa efter tre nivåer), och en fil med en GitHub-adress öppnas i läsläget genom `githubLasare` (posten har då inget `id`, och `groupId` är platsen). Varje fil har ⋮ med "Lägg i Biblioteket" (`onLaggRepoFil`) och "Öppna i GitHub" (filens `url`, i en ny flik). Appen skickar den bara för ett projekts plats. Utan den ser allt ut som förut. Inget sparas och inga nya fält.
+ * @param {(fraga: { plats: string, sokvag: string }) => Promise<import("./BibliotekRepo.jsx").RepoLasning>} [props.repoLasare] (0.205.0, cllp/lifehub.app#653 skiva 3) Läser en mapp i projektets mapp i repot, en nivå: `sokvag` är vägen INOM projektets mapp (`""` är mappen själv), och svaret är `{ lage, poster, fler }` där `lage` är `last`, `saknas`, `obehorig` eller `fel` och varje post är `{ namn, sokvag, sort: "fil" | "mapp", storlek?, url? }`. Med den får en egen plats (`plats~<grupp>~<id>`) raden "I repot" under listan, och sedan 0.217.0 (cllp/lifehub.app#785) också gruppens eget bibliotek (aldrig Mitt bibliotek, en händelses eller ett ärendes plats). (0.209.0, cllp/lifehub.app#706) Raden är infälld från början och repot läses först när den fälls ut; utfällningen minns per plats i webbläsaren. Innehållet är ett träd: en mapp fälls ut på plats med en pil och läses först då (aldrig ovanför projektets mapp, och indraget slutar växa efter tre nivåer), och en fil med en GitHub-adress öppnas i läsläget genom `githubLasare` (posten har då inget `id`, och `groupId` är platsen). Varje fil har ⋮ med "Lägg i Biblioteket" (`onLaggRepoFil`) och "Öppna i GitHub" (filens `url`, i en ny flik). Appen skickar den där platsen har ett repo (lifehub.app: ett projekts plats, och sedan #785 varje plats i en grupp med GitHub). Utan den ser allt ut som förut. Inget sparas och inga nya fält. (0.216.0, cllp/lifehub.app#775 och #774 punkt 2) Svaret får bära `hamtad` (när appen frågade GitHub, ISO 8601) och `kalla` (`{ repo, mapp, url? }`, mappen i repot som projektet är kopplat till, eller `null`). Överst i trädet står då mappen i repot, när projektets mapp hämtades (utan `hamtad`: när svaret kom fram) och knappen Läs om, som läser projektets mapp och varje utfälld mapp igen utan att fälla ihop något.
  * @param {(fil: { plats: string, sokvag: string, url: string, namn: string }) => Promise<unknown>} [props.onLaggRepoFil] (0.205.0) "Lägg i Biblioteket" på en fil i "I repot" (0.209.0: i filens ⋮): appen skapar den vanliga länkposten. Ett kast visas vid filen med sitt meddelande. Utan den finns inget sådant val.
  * @param {(url: string) => Promise<{ titel?: string, artist?: string, kalla?: string, bild?: string }>} [props.onLankInfo] (0.128.0, cllp/lifehub.app#378) Hämtar titel, artist och omslag för en musiklänk (Spotify, YouTube, Apple Music eller SoundCloud), normalt en callable som anropar `lankInfoUrOembed` på nodsidan. När en sådan adress klistras in i Ny länk (eller lämnas med fokus) anropas den EN gång per adress, och rubriken fylls i som "titel, artist" om den är tom eller fortfarande den som förra uppslaget fyllde i. Rubriken går att ändra. `bild` sparas på posten (en https-adress). `kalla` i svaret ignoreras: ramverket härleder källan ur adressen (`lankKalla`), så att den inte finns på två ställen. Faller anropet, eller ger det varken titel eller artist, står rubrikfältet tomt och orsaken i en rad under adressen: aldrig tyst. Utan den görs inget uppslag, och en vanlig länk är som förut.
  * @param {string} [props.modulId] (0.88.1) Modulens id i appen, förval "bibliotek". Står den i huvudmenyn har listan ingen tillbaka-rad.
@@ -420,8 +429,14 @@ const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkive
  * @param {(bild: { postId: string, plats: string, namn: string }) => boolean | Promise<boolean>} [props.bildIAnteckningFel] (0.207.0, #696 skiva 2) En bild med en adress laddades inte,
  *   troligen för att en signerad adress gått ut (`OpsMarkdown` `onBildFel`). Sant: appen hämtar nya adresser och ger en ny `bildIAnteckningAdress`. Falskt: raden "Ladda om sidan för att se
  *   bilden.". Utan propen står "Bilden kunde inte visas." som förut.
+ * @param {(post: { id: string, groupId: string }) => string} [props.postlank] (0.221.0, lifehub.app#801) Postens adress i appen, till exempel
+ *   `(p) => bibliotekslank(bas, { plats: p.groupId, postId: p.id })`. Kopiera länk på en medlems fil kopierar den, och den kräver inloggning och medlemskap.
+ *   ⛔ Utan den har en medlems fil ingen Kopiera länk: filens nedladdningsadress lämnas aldrig ut, eftersom den öppnas av vem som helst, aldrig går ut och
+ *   inte kan dras tillbaka. En länkpost kopierar sin egen adress som förut, och gästens fil sin signerade adress (gäller en kvart).
+ *   ⛔ EN FUNKTION OCH INTE EN BAS (0.221.0 ersätter 0.220.0:s `postlankBas`): med basen byggde biblioteket länken själv, och `bibliotekslank` följde med
+ *   in i appens startfiler (lifehub.app:s `check:jsstorlek` 479 gzippade byte över taket). Appen bygger länken där den ändå har koden.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, repoLasare, onLaggRepoFil, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null, onLaggBildIAnteckning, bildIAnteckningAdress, bildIAnteckningFel }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, repoLasare, onLaggRepoFil, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null, onLaggBildIAnteckning, bildIAnteckningAdress, bildIAnteckningFel, postlank }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -771,28 +786,48 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
    * webbläsarens visning. En rad som kopierar den hade varit en väg att dela filen förbi beslutet. För en fil som inte visas
    * (zip, Word) hade raden dessutom bara gett felet, eftersom servern aldrig signerar den utan nedladdning.
    *
-   * @param {{ typ?: string, url?: string, fil?: { sokvag?: string, klar?: boolean }, skapad?: number }} post
+   * @param {{ id?: string, groupId?: string, typ?: string, url?: string, fil?: { sokvag?: string, klar?: boolean }, skapad?: number }} post
    */
   function kanKopieraLank(post) {
-    if (post.typ === "lank") return lankRedanKand(post) !== "";
+    if (post.typ === "lank") return postensAdress(post) !== "";
     if (post.typ !== "fil" || uppladdningAvbruten(post) || post.fil?.klar === false) return false;
     const sokvag = typeof post.fil?.sokvag === "string" ? post.fil.sokvag.trim() : "";
     if (sokvag === "") return false;
     if (adresserPaBegaran) return !utanNedladdning && typeof hamtaAdress === "function";
-    return lankRedanKand(post) !== "";
+    return postensAdress(post) !== "";
+  }
+
+  /**
+   * Postens adress i appen (`postlank`), för en medlems fil. Tom utan `postlank`.
+   *
+   * ⛔ ALDRIG FILENS NEDLADDNINGSADRESS (lifehub.app#801, QA A01, 2026-11-12). Fram till 0.220.0 kopierade Kopiera länk för en medlem
+   * adressen visningen redan hade, alltså `getDownloadURL`: den bär en token, öppnas utan inloggning, går aldrig ut och kan inte dras
+   * tillbaka. Raden blev en väg förbi Dela länk, som har utgång och kod. Postens adress i appen kräver inloggning och medlemskap, och
+   * den som får den och inte är med i gruppen ser ingenting. Utan basen finns ingen sådan adress, och då har en fil ingen Kopiera länk:
+   * hellre ingen rad än en rad som delar filen med vem som helst.
+   *
+   * @param {{ id?: string, groupId?: string, typ?: string, url?: string, fil?: { sokvag?: string, mime?: string, klar?: boolean }, skapad?: number }} post
+   * @returns {string}
+   */
+  function postensAdress(post) {
+    // ⛔ EN POST SOM INTE HAR ETT POSTID I RÄTT FORM FÅR INGEN ADRESS, OCH DÅ INGEN RAD "KOPIERA LÄNK" (granskningen av #801, A1). `bibliotekslank` kastar för en sådan, och
+    // `menyFor` körs för varje rad redan när listan ritas: en enda post med ett avvikande id hade tagit ned hela biblioteket. Prövningen görs här, före appens funktion.
+    // ⛔ OCH INGET MER HÄR (0.221.0): koden ligger i appens startfil, och taket där har ett tjugotal byte kvar. Typen på `postlank` prövas av typkontrollen i appen.
+    return post.typ === "lank" ? lankRedanKand(post) : postlank && POSTIDFORM.test(post.id ?? "") && post.groupId ? postlank(/** @type {{ id: string, groupId: string }} */ (post)) : "";
   }
 
   /**
    * Kopierar postens adress. Gästens fil hämtar den först om visningen inte redan har den. Nekar hämtningen kopieras
    * ingenting: felet står kvar, och Ladda ned styrs som förut av `utanNedladdning` (hämtningen är visningens, utan bilaga).
    *
-   * @param {{ typ?: string, url?: string, fil?: { sokvag?: string, mime?: string, klar?: boolean }, skapad?: number }} post
+   * @param {{ id?: string, groupId?: string, typ?: string, url?: string, fil?: { sokvag?: string, mime?: string, klar?: boolean }, skapad?: number }} post
    */
   function kopieraPostensLank(post) {
     // ⛔ GÄSTENS FIL HÄMTAS ALLTID PÅ NYTT (granskningen av PR 558). Visningens adress kan ligga i cachen längre än den gäller,
     // och en död adress med kvittensen "kopierad" är ett fel som inte syns.
     const gastfil = adresserPaBegaran && post.typ === "fil";
-    const kand = gastfil ? "" : lankRedanKand(post);
+    // ⛔ En länkpost kopierar sin egen adress, en medlems fil postens adress i appen (`postensAdress`, lifehub.app#801), aldrig filens.
+    const kand = gastfil ? "" : postensAdress(post);
     if (kand !== "") {
       kopieraLank(kand);
       return;
@@ -1390,8 +1425,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
               )}
             </Tabs.Content>
             </Tabs.Root>
-            {/* ⛔ "I REPOT" (0.205.0, cllp/lifehub.app#653 skiva 3): bara med `repoLasare`, bara på en egen plats och aldrig i en inbäddad lista. Nyckeln är platsen, så att en annan plats börjar i sin egen mapp och med sitt eget minne av utfällningen (0.209.0). */}
-            {typeof repoLasare === "function" && !inbaddad && typeof plats === "string" && arPlatsBibliotek(plats) ? (
+            {/* ⛔ "I REPOT" (0.205.0, cllp/lifehub.app#653 skiva 3): bara med `repoLasare` och aldrig i en inbäddad lista. Nyckeln är platsen, så att en annan plats börjar i sin egen mapp och med sitt eget minne av utfällningen (0.209.0).
+                ⛔ (0.217.0, cllp/lifehub.app#785, CP 2026-11-11: "kan det vara en standard alternativ för alla bibliotek som är kopplade till Github? inte bara projekt") Gruppens eget bibliotek och en egen plats, inte bara en egen plats:
+                appen avgör var repot finns genom att skicka `repoLasare`. Mitt bibliotek, en händelses och ett ärendes plats har aldrig något repo (`repoplatsForm`). */}
+            {typeof repoLasare === "function" && !inbaddad && repoplatsForm(plats) ? (
               <BibliotekRepoLat key={plats} plats={plats} lasare={repoLasare} githubLasare={githubLasare} onLagg={onLaggRepoFil} />
             ) : null}
             {status ? <p role="status">{status}</p> : null}
@@ -1936,21 +1973,6 @@ function kortMeta(post, sprak = "sv") {
  */
 export function kortTidpunkt(ms) {
   return Number.isInteger(ms) ? formatDateTime(/** @type {number} */ (ms)) : "";
-}
-
-/**
- * Rubriken på kortet (0.165.0): en fil utan sin filändelse när rubriken är filens namn ("sang-v1.html" blir "sang-v1"). En rubrik som någon har gett posten (Byt namn) visas som den är.
- * Ändelsen står i stället först i metaraden (`kortTyp`). Gäller alla filtyper.
- *
- * @param {{ typ: string, rubrik?: string, fil?: { namn?: string } | null }} post
- */
-export function kortRubrik(post) {
-  const rubrik = trimSomRegeln(post.rubrik) || "Post";
-  if (post.typ !== "fil") return rubrik;
-  const ext = /\.([a-z0-9]{1,6})$/i.exec(rubrik)?.[1];
-  const filExt = /\.([a-z0-9]{1,6})$/i.exec(post.fil?.namn ?? "")?.[1];
-  if (!ext || !filExt || ext.toLowerCase() !== filExt.toLowerCase()) return rubrik;
-  return rubrik.slice(0, -(ext.length + 1)).trim() || rubrik;
 }
 
 /**

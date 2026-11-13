@@ -51,6 +51,17 @@
  * ⛔ DET SOM ÄR APPENS HÄR: appens fält på en händelse (`grupp.handelseSida`), och omröstningens
  * modell (`grupp.omrostning`: förslagen, rösterna). Ramverket läser dem aldrig själv, och allt som appens `bygg` ger utöver `falt` tas bort innan svaret lämnar tjänsten.
  *
+ * ══ ⛔ ETT PROJEKT (0.215.0, cllp/lifehub.app#760 skiva 1): SAMMA VÄG SOM HELA GRUPPEN, AVGRÄNSAD PÅ SERVERN ═══════════════════════
+ *
+ * CP 2026-11-10: "Jag skulle vilja kunna samarbeta med externa i projekt, de har inte tillgång till hela gruppen, men bara projekt." Ett omfång `{ slag: "projekt", tagg }` är en gäst i gruppen (`arGruppslag`): en plats ur
+ * samma fem, samma förvaltning (ägare och admin), samma inloggning och samma flikar, och `GASTPROJEKTFUNKTIONER`, där chatten är projektets egen (skiva 2) och aldrig gruppens. Det är EN mekanism och ingen parallell kopia:
+ * varje gruppåtgärd börjar med `gruppSession`, som för ett projekt dessutom läser projektet ur appen (`grupp.projekt.urval`) och lägger dess urval på sessionen. Urvalet görs här, på servern, varje gång:
+ *   - biblioteket: bara projektets plats (`platsBibliotek(groupId, tagg)`), samma prövning som gruppens egen plats (`gastSerBibliotekspost`, `arGruppFil`) med platsen i stället för gruppen.
+ *   - kalendern: bara händelser som appens `handelse` säger hör till projektet (projektets egen kalender, eller taggen i gruppens förvalda).
+ *   - ärendena: alla ärenden som appens `arende` säger hör till projektet (taggen), inte bara de delegerade. Att markera klart kräver ändå att ärendet ligger hos gästen.
+ * ⛔ TAGGEN KOMMER UR INBJUDAN OCH ALDRIG UR ANROPET, som gruppen. Ett projekt som inte längre finns (eller är arkiverat, appens beslut i `urval`) ger `saknas` i varje åtgärd: ingen läsning utan projektet bakom sig.
+ * ⛔ I SKIVA 1 SVARAR EN PROJEKTGÄST INTE PÅ HÄNDELSER: summorna och medlemmens svarslista räknar bara gäster i hela gruppen (`levandeGaster`, `handelse`), och ett svar som ingen räknar hade varit en tyst nedsläppsväg (regel 5).
+ *
  * ══ ⛔ DELTA (0.146.0, cllp/ops-framework#445, skiva 1): EN GÄST FÖR EN SAK SVARAR OCH SER HÄNDELSEN, INGET ANNAT ═══════════════════
  *
  * En inbjudan med omfånget `{ slag: "sak", funktion: "delta", handelseId }` ger gästen två saker: att se händelsens rubrik, tid och plats (`GASTDELTAHANDELSEFALT`) och att svara Kommer, Kommer inte eller Kanske
@@ -90,6 +101,12 @@ import {
   GASTFELKODER,
   GASTFIL_PER_DYGN,
   GASTFUNKTIONER,
+  GASTGRUPPSLAG,
+  GASTSLAG,
+  GASTPROJEKTFUNKTIONER,
+  GASTPROJEKTKORTFALT,
+  PROJEKTTAGGFORM,
+  arGruppslag,
   GASTSKRIV_MAX_TECKEN,
   GASTSKRIV_PER_MINUT,
   arGastId,
@@ -110,6 +127,8 @@ import {
   GASTNYLANKIP_FONSTER_MS,
   GASTNYLANKIP_MAX,
   GASTNYLANK_MAX_LANKAR,
+  GASTNYLANK_GILTIG_MS,
+  GASTNYLANK_GOLV_MS,
   GASTNYLANK_SVAR,
   GASTPERSONFALT,
   GASTPERSONINBJUDANFALT,
@@ -137,11 +156,11 @@ import {
   gastkontaktPaRad,
 } from "../lib/gast.js";
 import { MAX_GRUPPBESKRIVNING, agentId, medlemskapsId } from "../lib/grupp.js";
-import { arArkiverad, trimSomRegeln } from "../lib/bibliotek.js";
+import { arArkiverad, platsBibliotek, trimSomRegeln } from "../lib/bibliotek.js";
 import { KLOCKFORM, SVARSVAL, byggSvar, handelsefel, sammanstallSvar } from "../lib/handelsemodell.js";
 import { validateGruppkalendrar } from "../lib/kalendrar.js";
 import { gruppensRader } from "../lib/katalog.js";
-import { NAMNER_ALLA, samtalsnyckel } from "../lib/samtal.js";
+import { NAMNER_ALLA, byggSamtal, projekttaggUr, samtalsnyckel } from "../lib/samtal.js";
 import { adresserIText, bibliotekslank, kommentarRotId, kommentarRotText, lasBibliotekslank } from "../lib/postkommentar.js";
 import { MAX_ANTECKNINGSBILDER, SIGNERAD_SEKUNDER, delningsTyp } from "../lib/delning.js";
 import { anteckningsbildAdresser, delningsDisposition } from "./delning.js";
@@ -264,9 +283,11 @@ export function byggGastinbjudan(d) {
   if (namn.length > MAX_GASTNAMN) throw new Error(`byggGastinbjudan: namnet får vara högst ${MAX_GASTNAMN} tecken.`);
   // gastomfangsnyckel kastar för ett omfång som inte hör hemma (ett grupp med extra fält, en sak utan händelse) INNAN raden byggs.
   gastomfangsnyckel(d.omfang);
-  const omfang = d.omfang.slag === "grupp" ? { slag: /** @type {const} */ ("grupp") } : { slag: d.omfang.slag, funktion: d.omfang.funktion, handelseId: d.omfang.handelseId };
+  /** @type {any} */
+  const omfang = d.omfang.slag === "grupp" ? { slag: "grupp" } : d.omfang.slag === "projekt" ? { slag: "projekt", tagg: d.omfang.tagg } : { slag: d.omfang.slag, funktion: d.omfang.funktion, handelseId: d.omfang.handelseId };
   const delta = omfang.slag === "sak" && omfang.funktion === "delta";
-  const grupp = omfang.slag === "grupp";
+  // (0.215.0) Ett projekt är en gäst i gruppen: nedladdningen gäller projektets bibliotek, med samma förval (av).
+  const grupp = arGruppslag(omfang);
   if (d.laddaNed !== undefined && typeof d.laddaNed !== "boolean") throw new Error("byggGastinbjudan: laddaNed ska vara sant eller falskt, eller utelämnas.");
   if (d.laddaNed !== undefined && !grupp) throw new Error("byggGastinbjudan: laddaNed gäller bara en inbjudan till hela gruppen. En sak har inget bibliotek att ladda ned ur.");
   if (delta && (typeof d.andringsnyckel !== "string" || d.andringsnyckel === "")) {
@@ -332,10 +353,27 @@ function felMedKod(kod, meddelande) {
  *   Admin SDK: `(await bucket.file(sokvag).exists())[0]`): med den får gästen bilderna i en anteckning när den öppnas (`anteckningsbilder`); utan den inga bilder.
  * @property {(handelse: Record<string, any>) => { titel: string, beskrivning?: string, plats?: string }} handelseSida Vilka av appens fält som är titel, beskrivning och plats (som delningens).
  * @property {Gastarenden} [arenden] (Skiva 3) Ärenden som delegerats till en gäst. Utelämnad: ingen ärendeflik och inga ärendeåtgärder (`arenden` svarar `nej`).
+ * @property {Gastprojekt} [projekt] (0.215.0, cllp/lifehub.app#760) Slår på omfånget "projekt". Utelämnad: `bjud` med `slag: "projekt"` kastar `ogiltigt-omfang`, och en projektsession svarar `nej` i varje åtgärd.
  * @property {{ falt: readonly string[], bygg: (arg: { handelse: Record<string, any>, gastId: string, groupId: string }) => Record<string, any> | null | Promise<Record<string, any> | null>,
  *   rosta: (arg: { handelse: Record<string, any>, gastId: string, groupId: string, forslagId: string, val: string }) => { ok: boolean } | Promise<{ ok: boolean }> }} [omrostning]
  *   Omröstningen på ett datum är appens modell. `bygg` ger det en gäst ser (förslag, summor, egna röster) och `falt` är hela listan; `rosta` skriver rösten (appens prövning, samma som en
  *   medlems). Utelämnad: `rosta` svarar `nej` och `handelse` bär ingen `omrostning`. Rösterna tas bort av `radering.roster`.
+ */
+
+/**
+ * @typedef {object} Gastprojekt Appens projekt för en projektgäst (0.215.0, cllp/lifehub.app#760). Projektet är appens modell; ramverket väljer bara ut med det appen svarar.
+ * @property {(arg: { groupId: string, tagg: string }) => Gastprojekturval | null | Promise<Gastprojekturval | null>} urval
+ *   Projektet med taggen i gruppen, eller `null` när det inte finns eller är arkiverat (då når gästen ingenting). Anropas en gång per åtgärd, efter sessionen. ⛔ `handelse` och `arende` avgör vad gästen ser: de prövas
+ *   rad för rad på servern, och en rad de inte släpper in lämnar aldrig tjänsten.
+ */
+
+/**
+ * @typedef {object} Gastprojekturval
+ * @property {string} namn Projektets namn, sidans rubrik.
+ * @property {{ sv: string, en: string }} status Projektets läge som ord, på båda språken.
+ * @property {ReadonlyArray<{ rubrik: { sv: string, en: string }, text: string }>} texter Kortets texter i den ordning de visas. En tom text tas bort.
+ * @property {(handelse: Record<string, any>) => boolean} handelse Hör händelsen till projektet? (Appens regel: projektets egen kalender, eller taggen i gruppens förvalda.)
+ * @property {(rad: Record<string, any>) => boolean} arende Hör ärendet till projektet? (Appens regel: taggen.)
  */
 
 /**
@@ -373,6 +411,9 @@ function felMedKod(kod, meddelande) {
  *   En per inbjudan. Bygg adressen med `gastLank`. ⛔ För en `delta`-inbjudan bär länken också `handelse` (händelsen som gästen ser den, med `id`) och `sekvens`: `byggIcs({ handelse, sekvens, domän, tidszon, stampel })` ger kalenderposten
  *   som ska bifogas, och rubriken, tiden och platsen i brevet och på sidan kommer ur samma ställe (regel 2).
  * @property {{ uid: string, namn: string } | null} skickadAv Den som bjöd eller skickade om. `null` för "ny länk", som gästen själv bad om.
+ * @property {number} [fler] (0.215.0, lifehub.app#760 skiva 3) Bara i brevet "Mina inbjudningar" (`nyLank({ epost })`): hur många inbjudningar till adressen som inte fick plats (`GASTNYLANK_MAX_LANKAR`). Brevet säger
+ *   "och N till" och hur de nås. 0 när alla fick plats.
+ * @property {boolean} [engangs] (0.215.0) Bara i brevet "Mina inbjudningar": länkarna gäller en gång och ett dygn (`GASTNYLANK_GILTIG_MS`). Brevet säger det.
  */
 
 /** (0.202.0) Hur många tidigare nycklar en inbjudan minns för `nyLank`. */
@@ -403,13 +444,14 @@ const GASTTIDIGARE_NYCKLAR = 5;
  * @param {readonly string[]} [konfig.extraSparrade] Appens egna spärrade mejldomäner (`epostFel`).
  * @param {(fel: unknown) => void} [konfig.rapportera] Där ett brev som inte gick att skicka rapporteras när svaret ändå måste vara neutralt (`nyLank`). Förval `console.error`.
  * @param {() => number} [konfig.klocka] Millisekunder. Förval `Date.now`. Provens enda sätt att låta en länk gå ut.
+ * @param {number} [konfig.nyLankGolvMs] (0.215.0) Den kortaste tid `nyLank` tar (`GASTNYLANK_GOLV_MS`). Bara för prov: ett golv på riktiga millisekunder, oberoende av `klocka`.
  */
 export function createGastService(konfig) {
   /*
    * ⛔ DESTRUKTURERINGEN LIGGER I KROPPEN, av samma skäl som i `createDelningService`: `({ kalla })` i signaturen kastar Nodes "Cannot destructure" innan
    * valideringen hinner köra, och det felet nämner inte fabriken.
    */
-  const { kalla, samlingar, farBjuda, skicka, sak, delta, grupp, radering, lankvalv, extraSparrade = [], rapportera = (/** @type {unknown} */ fel) => console.error("createGastService:", fel), klocka = Date.now } = konfig ?? {};
+  const { kalla, samlingar, farBjuda, skicka, sak, delta, grupp, radering, lankvalv, extraSparrade = [], rapportera = (/** @type {unknown} */ fel) => console.error("createGastService:", fel), klocka = Date.now, nyLankGolvMs = GASTNYLANK_GOLV_MS } = konfig ?? {};
   const namn = "createGastService";
   if (!kalla || typeof kalla.read !== "function" || typeof kalla.list !== "function" || typeof kalla.remove !== "function") {
     throw new Error(`${namn}: en datakälla med read, list och remove krävs. Ramverket känner ingen databas.`);
@@ -457,7 +499,7 @@ export function createGastService(konfig) {
     }
   }
   const DELTA = delta ?? null;
-  /** @type {null | { samlingar: Record<string, string>, lagring: Gastgrupp["lagring"], gruppPrefix: string, postPrefix: string, handelseSida: Gastgrupp["handelseSida"], arenden?: Gastarenden, omrostning?: Gastgrupp["omrostning"], tradar: string | null, bibliotekBas: string | null, funktioner: readonly string[] }} */
+  /** @type {null | { samlingar: Record<string, string>, lagring: Gastgrupp["lagring"], gruppPrefix: string, postPrefix: string, handelseSida: Gastgrupp["handelseSida"], arenden?: Gastarenden, omrostning?: Gastgrupp["omrostning"], tradar: string | null, bibliotekBas: string | null, projekt: Gastprojekt | null, funktioner: readonly string[] }} */
   let GS = null;
   if (radering !== undefined) {
     if (!radering || typeof radering !== "object") throw new Error(`${namn}: radering är ett objekt (Gastradering), eller utelämnas.`);
@@ -505,8 +547,8 @@ export function createGastService(konfig) {
       const a = grupp.arenden;
       const ok = a && typeof a === "object" && typeof a.samling === "string" && SAMLINGSFORM.test(a.samling);
       if (!ok) throw new Error(`${namn}: grupp.arenden.samling krävs, ett samlingsnamn. Ramverket känner inte appens samlingsnamn och gissar inget.`);
-      if (!Array.isArray(a.falt) || a.falt.length === 0 || a.falt.some((/** @type {unknown} */ f) => typeof f !== "string" || f === "" || f === "id" || f === "kommentarer" || f === "fler" || !(/** @type {readonly string[]} */ (GASTARENDEFALT)).includes(/** @type {string} */ (f)))) {
-        throw new Error(`${namn}: grupp.arenden.falt är en icke-tom lista ur ${GASTARENDEFALT.filter((f) => f !== "id" && f !== "kommentarer" && f !== "fler").join(", ")}: hela listan över vad en gäst får se av ett ärende.`);
+      if (!Array.isArray(a.falt) || a.falt.length === 0 || a.falt.some((/** @type {unknown} */ f) => typeof f !== "string" || f === "" || f === "id" || f === "kommentarer" || f === "fler" || f === "hosDig" || !(/** @type {readonly string[]} */ (GASTARENDEFALT)).includes(/** @type {string} */ (f)))) {
+        throw new Error(`${namn}: grupp.arenden.falt är en icke-tom lista ur ${GASTARENDEFALT.filter((f) => f !== "id" && f !== "kommentarer" && f !== "fler" && f !== "hosDig").join(", ")}: hela listan över vad en gäst får se av ett ärende.`);
       }
       for (const f of /** @type {const} */ (["bygg", "kommentarer", "kommentera", "markeraKlart", "radera"])) {
         if (typeof a[f] !== "function") throw new Error(`${namn}: grupp.arenden.${f} krävs, en funktion. Ärendets form är appens, och en gäst som får röra ärenden måste också gå att radera (radera).`);
@@ -515,6 +557,9 @@ export function createGastService(konfig) {
       if (new Set([a.samling, ...gruppnamn, samlingar.inbjudningar, samlingar.sessioner, samlingar.platser, samlingar.raknare, samlingar.handelser, samlingar.medlemskap ?? "memberships"]).size !== gruppnamn.length + 7) {
         throw new Error(`${namn}: grupp.arenden.samling ska ha ett eget namn, skilt från de andra samlingarna.`);
       }
+    }
+    if (grupp.projekt !== undefined && (!grupp.projekt || typeof grupp.projekt.urval !== "function")) {
+      throw new Error(`${namn}: grupp.projekt är { urval }, en funktion som ger projektet med taggen och vad som hör till det. Ramverket känner inte appens projekt och gissar inget.`);
     }
     GS = {
       samlingar: gs,
@@ -526,6 +571,7 @@ export function createGastService(konfig) {
       omrostning: grupp.omrostning,
       tradar: gs.tradar ?? null,
       bibliotekBas: grupp.bibliotekBas ?? null,
+      projekt: grupp.projekt ?? null,
       // ⛔ FUNKTIONERNA SOM FINNS ÄR DE SOM ÄR KONFIGURERADE. En gruppinbjudan ger fyra, men en ärendeflik utan ärenden bakom sig hade varit en död flik (skiva 3).
       funktioner: GASTGRUPPFUNKTIONER.filter((f) => f !== "arenden" || grupp.arenden !== undefined),
     };
@@ -624,8 +670,9 @@ export function createGastService(konfig) {
     if (rad.skapadAv?.uid === uid) return;
     if (await forvaltar(uid, rad.groupId)) return;
     // ⛔ EN GRUPPINBJUDAN HAR INGEN HÄNDELSE ATT PRÖVA APPENS REGEL MOT: bara den som bjöd och en ägare eller admin i gruppen får röra den.
-    if (rad.omfang?.slag === "grupp") {
-      throw felMedKod("ej-behorig", `${vad}: ${uid} är inte den som bjöd in, och inte admin eller ägare i gruppen. Inbjudan till hela gruppen ändras inte.`);
+    // (0.215.0) Samma för ett projekt: inbjudan har ingen händelse, och den förvaltas som en gruppinbjudan.
+    if (arGruppslag(rad.omfang)) {
+      throw felMedKod("ej-behorig", `${vad}: ${uid} är inte den som bjöd in, och inte admin eller ägare i gruppen. Inbjudan till ${rad.omfang?.slag === "projekt" ? "projektet" : "hela gruppen"} ändras inte.`);
     }
     const h = await kalla.read(HANDELSER, rad.omfang?.handelseId);
     if (h && h.groupId === rad.groupId) {
@@ -905,10 +952,11 @@ export function createGastService(konfig) {
    * Roterar nyckeln på en inbjudan (den gamla slutar fungera) och räknar ett utskick. Försöker om när en annan hann ändra raden.
    *
    * @param {Record<string, any>} rad Raden som den lästes.
+   * @param {{ engangs?: boolean }} [val] (0.215.0) `engangs`: länken ur brevet "Mina inbjudningar", som gäller en gång och `GASTNYLANK_GILTIG_MS`.
    * @returns {Promise<{ rad: Record<string, any>, nyckel: string }>}
    */
-  async function roteraNyckel(rad) {
-    const { rad: ny, nyckel } = await roteraNyckelUtanValv(rad);
+  async function roteraNyckel(rad, val = {}) {
+    const { rad: ny, nyckel } = await roteraNyckelUtanValv(rad, val);
     await sparaIValv(ny, nyckel);
     return { rad: ny, nyckel };
   }
@@ -929,9 +977,11 @@ export function createGastService(konfig) {
 
   /**
    * @param {Record<string, any>} rad
+   * @param {{ engangs?: boolean }} [val] Se `roteraNyckel`. ⛔ VARJE ANNAN ROTATION SÄTTER `engangs: false`: en ny länk från den som bjöd in (Skicka igen) är en vanlig länk, också om förra var en engångslänk.
    * @returns {Promise<{ rad: Record<string, any>, nyckel: string }>}
    */
-  async function roteraNyckelUtanValv(rad) {
+  async function roteraNyckelUtanValv(rad, val = {}) {
+    const engangs = val.engangs === true;
     let aktuell = rad;
     for (let i = 0; i < 4; i++) {
       const nyckel = nyGastnyckel();
@@ -941,7 +991,8 @@ export function createGastService(konfig) {
         tidigareNyckelHashar: tidigareHashar(aktuell),
         skickad: nu,
         antalSkickade: (typeof aktuell.antalSkickade === "number" ? aktuell.antalSkickade : 0) + 1,
-        lankGiltigTill: nu + GASTLANKDAGAR * DYGN_MS,
+        lankGiltigTill: nu + (engangs ? GASTNYLANK_GILTIG_MS : GASTLANKDAGAR * DYGN_MS),
+        engangs,
       });
       if (updated) return { rad: row, nyckel };
       if (!row) break;
@@ -983,21 +1034,24 @@ export function createGastService(konfig) {
    */
   async function bjud(b) {
     const uid = kravText(b?.uid, "uid", "bjud");
-    const grupplage = b?.slag === "grupp";
-    if (b?.slag !== undefined && b.slag !== "grupp" && b.slag !== "sak") throw felMedKod("ogiltigt-omfang", `bjud: slaget ${JSON.stringify(b.slag)} finns inte. Giltiga: sak, grupp.`);
+    // (0.215.0) Ett projekt bjuds in som hela gruppen (`grupplage`), med taggen som enda skillnad. Samma platser, samma roll, samma brev.
+    const projektlage = b?.slag === "projekt";
+    const grupplage = b?.slag === "grupp" || projektlage;
+    if (b?.slag !== undefined && !(/** @type {readonly unknown[]} */ (GASTSLAG)).includes(b.slag)) throw felMedKod("ogiltigt-omfang", `bjud: slaget ${JSON.stringify(b.slag)} finns inte. Giltiga: ${GASTSLAG.join(", ")}.`);
+    if (!projektlage && b?.tagg !== undefined) throw felMedKod("ogiltigt-omfang", "bjud: tagg hör till en inbjudan till ett projekt (slag: \"projekt\").");
     if (grupplage && b?.handelseId !== undefined) throw felMedKod("ogiltigt-omfang", "bjud: en inbjudan till hela gruppen har ingen händelse. Ange antingen handelseId eller slag: \"grupp\".");
     if (grupplage && b?.funktion !== undefined) throw felMedKod("ogiltigt-omfang", "bjud: en inbjudan till hela gruppen har ingen funktion. Funktionen hör till en sak.");
     // (0.203.0) Sant, falskt eller utelämnat, och bara för hela gruppen. En sträng "false" hade varit sann i en jämförelse.
     const laddaNed = b?.laddaNed;
     if (laddaNed !== undefined && typeof laddaNed !== "boolean") throw felMedKod("ogiltigt-omfang", "bjud: laddaNed ska vara sant eller falskt, eller utelämnas.");
-    if (laddaNed !== undefined && !grupplage) throw felMedKod("ogiltigt-omfang", "bjud: laddaNed gäller en inbjudan till hela gruppen (slag: \"grupp\"). En sak har inget bibliotek att ladda ned ur.");
+    if (laddaNed !== undefined && !grupplage) throw felMedKod("ogiltigt-omfang", "bjud: laddaNed gäller en inbjudan till hela gruppen eller ett projekt (slag: \"grupp\" eller \"projekt\"). En sak har inget bibliotek att ladda ned ur.");
     const funktion = b?.funktion === undefined ? /** @type {const} */ ("rosta") : b.funktion;
     if (!(/** @type {readonly unknown[]} */ (GASTFUNKTIONER).includes(funktion))) throw felMedKod("ogiltigt-omfang", `bjud: funktionen ${JSON.stringify(funktion)} finns inte. Giltiga: ${GASTFUNKTIONER.join(", ")}.`);
     if (funktion === "delta" && !DELTA) throw felMedKod("ogiltigt-omfang", "bjud: delta är inte påslaget (createGastService fick ingen delta).");
     const telefonlage = b?.telefon !== undefined;
     if (telefonlage) {
       if (b?.epost !== undefined) throw felMedKod("ogiltig-telefon", "bjud: ange antingen epost eller telefon. En inbjudan gäller en kontakt.");
-      if (!grupplage) throw felMedKod("ogiltigt-omfang", "bjud: en inbjudan med telefon gäller hela gruppen (slag: \"grupp\"). En omröstning och en händelse bjuds in med e-post.");
+      if (!grupplage) throw felMedKod("ogiltigt-omfang", "bjud: en inbjudan med telefon gäller hela gruppen eller ett projekt (slag: \"grupp\" eller \"projekt\"). En omröstning och en händelse bjuds in med e-post.");
       if (normaliseraGasttelefon(b.telefon) === null) throw felMedKod("ogiltig-telefon", "bjud: telefonnumret går inte att använda. Skriv det med riktnummer (070 ...) eller landsnummer (+46 ...).");
       // ⛔ VALVET FÖRE ALLT SOM SKRIVS: utan brev är länken i valvet den enda vägen till gästen.
       if (!VALV) throw felMedKod("ej-konfigurerad", "bjud: en inbjudan med telefon kräver lankvalv. Inget brev skickas, och utan valvet når länken aldrig någon.");
@@ -1020,12 +1074,20 @@ export function createGastService(konfig) {
     let deltaUt = null;
     if (grupplage) {
       if (!GS) throw felMedKod("ogiltigt-omfang", "bjud: gruppgäster är inte påslagna (createGastService fick ingen grupp).");
+      if (projektlage && !GS.projekt) throw felMedKod("ogiltigt-omfang", "bjud: projektgäster är inte påslagna (createGastService fick ingen grupp.projekt).");
+      // ⛔ TAGGENS FORM FÖRE NÅGOT ANNAT: en tagg som inte är en projekttagg når aldrig appens urval eller ett id.
+      const tagg = projektlage ? b?.tagg : null;
+      if (projektlage && (typeof tagg !== "string" || !PROJEKTTAGGFORM.test(tagg))) throw felMedKod("ogiltigt-omfang", `bjud: projektets tagg ${JSON.stringify(tagg)} har fel form: gemener a-z, siffror och bindestreck, högst 24 tecken.`);
       groupId = kravText(b?.groupId, "groupId", "bjud");
       const m = await aktivtMedlemskap(uid, groupId);
       if (!m) throw felMedKod("ej-behorig", `bjud: ${uid} är inte aktiv medlem i gruppen "${groupId}" och får inte bjuda in gäster.`);
-      if (m.roll !== "agare" && m.roll !== "admin") throw felMedKod("ej-behorig", `bjud: ${uid} är inte ägare eller admin i gruppen "${groupId}". Bara de bjuder in en gäst till hela gruppen.`);
+      if (m.roll !== "agare" && m.roll !== "admin") throw felMedKod("ej-behorig", `bjud: ${uid} är inte ägare eller admin i gruppen "${groupId}". Bara de bjuder in en gäst till ${projektlage ? "ett projekt" : "hela gruppen"}.`);
       medlem = m;
-      omfang = { slag: "grupp" };
+      if (projektlage) {
+        // ⛔ PROJEKTET MÅSTE FINNAS NU, I GRUPPEN (appens urval: inte arkiverat). En inbjudan till ett projekt som inte finns hade tagit en plats och skickat ett brev till en tom sida.
+        if (!(await projektUrval(groupId, /** @type {string} */ (tagg)))) throw felMedKod("finns-inte", `bjud: gruppen "${groupId}" har inget projekt med taggen "${tagg}", eller så är det arkiverat.`);
+        omfang = { slag: "projekt", tagg: /** @type {string} */ (tagg) };
+      } else omfang = { slag: "grupp" };
     } else {
       const h = await lasHandelse(handelseId, "bjud");
       groupId = text(h.groupId);
@@ -1149,7 +1211,7 @@ export function createGastService(konfig) {
     if (!GASTINBJUDNINGSIDFORM.test(id)) throw felMedKod("finns-inte", "sattNedladdning: id är en hash på 64 hextecken.");
     const rad = await kalla.read(INB, id);
     if (!rad) throw felMedKod("finns-inte", `sattNedladdning: inbjudan "${id}" finns inte.`);
-    if (rad.omfang?.slag !== "grupp") throw felMedKod("ogiltigt-omfang", `sattNedladdning: inbjudan "${id}" gäller en sak och inte hela gruppen. En sak har inget bibliotek att ladda ned ur.`);
+    if (!arGruppslag(rad.omfang)) throw felMedKod("ogiltigt-omfang", `sattNedladdning: inbjudan "${id}" gäller en sak och inte gruppen eller ett projekt. En sak har inget bibliotek att ladda ned ur.`);
     if (!(await forvaltar(uid, rad.groupId))) throw felMedKod("ej-behorig", `sattNedladdning: ${uid} är inte aktiv ägare eller admin i gruppen "${rad.groupId}". Bara de ändrar en gästs nedladdning.`);
     // Villkorad på att raden fortfarande hör till samma grupp: en rad som raderats under tiden ger `finns-inte` och skapas aldrig på nytt av en uppdatering.
     const { updated } = await uppdateraOm(INB, id, { groupId: rad.groupId }, { laddaNed: pa });
@@ -1173,7 +1235,7 @@ export function createGastService(konfig) {
     await kravForvalta(uid, rad, metod);
     // ⛔ ATT SKICKA OM EN GRUPPINBJUDAN ÄR ATT GE NY ÅTKOMST TILL HELA GRUPPEN, så det kräver ägare eller admin NU. Den som bjöd och sedan blev en vanlig medlem får fortfarande dra tillbaka
     // (en dörr hen öppnat ska hen kunna stänga) men inte öppna den igen. Samma krav gäller att få länken (`kopieraLank`): en länk är en dörr, vare sig den skickas eller kopieras.
-    if (rad.omfang?.slag === "grupp" && !(await forvaltar(uid, rad.groupId))) {
+    if (arGruppslag(rad.omfang) && !(await forvaltar(uid, rad.groupId))) {
       throw felMedKod("ej-behorig", `${metod}: ${uid} är inte ägare eller admin i gruppen. Bara de ${metod === "kopieraLank" ? "hämtar länken till" : "skickar"} en gruppinbjudan.`);
     }
     if (rad.aterkallad !== null) throw felMedKod("aterkallad", `${metod}: inbjudan "${id}" är återkallad. Bjud in på nytt.`);
@@ -1291,10 +1353,10 @@ export function createGastService(konfig) {
           // `harRostat` är appens kunskap om omröstningen: den säger ingenting om en delta-inbjudan.
           // (0.204.0) `laddaNed` på en gruppinbjudan är alltid `true` eller `false`: en rad utan fältet visas som `false`, eftersom den är det (`nedladdningTillaten`). Listan visar aldrig
           // något annat än det servern gör, och `null` ("följer gruppen") finns inte längre när gruppen inte är en del av regeln.
-          const visad = { ...r, laddaNed: r.laddaNed === true, titel: titlar.get(r.omfang?.handelseId) ?? null, status: gastStatus(r, { nu, harRostat: rostat.has(id) && r.omfang?.funktion !== "delta" }), omfang: r.omfang?.slag === "grupp" ? { slag: "grupp" } : { slag: r.omfang?.slag, funktion: r.omfang?.funktion, handelseId: r.omfang?.handelseId } };
+          const visad = { ...r, laddaNed: r.laddaNed === true, titel: titlar.get(r.omfang?.handelseId) ?? null, status: gastStatus(r, { nu, harRostat: rostat.has(id) && r.omfang?.funktion !== "delta" }), omfang: r.omfang?.slag === "grupp" ? { slag: "grupp" } : r.omfang?.slag === "projekt" ? { slag: "projekt", tagg: r.omfang?.tagg } : { slag: r.omfang?.slag, funktion: r.omfang?.funktion, handelseId: r.omfang?.handelseId } };
           // Svaret hör bara till en delta-rad: en omröstnings- och en gruppinbjudan har exakt fälten de hade före 0.146.0.
           // (0.203.0) Nedladdningen hör bara till en gruppinbjudan (`GASTGRUPPLISTFALT`), av samma skäl.
-          const falt = r.omfang?.funktion === "delta" ? [...GASTPERSONINBJUDANFALT, ...GASTDELTALISTFALT] : r.omfang?.slag === "grupp" ? [...GASTPERSONINBJUDANFALT, ...GASTGRUPPLISTFALT] : GASTPERSONINBJUDANFALT;
+          const falt = r.omfang?.funktion === "delta" ? [...GASTPERSONINBJUDANFALT, ...GASTDELTALISTFALT] : arGruppslag(r.omfang) ? [...GASTPERSONINBJUDANFALT, ...GASTGRUPPLISTFALT] : GASTPERSONINBJUDANFALT;
           return Object.fromEntries(falt.map((f) => [f, /** @type {Record<string, any>} */ (visad)[f]]));
         });
         const status = inbjudningar.map((i) => i.status).sort((x, y) => ordning.indexOf(x) - ordning.indexOf(y))[0];
@@ -1405,6 +1467,15 @@ export function createGastService(konfig) {
       await ge();
       return orsak("utgangen");
     }
+    // ⛔ (0.215.0, lifehub.app#760 skiva 3) EN ENGÅNGSLÄNK FÖRBRUKAS NÄR DEN LÖSES IN, inte när den prövas (`prova` skapar ingenting). Villkoret på nyckeln och märket gör att två samtidiga inlösen ger
+    // exakt en session: den andra ser en ändrad rad och får `utgangen`, samma svar som en förbrukad länk, och sidan erbjuder Skicka en ny länk.
+    if (vad === "los" && rad.engangs === true) {
+      const { updated } = await uppdateraOm(INB, id, { nyckelHash: rad.nyckelHash, engangs: true }, { engangs: false, lankGiltigTill: klocka() });
+      if (!updated) {
+        await ge();
+        return orsak("utgangen");
+      }
+    }
 
     await ge();
     return { ok: true, id };
@@ -1434,22 +1505,43 @@ export function createGastService(konfig) {
    * bekräftade adressen, samma bevis som `nyLank` använder för att skicka en ny länk, och en gäst som inte svarat på 30 dagar ska inte försvinna ur hubben för att mejlet blev gammalt. En inbjudan till en omröstning eller en händelse är inte en grupp och listas inte.
    * ⛔ INGEN ADRESS, INGET NAMN PÅ ANDRA OCH INGEN NYCKEL I SVARET: `{ id, groupId, namn }`, med gruppens namn ur appens egen läsning.
    *
+   * ⛔ (0.215.0, lifehub.app#760 skiva 4) OCKSÅ ETT PROJEKT: en levande inbjudan till ett projekt som finns (appens `grupp.projekt.urval`, som varje projektåtgärd läser) ger en rad med `projekt: { tagg, namn }`,
+   * projektets namn ur appen och taggen ur inbjudan. Ett projekt som tagits bort eller arkiverats ger ingen rad: raden hade lett till en sida som säger att projektet saknas. Ett urval som kastar ger ingen rad, och de
+   * andra raderna står kvar. Kontot är bara en genväg: raden öppnar gästsidan, med samma session som länken ger (`oppnaGruppgast`).
+   *
    * @param {Record<string, any>} b `{ epost, epostBekraftad }`.
-   * @returns {Promise<{ gruppgaster: Array<{ id: string, groupId: string, namn: string }> }>}
+   * @returns {Promise<{ gruppgaster: Array<{ id: string, groupId: string, namn: string, projekt?: { tagg: string, namn: string } }> }>}
    */
   async function minaGruppgaster(b) {
     if (b?.epostBekraftad !== true) return { gruppgaster: [] };
     const epost = normaliseraGastepost(b?.epost, extraSparrade);
     if (epost === null || !GS) return { gruppgaster: [] };
-    const rader = (await kalla.list(INB, { where: { epost } })).filter((r) => r.omfang?.slag === "grupp" && r.aterkallad === null);
-    /** @type {Array<{ id: string, groupId: string, namn: string }>} */
+    const rader = (await kalla.list(INB, { where: { epost } })).filter((r) => (r.omfang?.slag === "grupp" || (r.omfang?.slag === "projekt" && GS.projekt)) && r.aterkallad === null);
+    /** @type {Array<{ id: string, groupId: string, namn: string, projekt?: { tagg: string, namn: string } }>} */
     const ut = [];
     for (const r of rader) {
       const g = await kalla.read(GS.samlingar.grupper, r.groupId);
       if (!g) continue;
+      if (r.omfang.slag === "projekt") {
+        const tagg = r.omfang.tagg;
+        if (typeof tagg !== "string" || !PROJEKTTAGGFORM.test(tagg)) continue;
+        /** @type {Gastprojekturval | null} */
+        let p = null;
+        try {
+          p = await projektUrval(String(r.groupId), tagg);
+        } catch (fel) {
+          rapportera(fel);
+          p = null;
+        }
+        if (!p) continue;
+        // ⛔ (#760, granskningen B1) RADEN HETER PROJEKTET, ALDRIG GRUPPEN: en projektgäst ser aldrig gruppens namn (`hamta`, brevet, växlaren). Kontot är en genväg till samma gästsida och får inte säga mer än länken.
+        ut.push({ id: String(r.id), groupId: String(r.groupId), namn: text(p.namn), projekt: { tagg, namn: text(p.namn) } });
+        continue;
+      }
       ut.push({ id: String(r.id), groupId: String(r.groupId), namn: text(g.namn) });
     }
-    return { gruppgaster: ut.sort((x, y) => x.namn.localeCompare(y.namn, "sv") || x.id.localeCompare(y.id)) };
+    const etikett = (/** @type {{ namn: string, projekt?: { namn: string } }} */ x) => `${x.namn}${x.projekt ? ` ${x.projekt.namn}` : ""}`;
+    return { gruppgaster: ut.sort((x, y) => x.namn.localeCompare(y.namn, "sv") || Number(Boolean(x.projekt)) - Number(Boolean(y.projekt)) || etikett(x).localeCompare(etikett(y), "sv") || x.id.localeCompare(y.id)) };
   }
 
   /**
@@ -1475,7 +1567,8 @@ export function createGastService(konfig) {
     const epost = normaliseraGastepost(b?.epost, extraSparrade);
     // Båda jämförelserna görs alltid, så att tiden inte säger vilken av dem som var fel.
     const epostStammer = epost !== null && likaHash(hash(epost), hash(text(rad.epost)));
-    if (b?.epostBekraftad !== true || !epostStammer || rad.omfang?.slag !== "grupp" || !GS) return nej();
+    // (0.215.0, lifehub.app#760 skiva 4) Hela gruppen eller ett projekt (`arGruppslag`): samma session som länken ger, och sessionens egen prövning (taggens form, projektet i varje åtgärd) gäller som för länken.
+    if (b?.epostBekraftad !== true || !epostStammer || !arGruppslag(rad.omfang) || (rad.omfang?.slag === "projekt" && !GS?.projekt) || !GS) return nej();
     const ge = () => aterlamna(RAKNARE, ipRes.id, RAKNEFALT, ipRes.fonster);
     if (rad.aterkallad !== null) {
       await ge();
@@ -1490,7 +1583,7 @@ export function createGastService(konfig) {
    * Prövar en session: den finns, har inte stått oanvänd i `GASTSESSIONSDAGAR` dagar, och dess inbjudan finns och är aktiv. Läser inbjudan på nytt varje gång.
    *
    * @param {Record<string, any>} b `{ sessionsnyckel, krav?: { slag?, funktion } }`. `krav` är vad anropet gäller: en inbjudan som inte ger funktionen (eller inte är av slaget) nekas som en okänd session.
-   * @returns {Promise<{ ok: true, gastId: string, inbjudan: { id: string, groupId: string, slag: "sak" | "grupp", handelseId: string | null, funktion: string, namn: string, laddaNed?: boolean } } | { ok: false, orsak: Gastorsak }>}
+   * @returns {Promise<{ ok: true, gastId: string, inbjudan: { id: string, groupId: string, slag: "sak" | "grupp" | "projekt", handelseId: string | null, funktion: string, namn: string, tagg?: string, laddaNed?: boolean } } | { ok: false, orsak: Gastorsak }>}
    */
   async function session(b) {
     const nyckel = b?.sessionsnyckel;
@@ -1509,17 +1602,22 @@ export function createGastService(konfig) {
     // ⛔ KRAVET PRÖVAS MOT OMFÅNGET (`gastOmfangGer`), ETT HEM: en omröstningsgäst ger aldrig en gruppfunktion, och en gruppgäst aldrig `rosta` på en sak.
     if (b?.krav && !gastOmfangGer(rad.omfang, b.krav)) return nej();
     if (nu - s.senast > SESSIONSUPPDATERING_MS) await uppdateraOm(SESS, sid, { senast: s.senast }, { senast: nu });
-    const grupplage = rad.omfang?.slag === "grupp";
+    const grupplage = arGruppslag(rad.omfang);
+    const projektlage = rad.omfang?.slag === "projekt";
+    // ⛔ (0.215.0) EN PROJEKTRAD MED EN TAGG UTAN FORM ÄR ETT NEJ, INTE EN GISSNING: taggen avgör allt gästen ser, och en rad som inte går att läsa ska stänga.
+    if (projektlage && (typeof rad.omfang.tagg !== "string" || !PROJEKTTAGGFORM.test(rad.omfang.tagg))) return nej();
     return {
       ok: true,
       gastId: gastId(radensKontakt(rad)),
       inbjudan: {
         id: rad.id,
         groupId: rad.groupId,
-        slag: /** @type {"sak" | "grupp"} */ (grupplage ? "grupp" : "sak"),
+        slag: /** @type {"sak" | "grupp" | "projekt"} */ (projektlage ? "projekt" : grupplage ? "grupp" : "sak"),
         handelseId: grupplage ? null : rad.omfang.handelseId,
-        funktion: grupplage ? "grupp" : rad.omfang.funktion,
+        funktion: projektlage ? "projekt" : grupplage ? "grupp" : rad.omfang.funktion,
         namn: text(rad.namn),
+        // (0.215.0) Projektets tagg, ur inbjudan. Aldrig ur anropet.
+        ...(projektlage ? { tagg: /** @type {string} */ (rad.omfang.tagg) } : {}),
         // (0.203.0) Bara en gruppsession: gästens egen nedladdning. (0.204.0) Alltid `true` eller `false`, och en rad utan fältet är `false` (`nedladdningTillaten`). En sak har inget sådant fält.
         ...(grupplage ? { laddaNed: rad.laddaNed === true } : {}),
       },
@@ -1535,6 +1633,7 @@ export function createGastService(konfig) {
     const s = await session({ sessionsnyckel: b?.sessionsnyckel });
     if (!s.ok) return s;
     if (s.inbjudan.slag === "grupp") return hamtaGrupp(s);
+    if (s.inbjudan.slag === "projekt") return hamtaProjekt(s);
     // ⛔ EN DELTA-GÄST FÅR ALDRIG APPENS `sak.bygg`: det är omröstningens kort, med förslag och röster. Hens svar byggs fält för fält ur `GASTDELTAHANDELSEFALT`.
     if (s.inbjudan.funktion === "delta") return hamtaDelta(s);
     const h = await kalla.read(HANDELSER, /** @type {string} */ (s.inbjudan.handelseId));
@@ -1585,24 +1684,35 @@ export function createGastService(konfig) {
    * @returns {Promise<{ ok: true, svar: string }>}
    */
   async function nyLank(b) {
-    const ipHash = ipId(b?.ip, "nyLank", "nylank");
+    // ⛔ (0.215.0, lifehub.app#760 skiva 3) GOLVET GÄLLER VARJE VÄG UT, också taket per IP och en adress som inte går att läsa: ett svar som kom snabbare på ett sätt än ett annat hade sagt vad som hände.
+    const golv = Date.now() + Math.max(0, Number(nyLankGolvMs) || 0);
     const svar = { ok: /** @type {const} */ (true), svar: GASTNYLANK_SVAR };
-    if (!(await reserveraRaknare(ipHash, { max: GASTNYLANKIP_MAX, fonsterMs: GASTNYLANKIP_FONSTER_MS }))) return svar;
-    if (b?.id !== undefined || b?.nyckel !== undefined) {
-      await nyLankForLank(b);
+    try {
+      const ipHash = ipId(b?.ip, "nyLank", "nylank");
+      if (!(await reserveraRaknare(ipHash, { max: GASTNYLANKIP_MAX, fonsterMs: GASTNYLANKIP_FONSTER_MS }))) return svar;
+      if (b?.id !== undefined || b?.nyckel !== undefined) {
+        await nyLankForLank(b);
+        return svar;
+      }
+      const epost = normaliseraGastepost(b?.epost, extraSparrade);
+      if (epost === null) return svar;
+      // ⛔ GRUPPLÄNKEN KOMMER FÖRST (0.132.0). Brevet bär högst `GASTNYLANK_MAX_LANKAR` länkar, och sorterat på `skapad` ensam kan hela gruppen hamna utanför när personen har fler omröstningar: den inbjudan
+      // som ger mest är den som inte får tappas. Därefter nyast först, som förut. (0.215.0) Resten räknas (`fler`), och länkarna gäller en gång och ett dygn (`GASTNYLANK_GILTIG_MS`).
+      await skickaNyaLankar(
+        epost,
+        async () => {
+          const alla = (await kalla.list(INB, { where: { epost } }))
+            .filter((r) => r.aterkallad === null)
+            .sort((x, y) => Number(arGruppslag(y.omfang)) - Number(arGruppslag(x.omfang)) || y.skapad - x.skapad);
+          return { rader: alla.slice(0, GASTNYLANK_MAX_LANKAR), fler: Math.max(0, alla.length - GASTNYLANK_MAX_LANKAR) };
+        },
+        { engangs: true },
+      );
       return svar;
+    } finally {
+      const kvar = golv - Date.now();
+      if (kvar > 0) await new Promise((r) => setTimeout(r, kvar));
     }
-    const epost = normaliseraGastepost(b?.epost, extraSparrade);
-    if (epost === null) return svar;
-    // ⛔ GRUPPLÄNKEN KOMMER FÖRST (0.132.0). Brevet bär högst `GASTNYLANK_MAX_LANKAR` länkar, och sorterat på `skapad` ensam kan hela gruppen hamna utanför när personen har fler omröstningar: den inbjudan
-    // som ger mest är den som inte får tappas. Därefter nyast först, som förut.
-    await skickaNyaLankar(epost, async () =>
-      (await kalla.list(INB, { where: { epost } }))
-        .filter((r) => r.aterkallad === null)
-        .sort((x, y) => Number(y.omfang?.slag === "grupp") - Number(x.omfang?.slag === "grupp") || y.skapad - x.skapad)
-        .slice(0, GASTNYLANK_MAX_LANKAR),
-    );
-    return svar;
   }
 
   /**
@@ -1631,7 +1741,7 @@ export function createGastService(konfig) {
     // Raden läses om i `skickaNyaLankar`: den som lästes ovan har en räknare som just ändrats, och rotationen villkoras på nyckelns hash.
     await skickaNyaLankar(kontakt.varde, async () => {
       const aktuell = await kalla.read(INB, id);
-      return aktuell && aktuell.aterkallad === null && aktuell.nyckelHash === rad.nyckelHash ? [aktuell] : [];
+      return { rader: aktuell && aktuell.aterkallad === null && aktuell.nyckelHash === rad.nyckelHash ? [aktuell] : [], fler: 0 };
     });
   }
 
@@ -1639,11 +1749,12 @@ export function createGastService(konfig) {
    * Brevet med nya länkar, för båda vägarna i `nyLank`: taket per adress och dygn, nya nycklar (de gamla slutar fungera) och ett brev av typen `ny-lank` till adressen. Fel kastas aldrig ut:
    * de rapporteras, eftersom svaret till den som bad är detsamma hur det än gick.
    * @param {string} epost Adressen brevet går till, normaliserad.
-   * @param {() => Promise<Record<string, any>[]>} rader Inbjudningarna som får nya länkar. Läses först när taket släppt igenom.
+   * @param {() => Promise<{ rader: Record<string, any>[], fler: number }>} lasRader Inbjudningarna som får nya länkar, och hur många som inte fick plats. Läses först när taket släppt igenom.
+   * @param {{ engangs?: boolean }} [val] (0.215.0) `engangs`: brevet "Mina inbjudningar", vars länkar gäller en gång och ett dygn.
    */
-  async function skickaNyaLankar(epost, rader) {
+  async function skickaNyaLankar(epost, lasRader, val = {}) {
     if (!(await reserveraRaknare(hash(`nylank-epost|${gastId(epost)}`), { max: GASTNYLANK_BREV_PER_DYGN, fonsterMs: DYGN_MS }))) return;
-    const aktiva = await rader();
+    const { rader: aktiva, fler } = await lasRader();
     if (aktiva.length === 0) return;
     try {
       const lankar = [];
@@ -1655,11 +1766,11 @@ export function createGastService(konfig) {
           if (!h || h.arkiverad === true || h.groupId !== r.groupId) continue;
           delta = deltaHandelseUt(h);
         }
-        const { rad, nyckel } = await roteraNyckel(r);
+        const { rad, nyckel } = await roteraNyckel(r, { engangs: val.engangs === true });
         lankar.push(brevlank(rad, nyckel, delta ? { ut: delta, sekvens: await sekvensForUtskick(rad, delta) } : null));
       }
       if (lankar.length === 0) return;
-      await skicka({ typ: "ny-lank", till: epost, namn: text(aktiva[0].namn), lankar, skickadAv: null });
+      await skicka({ typ: "ny-lank", till: epost, namn: text(aktiva[0].namn), lankar, skickadAv: null, ...(val.engangs === true ? { engangs: true, fler } : {}) });
     } catch (fel) {
       rapportera(fel);
     }
@@ -1713,10 +1824,71 @@ export function createGastService(konfig) {
    */
   async function gruppSession(b, funktion) {
     if (!GS) return nej();
-    const s = await session({ sessionsnyckel: b?.sessionsnyckel, krav: { slag: "grupp", funktion } });
+    // (0.215.0) Kravet gäller en gäst i gruppen, hela gruppen eller ett projekt (`GASTGRUPPSLAG`). Ett projektomfång ger bara `GASTPROJEKTFUNKTIONER` (`gastOmfangGer`). Projektgästens `chatt` är projektets egen (`chattFor`).
+    const s = await session({ sessionsnyckel: b?.sessionsnyckel, krav: { slag: GASTGRUPPSLAG, funktion } });
     if (!s.ok) return s;
     if (!(await reserveraAnrop(s.inbjudan.id))) return orsak("for-manga");
-    return s;
+    const groupId = s.inbjudan.groupId;
+    if (s.inbjudan.slag !== "projekt") return { ...s, projekt: /** @type {Gastprojekturval | null} */ (null), plats: groupId };
+    // ⛔ PROJEKTET LÄSES VARJE GÅNG, ur appen och med taggen ur inbjudan. Ett projekt som arkiverats eller tagits bort stänger allt vid nästa anrop, som en återkallelse.
+    if (!GS.projekt) return nej();
+    const tagg = /** @type {string} */ (s.inbjudan.tagg);
+    const p = await projektUrval(groupId, tagg);
+    if (!p) return orsak("saknas");
+    return { ...s, projekt: p, plats: platsBibliotek(groupId, tagg) };
+  }
+
+  /**
+   * (0.215.0) Släpper projektets urval in raden? ⛔ BARA ETT UTTRYCKLIGT `true` ÄR JA, och en funktion som kastar är ett nej: ett fel i appens urval ska stänga, aldrig öppna.
+   * @param {(rad: Record<string, any>) => boolean} fn
+   * @param {Record<string, any>} rad
+   */
+  function hor(fn, rad) {
+    try {
+      return fn({ ...rad }) === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * (0.215.0) Projektet ur appen (`grupp.projekt.urval`), prövat: `null` när det inte finns. ⛔ ETT SVAR SOM INTE HAR FORMEN ÄR ETT FEL I APPEN OCH KASTAR, aldrig en gissning: `handelse` och `arende` avgör vad en
+   * gäst ser, och en saknad funktion som tolkats som "allt" hade öppnat hela gruppen.
+   * @param {string} groupId
+   * @param {string} tagg
+   * @returns {Promise<Gastprojekturval | null>}
+   */
+  async function projektUrval(groupId, tagg) {
+    if (!GS?.projekt) return null;
+    const p = await GS.projekt.urval({ groupId, tagg });
+    if (p === null || p === undefined) return null;
+    if (typeof p !== "object" || typeof p.namn !== "string" || p.namn.trim() === "" || typeof p.handelse !== "function" || typeof p.arende !== "function") {
+      throw new Error("grupp.projekt.urval: svaret är null eller { namn, status, texter, handelse, arende } där handelse och arende är funktioner.");
+    }
+    return p;
+  }
+
+  /**
+   * (0.215.0) `hamta` för en projektinbjudan: projektets namn som rubrik, funktionerna (`GASTPROJEKTFUNKTIONER` som tjänsten har) och kortet (`GASTPROJEKTKORTFALT`). Formen är gruppens (`funktion: "grupp"`),
+   * så att sidan ritar samma vy. Ingen beskrivning av gruppen, och `kommentera` är falskt: en kommentar på en post skrivs i gruppens chatt, som en projektgäst inte ser.
+   * @param {{ gastId: string, inbjudan: { id: string, groupId: string, namn: string, tagg?: string, laddaNed?: boolean } }} s
+   */
+  async function hamtaProjekt(s) {
+    if (!GS?.projekt) return nej();
+    if (!(await reserveraAnrop(s.inbjudan.id))) return orsak("for-manga");
+    const tagg = /** @type {string} */ (s.inbjudan.tagg);
+    const p = await projektUrval(s.inbjudan.groupId, tagg);
+    if (!p) return orsak("saknas");
+    const par = (/** @type {any} */ v) => ({ sv: text(v?.sv), en: text(v?.en) || text(v?.sv) });
+    const texter = (Array.isArray(p.texter) ? p.texter : [])
+      .map((x) => ({ rubrik: par(x?.rubrik), text: text(x?.text) }))
+      .filter((x) => x.text !== "" && x.rubrik.sv !== "");
+    const kort = vitlista({ tagg, status: par(p.status), texter }, GASTPROJEKTKORTFALT);
+    const funktioner = GS.funktioner.filter((f) => /** @type {readonly string[]} */ (GASTPROJEKTFUNKTIONER).includes(f));
+    // ⛔ (0.215.0, #760) INGET `gruppnamn` FÖR ETT PROJEKT: en projektgäst ser aldrig gruppens namn (skiva 1, brevet och sidan säger projektets). Mätt 2026-11-11: skiva 3 gav det här, och appens prov för skiva 1
+    // ("hamta läcker GRUPPENS-NAMN") blev rött. Växlaren samlar projektet under projektets eget namn.
+    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", grupp: vitlista({ namn: text(p.namn), funktioner, nedladdning: nedladdningTillaten(s.inbjudan), kommentera: false, beskrivning: "", projekt: kort }, GASTGRUPPSVARSFALT.hamta) };
+    return Object.fromEntries(Object.entries(svar).filter(([k]) => /** @type {readonly string[]} */ (GASTSVARSFALT).includes(k)));
   }
 
   /**
@@ -1744,7 +1916,7 @@ export function createGastService(konfig) {
     if (!(await reserveraAnrop(s.inbjudan.id))) return orsak("for-manga");
     const g = await kalla.read(GS.samlingar.grupper, s.inbjudan.groupId);
     if (!g) return orsak("saknas");
-    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", grupp: vitlista({ namn: text(g.namn), funktioner: [...GS.funktioner], nedladdning: nedladdningTillaten(s.inbjudan), kommentera: Boolean(GS.tradar && GS.bibliotekBas), beskrivning: text(g.beskrivning).slice(0, MAX_GRUPPBESKRIVNING) }, GASTGRUPPSVARSFALT.hamta) };
+    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", gruppnamn: text(g.namn), grupp: vitlista({ namn: text(g.namn), funktioner: [...GS.funktioner], nedladdning: nedladdningTillaten(s.inbjudan), kommentera: Boolean(GS.tradar && GS.bibliotekBas), beskrivning: text(g.beskrivning).slice(0, MAX_GRUPPBESKRIVNING) }, GASTGRUPPSVARSFALT.hamta) };
     return Object.fromEntries(Object.entries(svar).filter(([k]) => /** @type {readonly string[]} */ (GASTSVARSFALT).includes(k)));
   }
 
@@ -1755,16 +1927,25 @@ export function createGastService(konfig) {
   const kapa = (t, max) => (t.length > max ? `${t.slice(0, max - 1)}…` : t);
 
   /**
-   * Gruppchattens sökväg, och (0.191.0) en tråds.
-   * @param {string} groupId
+   * Gruppchattens sökväg, och (0.191.0) en tråds. (0.215.0) `groupId` kan också vara ett projekts chatt, `{ sid }` ur `chattFor`: samma undersamlingar, en annan nyckel.
+   * @param {string | { sid: string }} chatt
    */
-  const chattvag = (groupId) => `${GS?.samlingar.samtal}/${samtalsnyckel({ groupId, slag: "grupp" })}`;
-  /** @param {string} groupId */
-  const meddelandevag = (groupId) => `${chattvag(groupId)}/${GS?.samlingar.meddelanden}`;
+  const chattvag = (chatt) => `${GS?.samlingar.samtal}/${typeof chatt === "string" ? samtalsnyckel({ groupId: chatt, slag: "grupp" }) : chatt.sid}`;
+  /** @param {string | { sid: string }} chatt */
+  const meddelandevag = (chatt) => `${chattvag(chatt)}/${GS?.samlingar.meddelanden}`;
   /** @param {string} groupId */
   const tradvag = (groupId) => `${chattvag(groupId)}/${GS?.tradar}`;
   /** @param {string} groupId @param {string} trad */
   const tradmeddelandevag = (groupId, trad) => `${tradvag(groupId)}/${trad}/${GS?.samlingar.meddelanden}`;
+
+  /**
+   * (0.215.0, cllp/lifehub.app#760 skiva 2) Chatten som sessionen når: gruppens, eller för en projektgäst projektets egen (`<grupp>|projekt|<tagg>`), med taggen ur inbjudan och aldrig ur anropet.
+   * ⛔ EN PROJEKTGÄST NÅR BARA PROJEKTETS CHATT, och en gäst i hela gruppen bara gruppchatten: inbjudan pekar ut ETT samtal. En gruppgäst som också läst projektens chattar hade behövt en lista över
+   * samtal, och det är ett eget beslut (förslaget CP sa kör på: "En gäst i projektet når bara den chatten och aldrig gruppens.").
+   * @param {{ inbjudan: { groupId: string, tagg?: string }, projekt: unknown }} s
+   * @returns {string | { sid: string }}
+   */
+  const chattFor = (s) => (s.projekt ? { sid: samtalsnyckel({ groupId: s.inbjudan.groupId, slag: "projekt", tagg: /** @type {string} */ (s.inbjudan.tagg) }) } : s.inbjudan.groupId);
 
   /**
    * Avsändarna i gruppen, för namnen och för att dölja agenten.
@@ -1823,7 +2004,7 @@ export function createGastService(konfig) {
   /**
    * Ett meddelande i den form en gäst ser det (`GASTCHATTFALT`). En form för huvudchatten, tråden och roten.
    * @param {Record<string, any>} m
-   * @param {{ groupId: string, gastId: string, sida: Record<string, any>[], namnFor: Map<string, string>, agenter: Set<string>, lasta: Map<string, Promise<any>>, medSvar: boolean }} c
+   * @param {{ groupId: string, plats?: string, gastId: string, sida: Record<string, any>[], namnFor: Map<string, string>, agenter: Set<string>, lasta: Map<string, Promise<any>>, medSvar: boolean }} c
    */
   async function chattrad(m, c) {
     // En gäst som skrivit bär sitt namn på meddelandet (`avNamn`, satt av `skrivChatt`) eller "Gäst". Märket Gäst härleds ur `av` (`arGastId`) och ingenting annat.
@@ -1844,7 +2025,8 @@ export function createGastService(konfig) {
     const citerad = typeof m.svarPa === "string" ? c.sida.find((x) => x.id === m.svarPa) : null;
     if (citerad) extra.svarPa = { id: citerad.id, namn: namnPa(citerad.av), text: kapa(typeof citerad.text === "string" ? citerad.text : "", 140) };
     if (m.bilaga && typeof m.bilaga === "object") extra.bilaga = { namn: text(m.bilaga.namn), typ: text(m.bilaga.typ) };
-    const [kort, svar] = await Promise.all([kortFor(m.text, c.groupId, c.lasta), c.medSvar ? antalSvar(c.groupId, m.id, c.agenter) : Promise.resolve(null)]);
+    // (0.215.0) Korten gäller platsen gästen ser: gruppens, eller projektets (`c.plats`).
+    const [kort, svar] = await Promise.all([kortFor(m.text, c.plats ?? c.groupId, c.lasta), c.medSvar ? antalSvar(c.groupId, m.id, c.agenter) : Promise.resolve(null)]);
     if (kort.length > 0) extra.kort = kort;
     if (typeof svar === "number" && svar > 0) extra.svar = svar;
     return vitlista({ ...ut, ...extra }, GASTCHATTFALT);
@@ -1874,8 +2056,9 @@ export function createGastService(konfig) {
       if (b?.[f] !== undefined && !Number.isFinite(b[f])) throw new Error(`chatt: ${f} är ett tal, millisekunder.`);
     }
     const groupId = s.inbjudan.groupId;
-    if (b?.trad !== undefined) return lasTrad(s, b);
-    const vag = meddelandevag(groupId);
+    // ⛔ (0.215.0) Projektets chatt har inga trådar (reglerna: trådar bara i gruppchatten), så en tråd är ett nej för en projektgäst, som för en grupp utan trådar.
+    if (b?.trad !== undefined) return s.projekt ? nej() : lasTrad(s, b);
+    const vag = meddelandevag(chattFor(s));
     if (b?.nyast !== undefined) {
       const [sen] = await kalla.list(vag, { sortBy: "tid", direction: "desc", limit: 1 });
       if (!sen || !(sen.tid > b.nyast)) return { ok: true, meddelanden: [], fler: false, ingetNytt: true };
@@ -1884,7 +2067,7 @@ export function createGastService(konfig) {
     const fler = rader.length > GASTCHATT_SIDA;
     const sida = rader.slice(0, GASTCHATT_SIDA).reverse();
     const { namnFor, agenter } = await chattavsandare(groupId);
-    const c = { groupId, gastId: s.gastId, sida, namnFor, agenter, lasta: new Map(), medSvar: true };
+    const c = { groupId, plats: s.plats, gastId: s.gastId, sida, namnFor, agenter, lasta: new Map(), medSvar: !s.projekt };
     const meddelanden = await Promise.all(sida.filter((m) => !agenter.has(m.av)).map((m) => chattrad(m, c)));
     return vitlista({ ok: true, meddelanden, fler }, GASTGRUPPSVARSFALT.chatt);
   }
@@ -1945,6 +2128,17 @@ export function createGastService(konfig) {
   }
 
   /**
+   * (0.215.0) Skapar projektets chatt om den inte finns, så att medlemmarna hittar den (`createSamtalskalla({ projekt: true })` frågar på samtalsdokumenten). Unikheten är id:t (`createNew`).
+   * ⛔ `skapadAv` ÄR GRUPPENS AGENT OCH INTE GÄSTEN: ett `g_`-id på samtalet hade varit en uppgift om gästen som raderingen fick leta upp, och agenten är ingen person. Fälten är modellens (`byggSamtal`).
+   * @param {string} groupId @param {string} sid @param {number} tid
+   */
+  async function oppnaProjektchatt(groupId, sid, tid) {
+    const tagg = /** @type {string} */ (projekttaggUr(sid, groupId));
+    const { id, ...falt } = byggSamtal({ groupId, slag: "projekt", tagg, skapad: tid, skapadAv: agentId(groupId) });
+    await skapaNy(/** @type {string} */ (GS?.samlingar.samtal), { id, ...falt });
+  }
+
+  /**
    * Gästen skriver ett meddelande i gruppens chatt (0.132.0, CP 2026-10-20: "Gästen får skriva"), och (0.191.0, med `grupp.samlingar.tradar`) ett svar i en tråd (`trad`).
    *
    * ⛔ SERVERN SKRIVER, ALDRIG KLIENTEN, OCH ALDRIG SOM EN MEDLEM. Meddelandet får `av` = gästens `g_`-id (inget uid), gästens namn som `avNamn` och inget annat fält: ingen bilaga,
@@ -1971,8 +2165,10 @@ export function createGastService(konfig) {
     const trad = b?.trad === undefined ? null : kravTrad(b.trad, "skrivChatt");
     const t = gastText(b, "skrivChatt", { medCitat: trad === null });
     const svarPa = b?.svarPa === undefined ? null : kravTrad(b.svarPa, "skrivChatt", "svarPa");
-    if (trad !== null && !GS.tradar) return nej();
+    // ⛔ (0.215.0) Ingen tråd i projektets chatt, som för en grupp utan trådar.
+    if (trad !== null && (!GS.tradar || s.projekt)) return nej();
     const groupId = s.inbjudan.groupId;
+    const chatt = chattFor(s);
     if (trad !== null) {
       const rot = await kalla.read(meddelandevag(groupId), trad);
       if (!rot || (await chattavsandare(groupId)).agenter.has(rot.av)) return orsak("saknas");
@@ -1980,7 +2176,7 @@ export function createGastService(konfig) {
     /** @type {Record<string, any> | null} */
     let citerad = null;
     if (svarPa !== null) {
-      citerad = await kalla.read(meddelandevag(groupId), svarPa);
+      citerad = await kalla.read(meddelandevag(chatt), svarPa);
       if (!citerad || (await chattavsandare(groupId)).agenter.has(citerad.av)) return orsak("saknas");
     }
     const takt = await reserveraRaknare(hash(`gastskriv|${s.inbjudan.id}`), { max: GASTSKRIV_PER_MINUT, fonsterMs: MINUT_MS });
@@ -1994,7 +2190,8 @@ export function createGastService(konfig) {
     let sparad;
     try {
       if (trad !== null) await oppnaTradForGast(groupId, trad, s.gastId, tid);
-      sparad = await kalla.create(trad !== null ? tradmeddelandevag(groupId, trad) : meddelandevag(groupId), rad);
+      if (typeof chatt !== "string") await oppnaProjektchatt(groupId, chatt.sid, tid);
+      sparad = await kalla.create(trad !== null ? tradmeddelandevag(groupId, trad) : meddelandevag(chatt), rad);
     } catch (fel) {
       await aterlamna(RAKNARE, takt.id, RAKNEFALT, takt.fonster);
       throw fel;
@@ -2004,7 +2201,7 @@ export function createGastService(konfig) {
     if (citerad) {
       // Citatet i svaret i samma form som `chatt` ger det (`chattrad`), så att det syns hos gästen direkt och inte först vid nästa hämtning.
       const { namnFor, agenter } = await chattavsandare(groupId);
-      const form = await chattrad({ ...rad, id: sparad.id }, { groupId, gastId: s.gastId, sida: [citerad], namnFor, agenter, lasta: new Map(), medSvar: false });
+      const form = await chattrad({ ...rad, id: sparad.id }, { groupId, plats: s.plats, gastId: s.gastId, sida: [citerad], namnFor, agenter, lasta: new Map(), medSvar: false });
       if (form.svarPa) citat.svarPa = form.svarPa;
     }
     return vitlista(
@@ -2029,7 +2226,8 @@ export function createGastService(konfig) {
   async function kommenteraPost(b) {
     const s = await gruppSession(b, "chatt");
     if (!s.ok || !GS) return s.ok ? nej() : s;
-    if (!GS.tradar || !GS.bibliotekBas) return nej();
+    // ⛔ (0.215.0) En projektgäst kommenterar inte: kommentaren är en tråd i gruppchatten, som hen inte ser (`hamtaProjekt` säger `kommentera: false`).
+    if (!GS.tradar || !GS.bibliotekBas || s.projekt) return nej();
     const t = gastText(b, "kommenteraPost");
     const groupId = s.inbjudan.groupId;
     const postId = typeof b?.postId === "string" ? b.postId : "";
@@ -2114,9 +2312,11 @@ export function createGastService(konfig) {
   /**
    * Gruppens händelser som en gäst ser dem (`handelseUt`), i datumordning: ⛔ EN LÄSNING FÖR KALENDERN OCH ÖVERSIKTEN (0.198.0), så att nästa händelse på översikten aldrig är en som kalendern inte visar.
    * Högst `GASTKALENDER_MAX`; `avkortad` och `ejVisade` (en tid som inte går att läsa) räknas här.
+   * (0.215.0) Med `projekt` bara de händelser projektets urval släpper in (`handelse`), och samma läsning för kalendern och översikten.
    * @param {string} groupId
+   * @param {Gastprojekturval | null} [projekt]
    */
-  async function gruppensHandelser(groupId) {
+  async function gruppensHandelser(groupId, projekt = null) {
     const rader = await kalla.list(HANDELSER, { where: { groupId }, limit: GASTKALENDER_MAX + 1 });
     const avkortad = rader.length > GASTKALENDER_MAX;
     let ejVisade = 0;
@@ -2124,6 +2324,8 @@ export function createGastService(konfig) {
     const handelser = [];
     for (const h of rader.slice(0, GASTKALENDER_MAX)) {
       if (h.arkiverad === true) continue;
+      // ⛔ (0.215.0) ETT PROJEKT SER BARA SINA HÄNDELSER, och urvalet görs före allt annat: en händelse utanför projektet räknas inte ens bland `ejVisade`, så att talet inte säger något om gruppen.
+      if (h.groupId !== groupId || (projekt && !hor(projekt.handelse, h))) continue;
       if (handelsefel(h, { datumEjSatt: true }).length > 0) {
         ejVisade++;
         continue;
@@ -2149,13 +2351,15 @@ export function createGastService(konfig) {
     const s = await gruppSession(b, "kalender");
     if (!s.ok || !GS) return s.ok ? nej() : s;
     const groupId = s.inbjudan.groupId;
-    const { handelser, avkortad, ejVisade } = await gruppensHandelser(groupId);
+    const { handelser, avkortad, ejVisade } = await gruppensHandelser(groupId, s.projekt);
     /** @type {Record<string, any>[]} */
     let kalendrar = [];
     if (GS.samlingar.gruppkalendrar) {
       const krader = await kalla.list(GS.samlingar.gruppkalendrar, { where: { groupId } });
+      // (0.215.0) En projektgäst ser bara kalendrar som någon av hens händelser ligger i: namnet på en annan kalender i gruppen är inget projektet äger.
+      const iBruk = s.projekt ? new Set(handelser.map((h) => h.kalenderId).filter((k) => typeof k === "string")) : null;
       kalendrar = validateGruppkalendrar(gruppensRader(krader, { groupId }).rader)
-        .filter((k) => !k.arkiverad)
+        .filter((k) => !k.arkiverad && (!iBruk || iBruk.has(k.id)))
         .map((k) => vitlista({ id: k.id, namn: typeof k.namn === "string" ? k.namn : text(k.namn?.sv) || text(k.namn?.en) || String(k.id), farg: k.farg }, GASTKALENDERFALT));
     }
     return vitlista({ ok: true, handelser, kalendrar, avkortad, ejVisade }, GASTGRUPPSVARSFALT.kalender);
@@ -2175,9 +2379,12 @@ export function createGastService(konfig) {
     if (!s.ok || !GS) return s.ok ? nej() : s;
     const groupId = s.inbjudan.groupId;
     const h = await gruppHandelse(groupId, b?.handelseId);
-    if (!h) return orsak("saknas");
+    // ⛔ (0.215.0) En händelse utanför projektet är samma `saknas` som en som inte finns: gästen får inte veta att den finns.
+    if (!h || (s.projekt && !hor(s.projekt.handelse, h))) return orsak("saknas");
     /** @type {Record<string, any>} */
     const svar = { ok: true, handelse: handelseUt(h) };
+    // ⛔ (0.215.0) EN PROJEKTGÄST FÅR INGA SVAR OCH INGEN OMRÖSTNING I SKIVA 1 (filhuvudet): summorna räknar bara gäster i hela gruppen.
+    if (s.projekt) return vitlista(svar, GASTGRUPPSVARSFALT.handelse);
     if (h.kravSvar === true) {
       const rader = await kalla.list(svarVag(h.id));
       const medlemmar = await kalla.list(MEDLEMSKAP, { where: { groupId } });
@@ -2206,6 +2413,8 @@ export function createGastService(konfig) {
   async function svara(b) {
     const s = await gruppSession(b, "kalender");
     if (!s.ok || !GS) return s.ok ? nej() : s;
+    // (0.215.0) En projektgäst svarar inte i skiva 1 (filhuvudet). Ett nej och ingen rad, aldrig ett svar som ingen räknar.
+    if (s.projekt) return nej();
     if (!(/** @type {readonly unknown[]} */ (SVARSVAL)).includes(b?.val)) throw new Error(`svara: val är ${SVARSVAL.join(", ")}.`);
     const h = await gruppHandelse(s.inbjudan.groupId, b?.handelseId);
     if (!h || h.kravSvar !== true) return orsak("saknas");
@@ -2222,6 +2431,7 @@ export function createGastService(konfig) {
   async function rosta(b) {
     const s = await gruppSession(b, "kalender");
     if (!s.ok || !GS) return s.ok ? nej() : s;
+    if (s.projekt) return nej();
     if (!GS.omrostning) return nej();
     if (typeof b?.forslagId !== "string" || b.forslagId === "" || typeof b?.val !== "string" || b.val === "") throw new Error("rosta: forslagId och val är texter som inte är tomma.");
     const h = await gruppHandelse(s.inbjudan.groupId, b?.handelseId);
@@ -2322,14 +2532,20 @@ export function createGastService(konfig) {
    * Ett ärende som den här gästen är ansvarig för, eller `null`. ⛔ ETT ENDA SVAR FÖR "FINNS INTE", "ANNAN GRUPP" OCH "INTE DELEGERAT TILL DIG": en gäst som gissar ett id lär sig ingenting av skillnaden.
    * Urvalet är radens egen `mottagare` mot sessionens `gastId` (`gastDelegerad`), varje gång: ingen separat lista, inget som vyn skickar.
    *
-   * @param {{ gastId: string, inbjudan: { groupId: string } }} s
+   * (0.215.0) För en projektgäst: ett ärende i projektet (appens `arende`), och med `delegerat` dessutom hos gästen.
+   *
+   * @param {{ gastId: string, inbjudan: { groupId: string }, projekt?: Gastprojekturval | null }} s
    * @param {unknown} arendeId
+   * @param {{ delegerat?: boolean }} [val]
    * @returns {Promise<Record<string, any> | null>}
    */
-  async function gastensArende(s, arendeId) {
+  async function gastensArende(s, arendeId, { delegerat = false } = {}) {
     if (!GS?.arenden || typeof arendeId !== "string" || !ARENDEIDFORM.test(arendeId)) return null;
     const rad = await kalla.read(GS.arenden.samling, arendeId);
-    return rad && rad.groupId === s.inbjudan.groupId && gastDelegerad(rad.mottagare, s.gastId) ? rad : null;
+    if (!rad || rad.groupId !== s.inbjudan.groupId) return null;
+    // ⛔ (0.215.0) EN PROJEKTGÄST RÖR ETT ÄRENDE I PROJEKTET (appens `arende`, taggen), och för att markera det klart måste det dessutom ligga hos hen. En gruppgäst rör bara det som ligger hos hen, som förut.
+    if (s.projekt) return hor(s.projekt.arende, rad) && (!delegerat || gastDelegerad(rad.mottagare, s.gastId)) ? rad : null;
+    return gastDelegerad(rad.mottagare, s.gastId) ? rad : null;
   }
 
   /**
@@ -2347,10 +2563,12 @@ export function createGastService(konfig) {
     const groupId = s.inbjudan.groupId;
     // ⛔ FRÅGAN ÄR PÅ GÄSTEN, INTE PÅ GRUPPEN: `groupId` OCH `mottagare.gastId` (två likhetsvillkor, inget sammansatt index; Firestore indexerar kartfältet av sig själv). En grupp med tusen ärenden kostar en gäst
     // med tre ärenden tre läsningar, inte tusen. ⛔ SVARET PRÖVAS ÄNDÅ RAD FÖR RAD (`gastDelegerad` och gruppen): en källa som tolkar frågan fel, eller ett index som släpar, ska aldrig kunna ge en gäst en annans ärende.
-    const rader = await kalla.list(a.samling, { where: { groupId, "mottagare.gastId": s.gastId }, limit: GASTARENDE_SKANNA_MAX + 1 });
+    // ⛔ (0.215.0) EN PROJEKTGÄST SER PROJEKTETS ÄRENDEN, inte bara sina: frågan är på gruppen (högst `GASTARENDE_SKANNA_MAX`), och varje rad prövas mot projektets urval (appens `arende`, taggen) här.
+    const p = s.projekt;
+    const rader = p ? await kalla.list(a.samling, { where: { groupId }, limit: GASTARENDE_SKANNA_MAX + 1 }) : await kalla.list(a.samling, { where: { groupId, "mottagare.gastId": s.gastId }, limit: GASTARENDE_SKANNA_MAX + 1 });
     const alla = rader
       .slice(0, GASTARENDE_SKANNA_MAX)
-      .filter((r) => r.groupId === groupId && gastDelegerad(r.mottagare, s.gastId))
+      .filter((r) => r.groupId === groupId && (p ? hor(p.arende, r) : gastDelegerad(r.mottagare, s.gastId)))
       .sort((x, y) => Number(isOpenCase(y.status)) - Number(isOpenCase(x.status)) || String(y.skapad ?? "").localeCompare(String(x.skapad ?? "")) || String(x.id).localeCompare(String(y.id)));
     const egna = alla.slice(0, GASTARENDE_MAX);
     // `avkortad`: gästen har fler ärenden än listan visar (sorterat: öppna först, nyast först), eller fler än servern läser. En kapad lista säger det och ser aldrig ut som hela.
@@ -2364,7 +2582,8 @@ export function createGastService(konfig) {
       const senaste = alla.slice(-GASTARENDEKOMMENTARER_MAX);
       poster.push(
         vitlista(
-          { ...vitlista(ut, a.falt), id: rad.id, kommentarer: senaste.map((k) => arendekommentar(k, s.gastId)), ...(alla.length > senaste.length ? { fler: true } : {}) },
+          // (0.215.0) `hosDig` bara för en projektgäst, som ser ärenden som inte ligger hos hen: vyn erbjuder Markera klart bara på dem som gör det. En gruppgäst ser bara sina, och raden är som förut.
+          { ...vitlista(ut, a.falt), id: rad.id, kommentarer: senaste.map((k) => arendekommentar(k, s.gastId)), ...(alla.length > senaste.length ? { fler: true } : {}), ...(p ? { hosDig: gastDelegerad(rad.mottagare, s.gastId) } : {}) },
           GASTARENDEFALT,
         ),
       );
@@ -2426,7 +2645,7 @@ export function createGastService(konfig) {
   async function markeraArendeKlart(b) {
     const s = await gruppSession(b, "arenden");
     if (!s.ok || !GS?.arenden) return s.ok ? nej() : s;
-    const rad = await gastensArende(s, b?.arendeId);
+    const rad = await gastensArende(s, b?.arendeId, { delegerat: true });
     if (!rad) return nej();
     const r = await GS.arenden.markeraKlart({ rad: { ...rad }, groupId: s.inbjudan.groupId, gastId: s.gastId, namn: text(s.inbjudan.namn) || GASTNAMNLOS });
     return r && r.ok === true ? { ok: true } : nej();
@@ -2485,8 +2704,8 @@ export function createGastService(konfig) {
   async function bibliotek(b) {
     const s = await gruppSession(b, "bibliotek");
     if (!s.ok || !GS) return s.ok ? nej() : s;
-    const groupId = s.inbjudan.groupId;
-    const { rader: synliga, avkortad } = await gruppensPoster(groupId);
+    // (0.215.0) Platsen ur sessionen: gruppens egen, eller projektets (`plats~<grupp>~<tagg>`). Aldrig ur anropet.
+    const { rader: synliga, avkortad } = await gruppensPoster(s.plats);
     /*
      * ⛔ (0.207.0, cllp/lifehub.app#696 skiva 2) LISTAN SIGNERAR INGA BILDER, av samma skäl som den inte signerar filerna (`adresserPaBegaran`): listan hämtas om varje gång fliken
      * öppnas och har upp till `GASTBIBLIOTEK_MAX` poster, och en signering per bild vid varje hämtning hade varit en kostnad för poster ingen öppnar (regel 13). Bilderna i en
@@ -2534,7 +2753,8 @@ export function createGastService(konfig) {
   async function anteckningsbilder(b) {
     const s = await gruppSession(b, "bibliotek");
     if (!s.ok || !GS) return s.ok ? nej() : s;
-    const groupId = s.inbjudan.groupId;
+    // (0.215.0) Gruppens egen plats eller projektets, ur sessionen.
+    const groupId = s.plats;
     const postId = typeof b?.postId === "string" ? b.postId : "";
     if (!postId) return orsak("saknas");
     const post = await kalla.read(GS.samlingar.bibliotek, postId);
@@ -2562,7 +2782,8 @@ export function createGastService(konfig) {
     // ⛔ ÖVERSIKTEN ÄR INGEN FUNKTION: sessionen prövas mot den första funktion tjänsten har (för en gruppgäst prövar `gastOmfangGer` bara att namnet är en gruppfunktion), och varje del
     // nedan läses bara när dess funktion finns i `GS.funktioner`. En del utan funktion är `null` i svaret. Inget prov för en `null`-del: chatt, kalender och bibliotek går inte att välja
     // bort i dag (`GS.funktioner` ovan är alla gruppfunktioner utom ärenden utan `grupp.arenden`), så vakten skrivs ett prov för den dag funktionerna blir valbara.
-    const s = await gruppSession(b, /** @type {(typeof GASTGRUPPFUNKTIONER)[number]} */ (GS.funktioner[0]));
+    // (0.215.0) Den första funktion tjänsten har som också är en projektfunktion. Sedan skiva 2 är det `chatt` för båda, och kalendern finns alltid i båda.
+    const s = await gruppSession(b, /** @type {(typeof GASTGRUPPFUNKTIONER)[number]} */ (GS.funktioner.find((f) => /** @type {readonly string[]} */ (GASTPROJEKTFUNKTIONER).includes(f)) ?? GS.funktioner[0]));
     if (!s.ok || !GS) return s.ok ? nej() : s;
     const har = (/** @type {string} */ f) => /** @type {readonly string[]} */ (/** @type {any} */ (GS).funktioner).includes(f);
     const sedan = b?.sedan === undefined ? {} : b.sedan;
@@ -2573,21 +2794,26 @@ export function createGastService(konfig) {
     if (b?.idag !== undefined && (typeof b.idag !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.idag))) throw new Error("oversikt: idag är ÅÅÅÅ-MM-DD.");
     const idag = b?.idag ?? new Date(klocka()).toISOString().slice(0, 10);
     const groupId = s.inbjudan.groupId;
+    // ⛔ (0.215.0) Rutorna läser samma urval som flikarna: projektets chatt, projektets händelser och projektets plats.
+    const harDel = (/** @type {string} */ f) => har(f) && (!s.projekt || /** @type {readonly string[]} */ (GASTPROJEKTFUNKTIONER).includes(f));
 
     // Chatten: de senaste meddelandena utan agentens, samma som `chatt`.
-    const chattUt = har("chatt") ? await oversiktChatt(groupId, s.gastId, sedan.chatt) : null;
-    const kalenderUt = har("kalender") ? await oversiktKalender(groupId, s.gastId, idag) : null;
-    const bibliotekUt = har("bibliotek") ? oversiktBibliotek(await gruppensPoster(groupId), sedan.bibliotek) : null;
+    const chattUt = harDel("chatt") ? await oversiktChatt(groupId, s.gastId, sedan.chatt, chattFor(s), s.plats) : null;
+    const kalenderUt = harDel("kalender") ? await oversiktKalender(groupId, s.gastId, idag, s.projekt) : null;
+    const bibliotekUt = harDel("bibliotek") ? oversiktBibliotek(await gruppensPoster(s.plats), sedan.bibliotek) : null;
     return vitlista({ ok: true, chatt: chattUt, kalender: kalenderUt, bibliotek: bibliotekUt }, GASTGRUPPSVARSFALT.oversikt);
   }
 
-  /** (0.198.0) Översiktens chattdel. @param {string} groupId @param {string} gastIdet @param {number | undefined} sedanChatt */
-  async function oversiktChatt(groupId, gastIdet, sedanChatt) {
-    const rader = await kalla.list(meddelandevag(groupId), { sortBy: "tid", direction: "desc", limit: GASTCHATT_SIDA });
+  /**
+   * (0.198.0) Översiktens chattdel. (0.215.0) `chatt` och `plats`: projektets chatt och plats för en projektgäst (`chattFor`).
+   * @param {string} groupId @param {string} gastIdet @param {number | undefined} sedanChatt @param {string | { sid: string }} [chatt] @param {string} [plats]
+   */
+  async function oversiktChatt(groupId, gastIdet, sedanChatt, chatt = groupId, plats = groupId) {
+    const rader = await kalla.list(meddelandevag(chatt), { sortBy: "tid", direction: "desc", limit: GASTCHATT_SIDA });
     const { namnFor, agenter } = await chattavsandare(groupId);
     const synliga = rader.filter((m) => !agenter.has(m.av));
     const nyaRader = typeof sedanChatt === "number" ? synliga.filter((m) => m.av !== gastIdet && typeof m.tid === "number" && m.tid > sedanChatt) : [];
-    const c = { groupId, gastId: gastIdet, sida: rader, namnFor, agenter, lasta: new Map(), medSvar: false };
+    const c = { groupId, plats, gastId: gastIdet, sida: rader, namnFor, agenter, lasta: new Map(), medSvar: false };
     const senasteMeddelanden = await Promise.all(
       synliga.slice(0, GASTOVERSIKT_SENASTE).map(async (m) => {
         const r = await chattrad(m, c);
@@ -2597,10 +2823,10 @@ export function createGastService(konfig) {
     return vitlista({ nya: nyaRader.length, fler: nyaRader.length > 0 && nyaRader.length === synliga.length && rader.length === GASTCHATT_SIDA, senaste: senasteMeddelanden }, GASTOVERSIKTFALT.chatt);
   }
 
-  /** (0.198.0) Översiktens kalenderdel. @param {string} groupId @param {string} gastIdet @param {string} idag */
-  async function oversiktKalender(groupId, gastIdet, idag) {
+  /** (0.198.0) Översiktens kalenderdel. @param {string} groupId @param {string} gastIdet @param {string} idag @param {Gastprojekturval | null} [projekt] */
+  async function oversiktKalender(groupId, gastIdet, idag, projekt = null) {
     // Kalendern: nästa händelse som slutar i dag eller senare, i kalenderns ordning (heldag före klockslag samma dag), och gästens eget svar.
-    const { handelser } = await gruppensHandelser(groupId);
+    const { handelser } = await gruppensHandelser(groupId, projekt);
     const nasta = handelser
       .filter((h) => typeof h.datum === "string" && String(h.slutDatum ?? h.datum) >= idag)
       .sort((x, y) => String(x.datum).localeCompare(String(y.datum)) || (x.heldag ? -1 : 0) - (y.heldag ? -1 : 0) || String(x.tid ?? "").localeCompare(String(y.tid ?? "")) || String(x.id).localeCompare(String(y.id)))[0];
@@ -2608,7 +2834,8 @@ export function createGastService(konfig) {
     let nastaUt = null;
     if (nasta) {
       let mitt = null;
-      if (nasta.kravSvar === true) {
+      // (0.215.0) En projektgäst svarar inte (skiva 1): inget eget svar läses, och rutan ber inte om ett.
+      if (nasta.kravSvar === true && !projekt) {
         const rad = await kalla.read(svarVag(nasta.id), gastIdet);
         mitt = (/** @type {readonly unknown[]} */ (SVARSVAL)).includes(rad?.svar) ? rad.svar : null;
       }
@@ -2662,7 +2889,8 @@ export function createGastService(konfig) {
   async function fil(b) {
     const s = await gruppSession(b, "bibliotek");
     if (!s.ok || !GS) return s.ok ? nej() : s;
-    const groupId = s.inbjudan.groupId;
+    // (0.215.0) Gruppens egen plats eller projektets, ur sessionen: sökvägens andra led är postens plats (`grupper/<plats>/bibliotek/<id>/<fil>`).
+    const groupId = s.plats;
     const postId = typeof b?.postId === "string" ? b.postId : "";
     if (!postId) return orsak("saknas");
     const post = await kalla.read(GS.samlingar.bibliotek, postId);
@@ -2772,11 +3000,15 @@ export function createGastService(konfig) {
    */
   async function raderaMeddelanden(groupId, gId) {
     if (!GS) return 0;
-    const vag = meddelandevag(groupId);
     let n = 0;
-    for (const m of await kalla.list(vag, { where: { av: gId } })) {
-      await taBort(vag, m.id);
-      n++;
+    // ⛔ (0.215.0) OCKSÅ I GRUPPENS PROJEKTCHATTAR, i varje och inte bara de gästen har en inbjudan till nu: en återkallad projektgäst kan ha skrivit i en chatt hen inte längre når.
+    const projektchattar = (await kalla.list(GS.samlingar.samtal, { where: { groupId, slag: "projekt" } })).map((p) => ({ sid: String(p.id) }));
+    for (const chatt of [groupId, ...projektchattar]) {
+      const vag = meddelandevag(chatt);
+      for (const m of await kalla.list(vag, { where: { av: gId } })) {
+        await taBort(vag, m.id);
+        n++;
+      }
     }
     n += await raderaTradsvar(groupId, gId);
     return n;

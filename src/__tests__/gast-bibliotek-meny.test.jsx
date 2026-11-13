@@ -184,7 +184,7 @@ describe("⛔ gästens fil har Kopiera länk och Kommentera i listan och i detal
 });
 
 describe("medlemmens meny har kvar Kopiera länk och de andra raderna", () => {
-  it("en fil kopierar den adress listan redan har, och en anteckning har ingen Kopiera länk", async () => {
+  it("en fil kopierar postens adress i appen och aldrig filens (0.220.0, lifehub.app#801), och en anteckning har ingen Kopiera länk", async () => {
     const user = userEvent.setup();
     const medlemsfil = { id: "mf", ...byggPost(med({ groupId: "g1", typ: "fil", rubrik: "Avtal", fil })) };
     const anteckning = { id: "ma", ...byggPost(med({ groupId: "g1", typ: "anteckning", rubrik: "Minnesanteckning", text: "Hej." })) };
@@ -197,7 +197,8 @@ describe("medlemmens meny har kvar Kopiera länk och de andra raderna", () => {
         onStang={() => {}}
         onSkapa={() => {}}
         onSpara={async () => false}
-        filUrl={() => "https://lagring.exempel/avtal.pdf"}
+        filUrl={() => "https://lagring.exempel/avtal.pdf?token=hemlig"}
+        postlank={(p) => `https://app.exempel/bibliotek?plats=${p.groupId}&post=${p.id}`}
         hubHref="/hubb"
         kommentarer={KOMMENTARER}
       />,
@@ -206,7 +207,8 @@ describe("medlemmens meny har kvar Kopiera länk och de andra raderna", () => {
       await user.click(screen.getByRole("button", { name: "Åtgärder för Avtal" }));
       expect(menyrader("Avtal")).toEqual(["Byt namn", "Lägg till tagg", "Kommentera", "Lägg i lista", "Kopiera länk", "Nåla fast", "Arkivera", "Radera"]);
       await user.click(screen.getByRole("menuitem", { name: "Kopiera länk" }));
-      await waitFor(() => expect(writeText).toHaveBeenCalledWith("https://lagring.exempel/avtal.pdf"));
+      // ⛔ ÄNDRAT I 0.220.0: här kopierades filens nedladdningsadress, som öppnas av vem som helst och aldrig går ut.
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith("https://app.exempel/bibliotek?plats=g1&post=mf"));
       await user.keyboard("{Escape}");
       await user.click(screen.getByRole("button", { name: "Åtgärder för Minnesanteckning" }));
       const rader = menyrader("Minnesanteckning");

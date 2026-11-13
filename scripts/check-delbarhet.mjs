@@ -52,7 +52,7 @@
  * 0.206.0 importerade rutan med "Lägg till bild" (`AnteckningsText`) och krympningen före uppladdningen (`forbered`) statiskt i `OpsBibliotek`. De ritas bara när en sparad anteckning
  * redigeras med appens uppladdning, och ska ligga i en egen bit (`BibliotekAnteckningsbildLat`).
  *
- * ══ ⛔ KARTAN OCH MAPLIBRE (0.214.0, cllp/ops-framework#570) ═══════════════════════════════════════
+ * ══ ⛔ KARTAN OCH MAPLIBRE (0.223.0, cllp/ops-framework#570) ═══════════════════════════════════════
  *
  * MapLibre är ett eget paket, och det behövs bara när en karta ritas. `OpsKarta` läser in `OpsKartaVy` med en dynamisk import, och det är vyn som importerar `maplibre-gl`.
  * En startfil som importerar `OpsKarta` får inte innehålla `OpsKartaVy` eller importen av `maplibre-gl`, och någon bit utanför startfilen ska göra det.
@@ -91,7 +91,7 @@ const SKALEN = [
   // (0.209.1, lifehub.app#706) Tolkningen av en .md och anteckningen som HTML-sida används bara när någon lägger in en .md eller laddar ned som HTML eller PDF. 0.209.0 importerade dem
   // statiskt, och appens `check:jsstorlek` växte med 4 kB. Modulerna läses in med en dynamisk import i `OpsBibliotek`.
   { skal: "OpsBibliotek", lata: ["markdownSomHtml", "markdownSomAnteckning"], via: "import(\"../lib/markdownhtml.js\") och import(\"../lib/anteckningsfil.js\")" },
-  // (0.214.0, #570) MapLibre ritas bara när en karta visas. Startfilen importerar `OpsKarta`, inte vyn och inte paketet.
+  // (0.223.0, #570) MapLibre ritas bara när en karta visas. Startfilen importerar `OpsKarta`, inte vyn och inte paketet.
   { skal: "OpsKarta", lata: ["OpsKartaVy"], via: "OpsKarta", paket: ["maplibre-gl"] },
 ];
 
@@ -224,7 +224,7 @@ async function matWorker() {
 }
 
 /**
- * (0.214.0, #570) MapLibres worker i en app som bundlar ramverket med Vite. Startfilen importerar `OpsKarta`, och `maplibre-gl` buntas (är inte externt).
+ * (0.223.0, #570) MapLibres worker i en app som bundlar ramverket med Vite. Startfilen importerar `OpsKarta`, och `maplibre-gl` buntas (är inte externt).
  * @returns {Promise<{ fel: string[], worker: string }>}
  */
 async function matKarta() {

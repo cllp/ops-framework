@@ -5,7 +5,7 @@ import { forvalda } from "../lib/ord.js";
 import { lasGeojson } from "../lib/karta.js";
 
 /**
- * En karta för en GeoJSON-fil (0.214.0, cllp/ops-framework#570).
+ * En karta för en GeoJSON-fil (0.223.0, cllp/ops-framework#570).
  *
  * Punkter, linjer och ytor. Ett tryck visar namn och beskrivning ur properties. Färg per objekt ur simplestyle (`marker-color`, `stroke`, `fill`), annars ur `typ` eller `type` mot paletten salvia, ockra och terrakotta, annars instansens accent.
  *

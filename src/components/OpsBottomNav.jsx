@@ -7,7 +7,7 @@ import { KryssIkon, MenuIcon, PlusIkon } from "./icons.jsx";
 import { TALK_ORD } from "../lib/talk.js";
 import { avdelningsBreddklass, entryActive, validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
-import { radBehallare, radKlass } from "../lib/radKlass.js";
+import { ARKRAD_IKON, radBehallare, radKlass } from "../lib/radKlass.js";
 import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, menySektioner, MenyTillbakaKnapp, validateMeny } from "./OpsMeny.jsx";
 import { useSkapaGenvag } from "./OpsSkapaGenvag.jsx";
 import { LANGTRYCK_KLASS, useLangtryck } from "./useLangtryck.js";
@@ -170,9 +170,9 @@ function OpsBottomNavRitad({
   // överflödet och `menuExtras`.
   /** @type {import("./OpsMeny.jsx").MenyAvdelning[]} */
   const avdelningar = [];
-  if (meny) avdelningar.push(...menySektioner({ sektioner: meny.sektioner ?? [], kor, visaUndervy: setAktivUndervy }));
+  if (meny) avdelningar.push(...menySektioner({ sektioner: meny.sektioner ?? [], kor, visaUndervy: setAktivUndervy, ark: true }));
   if (meny) {
-    const app = menyAppAvdelning({ meny, activeHref, onNavigate, stang: () => stangArket(false), badgeText });
+    const app = menyAppAvdelning({ meny, activeHref, onNavigate, stang: () => stangArket(false), badgeText, ark: true });
     if (app) avdelningar.push(app);
   }
   if (inMenu.length > 0) {
@@ -183,7 +183,7 @@ function OpsBottomNavRitad({
     });
   }
   if (menuExtras) avdelningar.push({ key: "extras", innehall: <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div> });
-  if (meny) avdelningar.push(...menyFot({ onLoggaUt: meny.onLoggaUt, loggaUtEtikett: meny.loggaUtEtikett, loggarUtEtikett: meny.loggarUtEtikett, appVersion: meny.appVersion, kor }));
+  if (meny) avdelningar.push(...menyFot({ onLoggaUt: meny.onLoggaUt, loggaUtEtikett: meny.loggaUtEtikett, loggarUtEtikett: meny.loggarUtEtikett, appVersion: meny.appVersion, kor, ark: true }));
 
   return (
     // `pb-(--safe-bottom)`: utan säker yta hamnar knapparna under hemindikatorn
@@ -515,10 +515,10 @@ function SheetPost({ entry, activeHref, onNavigate, badgeText }) {
         href={entry.href}
         onClick={(e) => onNavigate(entry.href, e)}
         aria-current={entry.href === activeHref ? "page" : undefined}
-        className={cx(radKlass({ active: entry.href === activeHref }), "justify-between", hasChildren && "font-semibold")}
+        className={cx(radKlass({ active: entry.href === activeHref, ark: true }), "justify-between", hasChildren && "font-semibold")}
       >
         <span className="flex min-w-0 items-center gap-2.5">
-          {entry.icon ? <span className="shrink-0 [&_svg]:size-4">{entry.icon}</span> : null}
+          {entry.icon ? <span className={cx("shrink-0", ARKRAD_IKON)}>{entry.icon}</span> : null}
           <span className="truncate">{entry.label}</span>
         </span>
         {typeof entry.badge === "number" ? <OpsCountBadge count={entry.badge} text={badgeText} placement="inline" /> : null}
@@ -531,7 +531,7 @@ function SheetPost({ entry, activeHref, onNavigate, badgeText }) {
               href={childEntries.href}
               onClick={(e) => onNavigate(childEntries.href, e)}
               aria-current={childEntries.href === activeHref ? "page" : undefined}
-              className={radKlass({ active: childEntries.href === activeHref })}
+              className={radKlass({ active: childEntries.href === activeHref, ark: true })}
             >
               <span className="truncate">{childEntries.label}</span>
             </a>

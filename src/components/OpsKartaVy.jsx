@@ -5,7 +5,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { basPensel, berika, byggStil, granser, lasKartFarger, objektPensel, OBJEKT_LAGER, popupElement } from "../lib/karta.js";
 
 /**
- * Själva kartan (0.214.0, cllp/ops-framework#570). Importeras bara av `OpsKarta`, med en dynamisk import, så MapLibre och dess CSS ligger i en egen bit.
+ * Själva kartan (0.223.0, cllp/ops-framework#570). Importeras bara av `OpsKarta`, med en dynamisk import, så MapLibre och dess CSS ligger i en egen bit.
  *
  * ⛔ WORKERN. MapLibre 6 lämnar workerns adress tom (`getWorkerUrl()` är `""`, mätt). Utan `setWorkerUrl` ritas ingen karta.
  * Samma mönster som pdf.js: `new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url)`, som Vite gör till en egen fil. `check:delbarhet` mäter den.

@@ -7,9 +7,9 @@ import { formatDateTime, formatTime, formatRelativeDate } from "../lib/format.js
 import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, bilagaUrDokument, kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { readAttachment } from "../lib/file.js";
 import { arGastId } from "../lib/gast.js";
-import { AGENTSTATUS_MAX_ALDER, MAX_ALTERNATIV, MAX_ALTERNATIVTEXT, MAX_ALTERNATIV_VID_START, MAX_FRAGA, MAX_MEDDELANDE, MAX_TRADNAMN, MIN_ALTERNATIV_VID_START, RAKNARE_FRAN, REAKTIONSKODER, agentstatus, jamforbar, summeraOmrostning, amnesrubrik, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
+import { AGENTSTATUS_MAX_ALDER, MAX_ALTERNATIV, MAX_ALTERNATIVTEXT, MAX_ALTERNATIV_VID_START, MAX_FRAGA, MAX_MEDDELANDE, MAX_TRADNAMN, MIN_ALTERNATIV_VID_START, RAKNARE_FRAN, REAKTIONSKODER, agentstatus, arDelatSamtal, projekttaggUr, jamforbar, summeraOmrostning, amnesrubrik, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
-import { harAmnen, harBilagor, harCitat, harFasta, harOmnamnanden, harOmrostningar, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
+import { harAmnen, harBilagor, harCitat, harFasta, harOmnamnanden, harOmrostningar, harProjekt, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
 import { BilagaVisning } from "./BilagaVisning.jsx";
 import { KopieraBilagaKnapp } from "./BilageKopiering.jsx";
 import { CHATTINFO_TEXTER, ORD_CHATTINFO, OpsChattinfo } from "./OpsChattinfo.jsx";
@@ -133,6 +133,11 @@ import { AgentIkon, AndraIkon, BockIkon, KopieraIkon, OmrostningIkon, ArkiveraIk
  * @property {string} [ingenAnnan] När det inte finns någon att skriva till. Förval "Det finns ingen annan i gruppen att skriva till.".
  * @property {string} [helaGruppen] (0.68.0) Raden under Till som öppnar gruppchatten. Förval "Hela gruppen".
  * @property {string} [gruppTom] (0.68.0) Gruppchattens tomma läge. Förval "Alla i gruppen ser det som skrivs här.".
+ * @property {string} [projekt] (0.215.0, lifehub.app#760) Etiketten för ett projekts chatt. Förval "Projekt".
+ * @property {string} [projektRad] (0.215.0) Förval "Gruppen och projektets gäster ser det här".
+ * @property {string} [projektTom] (0.215.0) Projektchattens tomma läge. Förval "Gruppen och projektets gäster ser det som skrivs här.".
+ * @property {string} [skrivProjekt] (0.215.0) Platstexten i projektets chatt. Förval "Skriv till projektet".
+ * @property {string} [oppnarProjekt] (0.215.0) Medan projektets chatt öppnas första gången. Förval "Öppnar projektets chatt…".
  * @property {string} [oppnarGrupp] (0.68.0) Medan gruppchatten öppnas första gången. Förval "Öppnar gruppchatten…".
  * @property {string} [svaraITrad] (0.68.0) Förval "Svara i tråd".
  * @property {string} [lyftTillMinnet] (0.86.0) Förval "Lyft till minnet". Knappen ritas bara när `onLyftTillMinnet` skickas in.
@@ -190,8 +195,8 @@ import { AgentIkon, AndraIkon, BockIkon, KopieraIkon, OmrostningIkon, ArkiveraIk
  * @property {string} [omrostningSkickaFel] När källan nekade omröstningen. Förval "Omröstningen kunde inte skickas.".
  * @property {string} [omrostningFel] När en röst nekades. Förval "Rösten kunde inte sparas.".
  * @property {string} [alternativFel] När ett nytt alternativ nekades. Förval "Alternativet kunde inte läggas till.".
- * @property {string} [omrostningarFel] När läsningen av alternativ eller röster föll. Förval "Omröstningarna kunde inte hämtas.".
- * @property {string} [omrostningarFler] När läsningen nådde sitt tak. Förval "Äldre röster och alternativ visas inte.".
+ * @property {string} [omrostningarFel] I kortet, när läsningen av dess alternativ eller röster föll (#742). Förval "Omröstningen kunde inte hämtas.".
+ * @property {string} [omrostningarFler] I kortet, när omröstningen har fler alternativ eller röster än dess tak (#742). Förval "Alla röster och alternativ i omröstningen visas inte.".
  * @property {Partial<Record<(typeof REAKTIONSKODER)[number], string>>} [reaktionsnamn] Reaktionernas namn för skärmläsaren. Förval: svenska, eller engelska när `sprak` är "en" (`reaktionsvy.js`).
  * @property {string} [allaNamn] (chattens nattskiva) Förslaget som nämner hela gruppen. Förval "alla".
  * @property {string} [namnForslag] @-listans namn för skärmläsaren. Förval "Nämn någon".
@@ -362,6 +367,11 @@ const ORD_MEDDELANDEN = {
   helaGruppen: { sv: "Hela gruppen", en: "The whole group" },
   gruppTom: { sv: "Alla i gruppen ser det som skrivs här.", en: "Everyone in the group sees what is written here." },
   oppnarGrupp: { sv: "Öppnar gruppchatten…", en: "Opening the group chat…" },
+  projekt: { sv: "Projekt", en: "Project" },
+  projektRad: { sv: "Gruppen och projektets gäster ser det här", en: "The group and the project's guests see this" },
+  projektTom: { sv: "Gruppen och projektets gäster ser det som skrivs här.", en: "The group and the project's guests see what is written here." },
+  skrivProjekt: { sv: "Skriv till projektet", en: "Write to the project" },
+  oppnarProjekt: { sv: "Öppnar projektets chatt…", en: "Opening the project chat…" },
   svaraITrad: { sv: "Svara i tråd", en: "Reply in thread" },
   lyftTillMinnet: { sv: "Lyft till minnet", en: "Save to memory" },
   minnet: { sv: "Minnet", en: "Memory" },
@@ -418,8 +428,8 @@ const ORD_MEDDELANDEN = {
   omrostningSkickaFel: { sv: "Omröstningen kunde inte skickas.", en: "The poll could not be sent." },
   omrostningFel: { sv: "Rösten kunde inte sparas.", en: "The vote could not be saved." },
   alternativFel: { sv: "Alternativet kunde inte läggas till.", en: "The option could not be added." },
-  omrostningarFel: { sv: "Omröstningarna kunde inte hämtas.", en: "The polls could not be loaded." },
-  omrostningarFler: { sv: "Äldre röster och alternativ visas inte.", en: "Older votes and options are not shown." },
+  omrostningarFel: { sv: "Omröstningen kunde inte hämtas.", en: "The poll could not be loaded." },
+  omrostningarFler: { sv: "Alla röster och alternativ i omröstningen visas inte.", en: "Not all votes and options in the poll are shown." },
   skrivGrupp: { sv: "Skriv till gruppen", en: "Write to the group" },
   skrivAgent: { sv: "Fråga agenten", en: "Ask the agent" },
   skrivTrad: { sv: "Svara i tråden", en: "Reply in the thread" },
@@ -837,6 +847,8 @@ export function texterPa(sprak, texter) {
  * @param {string} props.uid
  * @param {string | null} props.groupId
  * @param {string} props.gruppNamn Gruppchattens namn i listan.
+ * @param {(tagg: string) => string | null} [props.projektnamn] (0.215.0, lifehub.app#760) Projektets namn för en projektchatt i listan, ur appens projekt. `null` eller utelämnad: taggen står som namn.
+ *   ⛔ EN PROJEKTCHATT STÅR I LISTAN FÖRST NÄR DEN HAR ETT MEDDELANDE (källans `oversikt`): ett projekt utan samtal ska inte fylla inkorgen med tomma rader.
  * @param {ReadonlyArray<Medlemsrad>} props.medlemmar Gruppens medlemskap, för namn och bilder.
  * @param {string | null} [props.valt] Valt samtal, när appen styr det (t.ex. ur adressen). Tråden ritas på id:t också när
  *   samtalet ännu inte finns bland raderna (0.63.0, #263).
@@ -894,7 +906,7 @@ export function texterPa(sprak, texter) {
  * @param {string} [props.nyttUtkast] (0.105.0) Texten som står i skrivfältet när läget "nytt" öppnas, till exempel det man sade i TALK och
  *   valde Meddelande för. Ingenting skickas: personen väljer mottagare och trycker Skicka.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, valtAgent, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, franBiblioteket, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast, meddelandeHref, flerOmnamnbara }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, projektnamn, medlemmar, valt, nytt, valtAgent, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, franBiblioteket, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast, meddelandeHref, flerOmnamnbara }) {
   kravRam(ram, "OpsMeddelanden");
   if (onForslag !== undefined && typeof onForslag !== "function") throw new Error(`OpsMeddelanden: onForslag ska vara en funktion, fick ${typeof onForslag}.`);
   if (nyttUtkast !== undefined && typeof nyttUtkast !== "string") throw new Error(`OpsMeddelanden: nyttUtkast ska vara en sträng, fick ${typeof nyttUtkast}.`);
@@ -982,13 +994,25 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
     return [{ samtal: { id: gruppSid, groupId, slag: "grupp", skapad: 0, skapadAv: "" }, senaste: null, olasta: 0, lastTill: 0, motpart: null, ej: true }, ...ovriga];
   }, [rader, gruppSid, groupId, laddar, fel]);
 
+  /**
+   * (0.215.0) Radens namn: gruppen, projektet (appens namn, annars taggen) eller den andra personen.
+   * @param {typeof rader[number]} r
+   */
+  const rubrikFor = (r) => {
+    if (r.samtal.slag === "grupp") return gruppNamn;
+    if (r.samtal.slag === "projekt") {
+      const tagg = projekttaggUr(r.samtal.id, r.samtal.groupId) ?? "";
+      return (projektnamn ? projektnamn(tagg) : null) || tagg;
+    }
+    return namnFor(r.motpart ?? "");
+  };
   const nu = Date.now();
   const q = sok.trim().toLocaleLowerCase("sv");
   const visade = allaRader
     .filter((r) => (filter === "olasta" ? r.olasta > 0 : true))
     .filter((r) => {
       if (!q) return true;
-      const rubrik = r.samtal.slag === "grupp" ? gruppNamn : namnFor(r.motpart ?? "");
+      const rubrik = rubrikFor(r);
       return rubrik.toLocaleLowerCase("sv").includes(q) || (r.senaste?.text ?? "").toLocaleLowerCase("sv").includes(q);
     });
   /*
@@ -1017,6 +1041,8 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   const poster = medAmnen
     ? [
         ...visade.filter((r) => r.samtal.slag === "grupp").map((r) => ({ typ: /** @type {const} */ ("rad"), r })),
+        // (0.215.0) Projektens chattar efter gruppens: rum för flera, som gruppchatten.
+        ...visade.filter((r) => r.samtal.slag === "projekt").map((r) => ({ typ: /** @type {const} */ ("rad"), r })),
         ...visadeAgentposter,
         ...visade.filter((r) => r.samtal.slag === "personer").map((r) => ({ typ: /** @type {const} */ ("rad"), r })),
       ]
@@ -1034,7 +1060,10 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
     const d = delaSamtalsnyckel(valdId, groupId);
     if (!d || d.groupId !== groupId || !uid) return null;
     // Gruppchatten ur adressen innan listan svarat: `oppnaGrupp` ger den som finns, eller skapar den (0.68.0).
-    if ("slag" in d) return { samtal: { id: valdId, groupId: d.groupId, slag: "grupp", skapad: 0, skapadAv: "" }, senaste: null, olasta: 0, lastTill: 0, motpart: null, ej: true };
+    if ("slag" in d && d.slag === "grupp") return { samtal: { id: valdId, groupId: d.groupId, slag: "grupp", skapad: 0, skapadAv: "" }, senaste: null, olasta: 0, lastTill: 0, motpart: null, ej: true };
+    // (0.215.0) Ett projekts chatt ur adressen: `oppnaProjekt` ger den som finns, eller skapar den, som gruppchatten.
+    if ("slag" in d && d.slag === "projekt") return { samtal: { id: valdId, groupId: d.groupId, slag: "projekt", skapad: 0, skapadAv: "" }, senaste: null, olasta: 0, lastTill: 0, motpart: null, ej: true };
+    if (!("deltagare" in d)) return null;
     if (!d.deltagare.includes(uid)) return null;
     const annan = d.deltagare[0] === uid ? d.deltagare[1] : d.deltagare[0];
     // ⛔ (0.106.0) Ett ämne har bara agenten som slag: nyckelns fjärde del finns inte på ett personsamtal.
@@ -1079,17 +1108,16 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
     utkast.current = null;
   }, [valdId]);
 
-  /** @param {typeof rader[number]} r */
-  const rubrikFor = (r) => (r.samtal.slag === "grupp" ? gruppNamn : namnFor(r.motpart ?? ""));
   /** @param {typeof rader[number]} r @param {"md" | "sm"} storlek */
   const markeFor = (r, storlek) => {
     if (r.samtal.slag === "grupp") return <OpsIdentity name={gruppNamn} seed={groupId ?? "grupp"} size={storlek} icon={GruppIkon} />;
+    if (r.samtal.slag === "projekt") return <OpsIdentity name={rubrikFor(r)} seed={r.samtal.id} size={storlek} icon={MappIkon} />;
     const m = namn.get(r.motpart ?? "");
     if (r.samtal.slag === "agent") return <OpsIdentity name={m?.namn || t.agent} seed={r.motpart ?? "agent"} size={storlek} icon={AgentIkon} rund />;
     return <OpsIdentity name={namnFor(r.motpart ?? "")} seed={r.motpart ?? ""} imageUrl={m?.bild || undefined} size={storlek} rund />;
   };
   /** @param {typeof rader[number]} r */
-  const slagetFor = (r) => (r.samtal.slag === "grupp" ? t.grupp : r.samtal.slag === "agent" ? t.agent : t.privat);
+  const slagetFor = (r) => (r.samtal.slag === "grupp" ? t.grupp : r.samtal.slag === "projekt" ? t.projekt : r.samtal.slag === "agent" ? t.agent : t.privat);
   const installningar = Boolean(ram && modul && tillbaka && arInstallningslage(/** @type {string} */ (activeHref)));
   if (installningar && modul && tillbaka) {
     return (
@@ -1258,8 +1286,8 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
                           {s ? <span data-tid="" className="shrink-0 text-liten tabular-nums text-ink-muted">{radtid(s.tid, nu, locale)}</span> : null}
                         </span>
                         <span className="mt-0.5 flex items-center gap-1">
-                          <span data-slag="" className={cx("inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-liten", r.samtal.slag === "grupp" ? "bg-hover text-ink-secondary" : "bg-accent-faint text-accent")}>
-                            {r.samtal.slag !== "grupp" ? <LasIkon size={10} /> : null}
+                          <span data-slag="" className={cx("inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-liten", arDelatSamtal(r.samtal.slag) ? "bg-hover text-ink-secondary" : "bg-accent-faint text-accent")}>
+                            {!arDelatSamtal(r.samtal.slag) ? <LasIkon size={10} /> : null}
                             {slagetFor(r)}
                           </span>
                         </span>
@@ -1392,7 +1420,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             flerOmnamnbara={flerOmnamnbara}
           />
         ) : vald?.ej && groupId ? (
-          <OppnaGruppchatt key={vald.samtal.id} kalla={kalla} uid={uid} groupId={groupId} texter={t} onOppnad={(s) => laggIn(s)} />
+          <OppnaGruppchatt key={vald.samtal.id} kalla={kalla} uid={uid} groupId={groupId} tagg={vald.samtal.slag === "projekt" ? projekttaggUr(vald.samtal.id, groupId) : null} texter={t} onOppnad={(s) => laggIn(s)} />
         ) : vald ? (
           <OpsSamtal
             key={vald.samtal.id}
@@ -1460,14 +1488,21 @@ const useTangentbord = useTangentbordTackt;
 /**
  * Gruppchatten som ingen har öppnat än (0.68.0): skapas med `oppnaGrupp` när någon öppnar raden, och läggs sedan in i listan
  * (`onOppnad`), så att vyn ritar det riktiga samtalet. Fel står kvar som en banderoll, aldrig tyst.
+ * (0.215.0) Med `tagg`: ett projekts chatt, med `oppnaProjekt`. Källan utan projekt kastar, och felet står som banderollen.
  *
- * @param {{ kalla: ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla>, uid: string, groupId: string, texter: Required<Meddelandetexter>, onOppnad: (s: import("../lib/samtal.js").Samtal) => void }} props
+ * @param {{ kalla: ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla>, uid: string, groupId: string, tagg?: string | null, texter: Required<Meddelandetexter>, onOppnad: (s: import("../lib/samtal.js").Samtal) => void }} props
  */
-function OppnaGruppchatt({ kalla, uid, groupId, texter: t, onOppnad }) {
+function OppnaGruppchatt({ kalla, uid, groupId, tagg = null, texter: t, onOppnad }) {
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
   useEffect(() => {
     let levande = true;
-    kalla.oppnaGrupp({ groupId, uid }).then(
+    const oppnad =
+      tagg === null
+        ? kalla.oppnaGrupp({ groupId, uid })
+        : harProjekt(kalla)
+          ? kalla.oppnaProjekt({ groupId, uid, tagg })
+          : Promise.reject(new Error("Samtalskällan saknar projektens chattar (createSamtalskalla({ projekt: true })), och projektets chatt går inte att öppna."));
+    oppnad.then(
       (s) => levande && onOppnad(s),
       (e) => levande && setFel(e instanceof Error ? e.message : String(e)),
     );
@@ -1475,7 +1510,7 @@ function OppnaGruppchatt({ kalla, uid, groupId, texter: t, onOppnad }) {
       levande = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kalla, groupId, uid]);
+  }, [kalla, groupId, uid, tagg]);
   return (
     <div data-ops-oppnar-grupp="" aria-busy={!fel || undefined} className="flex min-h-0 flex-1 flex-col px-3 py-3">
       {fel ? (
@@ -1484,7 +1519,7 @@ function OppnaGruppchatt({ kalla, uid, groupId, texter: t, onOppnad }) {
         </OpsBanner>
       ) : (
         <p role="status" className="m-0 py-6 text-center text-meta text-ink-muted">
-          {t.oppnarGrupp}
+          {tagg !== null ? t.oppnarProjekt : t.oppnarGrupp}
         </p>
       )}
     </div>
@@ -2406,7 +2441,8 @@ function Bibliotekvaljare({ kalla, texter: t, onStang, onValt }) {
  * @returns {Omnamnande | null}
  */
 function omnamnandeFor(kalla, slag, medlemmar, uid, namnFor, fler) {
-  if (!harOmnamnanden(kalla) || slag !== "grupp") return null;
+  // (0.215.0) Omnämnanden i gruppchatten och i ett projekts chatt: rum för flera. Kandidaterna är gruppens medlemmar, aldrig projektets gäster (en gäst har inget uid att nämna).
+  if (!harOmnamnanden(kalla) || !arDelatSamtal(slag)) return null;
   const kandidater = (medlemmar ?? [])
     .filter((m) => m && m.userId !== uid && (m.status ?? "aktiv") === "aktiv")
     .map((m) => ({ uid: m.userId, namn: namnFor(m.userId), typ: m.typ ?? "person" }));
@@ -2782,7 +2818,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
   };
 
   const agent = samtal.slag === "agent";
-  const privatRad = samtal.slag === "grupp" ? t.gruppRad : agent ? t.agentRad : t.privatRad;
+  const privatRad = samtal.slag === "grupp" ? t.gruppRad : samtal.slag === "projekt" ? t.projektRad : agent ? t.agentRad : t.privatRad;
   const agentId = agent && onVisaAgent ? agentDeltagare(samtal, uid, medlemmar) : "";
 
   return (
@@ -2836,7 +2872,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
             <div className="min-w-0 flex-1">
               <h3 className="m-0 truncate text-etikett font-semibold text-ink">{rubrik}</h3>
               <p data-privat-rad="" className="m-0 flex items-center gap-1 text-liten text-ink-muted">
-                {samtal.slag !== "grupp" ? <LasIkon size={10} /> : null}
+                {!arDelatSamtal(samtal.slag) ? <LasIkon size={10} /> : null}
                 <span>{privatRad}</span>
               </p>
             </div>
@@ -2907,7 +2943,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
               <MeddelandeIkon size={28} />
             </span>
             <p className="m-0 mt-3 text-etikett text-ink-muted">{t.inga}</p>
-            <p data-tomrad="" className="m-0 mt-1 text-liten text-ink-muted">{samtal.slag === "grupp" ? t.gruppTom : privatRad}</p>
+            <p data-tomrad="" className="m-0 mt-1 text-liten text-ink-muted">{samtal.slag === "grupp" ? t.gruppTom : samtal.slag === "projekt" ? t.projektTom : privatRad}</p>
           </div>
         ) : null}
         <Meddelanderader
@@ -2929,7 +2965,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
           namnFor={namnFor}
           medlemmar={medlemmar}
           locale={locale}
-          visaNamn={samtal.slag === "grupp"}
+          visaNamn={arDelatSamtal(samtal.slag)}
           efter={
             medTradar
               ? (m) => {
@@ -3027,7 +3063,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
         omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor, flerOmnamnbara)}
         fokusNyckel={svarPa?.id}
         onEscape={svarPa ? () => setSvarPa(null) : undefined}
-        platstext={samtal.slag === "grupp" ? t.skrivGrupp : samtal.slag === "agent" ? t.skrivAgent : t.skriv}
+        platstext={samtal.slag === "grupp" ? t.skrivGrupp : samtal.slag === "projekt" ? t.skrivProjekt : samtal.slag === "agent" ? t.skrivAgent : t.skriv}
         onTranscribe={onTranscribe}
         inspelare={inspelare}
         igenkanning={igenkanning}
@@ -4371,77 +4407,40 @@ function Reaktionschips({ m, egen, reakt, texter: t }) {
 const OMROSTNING_ANSIKTEN = 3;
 
 /**
- * Omröstningarna i ett samtal: en lyssnare per samling (alternativ och röster), räknade per meddelande, och de egna skrivningarna.
+ * Omröstningarna i ett samtal: de egna skrivningarna, och vad varje kort behöver för att läsa sin egen omröstning (`useOmrostning`).
  *
- * ⛔ FEL SÄGS (regel 5): en läsning som föll och en skrivning som nekades blir var sin rad, aldrig en tyst knapp. ⛔ RÖSTEN VÄLJER
- * SJÄLV RÄTT SKRIVNING ur det som lästs: första rösten skapas, en annan rad byter, samma rad tar tillbaka. Ingen läsning före.
+ * ⛔ (cllp/lifehub.app#742, skiva 2) HÄR LÄSES INGENTING. Skiva 1 läste alternativ och röster för hela samtalet här, de 500 senaste per samling,
+ * och de äldsta omröstningarna föll ur fönstret. Nu läser varje kort sin omröstning. ⛔ FEL SÄGS (regel 5): en skrivning som nekades blir en rad
+ * i loggen, en läsning som föll en rad i kortet. ⛔ RÖSTEN VÄLJER SJÄLV RÄTT SKRIVNING ur det kortet läst: första rösten skapas, en annan rad
+ * byter, samma rad tar tillbaka. Ingen läsning före.
  *
  * @param {(ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla> & import("../data/samtalskalla.js").Omrostningsfunktioner) | null} kalla
  * @param {string} sid @param {string} uid
  */
 function useOmrostningar(kalla, sid, uid) {
-  const tomt = /** @type {{ rader: any[], fler: boolean, fel: Error | null }} */ ({ rader: [], fler: false, fel: null });
-  const [val, setVal] = useState(tomt);
-  const [roster, setRoster] = useState(tomt);
   const [skrivfel, setSkrivfel] = useState(/** @type {Error | null} */ (null));
-  const lyssnar = useRef(false);
+  // Räknas upp efter varje egen skrivning. Ett kort vars källa inte kan prenumerera läser om då; ett som lyssnar bryr sig inte.
+  const [skrivningar, setSkrivningar] = useState(0);
   const somFel = (/** @type {unknown} */ e) => (e instanceof Error ? e : new Error(String(e)));
-  const lasIn = async () => {
-    if (!kalla) return;
-    try {
-      const [v, r] = await Promise.all([kalla.lasOmrostningsval(sid), kalla.lasOmrostningsroster(sid)]);
-      setVal({ rader: v.rader, fler: v.fler, fel: null });
-      setRoster({ rader: r.rader, fler: r.fler, fel: null });
-    } catch (e) {
-      setVal((l) => ({ ...l, fel: somFel(e) }));
-    }
-  };
-  useEffect(() => {
-    if (!kalla) return undefined;
-    let levande = true;
-    const stangVal = kalla.prenumereraOmrostningsval(sid, { onData: (s) => levande && setVal({ rader: s.rader, fler: s.fler, fel: null }), onError: (e) => levande && setVal((l) => ({ ...l, fel: e })) });
-    const stangRoster = kalla.prenumereraOmrostningsroster(sid, { onData: (s) => levande && setRoster({ rader: s.rader, fler: s.fler, fel: null }), onError: (e) => levande && setRoster((l) => ({ ...l, fel: e })) });
-    lyssnar.current = Boolean(stangVal && stangRoster);
-    if (!lyssnar.current) lasIn();
-    return () => {
-      levande = false;
-      stangVal?.();
-      stangRoster?.();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kalla, sid]);
-  const perMeddelande = useMemo(() => {
-    /** @type {Map<string, { val: any[], roster: any[] }>} */
-    const per = new Map();
-    const hamta = (/** @type {string} */ mid) => {
-      const p = per.get(mid) ?? { val: [], roster: [] };
-      per.set(mid, p);
-      return p;
-    };
-    for (const v of val.rader) if (v && typeof v.mid === "string") hamta(v.mid).val.push(v);
-    for (const r of roster.rader) if (r && typeof r.mid === "string") hamta(r.mid).roster.push(r);
-    /** @type {Map<string, ReturnType<typeof summeraOmrostning>>} */
-    const ut = new Map();
-    for (const [mid, p] of per) ut.set(mid, summeraOmrostning(p.val, p.roster, uid));
-    return ut;
-  }, [val.rader, roster.rader, uid]);
-  const efterSkrivning = async () => {
+  const efterSkrivning = () => {
     setSkrivfel(null);
-    if (!lyssnar.current) await lasIn();
+    setSkrivningar((n) => n + 1);
   };
   // ⛔ EN RÖST I TAGET PER OMRÖSTNING (granskningen av PR 566). Ett andra tryck innan svaret kommit läste ett gammalt eget val, så
   // "samma rad igen tar tillbaka rösten" blev en ny röst på samma rad. Trycket under väntan släpps.
   const rostarNu = useRef(/** @type {Set<string>} */ (new Set()));
-  /** @param {string} mid @param {string} valId */
-  const rosta = async (mid, valId) => {
+  /**
+   * @param {string} mid @param {string} valId
+   * @param {string | null} eget Det egna valet i omröstningen, som kortet läst det.
+   */
+  const rosta = async (mid, valId, eget) => {
     if (!kalla || rostarNu.current.has(mid)) return;
     rostarNu.current.add(mid);
-    const eget = perMeddelande.get(mid)?.egetVal ?? null;
     try {
       if (eget === valId) await kalla.taBortRost(sid, { mid, av: uid });
       else if (eget) await kalla.andraRost(sid, { mid, val: valId, av: uid });
       else await kalla.rosta(sid, { mid, val: valId, av: uid });
-      await efterSkrivning();
+      efterSkrivning();
     } catch (e) {
       setSkrivfel(somFel(e));
     } finally {
@@ -4451,47 +4450,85 @@ function useOmrostningar(kalla, sid, uid) {
   /**
    * Lägger till ett alternativ. Kastar till kortet, som säger felet vid fältet.
    * @param {string} mid @param {string} text
+   * @param {ReadonlyArray<string>} befintliga Omröstningens alternativ, som kortet läst dem. Hela listan: kortet erbjuder inget fält när den inte är hel.
    */
-  const laggTill = async (mid, text) => {
+  const laggTill = async (mid, text, befintliga) => {
     if (!kalla) return;
-    const befintliga = (perMeddelande.get(mid)?.alternativ ?? []).map((a) => a.text);
     await kalla.laggTillAlternativ(sid, { mid, text, av: uid, befintliga });
-    await efterSkrivning();
+    efterSkrivning();
   };
   /** @param {{ fraga: string, alternativ: ReadonlyArray<string> }} d @returns {Promise<any>} Meddelandet. */
   const skapa = async ({ fraga, alternativ }) => {
     if (!kalla) return null;
     const ny = await kalla.skickaOmrostning(sid, { fraga, alternativ, av: uid });
-    await efterSkrivning();
+    efterSkrivning();
     return ny;
   };
-  return { pa: Boolean(kalla), perMeddelande, rosta, laggTill, skapa, fel: val.fel ?? roster.fel, skrivfel, fler: val.fler || roster.fler };
+  return { pa: Boolean(kalla), kalla, sid, uid, rosta, laggTill, skapa, skrivfel, skrivningar };
 }
 
 /**
- * Raderna om omröstningarna som gäller hela loggen: läsningen föll, en röst nekades, eller taket nåddes.
+ * En omröstning, läst för sig (cllp/lifehub.app#742): alternativen och rösterna med `mid`, var sin lyssnare, och räknad.
+ *
+ * ⛔ `laddad` SKILJER "INGA ALTERNATIV" FRÅN "INTE LÄST ÄN". Före första svaret säger kortet ingenting om alternativen; "Inga alternativ än."
+ * står bara när läsningen svarat tomt. ⛔ `fler` är per omröstning och står i kortet, inte överst i loggen långt från det.
+ *
+ * @param {ReturnType<typeof useOmrostningar>} omr @param {string} mid
+ */
+function useOmrostning(omr, mid) {
+  const { kalla, sid, uid, skrivningar } = omr;
+  const tomt = /** @type {{ rader: any[], fler: boolean, fel: Error | null, laddad: boolean }} */ ({ rader: [], fler: false, fel: null, laddad: false });
+  const [val, setVal] = useState(tomt);
+  const [roster, setRoster] = useState(tomt);
+  const lyssnar = useRef(false);
+  const levande = useRef(true);
+  const somFel = (/** @type {unknown} */ e) => (e instanceof Error ? e : new Error(String(e)));
+  const lasIn = async () => {
+    if (!kalla) return;
+    try {
+      const [v, r] = await Promise.all([kalla.lasOmrostningsval(sid, mid), kalla.lasOmrostningsroster(sid, mid)]);
+      if (!levande.current) return;
+      setVal({ rader: v.rader, fler: v.fler, fel: null, laddad: true });
+      setRoster({ rader: r.rader, fler: r.fler, fel: null, laddad: true });
+    } catch (e) {
+      if (levande.current) setVal((l) => ({ ...l, fel: somFel(e) }));
+    }
+  };
+  useEffect(() => {
+    if (!kalla) return undefined;
+    levande.current = true;
+    const pa = { v: true };
+    const stangVal = kalla.prenumereraOmrostningsval(sid, mid, { onData: (s) => pa.v && setVal({ rader: s.rader, fler: s.fler, fel: null, laddad: true }), onError: (e) => pa.v && setVal((l) => ({ ...l, fel: e })) });
+    const stangRoster = kalla.prenumereraOmrostningsroster(sid, mid, { onData: (s) => pa.v && setRoster({ rader: s.rader, fler: s.fler, fel: null, laddad: true }), onError: (e) => pa.v && setRoster((l) => ({ ...l, fel: e })) });
+    lyssnar.current = Boolean(stangVal && stangRoster);
+    if (!lyssnar.current) lasIn();
+    return () => {
+      pa.v = false;
+      levande.current = false;
+      stangVal?.();
+      stangRoster?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kalla, sid, mid]);
+  // En källa som inte kan prenumerera läser om efter varje egen skrivning i samtalet.
+  useEffect(() => {
+    if (skrivningar > 0 && kalla && !lyssnar.current) lasIn();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skrivningar]);
+  const summa = useMemo(() => summeraOmrostning(val.rader.filter((v) => v?.mid === mid), roster.rader.filter((r) => r?.mid === mid), uid), [val.rader, roster.rader, mid, uid]);
+  return { summa, laddad: val.laddad, fler: val.fler || roster.fler, fel: val.fel ?? roster.fel, valFler: val.fler };
+}
+
+/**
+ * Raden om omröstningarna som gäller hela loggen: en röst som nekades. (#742) Läsfel och tak står i kortet de gäller.
  * @param {{ omr: ReturnType<typeof useOmrostningar>, texter: Required<Meddelandetexter> }} props
  */
 function Omrostningslage({ omr, texter: t }) {
-  if (!omr.pa) return null;
+  if (!omr.pa || !omr.skrivfel) return null;
   return (
-    <>
-      {omr.fel ? (
-        <p data-omrostningsfel="lasa" role="alert" className="m-0 py-1 text-center text-liten text-danger">
-          {t.omrostningarFel}
-        </p>
-      ) : null}
-      {omr.skrivfel ? (
-        <p data-omrostningsfel="skriva" role="alert" className="m-0 py-1 text-center text-liten text-danger">
-          {t.omrostningFel}
-        </p>
-      ) : null}
-      {omr.fler ? (
-        <p data-omrostningar-fler="" role="status" className="m-0 py-1 text-center text-liten text-ink-muted">
-          {t.omrostningarFler}
-        </p>
-      ) : null}
-    </>
+    <p data-omrostningsfel="skriva" role="alert" className="m-0 py-1 text-center text-liten text-danger">
+      {t.omrostningFel}
+    </p>
   );
 }
 
@@ -4518,12 +4555,14 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
   const rubrikId = useId();
   const faltId = useId();
   const felId = useId();
-  const s = omr.perMeddelande.get(m.id) ?? summeraOmrostning([], [], "");
+  const las = useOmrostning(omr, m.id);
+  const s = las.summa;
   const [laggerTill, setLaggerTill] = useState(false);
   const [nytt, setNytt] = useState("");
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
   const [arbetar, setArbetar] = useState(false);
-  const kanLaggaTill = s.alternativ.length < MAX_ALTERNATIV;
+  // ⛔ (#742) Bara när listan är läst och hel: taket och dubbletten prövas mot den, och en ofullständig lista är fel underlag.
+  const kanLaggaTill = las.laddad && !las.valFler && s.alternativ.length < MAX_ALTERNATIV;
   const langdFel = omrostningstextFel(nytt, MAX_ALTERNATIVTEXT, t);
   const stangFalt = () => {
     setLaggerTill(false);
@@ -4539,7 +4578,7 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
     }
     setArbetar(true);
     try {
-      await omr.laggTill(m.id, text);
+      await omr.laggTill(m.id, text, s.alternativ.map((a) => a.text));
       stangFalt();
     } catch {
       setFel(t.alternativFel);
@@ -4554,7 +4593,7 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
         {m.text}
       </h3>
       <div role="group" aria-labelledby={rubrikId} className="flex flex-col gap-1.5">
-        {s.alternativ.length === 0 ? <p data-omrostning-tom="" className="m-0 text-liten text-ink-muted">{t.omrostningUtanAlternativ}</p> : null}
+        {las.laddad && s.alternativ.length === 0 ? <p data-omrostning-tom="" className="m-0 text-liten text-ink-muted">{t.omrostningUtanAlternativ}</p> : null}
         {s.alternativ.map((a) => (
           <button
             key={a.id}
@@ -4562,7 +4601,7 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
             data-omrostningsval={a.id}
             aria-pressed={a.egen}
             aria-label={`${a.text}, ${rostantal(a.antal, t)}${a.egen ? `, ${t.duHarRostat}` : ""}`}
-            onClick={() => omr.rosta(m.id, a.id)}
+            onClick={() => omr.rosta(m.id, a.id, s.egetVal)}
             className={cx(
               "relative flex min-h-11 w-full cursor-pointer items-center gap-2 overflow-hidden rounded-xl border bg-surface px-3 py-1.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
               a.egen ? "border-accent" : "border-transparent hover:bg-canvas",
@@ -4641,6 +4680,17 @@ function Omrostningskort({ m, omr, namnFor, bildFor, texter: t }) {
         ) : null}
       </div>
       <p data-omrostning-antal="" className="m-0 text-liten text-ink-muted">{t.omrostningRostat.replace("{n}", String(s.antalRostande))}</p>
+      {/* ⛔ (#742) Läsfelet och taket står i kortet de gäller, inte överst i loggen. Tomt sägs, det utelämnas inte (regel 5). */}
+      {las.fel ? (
+        <p data-omrostningsfel="lasa" role="alert" className="m-0 text-liten text-danger">
+          {t.omrostningarFel}
+        </p>
+      ) : null}
+      {las.fler ? (
+        <p data-omrostning-fler="" role="status" className="m-0 text-liten text-ink-muted">
+          {t.omrostningarFler}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -9,9 +9,9 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
-## 0.214.0
+## 0.223.0
 
-Kartkomponent: en GeoJSON-fil som karta (cllp/ops-framework#570). Inget brytande. Inte publicerad i det här passet.
+Kartkomponent: en GeoJSON-fil som karta (cllp/ops-framework#570). Inget brytande.
 
 ### Tillagt
 
@@ -20,6 +20,329 @@ Kartkomponent: en GeoJSON-fil som karta (cllp/ops-framework#570). Inget brytande
 ### Prov
 
 - **`karta.test.js`**, **`karta-vy.test.jsx`**, **`karta-lat.test.jsx`**: läsning, simplestyle mot palett och accent, stilen tar färgerna den får, popupen ritar text och inte HTML, exemplet i två språk, temabyte, saknade färger, tom och trasig fil, och att vyn inte hämtas förrän kartan ritas. `check:delbarhet` mäter att `maplibre-gl` och workern ligger utanför startfilen. `check:kontrast` vaktar kartans text mot land och creme.
+
+## 0.222.1
+
+**Inkorgens svarsrad i mobil (`OpsSvarsrad`).** CP 2026-11-13, med en skärmbild ur Inkorgen i telefonen: "Allt ihoptryckta." Texten krympte till ett ord per rad ("Medl…", "Måndag", "16") medan Kommer, Kanske och Kommer inte stod kvar bredvid. Knapparna står nu på en egen rad under texten under 768 px (`variant="egen-rad"`, som i händelsens detalj), och bredvid från 768 px. Ingen ändring i API:t.
+
+---
+
+## 0.222.0
+
+**Profilen i kontoläget blir en kort sida (cllp/lifehub.app#813).** CP 2026-11-12, med en skärmbild: "Det ser rörigt ut. Massa saker som syns. Not clean." Med `konto={{ sakerhetHref, raderaHref }}` visar `OpsProfil` nu personen, Språk, Nycklar och kopplingar, Mina grupper och Konto. Bild, färg, ikon, uppgifter och länkar ligger i arket "Redigera profil", med Spara och Avbryt. Språket sparas direkt. Radera kontot är en diskret länk under Konto. Nytt: `konto.nycklarHref` ger raden Nycklar och kopplingar. De andra lägena (utan `konto`, och `konto.href`) ritas som förut.
+
+**JSON och GeoJSON i Biblioteket (cllp/lifehub.app#763).** `application/json` och `application/geo+json` står i `FILMIME`, och `mimeUrFilnamn` känner `.json` och `.geojson`. Filerna laddas ned och visas inte i appen.
+
+**MIME som bokstavlig text i reglernas mönster.** `filMimeMonster` och `filContentTypeMonster` skriver `+` och `.` som teckenklasser (`[+]`, `[.]`). Annars hade `geo+json` blivit en kvantifierare, och punkterna i Office-typerna matchade redan vilket tecken som helst. **Appen måste generera om sina regler och deploya dem före klienten**, eftersom regeltexten ändras för alla typer med punkt.
+
+---
+
+## 0.221.0
+
+Kopiera länk i biblioteket tar en funktion från appen (`postlank`) i stället för appens adress (`postlankBas`, 0.220.0), och kortets rubrik (`kortRubrik`) bor i `lib/bibliotek.js`. Båda för att 0.220.0 gjorde lifehub.app:s startfiler större än vakten `check:jsstorlek` släpper igenom (cllp/lifehub.app#801).
+
+**Mätt i lifehub.app, per modul med källkartor, 2026-11-12:**
+
+| Version | Före första vyn, gzip | Mot taket 815 543 |
+|---|---|---|
+| 0.219.0 | 815 524 | 19 under |
+| 0.220.0 | 816 104 | 561 över: `OpsBibliotek` importerade `bibliotekslank`, och hela `postkommentar.js` (+2 119 ominifierade byte) följde med in i startfilen |
+| `bibliotekslank` i en egen fil | | 479 över: filen (+1 619) låg ändå i startfilen |
+| `postlank` som funktion | | 38 över: bara `OpsBibliotek` (+260) |
+| 0.221.0, med `kortRubrik` flyttad | 815 524 | 19 under, samma som 0.219.0 |
+
+`kortRubrik` flyttades för att postkortet i chatten (`bibliotekPostkortVisning.jsx`) importerade den ur `OpsBibliotek.jsx`. Flytten tog bort 150 ominifierade byte ur startfilen, och det räckte. Hela `OpsBibliotek` ligger fortfarande i startfilen av ett annat skäl, och det är ett eget arbete.
+
+**Skärmtid:** oförändrad. Ingenting syns annorlunda.
+
+### Ändrat
+
+- **`OpsBibliotek` tar `postlank`**, en funktion som ger postens adress i appen, i stället för `postlankBas`. Appen bygger länken där den redan har koden, till exempel `(p) => bibliotekslank(bas, { plats: p.groupId, postId: p.id })`. Biblioteket prövar postens form (`POSTIDFORM` och `groupId`, granskningen A1) innan funktionen anropas, så en post med ett avvikande id saknar raden i stället för att ta ned listan.
+- **`kortRubrik` bor i `lib/bibliotek.js`.** Den importeras inte längre ur `OpsBibliotek.jsx`.
+
+### Att göra i appen
+
+- Byt `postlankBas={bas}` mot `postlank={(p) => bibliotekslank(bas, { plats: p.groupId, postId: p.id })}`. Utan den har en medlems fil ingen Kopiera länk, som förut.
+
+---
+
+## 0.220.0
+
+Kopiera länk i biblioteket lämnar aldrig ut filens nedladdningsadress (cllp/lifehub.app#801, QA A01). QA i SessionStudio 1.0.1171, 2026-11-12: Kopiera länk på en fil gav en rå firebasestorage-adress med token, som öppnades utan inloggning, aldrig gick ut och inte gick att dra tillbaka. Raden var en väg förbi Dela länk, som har utgång och kod.
+
+**Skärmtid (frågan till ärendet):** oförändrad. Raden finns kvar och gör samma sak för den som delar med en kollega i gruppen. Den som ska dela utanför gruppen har Dela länk, som förut.
+
+### Säkerhet
+
+- **`OpsBibliotek` `postlankBas`:** appens adress till biblioteket, samma `bas` som `bibliotekslank` och kommentarerna. Kopiera länk på en medlems fil kopierar postens adress i appen (`<bas>?plats=<grupp>&post=<id>`), som kräver inloggning och medlemskap. Basen prövas när biblioteket ritas.
+- **Utan `postlankBas` har en medlems fil ingen Kopiera länk.** Fram till 0.219.0 kopierade raden `filUrl`, alltså nedladdningsadressen. En länkpost kopierar sin egen adress som förut, och gästens fil sin signerade adress som gäller en kvart (oförändrat).
+- **En post vars id inte är ett postid (`POSTIDFORM`) får ingen Kopiera länk** i stället för att `bibliotekslank` kastar. Menyn byggs för varje rad när listan ritas, så en enda sådan post hade tagit ned hela biblioteket (den oberoende granskningen, A1).
+
+### Kvar, i eget ärende
+
+- Medlemmens filnamn och Ladda ned är fortfarande `<a href>` med lagringsadressen, så "Kopiera länkadress" på filnamnet ger samma token. Rotorsaken är visningen, inte menyn: cllp/ops-framework#583.
+
+### Att göra i appen
+
+- Ge `postlankBas` till `OpsBibliotek` där biblioteket visas för medlemmar. Utan den försvinner Kopiera länk på filer, vilket är det säkra förvalet.
+- Redan kopierade nedladdningsadresser gäller tills filens token byts. Det görs i appens lagring och inte i ramverket.
+
+---
+
+## 0.219.0
+
+Färgväljaren för en hubbs färger, och granskningens fynd som besked om vilken färg i vilket läge som ska ändras, och åt vilket håll (cllp/lifehub.app#798). CP 2026-11-12, med en skärmbild av Hubbens färger: "vi behöver en color picker och reglage som kommer upp när man trycker på rutan. Låt det vara möjligt att skriva in hex också, men bra att kunna välja. Det måste vara tydligare var på skalan man är fel, om det behöver vara ljusare eller mörkare." Och: han sparade en färg i mörkt, bytte till ljust där den inte höll, och när han gick tillbaka till mörkt stod felet kvar utan att säga att det gällde ljust läge. Inget brytande: `granskaPalett` ger samma fynd som förut.
+
+**Skärmtid (frågan till ärendet):** färre försök. I dag gissar den som väljer en färg vilket håll som hjälper och provar igen; skalan visar det, och knappen tar närmaste färg som håller i ett tryck.
+
+### Nytt
+
+- **`OpsFargval`:** ett fält med rutan och färgkoden, och ett tryck öppnar en ruta vid fältet med reglage för kulör, mättnad och ljushet och färgkoden att skriva i. Med `palett`, `lage` och `nyckel` tonas den del av ljusheten som inte håller ned och den som håller ramas in, och under reglaget står var det håller ("Håller mellan 0 och 35 % och mellan 41 och 51 %"), var färgen står, åt vilket håll den ska ändras och knappen "Använd närmaste som fungerar". Riktiga `<input type="range">` med etiketter och värden i ord, Escape stänger och fokus går tillbaka till fältet, 44 px träffytor. HSL och inte OKLCH: varje punkt är en riktig `#rrggbb`, så ljushetsreglaget ändrar aldrig mättnaden (skälet i `palettomfang.js`). En ruta vid fältet på alla bredder, som `OpsDatePicker`, och inget ark nerifrån (samma beslut som `OpsAtgardsblad` 0.102.0).
+- **`hallbarLjushet(palett, lage, nyckel, farg, skala?)`:** delarna av ljushetsskalan där varje par med färgen håller, om färgen själv håller, åt vilket håll närmaste som håller ligger (`"ljusare"`, `"morkare"`, `null`) och den färgen. Prövat genom granskningen (`granskaLage`, samma par och ribbor som `granskaPalett` och `check-kontrast`), och bara med paren som hänger på färgen: en oläslig text gör inte accentens skala röd.
+- **`palettBesked(palett)`:** "Accenten i ljust tema är för ljus. Gör den mörkare." i stället för kvoterna, en rad per färg och läge, med närmaste färg och de mätta kvoterna kvar. `lagenMedFel` för en röd prick på lägets flik, och `iAnnatLage` för raden i det andra läget ("Ljust tema behöver ändras innan du kan spara."). ⛔ "Tema" och inte "läge" som i ärendet: granskningens meningar och appens växel säger tema, och "läge" är statusens ord (`check-statusord`). Färgen som behöver minst ändring står först, och en färg står bara om den lagar något: på CP:s palett hänger accenten mot sidan också på bakgrunden, men ingen ljushet av bakgrunden lagar det, och raden om bakgrunden står därför inte.
+- **`riktningsbesked(omfang)`:** det korta beskedet utan färgens namn, det färgväljaren skriver under reglaget.
+- ⛔ **Färgkoden går vidare i palettens form när den är hel** (granskningen av PR 581): `#1F1F25` och ` 1f1f25 ` blir `#1f1f25`. Versaler eller mellanslag hade annars gjort utkastet till en ogiltig palett, och skalan hade försvunnit för varje färg utan att något fel visades. En halv kod (`#12`, `#abc`) går vidare som den står, och fältet säger formen.
+
+### Ändrat
+
+- **`granskaPalett` är `granskaLage` för båda lägena.** Samma fynd i samma ordning; `granskaLage` tar en delmängd av paren så att skalan inte prövar alla par hundra gånger per reglagedrag. Temats ordning läser `ORDNINGENS_NYCKLAR`, samma lista som skalan använder för att veta vilka färger ett `ordning`-fynd hänger på.
+- **`tokens.css`:** `.ops-reglage.ops-fargreglage` gör skenan genomskinlig, så att färgskalan under reglaget syns. Tummen och skenans höjd är oförändrade.
+
+### Prov
+
+- `palettomfang.test.js`: CP:s palett (accenten #94a37e i ljust läge, 2,62:1 mot kortet där 3:1 behövs) ger "mörkare", och närmaste färg ger noll fynd i `granskaPalett` medan en halv procent ljusare inte gör det; förvalets åtta färger håller; skalan stämmer med granskningen mitt i varje intervall och varje lucka (golv: 20 vardera); en oläslig text lämnar accentens skala ifred; en palett där ingen ljushet håller ger tom lista; `palettBesked` på CP:s palett, på förvalet (tomt), på fel i båda lägena, och på 60 slumpvisa paletter där varje fynd står i en rad och varje rads närmaste färg tar bort radens fynd (golv: 25 med fynd); hex till HSL och tillbaka för 4096 färger.
+- `fargval.test.jsx`: reglagen, etiketterna och värdena i ord, att reglagen ger `#rrggbb` och att kulören står kvar genom svart (också när svart skrivs som kod), skalans delar och beskedet på CP:s palett, knappen, engelska, ingen skala utan palett, färgkoden som skrivs, Escape och fokus tillbaka.
+- Rött utan ändringen: båda filerna faller på HEAD (modulerna saknas). Åtta planterade fel i en kopia, alla fällda: alla fynd räknas för färgen (2 röda), ingen ordning i `palettBesked` (2), vänd riktning (7), närmaste på fel sida av intervallet (1), ingen inramning (1), kulören läses om vid svart (1), temats ordning hoppas över (3), `iAnnatLage` pekar på samma läge (2).
+
+## 0.218.1
+
+Ljudspelaren tappar inte längre ett tryck på spela som kommer innan den hunnit koppla sina lyssnare, och agentens Gemini-modeller är bytta till 3.5 sedan Google pensionerat 2.5. Inget brytande, ingen ny prop.
+
+### Rättat
+
+- **`AGENTMODELLER`: Gemini Flash Lite är `gemini-3.5-flash-lite` och Gemini Flash `gemini-3.5-flash` (cllp/lifehub.app#786).** Google stängde 2.5-modellerna för nya projekt när de pensionerades 2026-10-20. SessionStudio-instansens projekt skapades 2026-11-10 och fick 404 på varje anrop, så agenten svarade inte. Mätt 2026-11-12 i båda projekten: 3.5-modellerna svarar (i platsen `global`, inte i `europe-west1`). Nytt: `ERSATTA_AGENTMODELLER`, och `modellUrId` slår upp ett pensionerat id till modellen som ersatt det. Ett sparat val med ett 2.5-id visas alltså i vyn som rätt modell och sparas tillbaka med det nya id:t. `modellUrId` och `ERSATTA_AGENTMODELLER` exporteras också från `ops-framework/node`. ⛔ **Appen måste göra sin del i samma ompinning:** slå upp sitt sparade val genom `ERSATTA_AGENTMODELLER` (annars faller en grupp med Gemini Flash tyst till appens modell), byta sin egen modellkonstant till `gemini-3.5-flash-lite` och anropa Vertex i platsen `global`.
+
+- **`OpsLjudspelare`: lyssnarna på `<audio>` kopplas i commit (`useLayoutEffect`), inte i en effekt efteråt (cllp/ops-framework#579, mätt i cllp/lifehub.app#772).** När adressen kom efter ett löfte (`hamtaAdress`, en delad lista som hämtats) satt `<audio>` i DOM en uppgift innan effekten som kopplar `error` och nollställer "någon har tryckt spela" (`begart`). Ett tryck i glappet startade uppspelningen, sedan körde React den väntande effekten och satte `begart` till falskt igen. Ett fel från filen räknades då inte som begärt: inget `onFel`, ingen ny adress för en adress som gått ut, ingen text. Ett fel före effekten nådde ingen lyssnare alls. I lifehub.app syntes det som ett prov som var rött ungefär en gång av sex (`delad-sida.test.jsx`, bara ett anrop till delningen efter felet). I webbläsaren är glappet kort, men den som trycker spela i samma ögonblick som en delad lista visas får samma fel. Ingenting i effekten behövde stå kvar som passivt: lyssnarna är billiga, längdsökningen är asynkron, och nollställningen av tid och läge ritas nu före målningen. Spelaren ritas aldrig på servern, så layouteffekten ger ingen varning där.
+
+### Prov
+
+- `agentmodeller.test.js`: ett pensionerat id ger modellen som ersatt det, varje ersättare står i listan och inget pensionerat id gör det. Rött med 0.218.0 (4 av 5), grönt med 0.218.1.
+- `ljudspelare-montering.test.jsx`: adressen kommer ur `hamtaAdress` utan `act`, och provet trycker spela och skickar ett fel på `<audio>` direkt när elementet syns i DOM, före nästa makrouppgift. Rött med 0.218.0 (`onFel` anropas aldrig), grönt med 0.218.1.
+
+## 0.218.0
+
+En hubbs egna färger vid körning (cllp/lifehub.app#786), större menyrader på pekskärm, `kanLyssna` för en egen taligenkänning i TALK, och bottenraden som göms medan man skriver också i den inbyggda appen. CP 2026-11-11, om färgerna: "Kan man göra det under hubbinställningar i appen där samma ställe där man bestämmer vilka appar som får installeras", och sedan "Kör på färgerna i härdning". Om menyn, med en skärmbild ur TestFlight av menyarket: "Är inte texten lite väl liten i denna menyn?" Inget brytande: en app som inte sätter någon palett ser exakt ut som förut, och på dator med mus är menyn oförändrad.
+
+**Skärmtid (frågan till ärendet):** färgerna lägger inget val i vardagen, bara en inställning en hubbadmin gör en gång. Menyn blir lättare att träffa och läsa, inte större till innehållet.
+
+### Nytt
+
+- **`src/lib/palett.js`:** fyra färger per läge (`bakgrund`, `yta`, `text`, `accent`) som skriver över ramverkets egna token vid körning, på brandkontraktets platser (ljust i lagret `theme`, mörkt olagrat som `--dark-*`). Resten av ytstegen och texttonerna härleds. `granskaPalett` nekar ett oläsligt par med samma ribba som `check-kontrast`, med en mening på svenska och engelska. Se README, "En hubbs egna färger vid körning".
+- **`OpsPalettForhandsvisning`, `OpsFargruta`:** förhandsvisningen av en palett i ett tema och rutan bredvid ett färgfält. I ramverket eftersom båda behöver en färg vid körning (`style`), som appens ESLint med rätta fäller.
+- **`STANDARDPALETT`** genereras av `scripts/generate-tokens.mjs` ur fixturen, till `src/lib/standardpalett.generated.js`. `--kontrollera` prövar den också.
+
+### Ändrat
+
+- **Menyarkets rader på telefonen** (arket som bottenradens Meny öppnar, `OpsBottomNav`): `text-brod` (16 px) och 20 px ikoner. Nytt val `radKlass({ ark: true })`, `OpsPanelRow ark` och `ark` på `menySektioner`, `menyAppAvdelning` och `menyFot`, som bara arket skickar. ⛔ Huvudets meny (popovern bakom "Meny, fler" från `md`) är oförändrad på SS 12 px, CP 2026-09-29 "Stor text": första versionen av 0.218.0 gjorde båda större med fältens villkor (`md:pointer-fine:`) och föll i `check-skalyta` i release-PR 577. Arket finns bara under `md`, så det har inget pekarvillkor och klassen säger den roll som ritas. `check-skalyta` avsnitt 18 mäter nu arket (16 px vid 390) och huvudets meny (12 px vid 1280) var för sig. Andra rader ur samma funktion (panelens rader, filter, väljare, Bibliotekets rader, plusset) är oförändrade. Raden är 44 px som förut (16 px text, `leading-6`, `py-2.5`), och etiketten bryts inte.
+
+- **TALK, `Igenkanning.kanLyssna({ baraIgenkanning })`** (valfri). På iOS visade varje röstinspelning "Texten kan inte visas just nu…". Rotorsaken, mätt i `OpsTalk.jsx`: `igkRef` och `igkWebRef` kommer båda ur samma `igenkanning`, så en igenkänning appen gett kunde inte stå över en omgång som spelar in (ett låst mål som Röstinspelning, och Spela in i stället på WebKit). `medText` var alltid sant, och igenkänningen kunde bara säga fel (`TALK_TEXTFEL`) eller tiga (platshållaren stod kvar, punkt 5-felet 0.99.0 stängde), och den dolde dessutom målvalet (`onAgent && medText`). Nu frågas `kanLyssna` vid start; `false` gör omgången till en ren inspelning utan textyta och `starta` anropas inte. Valet av en omgång med bara igenkänningen kräver också `kanLyssna({ baraIgenkanning: true }) !== false`. Ett kast räknas som `false` och rapporteras (`steg: "kanLyssna"`). En igenkänning utan `kanLyssna` beter sig som förut. ⛔ Appen behöver ompinningen: lifehub.app ger `skaletsIgenkanning` `kanLyssna: ({ baraIgenkanning }) => plattform !== "ios" || baraIgenkanning === true`.
+
+- **Bottenraden göms igen medan man skriver i den inbyggda appen** (`src/lib/tangentbord.js`, cllp/ops-framework#461 igen). Händelsen: appen fick `@capacitor/keyboard` 8.0.6 för att dölja iOS-raden ovanför tangentbordet (CP: "det känns inte så native"). Pluginens `load` tar alltid bort WKWebViews egna tangentbordsobservatörer, och i läget `resize: native` krymper hela webbvyn, så layoutfönstret krymper med `visualViewport` och mätningen såg inget tangentbord: raden stod kvar mellan skrivfältet och tangentbordet, som i CP:s skärmbild 2026-10-28. Nu lyssnar mätningen också på pluginens händelser på `window`, lästa ur dess källa (`Keyboard.m`, `definitions.d.ts`): `keyboardWillShow` och `keyboardDidShow` med `keyboardHeight` på händelsen, `keyboardWillHide` och `keyboardDidHide`. När de kommer gäller de; en höjd under 150 px (0 är pluginens QuickType-rad, ett externt tangentbord) räknas som nere. Kommer de aldrig (webben, äldre byggen av appen) gäller mätningen som förut. Inget beroende på `@capacitor`.
+
+### Rättat efter granskningen (före utgivningen)
+
+En oberoende granskning av grenen hittade sex fel, och alla är rättade i samma version:
+
+- **Palettens granskning prövar check-kontrasts par, ur samma lista** (`src/lib/kontrastpar.js`). Granskningen hade en egen lista på sju par och släppte igenom slumpvisa paletter där dämpad text på sidan gav 2,45:1, accenten mot headern 2,69:1, text på hover 4,12:1 och felraden 1,17:1. Listan bor nu på ett ställe och läses av båda (arbetsreglernas punkt 2), utökad med de par komponenterna ritar på sidan, i fält och på hover, accenten mot kortet, och fel, klart, varning, info, märket och märkets accent mot sidan, headern och kortet. Ramverkets värden för det paletten inte skriver genereras ur `tokens.css` (`RAMVERKETS_PARTOKEN`). `ink-muted` står med flit inte med: den bär aldrig information.
+- **Temat måste vara det det heter:** ljust tema kräver ljusare bakgrund och yta än texten, mörkt tvärtom. `line-strong` och `divider` (svart respektive vit med låg täckning) följer då ytan av sig själva och härleds inte; `ink-inverse` står bara på kontrastpanelen, som inte följer paletten. Diagrammen och gruppkulörerna prövas fortfarande bara mot ramverkets ytor.
+- **Ingen sträng rakt in i stilen:** `palettTillCss` och `granskaPalett` kastar, `tillampaPalett` tar bort stilen och `palettStil` ger ingen stil för något som inte är en palett (`text: "red}}body{display:none}..."` skrevs förut ordagrant).
+- **Tangentbordet fastnade inte längre gömt:** ett native-besked kräver också ett textfält med fokus, och glöms när sidan blir synlig igen, så PR 462:s återhämtning gäller också i appen.
+- **`kanLyssna` frågas en gång per kandidat och omgång**, och ett kast rapporteras en gång. En igenkänning som svarade ja och sedan nej gav förut en ren igenkänningsomgång utan igenkänning.
+
+### Prov
+
+- `palett.test.js`, efter granskningen: vakten och granskningen läser samma lista och den bär 37 utskrivna par; en palett per par som beror på paletten fäller just det paret (36, `badge-contrast` mot `badge` beror inte på paletten); granskningens två exempel nekas; vänt tema nekas; strängen i stilen nekas på tre sätt. Rött med palett.js före rättelsen (7 röda), och ett borttaget par ur listan dödar två prov.
+- `tangentbord.test.jsx`, efter granskningen: show, bakgrund och tillbaka utan hide, och show följt av fokus ut, ger båda raden tillbaka. Rött före rättelsen (2).
+- `talk-kanlyssna.test.jsx`, efter granskningen: ja-sedan-nej ger en lyssnande omgång med en fråga, och ett kast rapporteras en gång. Rött före rättelsen (2).
+- `tangentbord.test.jsx`: pluginens händelser gömmer och tar fram raden fast viewporten inte krympt, par av Will och Did flera gånger i följd och ett Will utan sitt Did lämnar aldrig raden fast, höjd 0 och under 150 px räknas som nere, och utan händelserna gäller mätningen som förut. Rött med 0.217.0 (2 av de 4 nya; höjd 0 och utan händelser är gröna i båda, som de ska).
+- `talk-kanlyssna.test.jsx`: med `kanLyssna` som säger nej utanför en ren igenkänningsomgång (som iOS-appen) ger ett låst mål och Spela in i stället på WebKit ingen platstext och ingen felrad, och `starta` anropas aldrig; en omgång med bara igenkänningen anropar `starta`; en igenkänning utan `kanLyssna` lyssnar som förut; en `kanLyssna` som kastar rapporteras och omgången blir en inspelning utan levande text. Rött med 0.217.0 (4 av 5, provet utan `kanLyssna` är grönt i båda, som det ska).
+- `palett-komponenter.test.jsx`: förhandsvisningen bär det valda temats token på rutan och inte på dokumentet, färgrutan ritar bara `#rrggbb`.
+- `palett.test.js`: ingen palett ger ingen stil och Återställ tar bort den, varje token paletten skriver finns i `tokens.css` i båda lägena, ljust och mörkt skrivs på rätt plats, oläsligt nekas, bara `#rrggbb` godtas. Rött med mutationer (granskningen släpper allt, `null` tar inte bort stilen, formen godtar vad som helst): 6 av 15 röda.
+- `menyarket-rader.test.jsx`: arkets rader (navigeringens överlopp, appens sektion, utloggningen) bär `text-brod` utan pekarvillkor och 20 px ikoner, och huvudets meny bär `text-meta` och 16 px ikoner. Rött med 0.217.0 (arket) och med första versionen av 0.218.0 (arket och huvudets meny). `check-skalyta` rött med första versionen (2 brott: "Huvudets meny (390 px): textstorlek 16 px, väntat 12 px" och 6 avvikelser från rollskalan), grönt efter.
+
+### Profilen redigerad i hubben
+
+Profilen redigerad i hubben och sparad i kontot (cllp/lifehub.app#786). CP 2026-11-11: "Det är ganska tydligt att mitt konto är en web site. Går det att få en mer integrerad upplevelse?" och "Kör, ta profilvyn i härdningen". En app som inte skickar de nya propsen får samma vy som förut, utom märkets väljare (se Ändrat).
+
+**Skärmtid (frågan till ärendet):** ingen ny vy. Profilen som redan finns i appen går att ändra där, i stället för att öppna en webbsida i ett ark.
+
+#### Nytt
+
+- **`OpsProfil` `falt`:** fälten appen sparar. Bara de ritas, och Spara skickar bara de av dem som ändrats. Ett konto som äger personen (LifeHubs Identity) nekar `lankar` och `tema`, och hela raden hade nekats varje gång.
+- **`OpsProfil` `utanBild`:** när bilden är inloggningens och inte appens egen (ingen `lagring`). Bildraden blir en knapp, "Visa inte bilden" eller "Visa bilden", och Spara skickar `utanBild`. Varken Ta bort eller Återställ, som skickar `bild` som text.
+- **`OpsProfil` `konto={{ sakerhetHref, raderaHref }}`:** det redigerbara kontot. Formuläret sparas genom `onSpara`, och en sektion Konto bär länkarna "Inloggning och säkerhet" och "Radera kontot". `konto={{ href }}` är det skrivskyddade läget som förut; båda samtidigt kastar.
+- **`OpsProfil` `sparaFelText`** (text, eller en funktion som får felet) och förvalet `sparaFelForval`: ett nej från `onSpara` står som `role="alert"` bredvid Spara, och utkastet står kvar så att det går att rätta. Förut svaldes felet (`try/finally` utan `catch`).
+- **`OpsProfil` `telefonHint`** och resten av de nya etiketterna i `ORD_OPSPROFIL`, på svenska och engelska. Telefonens exempel var hårdkodad svenska.
+- **`andringen(anvandare, utkast, falt)`** och **`PROFILENS_FALT`**: bara det som ändrats bland fälten i listan. Ett okänt namn kastar.
+- **`OpsGruppmarkeValjare`** exporteras, med `person` för personens form: ingen rad med förslag ur namnet och inga egna initialer (`byggAnvandare` nekar `initialer:AB` för en person).
+
+#### Ändrat
+
+- **`OpsProfil`, märket:** gruppens väljare i stället för sex ikoner och sex färger: tolv kulörer, reglaget för alla 360, återställning till kulören ur id:t, och ikonkatalogen med sökning. Samma val som Identitys profil. **Utan `falt` sparas ikon och färg direkt, som förut**, så att appar som sparar i sin egen rad inte ändrar beteende. Med `falt` står valet i utkastet och sparas med Spara: med ett reglage hade varje steg blivit en sparning, och Identity har ett tak per minut. Ett ikonval rensar fortfarande en kvarvarande bild.
+- **`OpsProfil`, utkastet:** bara det personen ändrat står i utkastet, resten läses ur `anvandare` vid varje ritning. Ett fält som sparats med Spara släpps när sparningen lyckats, också när servern ändrat värdet på vägen (Identity trimmar, så "Visby " blev aldrig lika med "Visby" och Spara stod kvar tänd), utom om personen hunnit ändra det medan sparningen pågick. Ett fält ändrat utifrån släpps när raden kommit ikapp det, ett ändrat fält står kvar också när raden ändras, och en annan `anvandare.id` tömmer utkastet. Förut var fälten `useState` ur den första `anvandare` och stod kvar när raden ändrades utifrån. `valjIkonEtikett` heter som förval "Ikon eller initialer". `ikonNamn` tas emot men används inte. Sparade värden ur de äldre sex (`krona`, `"3"`) ritas som förut.
+- **Ett nej vid Spara** försvinner när personen ändrar igen och när `anvandare.id` byts.
+- **Spara** visar "Sparar…" medan den väntar (`busyLabel`).
+
+#### Prov
+
+- `profilvy.test.jsx`: väljaren (tolv kulörer, reglaget, sökningen, inga förslag och inga egna initialer), ikon och kulör i utkastet och med Spara, `falt` (bara det ändrade, bara de fälten ritas), `utanBild` (en knapp, inga Ta bort eller Återställ, Spara skickar valet), det redigerbara kontot och dess fel, telefonens exempel på båda språken. `profil.test.js`: `andringen` med `falt`. Alla 13 röda mot 0.217.0, gröna efter; de 80 andra är gröna mot båda. Efter granskningen: ett nej från `onSpara` (400 med appens text, 429 med förvalet, ett direkt färgval), direktsparningen utan `falt` för ikon och färg, och utkastet när `anvandare` ändras (orört fält följer raden, ändrat står kvar, sparat släpps, annan person tömmer). Röda med var och en av ändringarna borttagen. Efter omgranskningen: "Visby " sparad som "Visby" (fältet följer raden, Spara släcks, en senare ändring utifrån syns), en ändring under sparningen står kvar, och ett nej försvinner vid nästa ändring och vid en annan person. Röda med var och en av ändringarna borttagen.
+
+---
+
+## 0.217.0
+
+"I repot" kan stå på gruppens eget bibliotek, inte bara på en egen plats (cllp/lifehub.app#785, CP 2026-11-11: "\"I repot\", kan det vara en standard alternativ för alla bibliotek som är kopplade till Github? inte bara projekt", och "kör"). Inget brytande: en app som bara skickar `repoLasare` på ett projekts plats ser ingen skillnad.
+
+**Skärmtid (frågan till ärendet):** ingen ny vy. Samma rad på fler ställen, så den som söker en fil i gruppens repo inte behöver gå via ett projekt.
+
+### Rotorsaken
+
+`OpsBibliotek` ritade "I repot" bara när platsen var en egen plats (`arPlatsBibliotek(plats)`), alltså ett beslut om VAR repot finns som hörde till appen. En app som skickade `repoLasare` i gruppens eget bibliotek fick ingen rad och inget fel.
+
+### Ändrat
+
+- **`OpsBibliotek`, "I repot":** ritas med `repoLasare` på gruppens eget bibliotek (grupp-id:t, `ID_FORM`) och på en egen plats (`repoplatsForm`). Mitt bibliotek, en händelses och ett ärendes plats får den aldrig, och aldrig en inbäddad lista. Om platsen har ett repo avgör appen genom att skicka `repoLasare` eller inte. Läsaren frågas med platsen som förut (`{ plats: <grupp-id>, sokvag }` på gruppens bibliotek), och en fil öppnas i läsläget med platsen som `groupId`.
+
+### Prov
+
+- `bibliotek-repo.test.jsx`: gruppens eget bibliotek med `repoLasare` får raden, och läsaren frågas med gruppens id. Rött med 0.216.0 (raden saknas), grönt med 0.217.0. Mitt bibliotek, en händelses och ett ärendes plats, en inbäddad lista och ett bibliotek utan `repoLasare` får ingen rad och frågar inte.
+
+---
+
+## 0.216.0
+
+"I repot" läser om på begäran, säger när det lästes och vilken mapp i repot projektet är kopplat till (cllp/lifehub.app#775, och #774 punkt 2). CP 2026-11-11: "Projekt filer i repot uppdateras inte, behöver reload knapp och ett datum för senaste sync." och "i repot, visa vilken mapp som är kopplad till projektet i repositoriet". Inget brytande: en app som inte skickar de nya fälten får Läs om och tiden då svaret kom fram, och ingen rad om mappen.
+
+### Rotorsaken
+
+Appens läsning var live, men vyn läste varje mapp en gång, när den fälldes ut, och sedan aldrig igen så länge raden stod utfälld (också medan en fil var öppen, eftersom trädet står kvar dolt). En fil som lades till eller togs bort i repot syntes inte förrän raden fälldes ihop och ut eller sidan laddades om, och ingenting sa hur gammal listan var.
+
+### Nytt
+
+- **Läs om** överst i "I repot" (`BibliotekRepo`): projektets mapp och varje utfälld mapp läses igen. Utfällningen står kvar, raderna står kvar tills det nya svaret kommit, och knappen är upptagen tills projektets mapp svarat. Ingen automatisk omläsning: varje läsning är ett anrop mot GitHub.
+- **"Hämtad från GitHub 11 nov 10:05"**: när projektets mapp hämtades. `RepoLasning.hamtad` (ISO 8601, när appen frågade GitHub) vinner; utan den är det när svaret kom fram. Ett avvisat löfte har ingen tid.
+- **Mappen i repot** (`RepoLasning.kalla`, `{ repo, mapp, url? }`): `ägare/namn/mapp`, eller `ägare/namn (hela repot)`, med en länk till mappen när adressen ligger på github.com. Bara text att visa: vyn läser fortfarande bara vägar inom projektets mapp. En `kalla` med fel form eller en väg uppåt ritas inte.
+
+- **Granskningen av PR 575:** ingen tid står när läget är `fel`, eftersom ett löst fel lika lite som ett avvisat löfte är en läsning. Statusraden finns alltid, också tom, så att en skärmläsare läser upp den första tiden. En `kalla` med `.` eller `..` i `repo` ritas inte. Prov för `javascript:`, `//github.com` och `github.com.evil.com` i adressen.
+
+### Huvudmenyn: reglaget säger vad som syns (cllp/lifehub.app#776)
+
+"Visa i huvudmenyn" säger vad som syns i huvudet, inte bara vad som är sparat (cllp/lifehub.app#776, CP 2026-11-11: "Ikonen för bibliotek syns inte i gruppen TAM trots att den står som visas i huvudmeny. Den finns ingenstans."). Inget är brytande: utan `ram.dold` ändras reglaget bara för en pinne till en app som inte är på.
+
+**Skärmtid (frågan till ärendet):** ingen ny vy och inget nytt val. Reglaget slutar påstå något som inte syns, och raden säger varför, så ingen behöver leta efter en ikon som inte finns.
+
+#### Rättat
+
+- **`OpsModulRam`, reglaget "Visa i huvudmenyn"** var på när modulens id stod i `groups.huvudmeny`, också när modulen inte var på. Ikonen ritas ur `moduler` ∩ `huvudmeny` (`huvudmenyPoster`), så reglaget sade på för en ikon som inte stod någonstans. Nu är det på bara när appen är på och fäst.
+
+#### Nytt
+
+- **`ram.dold`** (`{ sv, en }`, frivillig): appen är installerad men syns inte i gruppen, och skälet med ord. I LifeHub är det en app hubbadmin gjort otillgänglig för gruppen: läsvägen filtrerar bort den ur `moduler`, men ramen får den sparade raden, eftersom På och Ordning sparar ur den och inte får tappa det dolda. Med `dold` är "Visa i huvudmenyn" av och låst, skälet står som rad under Allmänt (`data-modul-dold`) och som reglagets hint, och den sparade pinnen står kvar. `kravRam` kastar för ett `dold` utan ord.
+
+---
+
+## 0.215.1
+
+Appens märke på de publika sidorna är större: 32 px högt i stället för 24.
+
+### Ändrat
+
+- **Märket på gästens sida, en delad post och en delad händelse är 32 px högt (`PublikMarke`, `PUBLIK_MARKE_KLASS`: `h-8`, förut `h-6`).** CP 2026-11-11 med en skärmbild av en delad lista på telefonen: "Är den fortfarande inte lagad?" och "Logotypen är liten...". Bilden var rätt sedan 0.204.0 (appens breda ordmärke), men 0.192.0 hade krympt rutan till 24 px för ett kompakt huvud, och märket blev cirka 96 x 24 px: mindre än appens eget märke i toppraden (en ruta på 40 px). Nu cirka 128 x 32 px. Huvudet är oförändrat 48 px (`h-12`), med 8 px luft över och under märket, och högst `--logo-bredd` (180 px) brett. Alla tre sidorna ritar samma ruta, så de är fortfarande lika.
+
+### Prov
+
+- `check:skalyta`, gästens gruppsida (d) och de publika märkena: märket mäts till exakt 32 px högt (+-0,5) och 120-140 px brett, i 390 och 1280 px och i riktig CSS. Förut godtogs 20-32 px, ett spann som 24 px-märket klarade och som därför inte kunde fånga att märket var för litet. Rött med 0.215.0 (96 x 24 på alla tre sidorna, åtta brott), grönt med 0.215.1 (128 x 32, inga brott, huvudet 49 px i båda). `--bara-gastgrupp` kör nu också de publika märkena.
+- `gast-grupp-vy.test.jsx`: rutan bär `h-8`. Rött med `h-6`, grönt med `h-8`.
+
+---
+
+## 0.215.0
+
+Gäst i ett projekt (cllp/lifehub.app#760 skiva 1) och projektets egen chatt (skiva 2, CP "kör chatt"). CP 2026-11-10: "Jag skulle vilja kunna samarbeta med externa i projekt, de har inte tillgång till hela gruppen, men bara projekt." Inget brytande för en app som inte ger `grupp.projekt` och inte slår på `projekt: true`. Inga nya samlingar. Reglerna ändras bara med `samtalsregelfragment({ projekt: true })`: utan den är texten byte för byte densamma. Gästen når bara servern, som förut.
+
+### Nytt
+
+- **Omfånget `{ slag: "projekt", tagg }`** (`GASTSLAG`, `gastomfangsnyckel` ger `projekt:<tagg>`, taggen i formen `PROJEKTTAGGFORM`). En gäst i gruppen (`arGruppslag`, `GASTGRUPPSLAG`): samma inloggning, samma flikar, samma fem platser och samma förvaltning som en gruppgäst, men bara `GASTPROJEKTFUNKTIONER` (kalender, bibliotek, ärenden; projektets egen chatt kommer i skiva 2 nedan).
+- **`createGastService({ grupp: { projekt: { urval } } })`**: appens projekt. `urval({ groupId, tagg })` ger `null` (finns inte, arkiverat) eller `{ namn, status, texter, handelse, arende }`. `bjud({ slag: "projekt", groupId, tagg, ... })` kräver ägare eller admin och att projektet finns.
+- **Urvalet görs på servern i varje anrop** (`gruppSession`): taggen ur inbjudan, aldrig ur anropet. Kalendern och översikten: bara händelser där `handelse(h)` är `true`. Biblioteket, filerna och bilderna: bara projektets plats (`platsBibliotek(groupId, tagg)`). Ärendena: alla där `arende(rad)` är `true`, med `hosDig` (nytt fält i `GASTARENDEFALT`, bara för en projektgäst). Ett urval som kastar eller svarar något annat än `true` är ett nej; ett projekt som försvunnit ger `saknas`.
+- **`hamta` för en projektgäst**: `funktion: "grupp"` (samma vy), `grupp.namn` är projektets namn och `grupp.projekt` kortet (`GASTPROJEKTKORTFALT`: tagg, läge, texter, med appens ord på båda språken).
+- **`OpsGastGrupp`** med `grupp.projekt`: projektets kort på översikten i stället för gruppens beskrivning, orden om projektet, ingen Chatt-flik i skiva 1 (skiva 2 ger projektets chatt), ingen svarsrad på en händelse och inget Svara i kalenderrutan. **`OpsGastArenden`**: Markera klar bara när `hosDig` inte är `false`, och orden "Projektets ärenden" (`projekt_`-orden). **`OpsGastLista`** med `projekt={{ tagg }}`: orden och bekräftelsen för ett projekt, en inbjudan heter "Projekt: <tagg>", och Bjud in igen gäller bara projektets egna rader. **`gastBehorighetsrader`**: raderna för en projektgäst.
+
+### Skiva 2: projektets chatt
+
+- **Samtalet `slag: "projekt"`** med nyckeln `<grupp>|projekt|<tagg>` (`samtalsnyckel`, `byggSamtal`, `delaSamtalsnyckel`, `kravProjekttagg`, `PROJEKTSAMTAL`). Inga deltagare: läsarna härleds (gruppens aktiva medlemmar i reglerna, projektets gäster i tjänsten). Ett uid som heter `projekt` nekas, så att ett personsamtal inte kan ta en projektchatts nyckel. `arDelatSamtal(slag)` är sant för grupp och projekt.
+- **`samtalsregelfragment({ projekt: true })`**: medlemmar läser, skapar (med den härledda nyckeln, utan deltagare) och skriver. Aldrig ändring eller radering, och inga trådar (bara gruppchatten). Regelprov `rules/__tests__/projektchatt.test.mjs`.
+- **`createSamtalskalla({ projekt: true })`**: `oppnaProjekt`, en tredje fråga i `lista`, och en projektchatt utan meddelanden står inte i `oversikt`. `harProjekt(kalla)`.
+- **`OpsMeddelanden`** `projektnamn(tagg)`: raden heter projektet, etiketten Projekt, ingen låsikon, efter gruppchatten. `OpsSamtal` för en projektchatt: "Gruppen och projektets gäster ser det här", "Skriv till projektet", omnämnanden av gruppens medlemmar, citat, inga trådar.
+- **`samtalsnotiser`**: en projektchatt är ett rum för flera, notis bara vid ett omnämnande (`namndTitel(namn, samtal)`, förval "nämnde dig i projektets chatt").
+- **Gästen**: `GASTPROJEKTFUNKTIONER` har nu `chatt`, och den är projektets egen. `chatt`, `skrivChatt` och översikten väljer samtalet ur inbjudan; inga trådar, citat bara i samma chatt, kort bara för projektets plats, `kommenteraPost` nej. Gästens första meddelande skapar samtalet med gruppens agent som skapare. Raderingen tar gästens meddelanden ur varje projektchatt i gruppen. En gäst i hela gruppen når bara gruppchatten. `OpsGastGrupp`: Chatt-fliken utan trådknapp.
+
+### Skiva 3: växlaren och Mina inbjudningar
+
+- **Mätt före:** `nyLank({ epost })` svarade lika men en träff tog utskickets tid (81 ms mot 0,1 ms), och länkarna i brevet gällde 30 dagar och flera gånger. Taken (10 per IP och timme, 3 brev per adress och dygn, 5 länkar per brev) var redan tysta.
+- **`GASTNYLANK_GOLV_MS`**: `nyLank` svarar tidigast efter 1 200 ms på varje väg. `createGastService({ nyLankGolvMs })` för prov.
+- **`GASTNYLANK_GILTIG_MS`**: länkarna i brevet Mina inbjudningar gäller en gång och ett dygn (`engangs` på inbjudan). `los` förbrukar, `prova` inte. Andra rotationer ger vanliga länkar.
+- **Taket på fem länkar står kvar**, och brevet bär `fler` och `engangs` (`Gastbrev`), så att appen skriver "och N till".
+- **`hamta` bär `gruppnamn`** för en gäst i hela gruppen, aldrig för ett projekt, en omröstning eller en händelse (de gästerna ser ingenting om gruppen). Växlaren samlar ett projekt under projektets namn.
+- **`OpsGastSida`**: växlaren (`GastVaxlare`) med Mina inbjudningar sist, och Logga ut tar bort allt med `ops-gast:`. För en gäst i en grupp står växlaren sist i översikten (`GastsidaInfo.vaxlare`, ritad av `OpsGastGrupp`) och inte ovanför varje flik: ovanför chatten tog den 68 px av loggen på en telefon, och överst i översikten sköt den namnrutans Spara under tangentbordet (`check:skalyta`, 2 brott, mätta).
+
+### Skiva 4: projektet via kontot
+
+- **`minaGruppgaster`** ger också en levande inbjudan till ett projekt som finns, med `projekt: { tagg, namn }`. ⛔ Raden heter projektet (`namn` är projektets namn), aldrig gruppen: en projektgäst ser inte gruppens namn på gästsidan, i brevet eller i växlaren, och kontot får inte säga mer än länken (granskningen B1). **`oppnaGruppgast`** öppnar den med samma session som länken. Inget medlemskap skrivs.
+
+### Med flit inte med
+
+- **En gruppgäst i projektens chattar**: inbjudan pekar ut ETT samtal. Att läsa flera hade krävt en lista över samtal i gästens vy, och det är ett eget beslut.
+- **Svar och omröstning**: summorna och medlemmens lista räknar bara gäster i hela gruppen (`levandeGaster`), och ett svar som ingen räknar hade varit en tyst nedsläppsväg (regel 5). `svara` och `rosta` är nej, och `handelse` ger varken `svar` eller `omrostning`.
+- **Ansvarig gäst**: `levandeGaster` gäller fortfarande bara hela gruppen (hubbens lista `minaGruppgaster` ger projektet sedan skiva 4, se ovan). En projektgäst kan alltså inte väljas som ansvarig för ett ärende än, och markera klart kräver att ärendet ligger hos gästen.
+
+### Prov
+
+- **`gast-projekt.test.js`**, 21 prov mot minneskällan: modellen, `bjud` (roll, projektet finns, tagg, platser ur samma fem), vad en projektgäst ser (kalender med egen kalender och med tagg i gruppens förvalda, bibliotek, filer, ärenden, översikt) med en lista på 16 hemligheter som aldrig får synas (**golv**), en förfalskad tagg i varje åtgärd (golv: 7 åtgärder), en återkallad inbjudan, ett arkiverat projekt, ett trasigt urval, och att en gruppgäst är orörd. 13 mutationer, var och en röd.
+- **Skiva 3:** `gast-nylank-760.test.js` 9 prov (engång, ett dygn, samtidiga inlösen, vanliga länkar efter, fem och fler, tid med och utan golv, tysta tak), `gast-vaxlare-760.test.jsx` 9 prov. 17 mutationer röda (N1 till N9, V1 till V8).
+- **Skiva 4:** 3 prov sist i `gast-projekt.test.js` (listan, samma omfång via kontot utan medlemskap, återkallad stoppar en utgiven session). 5 mutationer röda.
+- **Skiva 2:** `gast-projekt.test.js` hade då 27 prov, 30 med skiva 4 (6 nya om projektets chatt, och förfalskad tagg i 9 åtgärder), `samtal-projekt.test.js` 10 prov (modell, källa, notiser, regeltext), `meddelanden-projekt.test.jsx` 3 prov, `gast-projekt-vy.test.jsx` 9 prov och `rules/__tests__/projektchatt.test.mjs` mot emulatorn. 29 mutationer, var och en röd.
+- **`gast-projekt-vy.test.jsx`**, 8 prov (skiva 1): flikarna, kortet, ingen svarsrad, ärendefliken med `hosDig`, behörighetsraderna och listan på projektets sida. 9 mutationer, var och en röd.
+
+## 0.214.0
+
+Omröstningen i chatten läser alternativ och röster per omröstning (cllp/lifehub.app#742, skiva 2). ⛔ Brytande för den som anropar källans läsningar direkt (se nedan); vyn och reglerna är oförändrade för appen. Inget nytt index och inga nya regler.
+
+### Rättat
+
+- **Äldre omröstningar visade fel antal eller "Inga alternativ än."** (cllp/lifehub.app#742, granskningen av PR 566). Skiva 1 läste de 500 senaste alternativen och de 500 senaste rösterna för hela samtalet, med en lyssnare per samling. Med 30 omröstningar och 20 röster var (600 röster) föll de äldsta omröstningarnas röster ur fönstret och korten visade 0 röster, och en omröstning med 500 alternativ skrivna förbi byggaren (reglerna kan inte räkna) tryckte ut en annan omröstnings alternativ, så att den visade "Inga alternativ än." och "Lägg till alternativ" prövade dubbletten mot en tom lista.
+  - **Nu läser varje kort sin omröstning:** `lasOmrostningsval(sid, mid)`, `lasOmrostningsroster(sid, mid)`, `prenumereraOmrostningsval(sid, mid, lyssnare)` och `prenumereraOmrostningsroster(sid, mid, lyssnare)` frågar med likhet på `mid` och ett tak per omröstning: `OMROSTNINGSVALTAK` (härlett, lika med `MAX_ALTERNATIV`, 20) och `OMROSTNINGSROSTTAK` (500, en **bedömning**, samma tal som skiva 1 hade för hela samtalet). Källan läser en rad över taket, så `fler` betyder att fler finns och inte att taket råkade fyllas. Det som fyller en omröstning rör ingen annan.
+  - **Taket och läsfelet står i kortet** de gäller (`data-omrostning-fler`, `role="status"`, "Alla röster och alternativ i omröstningen visas inte."; `data-omrostningsfel="lasa"`, "Omröstningen kunde inte hämtas."), inte överst i loggen långt från kortet. Texterna `omrostningarFel` och `omrostningarFler` har nya förval. En nekad röst står kvar som en rad i loggen.
+  - **"Lägg till alternativ" erbjuds bara när listan är läst och hel**, så taket och dubbletten prövas alltid mot omröstningens alla alternativ. "Inga alternativ än." står först när läsningen svarat, inte medan den pågår.
+  - ⛔ **Frågan sorterar inte, och det är därför inget index behövs.** Likhet på ett fält klarar sig på Firestores eget enfältsindex; likhet på `mid` och sortering på `tid` hade krävt ett sammansatt index som appen måste deploya före webben. Ordningen i kortet räknas ändå fram i `summeraOmrostning`. Följden: når en omröstning sitt tak är urvalet det Firestore ger (dokument-id), och kortet säger att alla inte visas. Läsregeln är `opsISamtal(sid)` och beror inte på raden, så en fråga filtrerad på `mid` släpps igenom som förut. Provat i Firestore-emulatorn genom appens kedja i den oberoende granskningen (2026-11-11): `chattnatt.test.mjs` med `mid` på raderna 210, 219 och 226 plus ett prov för läsning, lyssnare, tom omröstning och en främling som nekas, 15 av 15 gröna.
+  - ⛔ **(bedömning) En lyssnare per kort i stället för en per samtal.** Två lyssnare per omröstning som är laddad i loggen (en sida är 50 meddelanden). Ärendet föreslog `where mid in [...]` med högst 30 per fråga för färre lyssnare; källans kontrakt har bara likhet, och `in` hade varit ett nytt villkor i alla adaptrar.
+  - Fältet "Nytt alternativ" (ärendets QA-punkt) rättades redan i 0.213.0 och är orört.
+
+### Brytande
+
+- `lasOmrostningsval`, `lasOmrostningsroster`, `prenumereraOmrostningsval` och `prenumereraOmrostningsroster` tar `mid` efter `sid`, och kastar utan den. `OMROSTNINGSTAK` är borttaget (`OMROSTNINGSVALTAK` och `OMROSTNINGSROSTTAK` i stället).
+- ⛔ **Appen:** lifehub.app `rules/__tests__/chattnatt.test.mjs` anropar `lasOmrostningsval(grupp)` och `lasOmrostningsroster(grupp)` utan `mid` (raderna 210, 219 och 226, mätt 2026-11-10 via GitHub). Ompinningen behöver ge dem omröstningens id (`m.id` eller `mid`), och kan då släppa filtreringen på `mid` efteråt. Kod-sökningen i cllp gav inga andra anrop.
+
+### Mätt, inte ändrat
+
+- **TALK:s igenkänningsrad (0.213.0) laddas inte lat.** Appens mätning gav +2 003 byte gzip i `rostsumma` för 0.213.0, och raden pekades ut som orsaken. Mätt med esbuild (minifierat, gzip, paketets `sideEffects`) är TALK:s startväg (`useTalk` och allt den importerar statiskt) 11 804 byte i 0.212.1 och 12 194 i 0.213.0, alltså +390; skalet (`OpsAppShell`) +487. Per modul (minifierat, gzip) växte 0.213.0 i `OpsMeddelanden` +979, `BilageKopiering` +1 001, `OpsMarkdown` +342 och `bibliotekkalla` +258, mot `talk.js` +210 och `OpsTalk` +226. Den större delen av ökningen är alltså chattens, inte TALK:s (**hypotes** för appens bit: att det är just de modulerna som ligger i `rostsumma` är inte mätt i appen). Att lägga raden bakom en dynamisk import provades (lokal gren `natt/0214-talkfelrad-lat`, med prov och en rad i `check:delbarhet`) och gjorde startfilen **större**: mätt med Vite mot det byggda paketet växte `OpsAppShell` från 79 323 till 79 517 byte gzip, eftersom det som flyttas ut är 382 byte gzip och laddaren kostar mer.
+
+- **Lyssnarna per kort, mätt i granskningen:** 50 omröstningar i ett samtal ger 100 aktiva lyssnare, och 0 är kvar efter byte av samtal och avmontering. Att lyssna bara på kort som syns, och den lata laddningen av kortet som tillägget i #742 bad om, är inte gjorda här. De står i cllp/lifehub.app#764.
+
+### Prov
+
+- **`omrostning-per-omrostning-742.test.jsx`**, 4 prov: 30 omröstningar med 20 röster var i samma samtal, där varje kort ska visa "Fredag, 20 röster" och "20 har röstat" (**golv**: alla 30 kort mätta); en omröstning med 500 alternativ förbi byggaren, där en annan omröstning ska visa sina två alternativ, den fulla ska visa 20 och raden om taket i sitt eget kort och inget "Lägg till alternativ", och dubbletten i den andra ska prövas mot dess egna alternativ; källans frågor (likhet på `mid`, taket plus en, ingen sortering) för läsning och lyssnare; och att `fler` är exakt vid taket och en över. Mot 0.213.0 (7692180): 4 av 4 röda. Med rättningen: 4 av 4 gröna.
+- **`chatt-omrostning.test.jsx`** följer det nya gränssnittet (läsningarna tar `mid`, frågan per omröstning, läsfelet i kortet): 21 av 21 gröna.
 
 ## 0.213.0
 

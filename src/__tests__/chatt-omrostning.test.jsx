@@ -8,7 +8,8 @@ import {
   MAX_ALTERNATIVTEXT,
   MAX_FRAGA,
   OMROSTNINGSROSTFALT,
-  OMROSTNINGSTAK,
+  OMROSTNINGSROSTTAK,
+  OMROSTNINGSVALTAK,
   OMROSTNINGSVALFALT,
   OMROSTNINGSVAL_REGEL,
   byggMeddelande,
@@ -163,7 +164,7 @@ describe("källan och regeltexten", () => {
       [`samtal/${g.id}/omrostningsval`, m.id, "Söndag", 3],
     ]);
     for (const o of val) expect(o.data.id.startsWith(`${m.id}|`)).toBe(true);
-    const lasta = await s.lasOmrostningsval(g.id);
+    const lasta = await s.lasOmrostningsval(g.id, m.id);
     expect(summeraOmrostning(lasta.rader, [], "anna").alternativ.map((a) => a.text)).toEqual(["Fredag", "Lördag", "Söndag"]);
     // Utan batch skrivs ingenting.
     const utanBatch = /** @type {any} */ (createSamtalskalla({ kalla: { ...bas, batch: undefined }, omrostningsval: "omrostningsval", omrostningsroster: "omrostningsroster" }));
@@ -177,9 +178,9 @@ describe("källan och regeltexten", () => {
     const s = /** @type {any} */ (createSamtalskalla({ kalla, omrostningsval: "omrostningsval", omrostningsroster: "omrostningsroster" }));
     const g = await s.oppnaGrupp({ groupId: "g", uid: "anna" });
     const m = await s.skickaOmrostning(g.id, { fraga: "Dag?", alternativ: ["Fredag", "Lördag"], av: "anna" });
-    const [a, b] = summeraOmrostning((await s.lasOmrostningsval(g.id)).rader, [], "bo").alternativ;
+    const [a, b] = summeraOmrostning((await s.lasOmrostningsval(g.id, m.id)).rader, [], "bo").alternativ;
     await s.rosta(g.id, { mid: m.id, val: a.id, av: "bo" });
-    expect((await s.lasOmrostningsroster(g.id)).rader.map((/** @type {any} */ r) => [r.id, r.val])).toEqual([[`${m.id}|bo`, a.id]]);
+    expect((await s.lasOmrostningsroster(g.id, m.id)).rader.map((/** @type {any} */ r) => [r.id, r.val])).toEqual([[`${m.id}|bo`, a.id]]);
     await s.andraRost(g.id, { mid: m.id, val: b.id, av: "bo" });
     expect(andringar).toHaveLength(1);
     expect(andringar[0][0]).toBe(`samtal/${g.id}/omrostningsroster`);
@@ -187,12 +188,12 @@ describe("källan och regeltexten", () => {
     expect(Object.keys(andringar[0][2]).sort()).toEqual(["tid", "val"]);
     expect(andringar[0][2].val).toBe(b.id);
     await s.taBortRost(g.id, { mid: m.id, av: "bo" });
-    expect((await s.lasOmrostningsroster(g.id)).rader).toHaveLength(0);
+    expect((await s.lasOmrostningsroster(g.id, m.id)).rader).toHaveLength(0);
     await s.laggTillAlternativ(g.id, { mid: m.id, text: "Söndag", av: "bo", befintliga: ["Fredag", "Lördag"] });
-    expect((await s.lasOmrostningsval(g.id)).rader).toHaveLength(3);
+    expect((await s.lasOmrostningsval(g.id, m.id)).rader).toHaveLength(3);
     await expect(s.laggTillAlternativ(g.id, { mid: m.id, text: "fredag", av: "bo", befintliga: ["Fredag"] })).rejects.toThrow(/finns redan/);
   });
-  it("⛔ en lyssnare per samling och samtal, med taket", async () => {
+  it("⛔ en lyssnare per samling och omröstning, med taket per omröstning (#742)", async () => {
     const bas = levandeKalla();
     /** @type {any[]} */
     const fragor = [];
@@ -200,11 +201,13 @@ describe("källan och regeltexten", () => {
     const s = /** @type {any} */ (createSamtalskalla({ kalla, omrostningsval: "val", omrostningsroster: "roster" }));
     /** @type {any[]} */
     const svar = [];
-    s.prenumereraOmrostningsval("g|grupp", { onData: (/** @type {any} */ x) => svar.push(x), onError: () => {} });
-    s.prenumereraOmrostningsroster("g|grupp", { onData: (/** @type {any} */ x) => svar.push(x), onError: () => {} });
+    s.prenumereraOmrostningsval("g|grupp", "m1", { onData: (/** @type {any} */ x) => svar.push(x), onError: () => {} });
+    s.prenumereraOmrostningsroster("g|grupp", "m1", { onData: (/** @type {any} */ x) => svar.push(x), onError: () => {} });
     await waitFor(() => expect(svar).toHaveLength(2));
-    const q = { sortBy: "tid", direction: "desc", limit: OMROSTNINGSTAK };
-    expect(fragor).toEqual([["samtal/g|grupp/val", q], ["samtal/g|grupp/roster", q]]);
+    expect(fragor).toEqual([
+      ["samtal/g|grupp/val", { where: { mid: "m1" }, limit: OMROSTNINGSVALTAK + 1 }],
+      ["samtal/g|grupp/roster", { where: { mid: "m1" }, limit: OMROSTNINGSROSTTAK + 1 }],
+    ]);
   });
 });
 
@@ -239,7 +242,7 @@ async function underlag(val = { omrostningar: true }) {
  */
 async function medRoster(s, sid) {
   const m = await s.skickaOmrostning(sid, { fraga: "Vilken dag?", alternativ: ["Fredag", "Lördag"], av: "bo" });
-  const [fre, lor] = summeraOmrostning((await s.lasOmrostningsval(sid)).rader, [], "anna").alternativ;
+  const [fre, lor] = summeraOmrostning((await s.lasOmrostningsval(sid, m.id)).rader, [], "anna").alternativ;
   for (const u of ["bo", "cecilia", "david", "erik", "frida"]) await s.rosta(sid, { mid: m.id, val: fre.id, av: u });
   return { m, fre, lor };
 }
@@ -420,8 +423,9 @@ describe("vyn", () => {
     fireEvent.click(await within(kort).findByRole("button", { name: "Lördag, 0 röster" }));
     expect((await screen.findByText("Rösten kunde inte sparas.")).getAttribute("role")).toBe("alert");
     unmount();
-    const fallen = { ...s, prenumereraOmrostningsroster: (/** @type {any} */ _sid, /** @type {any} */ l) => (l.onError(new Error("permission-denied")), () => {}) };
+    const fallen = { ...s, prenumereraOmrostningsroster: (/** @type {any} */ _sid, /** @type {any} */ _mid, /** @type {any} */ l) => (l.onError(new Error("permission-denied")), () => {}) };
     render(<OpsMeddelanden kalla={fallen} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={g.id} />);
-    expect((await screen.findByText("Omröstningarna kunde inte hämtas.")).getAttribute("role")).toBe("alert");
+    const kortet = await hittaKort(m.id);
+    expect((await within(kortet).findByText("Omröstningen kunde inte hämtas.")).getAttribute("role")).toBe("alert");
   });
 });

@@ -3,6 +3,7 @@ import { cx } from "../lib/cx.js";
 import { lasSparatSprak, sparaSprak, valdSprak } from "../lib/deladdatum.js";
 import { GASTDELTASVAR, GASTFEL, GASTNYLANK_SVAR, GASTNYCKELFORM, MAX_GASTNAMN, normaliseraGastepost } from "../lib/gast.js";
 import { ALLA, SENASTE, minne, sessionsnyckelFor, skrivSessionTillMinne, sparadeSessionsIds } from "../lib/gastminne.js";
+import { GastVaxlare, vaxlarrad } from "./GastVaxlare.jsx";
 import { definierade, forvalda } from "../lib/ord.js";
 import { PUBLIK_KLASS, PUBLIK_TONER } from "../lib/publikKlass.js";
 import { SPRAK } from "../lib/sprak.js";
@@ -52,6 +53,22 @@ export const ORD_OPSGASTSIDA = {
     en: "If you still have the invitation email, open the link in it. Otherwise enter your address here and we will send a new link if the address has an invitation. A new link makes the old ones stop working.",
   },
   nyLankKnapp: { sv: "Skicka en ny länk", en: "Send a new link" },
+  // (0.215.0, lifehub.app#760 skiva 3) Växlaren överst och Mina inbjudningar.
+  vaxlareEtikett: { sv: "Dina inbjudningar", en: "Your invitations" },
+  vaxlareHelaGruppen: { sv: "Hela gruppen", en: "The whole group" },
+  vaxlareHandelser: { sv: "Händelser och omröstningar", en: "Events and polls" },
+  vaxlareProjekt: { sv: "Projekt", en: "Projects" },
+  vaxlareOmrostning: { sv: "Omröstning", en: "Poll" },
+  vaxlareVisas: { sv: "Visas nu", en: "Showing now" },
+  vaxlareFel: { sv: "Inbjudan gick inte att öppna. Den kan ha dragits tillbaka.", en: "The invitation could not be opened. It may have been withdrawn." },
+  minaInbjudningar: { sv: "Mina inbjudningar", en: "My invitations" },
+  minaRubrik: { sv: "Mina inbjudningar", en: "My invitations" },
+  minaIngress: {
+    sv: "Skriv din e-postadress, så skickar vi ett mejl med en länk till varje inbjudan du har, upp till fem. Länkarna gäller en gång och i ett dygn. En inbjudan till ett telefonnummer når inte hit: be den som bjöd in dig om en ny länk.",
+    en: "Enter your email address and we will send an email with a link to each invitation you have, up to five. The links work once and for one day. An invitation to a phone number cannot be reached here: ask the person who invited you for a new link.",
+  },
+  minaKnapp: { sv: "Skicka länkarna", en: "Send the links" },
+  minaTillbaka: { sv: "Tillbaka", en: "Back" },
   nyLankSvar: { sv: GASTNYLANK_SVAR, en: "If the address has an invitation we have sent a link." },
   namnEtikett: { sv: "Vad ska gruppen kalla dig? (valfritt)", en: "What should the group call you? (optional)" },
   namnSpara: { sv: "Spara", en: "Save" },
@@ -189,8 +206,8 @@ function provatOmAppen(omAppen) {
  *   anropa den när en åtgärd nekas (`aterkallad`), så byts allt mot texten direkt i stället för vid nästa minut. Utan den visas en text om att inbjudan inte går att visa.
  * @param {import("react").ReactNode} [props.huvud] Appens logga eller namn, till vänster i huvudet. Med `marke` står det efter märket (en länk tillbaka till hubben).
  * @param {{ ljus: string, mork: string, namn: string }} [props.marke] (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del A) Appens ordmärke, en URL per tema: en BRED bild som är
- *   tätt beskuren runt märket, som appens headerbild (1079 x 260, ungefär 4:1), inte fyrkantig konst med luft runt. Den ritas i samma ruta som skalets märke (40 px hög, högst
- *   `--logo-bredd` bred), fyller höjden och beskärs inte, så ett märke i 4:1 blir cirka 160 x 40 px. `namn` är bildens alternativtext.
+ *   tätt beskuren runt märket, som appens headerbild (1079 x 260, ungefär 4:1), inte fyrkantig konst med luft runt. Den ritas i `PublikMarke`s ruta (32 px hög sedan 0.215.1, högst
+ *   `--logo-bredd` bred), fyller höjden och beskärs inte, så appens bild (1079 x 260) blir cirka 133 x 32 px. `namn` är bildens alternativtext.
  * @param {{ href: string, namn: string }} [props.omAppen] (0.195.0, CP 2026-11-06) Appens egen sida om sig själv. Med den blir märket i huvudet en länk dit (ny flik), och sist i gruppens
  *   översikt står "{gruppens namn} samlar chatt, kalender och filer i {namn}. Läs mer" (0.198.0), med Läs mer som länk. Ramverket känner inte appens adresser, därför en prop.
  *   `href` måste vara `https:`; allt annat kastar. Utan den är märket en bild och raden saknas.
@@ -223,7 +240,7 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
   const { tidEtikett, till, platsEtikett } = forvalda(ORD_OPSDELADHANDELSE, aktivt);
   const rubrikOrd = { tidEtikett, till, platsEtikett };
 
-  /** @type {[{ fas: "startar" | "valkommen" | "ny-lank" | "klar" | "fel" | "nylank-skickad" | "raderad" }, Function]} */
+  /** @type {[{ fas: "startar" | "valkommen" | "ny-lank" | "klar" | "fel" | "nylank-skickad" | "raderad" | "mina" }, Function]} */
   const [lage, setLage] = useState({ fas: "startar" });
   const [sessionsnyckel, setSessionsnyckel] = useState(/** @type {string | null} */ (null));
   const [svar, setSvar] = useState(/** @type {Record<string, any> | null} */ (null));
@@ -242,7 +259,15 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
   const [raderaFel, setRaderaFel] = useState("");
   /** Inbjudan som den visade sessionen hör till. */
   const aktivId = useRef(/** @type {string | null} */ (null));
+  /**
+   * (0.215.0, lifehub.app#760 skiva 3) Växlarens rader: enhetens inbjudningar som servern JUST svarat på, i den här sidvisningen. `null` innan de prövats.
+   * ⛔ ETT NAMN LAGRAS ALDRIG PÅ ENHETEN: det som står i växlaren är det servern svarade nyss. En återkallad inbjudan svarar inte, och står därför inte där.
+   */
+  const [vaxlare, setVaxlare] = useState(/** @type {import("./GastVaxlare.jsx").Vaxlarrad[] | null} */ (null));
+  const [vaxlarFel, setVaxlarFel] = useState(false);
   const levande = useRef(true);
+  // (0.215.0, #760 skiva 3) Inbjudningar som servern redan nekat i den här sidvisningen (återkallad, saknas eller okänd). Växlaren frågar inte om dem en gång till: svaret finns, och varje fråga kostar serverns tak.
+  const nekadeNu = useRef(/** @type {Set<string>} */ (new Set()));
   useEffect(() => {
     levande.current = true;
     return () => {
@@ -315,6 +340,7 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
         }
         const o = r && typeof r.orsak === "string" ? r.orsak : "nej";
         if (o === "for-manga") return { ok: false, orsak: o };
+        nekadeNu.current.add(id);
         if (o === "aterkallad" || o === "saknas") {
           kvarOrsak ??= o;
           continue;
@@ -362,6 +388,9 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
       const o = r && typeof r.orsak === "string" ? r.orsak : "nej";
       if (o === "for-manga" && val.tyst) return false;
       if (o === "aterkallad") {
+        // (0.215.0) En återkallad inbjudan står inte kvar i växlaren.
+        const aterkalladId = aktivId.current;
+        setVaxlare((v) => (v ? v.filter((r) => r.id !== aterkalladId) : v));
         const andra = sparadeIds().filter((id) => id !== aktivId.current);
         if (andra.length > 0) {
           const res = await forsokSessioner(andra);
@@ -433,6 +462,73 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
       if (typeof document !== "undefined") document.removeEventListener("visibilitychange", synlig);
     };
   }, [sessionsnyckel, lage.fas, intervallMs, hamta]);
+
+  /*
+   * (0.215.0, lifehub.app#760 skiva 3) VÄXLAREN: när en inbjudan visas frågas servern om varje annan sparad session, en gång per sidvisning. Bara de som svarar står i växlaren, med det namn servern gav.
+   * ⛔ EN FRÅGA PER SPARAD SESSION, MOT SAMMA `hamta` SOM SIDAN REDAN GÖR: ingen ny väg in, och varje svar prövar sessionen och inbjudan på nytt (en återkallad svarar `aterkallad` och står inte med).
+ * En session som servern redan nekat i den här sidvisningen (`nekadeNu`) frågas inte om igen (mätt 2026-11-11: utan det frågades en återkallad grupp två gånger vid varje sidvisning).
+   */
+  const visasId = lage.fas === "klar" ? aktivId.current : null;
+  useEffect(() => {
+    if (lage.fas !== "klar" || vaxlare !== null || !svar || !aktivId.current) return;
+    const nuId = aktivId.current;
+    const nu = vaxlarrad(nuId, svar);
+    let avbruten = false;
+    void (async () => {
+      /** @type {import("./GastVaxlare.jsx").Vaxlarrad[]} */
+      const rader = nu ? [nu] : [];
+      for (const id of sparadeIds()) {
+        if (id === nuId || nekadeNu.current.has(id)) continue;
+        const nyckel = mem.current.las(sessionsnyckelFor(id));
+        if (!nyckel || !GASTNYCKELFORM.test(nyckel)) continue;
+        let r;
+        try {
+          r = await onHamta({ sessionsnyckel: nyckel });
+        } catch {
+          r = null;
+        }
+        if (avbruten || !levande.current) return;
+        const rad = r && r.ok ? vaxlarrad(id, r) : null;
+        if (rad) rader.push(rad);
+      }
+      if (!avbruten && levande.current) setVaxlare(rader);
+    })();
+    return () => {
+      avbruten = true;
+    };
+    // Körs en gång när sidan först visar en inbjudan. Ett byte i växlaren behåller listan (alla rader är redan prövade), och en återkallelse tar bort sin rad (`hamta`).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lage.fas, vaxlare === null, svar === null]);
+
+  /**
+   * (0.215.0) Ett tryck i växlaren: den inbjudans EGEN session, som sidan redan har på enheten. Ingen session lånas till en annan inbjudan, så en vidarebefordrad länk ger aldrig mer än sin egen.
+   * Svarar den inte (dragits tillbaka sedan växlaren prövades) tas raden bort och sidan står kvar där den var.
+   * @param {string} id
+   */
+  async function vaxla(id) {
+    if (id === aktivId.current) return;
+    setVaxlarFel(false);
+    const fore = aktivId.current;
+    const res = await forsokSessioner([id]);
+    if (!levande.current) return;
+    if (!res.ok) {
+      aktivId.current = fore;
+      setVaxlare((v) => (v ? v.filter((r) => r.id !== id) : v));
+      setVaxlarFel(true);
+      return;
+    }
+    // Namnet och dess formulär hör till inbjudan: nästa visning läser det på nytt.
+    namnLast.current = false;
+    setVisningsnamn(null);
+    setNamnSparat(false);
+    setAndrarNamn(false);
+    setFragarRadera(false);
+  }
+
+  /** (0.215.0) Mina inbjudningar: adressen, och ett brev med en länk per inbjudan (`onNyLank({ epost })`). Samma svar hur det än gick. */
+  async function begarMina() {
+    await begarNyLank();
+  }
 
   /** (0.200.0) Öppna: löser in länken med id och nyckel. Gästen skriver ingenting. */
   async function oppna() {
@@ -551,6 +647,8 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
     // Allt är borta hos servern. Sessionerna på enheten är det också: personens andra inbjudningar hade nekats vid nästa hämtning, men ingen nyckel ska ligga kvar.
     for (const id of sparadeIds()) glomSession(id);
     mem.current.glom(ALLA);
+    for (const k of mem.current.nycklar("ops-gast:")) mem.current.glom(k);
+    setVaxlare(null);
     setSessionsnyckel(null);
     setSvar(null);
     setLage({ fas: "raderad" });
@@ -565,6 +663,10 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
     for (const id of sparadeIds()) glomSession(id);
     mem.current.glom(ALLA);
     mem.current.glom(SENASTE);
+    // ⛔ (0.215.0, lifehub.app#760 skiva 3) ALLT GÄSTEN LÄMNAT PÅ ENHETEN, inte bara sessionerna: flikarna och besöken bär inbjudningarnas id, och växlarens namn står bara i sidans minne.
+    for (const k of mem.current.nycklar("ops-gast:")) mem.current.glom(k);
+    setVaxlare(null);
+    setVaxlarFel(false);
     aktivId.current = lank ? lank.id : null;
     setSessionsnyckel(null);
     setSvar(null);
@@ -702,6 +804,7 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
 
   const grupplage = lage.fas === "klar" && svar?.funktion === "grupp";
   // Raden om appen sist i översikten (0.195.0). Bara i gruppen: den nämner gruppens namn, och en omröstning eller en händelse har ingen översikt.
+  const vaxlarRad = <GastVaxlare rader={vaxlare} visas={visasId} t={t} onVaxla={vaxla} onMina={() => { setFel(""); setLage({ fas: "mina" }); }} fel={vaxlarFel} />;
   const omAppenRad = appen && grupplage && typeof svar?.grupp?.namn === "string" ? (
     <p data-gast-om-appen="" className="m-0 max-w-prose text-meta text-publik-ljus-dampad">
       {t.omAppenRad.replace("{grupp}", svar.grupp.namn).replace("{namn}", appen.namn)}{" "}
@@ -802,9 +905,28 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
           valkomst
         ) : lage.fas === "ny-lank" ? (
           adressFormulär({ rubrik: t.nyLankRubrik, ingress: t.nyLankIngress, etikett: t.adressEtikett, knapp: t.nyLankKnapp, onKlar: begarNyLank })
+        ) : lage.fas === "mina" ? (
+          <div data-gast-mina="" className="flex flex-col gap-4">
+            {adressFormulär({ rubrik: t.minaRubrik, ingress: t.minaIngress, etikett: t.adressEtikett, knapp: t.minaKnapp, onKlar: begarMina })}
+            {svar ? (
+              <div>
+                <OpsButton variant="secondary" onClick={() => { setFel(""); setLage({ fas: "klar" }); }}>
+                  {t.minaTillbaka}
+                </OpsButton>
+              </div>
+            ) : null}
+          </div>
         ) : lage.fas === "nylank-skickad" ? (
-          <div data-gast-nylank-skickad="">
+          <div data-gast-nylank-skickad="" className="flex flex-col gap-4">
             <OpsEmpty title={t.nyLankSvar} />
+            {/* (0.215.0) Kom gästen hit från Mina inbjudningar står inbjudan hen tittade på kvar: vägen tillbaka dit. */}
+            {svar && sessionsnyckel ? (
+              <div>
+                <OpsButton variant="secondary" onClick={() => setLage({ fas: "klar" })}>
+                  {t.minaTillbaka}
+                </OpsButton>
+              </div>
+            ) : null}
           </div>
         ) : lage.fas === "raderad" ? (
           <div data-gast-raderad="">
@@ -815,10 +937,13 @@ export function OpsGastSida({ lank = null, onLos, onProva, onHamta, onNyLank, on
             <OpsEmpty title={t[orsak] ?? t.orsak_nej} />
           </div>
         ) : (
-          <div data-gast-klar="" className="flex min-w-0 flex-col gap-6">
+          <div data-gast-klar="" key={sessionsnyckel ?? ""} className="flex min-w-0 flex-col gap-6">
+            {/* (0.215.0, lifehub.app#760 skiva 3) Växlaren överst: enhetens andra inbjudningar under sina grupper, och Mina inbjudningar sist. Med en enda inbjudan bara en liten länk.
+                ⛔ För en gäst i en grupp står den sist i översikten (`GastsidaInfo.vaxlare`) och inte här: ovanför chatten tog den 68 px av loggen på en telefon (`check:skalyta`). */}
+            {svar && svar.funktion === "grupp" && renderGrupp ? null : vaxlarRad}
             {svar && svar.funktion === "grupp" ? (
               renderGrupp ? (
-                <GastsidaInfo.Provider value={{ integritet: gruppInfo, namn: gruppNamnBlock, minne: mem.current, inbjudan: aktivId.current, omAppen: omAppenRad }}>
+                <GastsidaInfo.Provider value={{ integritet: gruppInfo, namn: gruppNamnBlock, minne: mem.current, inbjudan: aktivId.current, omAppen: omAppenRad, vaxlare: vaxlarRad }}>
                   {renderGrupp({ grupp: svar.grupp, namn: typeof svar.namn === "string" ? svar.namn : "", sessionsnyckel: /** @type {string} */ (sessionsnyckel), uppdatera: async () => void (await hamta(/** @type {string} */ (sessionsnyckel), { tyst: true })) })}
                 </GastsidaInfo.Provider>
               ) : (

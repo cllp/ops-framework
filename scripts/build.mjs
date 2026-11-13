@@ -43,7 +43,7 @@
  * lägga workern som en egen fil (`new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url)` i `lib/pdfjs.js`). Buntat här hade det blivit en fil
  * på över en megabyte i `dist`, och workerns adress hade pekat in i ramverkets mapp i stället för på paketet.
  *
- * ⛔ `maplibre-gl` är externt av samma skäl (0.214.0, #570). Kartan importerar det lat, och appens bundler lägger biblioteket och workern
+ * ⛔ `maplibre-gl` är externt av samma skäl (0.223.0, #570). Kartan importerar det lat, och appens bundler lägger biblioteket och workern
  * (`new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url)` i `OpsKartaVy.jsx`) i biten som hämtas när en karta ritas.
  *
  * Klassnamnssträngarna överlever bygget oförändrade, vilket är det Tailwinds

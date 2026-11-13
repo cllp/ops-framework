@@ -144,13 +144,28 @@ describe("trädet", () => {
     expect(container.querySelector("[data-bibliotek-repo-tillbaka]")).toBeNull();
   });
 
-  it("syns inte på gruppens eget bibliotek, Mitt bibliotek eller i en inbäddad lista", () => {
+  // ⛔ RÖTT UTAN 0.217.0 (cllp/lifehub.app#785): gruppens eget bibliotek fick ingen I repot fast appen skickade `repoLasare`, eftersom raden krävde en egen plats (`arPlatsBibliotek`).
+  it("0.217.0: gruppens eget bibliotek får I repot när appen skickar repoLasare, och läsaren frågas med gruppens id", async () => {
     const lasare = vi.fn(repo);
-    const a = render(<OpsBibliotek poster={[]} jag={JAG} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" platser={PLATSER} plats="cps-ab" onPlats={() => {}} repoLasare={lasare} />);
-    expect(a.container.querySelector("[data-bibliotek-repo]")).toBeNull();
-    a.unmount();
+    const { container } = render(<OpsBibliotek poster={[]} jag={JAG} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" platser={PLATSER} plats="cps-ab" onPlats={() => {}} repoLasare={lasare} />);
+    expect(container.querySelector("[data-bibliotek-repo]")).not.toBeNull();
+    fallUt(container);
+    await waitFor(() => expect(lasare).toHaveBeenCalled());
+    expect(lasare.mock.calls[0][0]).toEqual({ plats: "cps-ab", sokvag: "" });
+  });
+
+  it("syns inte i Mitt bibliotek, på en händelses eller ett ärendes plats, i en inbäddad lista eller utan repoLasare", () => {
+    const lasare = vi.fn(repo);
+    for (const plats of ["mitt~u1", "handelse~cps-ab~h1", "arende~cps-ab~a1"]) {
+      const a = render(<OpsBibliotek poster={[]} jag={JAG} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" platser={PLATSER} plats={plats} onPlats={() => {}} repoLasare={lasare} />);
+      expect(a.container.querySelector("[data-bibliotek-repo]"), plats).toBeNull();
+      a.unmount();
+    }
     const b = render(<OpsBibliotek poster={[]} jag={JAG} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" inbaddad repoLasare={lasare} />);
     expect(b.container.querySelector("[data-bibliotek-repo]")).toBeNull();
+    b.unmount();
+    const c = render(<OpsBibliotek poster={[]} jag={JAG} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" platser={PLATSER} plats="cps-ab" onPlats={() => {}} />);
+    expect(c.container.querySelector("[data-bibliotek-repo]")).toBeNull();
     expect(lasare).not.toHaveBeenCalled();
   });
 
@@ -354,5 +369,180 @@ describe("⋮ på en fil (0.209.0)", () => {
     oppnaMeny(container, "README.md");
     expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Öppna i GitHub"]);
     expect(within(sektion(container)).queryByRole("button", { name: "Åtgärder för lokal.txt" })).toBeNull();
+  });
+});
+
+/*
+ * Läs om, när det lästes och mappen i repot (0.216.0, cllp/lifehub.app#775 och #774 punkt 2).
+ * ⛔ RÖTT UTAN 0.216.0 (mätt mot 0.215.0): det finns ingen knapp Läs om, ingen rad med tiden och ingen rad med mappen i repot, och en fil som läggs till i repot syns inte
+ *   förrän raden fälls ihop och ut igen: projektets mapp läses en gång och aldrig mer.
+ */
+describe("Läs om och när det lästes (0.216.0)", () => {
+  /** Ett repo som ändras när provet säger det (`lasare.andrat = true`): då har projektets mapp en fil till, och docs en fil till. Varje mapp läser för sig, i den ordning React kör dem. */
+  function vaxande() {
+    const lasare = Object.assign(vi.fn(async (/** @type {{ plats: string, sokvag: string }} */ f) => {
+      const andrat = lasare.andrat;
+      if (f.sokvag === "") {
+        const poster = [{ namn: "docs", sokvag: "docs", sort: "mapp" }, { namn: "README.md", sokvag: "README.md", sort: "fil", url: urlFor("README.md") }];
+        if (andrat) poster.push({ namn: "NY.md", sokvag: "NY.md", sort: "fil", url: urlFor("NY.md") });
+        return { lage: "last", poster, fler: false, hamtad: andrat ? "2026-11-11T10:05:00.000Z" : "2026-11-11T09:42:00.000Z", kalla: { repo: "cllp/lifehub.app", mapp: "projekt/lifehub", url: "https://github.com/cllp/lifehub.app/tree/HEAD/projekt/lifehub" } };
+      }
+      if (f.sokvag === "docs") return { lage: "last", poster: [{ namn: "plan.md", sokvag: "docs/plan.md", sort: "fil" }, ...(andrat ? [{ namn: "andra.md", sokvag: "docs/andra.md", sort: "fil" }] : [])] };
+      return { lage: "saknas" };
+    }), { andrat: false });
+    return lasare;
+  }
+
+  it("Läs om läser projektets mapp och den utfällda undermappen igen, och det nya syns utan att trädet fälls ihop", async () => {
+    const lasare = vaxande();
+    const { container } = await visaUtfalld({ repoLasare: lasare });
+    const s = sektion(container);
+    fireEvent.click(within(s).getByRole("button", { name: /docs/ }));
+    await waitFor(() => expect(within(s).queryByText("plan.md")).not.toBeNull());
+    expect(within(s).queryByText("NY.md")).toBeNull();
+    expect(lasare).toHaveBeenCalledTimes(2);
+
+    lasare.andrat = true;
+    fireEvent.click(within(s).getByRole("button", { name: "Läs om mapparna från GitHub" }));
+    await waitFor(() => expect(within(s).queryByText("NY.md")).not.toBeNull());
+    await waitFor(() => expect(within(s).queryByText("andra.md")).not.toBeNull());
+    expect(lasare).toHaveBeenCalledTimes(4);
+    expect(lasare.mock.calls.slice(2).map(([f]) => f.sokvag).sort()).toEqual(["", "docs"]);
+    // Utfällningen står kvar, och raderna stod kvar medan det lästes om (ingen väntan i stället för listan).
+    expect(within(s).getByRole("button", { name: /docs/ }).getAttribute("aria-expanded")).toBe("true");
+    expect(within(s).getByText("README.md")).toBeTruthy();
+  });
+
+  it("raderna står kvar medan Läs om väntar, och knappen är upptagen tills projektets mapp svarat", async () => {
+    let svara = /** @type {(v: any) => void} */ (() => {});
+    let forsta = true;
+    const lasare = vi.fn((/** @type {any} */ f) => {
+      if (forsta) {
+        forsta = false;
+        return repo(f);
+      }
+      return new Promise((r) => {
+        svara = r;
+      });
+    });
+    const { container } = await visaUtfalld({ repoLasare: lasare });
+    const s = sektion(container);
+    const knapp = within(s).getByRole("button", { name: "Läs om mapparna från GitHub" });
+    fireEvent.click(knapp);
+    await waitFor(() => expect(knapp.getAttribute("aria-busy")).toBe("true"));
+    expect(within(s).getByText("README.md")).toBeTruthy();
+    expect(s.querySelector('[data-bibliotek-repo-lage="hamtar"]')).toBeNull();
+    await act(async () => {
+      svara({ lage: "last", poster: [{ namn: "NY.md", sokvag: "NY.md", sort: "fil" }], fler: false });
+    });
+    await waitFor(() => expect(knapp.getAttribute("aria-busy")).not.toBe("true"));
+    expect(within(s).getByText("NY.md")).toBeTruthy();
+    expect(within(s).queryByText("README.md")).toBeNull();
+  });
+
+  it("tiden är appens hamtad, och den följer med en ny läsning", async () => {
+    const lasare = vaxande();
+    const { container } = await visaUtfalld({ repoLasare: lasare });
+    const s = sektion(container);
+    const tid = () => /** @type {HTMLElement | null} */ (s.querySelector("[data-bibliotek-repo-hamtad]"));
+    await waitFor(() => expect(tid()).not.toBeNull());
+    expect(tid()?.getAttribute("data-bibliotek-repo-hamtad")).toBe("2026-11-11T09:42:00.000Z");
+    expect(tid()?.textContent).toMatch(/^Hämtad från GitHub \d{1,2} nov \d\d:42$/);
+    lasare.andrat = true;
+    fireEvent.click(within(s).getByRole("button", { name: "Läs om mapparna från GitHub" }));
+    await waitFor(() => expect(tid()?.getAttribute("data-bibliotek-repo-hamtad")).toBe("2026-11-11T10:05:00.000Z"));
+  });
+
+  it("utan hamtad är tiden när svaret kom fram, och ett avvisat löfte har ingen tid", async () => {
+    const fore = Date.now();
+    const { container, unmount } = await visaUtfalld({ repoLasare: repo });
+    const el = /** @type {HTMLElement | null} */ (sektion(container).querySelector("[data-bibliotek-repo-hamtad]"));
+    await waitFor(() => expect(el ?? sektion(container).querySelector("[data-bibliotek-repo-hamtad]")).not.toBeNull());
+    const ms = Date.parse(String(sektion(container).querySelector("[data-bibliotek-repo-hamtad]")?.getAttribute("data-bibliotek-repo-hamtad")));
+    expect(ms).toBeGreaterThanOrEqual(fore - 1000);
+    expect(ms).toBeLessThanOrEqual(Date.now() + 1000);
+    unmount();
+    const b = visa({ repoLasare: () => Promise.reject(new Error("nätet")) });
+    fallUt(b.container);
+    await waitFor(() => expect(b.container.querySelector('[data-bibliotek-repo-lage="fel"]')).not.toBeNull());
+    expect(sektion(b.container).querySelector("[data-bibliotek-repo-hamtad]")).toBeNull();
+    b.unmount();
+    // ⛔ Granskningen av PR 575: ett LÖST svar med läget fel är inte heller en läsning. Förut stod "Hämtad från GitHub" bredvid felraden.
+    const c = visa({ repoLasare: async () => ({ lage: "fel", hamtad: "2026-11-11T10:05:00.000Z", kalla: { repo: "cllp/tam", mapp: "" } }) });
+    fallUt(c.container);
+    await waitFor(() => expect(c.container.querySelector('[data-bibliotek-repo-lage="fel"]')).not.toBeNull());
+    expect(sektion(c.container).querySelector("[data-bibliotek-repo-hamtad]")).toBeNull();
+    expect(sektion(c.container).textContent).not.toMatch(/Hämtad från GitHub/);
+    // Statusraden finns ändå, tom, så att den första tiden läses upp när den kommer.
+    expect(sektion(c.container).querySelector('[data-bibliotek-repo-huvud] [role="status"]')).not.toBeNull();
+    c.unmount();
+    const d = visa({ repoLasare: () => Promise.reject(new Error("nätet")) });
+    fallUt(d.container);
+    await waitFor(() => expect(d.container.querySelector('[data-bibliotek-repo-lage="fel"]')).not.toBeNull());
+    const b2 = d;
+    // Läs om finns också efter ett fel: det är där den behövs mest.
+    expect(within(sektion(b2.container)).getByRole("button", { name: "Läs om mapparna från GitHub" })).toBeTruthy();
+  });
+
+  it("mappen i repot står överst och länkar till mappen på github.com, och hela repot säger det", async () => {
+    const { container, unmount } = await visaUtfalld({ repoLasare: vaxande() });
+    await waitFor(() => expect(sektion(container).querySelector("[data-bibliotek-repo-kalla]")).not.toBeNull());
+    const kalla = /** @type {HTMLElement} */ (sektion(container).querySelector("[data-bibliotek-repo-kalla]"));
+    expect(kalla.textContent).toBe("Mappen i repot: cllp/lifehub.app/projekt/lifehub");
+    const a = /** @type {HTMLAnchorElement} */ (kalla.querySelector("a"));
+    expect(a.getAttribute("href")).toBe("https://github.com/cllp/lifehub.app/tree/HEAD/projekt/lifehub");
+    expect(a.getAttribute("target")).toBe("_blank");
+    expect(a.getAttribute("rel")).toBe("noopener noreferrer");
+    unmount();
+    const hela = await visaUtfalld({ repoLasare: async () => ({ lage: "last", poster: [{ namn: "x.md", sokvag: "x.md", sort: "fil" }], kalla: { repo: "cllp/tam", mapp: "" } }) });
+    await waitFor(() => expect(sektion(hela.container).querySelector("[data-bibliotek-repo-kalla]")).not.toBeNull());
+    const k2 = /** @type {HTMLElement} */ (sektion(hela.container).querySelector("[data-bibliotek-repo-kalla]"));
+    expect(k2.textContent).toBe("Mappen i repot: cllp/tam (hela repot)");
+    expect(k2.querySelector("a")).toBeNull();
+  });
+
+  it("⛔ en kalla med fel form, en väg uppåt eller en adress utanför github.com ritas inte som länk eller inte alls", async () => {
+    const fall = [
+      [{ repo: "cllp/tam", mapp: "../hemligt" }, null],
+      [{ repo: "inte ett repo", mapp: "a" }, null],
+      [{ repo: "cllp/tam", mapp: "a", url: "https://elak.example/a" }, "a"],
+      [{ repo: "cllp/tam", mapp: "a", url: "javascript:alert(1)" }, "a"],
+      [{ repo: "cllp/tam", mapp: "a", url: "//github.com/cllp/tam" }, "a"],
+      [{ repo: "cllp/tam", mapp: "a", url: "https://github.com.evil.com/cllp/tam" }, "a"],
+      [{ repo: "../..", mapp: "" }, null],
+      [{ repo: "cllp/..", mapp: "a" }, null],
+      [null, null],
+      ["text", null],
+    ];
+    for (const [kalla, lank] of fall) {
+      const r = visa({ repoLasare: async () => ({ lage: "last", poster: [{ namn: "x.md", sokvag: "x.md", sort: "fil" }], kalla }) });
+      fallUt(r.container);
+      await waitFor(() => expect(within(sektion(r.container)).queryByText("x.md")).not.toBeNull());
+      const k = sektion(r.container).querySelector("[data-bibliotek-repo-kalla]");
+      if (lank === null) expect(k, JSON.stringify(kalla)).toBeNull();
+      else {
+        expect(k?.textContent).toBe("Mappen i repot: cllp/tam/a");
+        expect(k?.querySelector("a")).toBeNull();
+      }
+      r.unmount();
+      try {
+        globalThis.localStorage?.clear();
+      } catch {
+        // Testmiljön har lagring.
+      }
+    }
+  });
+
+  it("på engelska", async () => {
+    const r = render(
+      <OpsSprakProvider sprak="en">
+        <OpsBibliotek poster={[]} jag={JAG} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" platser={PLATSER} plats={PLATS} onPlats={() => {}} repoLasare={vaxande()} />
+      </OpsSprakProvider>,
+    );
+    fallUt(r.container);
+    await waitFor(() => expect(sektion(r.container).querySelector("[data-bibliotek-repo-hamtad]")).not.toBeNull());
+    expect(sektion(r.container).querySelector("[data-bibliotek-repo-hamtad]")?.textContent).toMatch(/^Fetched from GitHub \d{1,2} Nov \d\d:42$/);
+    expect(sektion(r.container).querySelector("[data-bibliotek-repo-kalla]")?.textContent).toBe("Folder in the repo: cllp/lifehub.app/projekt/lifehub");
+    expect(within(sektion(r.container)).getByRole("button", { name: "Reload the folders from GitHub" }).textContent).toContain("Reload");
   });
 });

@@ -33,7 +33,43 @@ export const GAST_PLATSER_GRATIS = 5;
  * Vad en inbjudan gäller: `sak` (en sak, och vad gästen får göra med den är `funktion`) eller `grupp` (hela gruppen, 0.132.0). Slaget ingår i inbjudans id via `gastomfangsnyckel`, så att samma adress till
  * en sak och till hela gruppen är två rader men en person (och en plats).
  */
-export const GASTSLAG = /** @type {const} */ (["sak", "grupp"]);
+export const GASTSLAG = /** @type {const} */ (["sak", "grupp", "projekt"]);
+
+/**
+ * (0.215.0, cllp/lifehub.app#760 skiva 1) Slagen som är en gäst I GRUPPEN och inte för en sak: `grupp` (hela gruppen) och `projekt` (ett projekt i gruppen). En sådan inbjudan tar en plats, förvaltas av en ägare
+ * eller admin, har en inloggning med flikar (`gastGruppApi`) och prövas per funktion i varje anrop. ⛔ EN LISTA OCH INGEN KOPIA: tjänsten frågar `arGruppslag`, aldrig `slag === "grupp"`, där det gäller båda.
+ * Där bara hela gruppen menas (chatten, `levandeGaster`, hubbens lista) står `"grupp"` kvar med ett skäl bredvid.
+ */
+export const GASTGRUPPSLAG = /** @type {const} */ (["grupp", "projekt"]);
+
+/** Är omfånget en gäst i gruppen (hela gruppen eller ett projekt i den)? Se `GASTGRUPPSLAG`. @param {unknown} omfang @returns {boolean} */
+export function arGruppslag(omfang) {
+  const o = /** @type {{ slag?: unknown } | null} */ (omfang);
+  return Boolean(o) && typeof o === "object" && /** @type {readonly unknown[]} */ (GASTGRUPPSLAG).includes(o?.slag);
+}
+
+/**
+ * (0.215.0, cllp/lifehub.app#760 skiva 1) Ett projekts tagg i ett gästomfång: gemener a-z, siffror och bindestreck, börjar och slutar med en bokstav eller siffra, högst 24 tecken.
+ *
+ * ⛔ SAMMA FORM SOM APPENS PROJEKTTAGG (lifehub.app `PROJEKT_TAGGFORM` i `functions/projektmodell.js`), och en delmängd av `PLATSIDFORM`: taggen är också id:t på projektets plats i biblioteket (`plats~<grupp>~<tagg>`).
+ * Ett prov jämför de två formerna åt båda håll (`gast-projekt.test.js`), så att en tagg som appen godtar aldrig nekas här, och tvärtom.
+ */
+export const PROJEKTTAGGFORM = /^[a-z0-9]([a-z0-9-]{0,22}[a-z0-9])?$/;
+
+/**
+ * (0.215.0, cllp/lifehub.app#760) Vad en gäst i ett projekt får: samma funktioner som en gäst i gruppen, men allt avgränsat till projektet (projektets egen chatt, kalendern, biblioteket och ärendena med projektets tagg).
+ *
+ * ⛔ CHATTEN ÄR PROJEKTETS EGEN OCH ALDRIG GRUPPENS (skiva 2, CP "kör chatt"): `<grupp>|projekt|<tagg>` (`samtalsnyckel`). Gruppens chatt är hela gruppens, och en projektgäst som läste den hade sett allt som inte rör projektet.
+ *   I skiva 1 fanns ingen chatt alls för en projektgäst; skiva 2 lade till projektets egen, i samma version.
+ * ⛔ EN DELMÄNGD AV `GASTGRUPPFUNKTIONER`, provat: en funktion som bara projektet hade hade varit en ny flik utan vy.
+ */
+export const GASTPROJEKTFUNKTIONER = /** @type {const} */ (["chatt", "kalender", "bibliotek", "arenden"]);
+
+/**
+ * (0.215.0) Fälten i ett projekts kort som en projektgäst ser (`hamta().grupp.projekt`): taggen, läget och kortets texter. Läget och texternas rubriker är `{ sv, en }`: projektets modell och dess ord är appens,
+ * och ramverket visar bara det appen gett. ⛔ EN ÖPPEN LISTA: allt annat på projektet (repot, mappen, kalenderns id, vem som skrev) lämnar aldrig servern.
+ */
+export const GASTPROJEKTKORTFALT = /** @type {const} */ (["tagg", "status", "texter"]);
 
 /**
  * Vad en gäst får göra med en SAK. `rosta` (skiva 1): rösta på ett datum. `delta` (0.146.0, cllp/ops-framework#445, skiva 1): svara på om hen kommer till en händelse som har ett datum,
@@ -132,8 +168,30 @@ export const GASTNYLANKIP_FONSTER_MS = 60 * 60 * 1000;
 /** Högsta antalet brev med nya länkar till samma adress och dygn (CP-förslaget i #389: tre). */
 export const GASTNYLANK_BREV_PER_DYGN = 3;
 
-/** Högsta antalet länkar (en per aktiv inbjudan) som ett enda brev med nya länkar bär. */
+/**
+ * Högsta antalet länkar (en per aktiv inbjudan) som ett enda brev med nya länkar bär.
+ *
+ * ⛔ (0.215.0, lifehub.app#760 skiva 3) TAKET STÅR KVAR, OCH BREVET SÄGER "OCH N TILL" (`Gastbrev.fler`). Varje länk i brevet är en nyckel, och ett brev kan vidarebefordras: taket begränsar vad ett vidarebefordrat
+ * brev öppnar. En gäst med fler inbjudningar får veta att de finns och hur de nås (varje inbjudans eget brev från den som bjöd in, Skicka igen), i stället för att alla nycklar samlas i ett brev. Att höja taket hade
+ * gett ett längre brev och fler nycklar i samma vidarebefordran för det fåtal som har fler än fem.
+ */
 export const GASTNYLANK_MAX_LANKAR = 5;
+
+/**
+ * (0.215.0, lifehub.app#760 skiva 3) Hur länge en länk ur brevet "Mina inbjudningar" (`nyLank({ epost })`) gäller, i millisekunder: ett dygn, och bara en gång.
+ *
+ * ⛔ MÄTT FÖRE ÄNDRINGEN: länken i det insamlade brevet gällde 30 dagar (`GASTLANKDAGAR`) och gick att lösa in hur många gånger som helst, också två dygn senare. Brevet bär upp till fem nycklar på en gång och skickas till
+ * en adress som vem som helst kan skriva in, så den som får brevet vidarebefordrat hade fått varje inbjudan i en månad. Nu förbrukas länken när den löses in (`los`), och den som behöver den igen ber om en ny.
+ */
+export const GASTNYLANK_GILTIG_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * (0.215.0, lifehub.app#760 skiva 3) Den kortaste tid `nyLank` tar, i millisekunder, oavsett om adressen har en inbjudan.
+ *
+ * ⛔ MÄTT FÖRE ÄNDRINGEN: svaret var detsamma, men tiden sa skillnaden. Med ett utskick som tar 80 ms tog en träff 81 ms och en miss 0,1 ms, så vem som helst kunde mäta fram vilka adresser som är gäster. Nu svarar båda
+ * tidigast efter golvet. Ett utskick som tar längre än golvet syns fortfarande: golvet är satt med marginal mot appens utskick, som lägger brevet i en kö.
+ */
+export const GASTNYLANK_GOLV_MS = 1200;
 
 /** Längsta namn en gäst eller den som bjuder får ge, i tecken. */
 export const MAX_GASTNAMN = 80;
@@ -319,16 +377,21 @@ export const GASTLISTFALT = /** @type {const} */ ([
  * Fälten i det svar en gäst får, och inget annat lämnar servern (`hamta`): inte gruppen, medlemmarna, andra gäster, adresser, chatten eller något av
  * appens fält som appen inte uttryckligen listat i `sak.falt`. En öppen lista, som `HANDELSESVARSFALT`: allt som skickas ut är något som kan läcka.
  * `grupp` (0.132.0) är gruppens namn och vilka funktioner gästen har, för en gruppinbjudan. `delta` (0.146.0) är händelsen (`GASTDELTAHANDELSEFALT`) och gästens eget svar (`mitt`), för en `delta`-inbjudan.
+ * `gruppnamn` (0.215.0, lifehub.app#760 skiva 3) är namnet på gruppen, bara för en gäst i hela gruppen: gästsidans växlare samlar inbjudningarna under det. ⛔ ALDRIG FÖR ETT PROJEKT, EN OMRÖSTNING ELLER EN
+ * HÄNDELSE: de gästerna ser ingenting om gruppen (provat i `gast-delta.test.js` och `gast-projekt.test.js`). Växlaren samlar ett projekt under projektets namn och de andra under Händelser.
  */
-export const GASTSVARSFALT = /** @type {const} */ (["ok", "namn", "funktion", "sak", "grupp", "delta"]);
+export const GASTSVARSFALT = /** @type {const} */ (["ok", "namn", "funktion", "sak", "grupp", "delta", "gruppnamn"]);
 
 /**
  * (0.132.0) Fälten i gruppens svar, per åtgärd. ⛔ ÖPPNA LISTOR, EN PER ÅTGÄRD: allt som skickas ut till en gäst bygges fält för fält ur de här, aldrig genom att ett helt
  * dokument sprids ut. En medlems adress, uid eller namn har ingen plats i någon av dem utom där det står: chattens avsändarnamn är ett namn och aldrig en adress eller ett uid.
  */
 export const GASTGRUPPSVARSFALT = /** @type {const} */ ({
-  /** `hamta` för en gruppinbjudan: gruppens namn och funktionerna, (0.190.0) om gästen får ladda ned (`nedladdning`) och (0.192.0) gruppens befintliga beskrivning, tom när den saknas. */
-  hamta: ["namn", "funktioner", "nedladdning", "kommentera", "beskrivning"],
+  /**
+   * `hamta` för en gruppinbjudan: gruppens namn och funktionerna, (0.190.0) om gästen får ladda ned (`nedladdning`) och (0.192.0) gruppens befintliga beskrivning, tom när den saknas.
+   * (0.215.0) För en projektgäst är `namn` projektets namn, `beskrivning` tom och `projekt` kortet (`GASTPROJEKTKORTFALT`). En gruppgäst har inget `projekt`.
+   */
+  hamta: ["namn", "funktioner", "nedladdning", "kommentera", "beskrivning", "projekt"],
   /** Svaret på `chatt`. `fler`: det finns äldre meddelanden. `ingetNytt`: en ping där inget är nyare än `nyast`. `rot` (0.191.0): rotmeddelandet när gästen läser en tråd (`trad`), `null` när roten inte finns. */
   chatt: ["ok", "meddelanden", "fler", "ingetNytt", "rot"],
   /** Svaret på `skrivChatt`: meddelandet som det nu står i chatten, i samma form som en rad i `chatt`. */
@@ -390,7 +453,7 @@ export const GASTPOSTKORTFALT = /** @type {const} */ (["url", "postId", "typ", "
  * (Skiva 3) Fälten på ett ärende hos en gäst: rubrik, text, status, förfallodag och kommentarer. ⛔ ALDRIG ärendets GitHub-adress eller repots namn, och aldrig ett uid, en adress eller ett annat fält appen har på raden.
  * `id` är ärendets id (det vyn skickar tillbaka). `fler`: det finns äldre kommentarer än de som visas.
  */
-export const GASTARENDEFALT = /** @type {const} */ (["id", "rubrik", "text", "status", "forfallodag", "kommentarer", "fler"]);
+export const GASTARENDEFALT = /** @type {const} */ (["id", "rubrik", "text", "status", "forfallodag", "kommentarer", "fler", "hosDig"]);
 /** (Skiva 3) Fälten på en kommentar hos en gäst. `av` är `{ namn }` och aldrig ett uid; `gast` är sant när en gäst skrev den (märket Gäst) och `egen` när det är gästens egen. */
 export const GASTARENDEKOMMENTARFALT = /** @type {const} */ (["id", "text", "tid", "av", "gast", "egen"]);
 
@@ -726,12 +789,14 @@ export function gastId(epost) {
 // ── Omfånget, platserna och länken ────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * @typedef {{ slag: "sak", funktion: "rosta" | "delta", handelseId: string } | { slag: "grupp" }} Gastomfang
+ * @typedef {{ slag: "sak", funktion: "rosta" | "delta", handelseId: string } | { slag: "grupp" } | { slag: "projekt", tagg: string }} Gastomfang
  *   `sak`: en omröstning på en händelse (skiva 1, `rosta`), eller ett deltagarsvar på den (0.146.0, `delta`). `grupp` (0.132.0): hela gruppen, och gruppen står i inbjudans `groupId` och aldrig i omfånget (en sanning, regel 2).
+ *   `projekt` (0.215.0, cllp/lifehub.app#760): ett projekt i gruppen, utpekat med sin tagg (`PROJEKTTAGGFORM`). Gruppen står i inbjudans `groupId` som för `grupp`.
  */
 
 /**
- * Omfånget som text: `sak:<funktion>:<handelseId>` (`sak:rosta:...`, `sak:delta:...`) eller `grupp`. Det ingår i inbjudans id, så att samma adress till samma sak är en och samma rad.
+ * Omfånget som text: `sak:<funktion>:<handelseId>` (`sak:rosta:...`, `sak:delta:...`), `grupp` eller (0.215.0) `projekt:<tagg>`. Det ingår i inbjudans id, så att samma adress till samma sak är en och samma rad.
+ * Ett projekt-id kan inte krocka med ett sak-id (prefixet `projekt` är inget slag för en sak) eller med `grupp`.
  *
  * ⛔ DE BEFINTLIGA ID:N ÄNDRAS ALDRIG. `sak:rosta:<handelseId>` är exakt det skiva 1 skrev (ett prov låser fem id som fasta hashar), och `grupp` är en ny nyckel som inget
  * `sak`-id kan krocka med: ett handelseId står efter två kolon och nyckeln `grupp` har inga. Kastar för ett omfång som ingen version känner.
@@ -749,6 +814,13 @@ export function gastomfangsnyckel(omfang) {
     if (extra.length > 0) throw new Error(`gastomfangsnyckel: omfånget grupp har inga andra fält (fick ${extra.join(", ")}). Gruppen står i inbjudans groupId.`);
     return "grupp";
   }
+  if (o.slag === "projekt") {
+    // ⛔ BARA TAGGEN. Ett handelseId eller en funktion på ett projektomfång hade gjort två rader av samma sak, och projektets namn hör till projektet och inte till inbjudans id (det kan ändras, taggen kan inte).
+    const extra = Object.keys(o).filter((k) => k !== "slag" && k !== "tagg");
+    if (extra.length > 0) throw new Error(`gastomfangsnyckel: omfånget projekt har bara tagg (fick ${extra.join(", ")}).`);
+    if (typeof o.tagg !== "string" || !PROJEKTTAGGFORM.test(o.tagg)) throw new Error(`gastomfangsnyckel: projektets tagg ${JSON.stringify(o.tagg)} har fel form: gemener a-z, siffror och bindestreck, högst 24 tecken.`);
+    return `projekt:${o.tagg}`;
+  }
   if (!(/** @type {readonly unknown[]} */ (GASTFUNKTIONER).includes(o.funktion))) {
     throw new Error(`gastomfangsnyckel: funktionen ${JSON.stringify(o.funktion)} finns inte. Giltiga: ${GASTFUNKTIONER.join(", ")}.`);
   }
@@ -761,6 +833,8 @@ export function gastomfangsnyckel(omfang) {
  *
  *   - krav `{ slag: "grupp", funktion: "chatt" }`: bara en gruppinbjudan, och bara för en av `GASTGRUPPFUNKTIONER`.
  *   - krav `{ slag: "sak", funktion: "rosta" }` eller `{ funktion: "rosta" }` (skiva 1): bara en sakinbjudan vars funktion är den.
+ *   - (0.215.0) krav `{ slag: ["grupp", "projekt"], funktion: "kalender" }`: en lista med slag, och omfångets slag ska stå i den. Så prövar tjänstens gruppåtgärder en gäst i gruppen, vare sig det är hela gruppen eller ett projekt.
+ *   - (0.215.0) ett projektomfång ger bara `GASTPROJEKTFUNKTIONER`, och bara med en tagg som har formen. `chatt` för ett projekt är projektets egen chatt: tjänsten väljer samtalet ur inbjudan (`chattFor`).
  *   - ett krav på en funktion som inget omfång ger, eller ett slag som inte är omfångets: nej.
  *
  * @param {unknown} omfang
@@ -770,8 +844,11 @@ export function gastomfangsnyckel(omfang) {
 export function gastOmfangGer(omfang, krav) {
   const o = /** @type {Record<string, unknown> | null} */ (omfang);
   if (!o || typeof o !== "object" || !krav || typeof krav !== "object") return false;
-  if (krav.slag !== undefined && krav.slag !== o.slag) return false;
+  if (Array.isArray(krav.slag)) {
+    if (!krav.slag.includes(o.slag)) return false;
+  } else if (krav.slag !== undefined && krav.slag !== o.slag) return false;
   if (o.slag === "grupp") return typeof krav.funktion === "string" && /** @type {readonly string[]} */ (GASTGRUPPFUNKTIONER).includes(krav.funktion);
+  if (o.slag === "projekt") return typeof o.tagg === "string" && PROJEKTTAGGFORM.test(o.tagg) && typeof krav.funktion === "string" && /** @type {readonly string[]} */ (GASTPROJEKTFUNKTIONER).includes(krav.funktion);
   if (o.slag === "sak") return typeof krav.funktion === "string" && krav.funktion === o.funktion;
   return false;
 }

@@ -71,7 +71,7 @@ export { PLATSFALT_FORVALTAD, FORVALTNINGSFALT, platsnyckel, platsnamnFel, byggF
  * andra sanning om vad ett meddelande är, och huvudingången drar in React. Filerna är rena.
  */
 export { AGENT_NAMN, agentId, agentMedlemskap } from "../lib/grupp.js";
-export { byggMeddelande, byggReaktion, REAKTIONSKODER, byggOmrostningsmeddelande, byggOmrostningsval, omrostningsrostnyckel, byggOmrostningsrost, summeraOmrostning, MAX_FRAGA, MAX_ALTERNATIVTEXT, MIN_ALTERNATIV_VID_START, MAX_ALTERNATIV_VID_START, MAX_ALTERNATIV, samtalsnyckel, MAX_MEDDELANDE, autonamn, tradensNamn, rensaForNamn, NAMNLOS_TRAD, AGENTSTATUS_ID, AGENTLAGEN, AGENTSTATUS_MAX_ALDER, byggAgentstatus, agentenNamnd, namnda, arNamnd, NAMNER_ALLA, MAX_NAMNER, amnesId, parnyckel, kravAmnesrubrik, amnesrubrik, MAX_AMNESRUBRIK, byggArendemottagare, ARENDEMOTTAGARSLAG } from "../lib/samtal.js";
+export { byggMeddelande, byggReaktion, REAKTIONSKODER, byggOmrostningsmeddelande, byggOmrostningsval, omrostningsrostnyckel, byggOmrostningsrost, summeraOmrostning, MAX_FRAGA, MAX_ALTERNATIVTEXT, MIN_ALTERNATIV_VID_START, MAX_ALTERNATIV_VID_START, MAX_ALTERNATIV, samtalsnyckel, MAX_MEDDELANDE, autonamn, tradensNamn, rensaForNamn, NAMNLOS_TRAD, AGENTSTATUS_ID, AGENTLAGEN, AGENTSTATUS_MAX_ALDER, byggAgentstatus, agentenNamnd, namnda, arNamnd, NAMNER_ALLA, MAX_NAMNER, amnesId, parnyckel, kravAmnesrubrik, amnesrubrik, MAX_AMNESRUBRIK, byggArendemottagare, ARENDEMOTTAGARSLAG, PROJEKTSAMTAL, arDelatSamtal, kravProjekttagg, delaSamtalsnyckel, projekttaggUr } from "../lib/samtal.js";
 
 /*
  * ⛔ SAMMA SKÄL SOM INBJUDAN OVAN (#161). Vitlistan nekar en klient allt
@@ -254,8 +254,8 @@ export { GITHUB_SORTER, GITHUB_LAGEN, githubDokument, githubDokumentUrl } from "
 export { createGastService, byggGastinbjudan, gastInbjudningsId, gastnyckelHash, nyGastnyckel, PLATSFRIST_MS, SESSIONSUPPDATERING_MS } from "./gast.js";
 export { byggIcs, andringsnyckel, nastaSekvens, ICS_MIME, ICS_PRODID } from "./ics.js";
 export {
-  GAST_PLATSER_GRATIS, GASTSLAG, GASTFUNKTIONER, GASTLANKDAGAR, GASTSESSIONSDAGAR, GASTFEL_MAX, GASTFEL_FONSTER_MS, GASTIP_MAX, GASTIP_FONSTER_MS, GASTNYLANKIP_MAX, GASTNYLANKIP_FONSTER_MS,
-  GASTNYLANK_BREV_PER_DYGN, GASTNYLANK_MAX_LANKAR, MAX_GASTNAMN, MAX_GASTEPOST, GASTNYCKELFORM, GASTINBJUDNINGSIDFORM, GASTIDFORM, GASTSOKVAG, GASTSOKVAG_TIDIGARE, arGastsidansAdress, GASTFALT, GASTLISTFALT, GASTSVARSFALT,
+  GAST_PLATSER_GRATIS, GASTSLAG, GASTGRUPPSLAG, arGruppslag, PROJEKTTAGGFORM, GASTPROJEKTFUNKTIONER, GASTPROJEKTKORTFALT, GASTFUNKTIONER, GASTLANKDAGAR, GASTSESSIONSDAGAR, GASTFEL_MAX, GASTFEL_FONSTER_MS, GASTIP_MAX, GASTIP_FONSTER_MS, GASTNYLANKIP_MAX, GASTNYLANKIP_FONSTER_MS,
+  GASTNYLANK_BREV_PER_DYGN, GASTNYLANK_MAX_LANKAR, GASTNYLANK_GILTIG_MS, GASTNYLANK_GOLV_MS, MAX_GASTNAMN, MAX_GASTEPOST, GASTNYCKELFORM, GASTINBJUDNINGSIDFORM, GASTIDFORM, GASTSOKVAG, GASTSOKVAG_TIDIGARE, arGastsidansAdress, GASTFALT, GASTLISTFALT, GASTSVARSFALT,
   GASTORSAKER, GASTFEL, GASTFELKODER, GASTNYLANK_SVAR, GASTSTATUSAR, GASTPLATSNUMMER, normaliseraGastepost, normaliseraGasttelefon, normaliseraGastkontakt, gastkontaktnyckel, gastkontaktPaRad, GASTKONTAKTSLAG, MAX_GASTTELEFON_INMATNING, gastId, gastomfangsnyckel, gastplatsId, gastLank, tolkaGastLank, gastStatus,
   GASTGRUPPFUNKTIONER, GASTARENDE_MAX, GASTARENDE_SKANNA_MAX, GASTARENDEKOMMENTARER_MAX, GASTARENDEFALT, GASTARENDEKOMMENTARFALT, byggGastMottagare, gastDelegerad, tolkaGastMottagare, GASTCHATT_SIDA, GASTKALENDER_MAX, GASTBIBLIOTEK_MAX, GASTANROP_PER_MINUT, GASTFIL_PER_DYGN, GASTGRUPPSVARSFALT, GASTOVERSIKTFALT, GASTOVERSIKT_SENASTE, GASTCHATTFALT, GASTHANDELSEFALT, GASTKALENDERFALT, GASTFILFALT, GASTBIBLIOTEKFALT, GASTPERSONFALT, GASTPERSONINBJUDANFALT, GASTGRUPPLISTFALT, GASTTIDIGAREMEDLEM, arGastId, GASTNAMNLOS, GASTSKRIV_MAX_TECKEN, GASTSKRIV_PER_MINUT, GASTGRUPPATGARDER, gastOmfangGer, gastGruppApi,
   GASTDELTASVAR, GASTDELTAHANDELSEFALT, GASTDELTAATGARDER, GASTDELTARADFALT, GASTDELTALISTFALT,
@@ -278,7 +278,7 @@ export { UTSKRIFT_FALT, UTSKRIFT_TAK_MS, UTSKRIFT_TIMEOUT_TEXT, UTSKRIFTJOBB_STA
  * `functions/apikonfig.js` kom inte med. Tillagda, ur samma källmoduler som huvudingången: `arkiveraKalender`, `byggGruppkalender`, `kalenderIdUrNamn`, `nastaOrdning`, `valjForvald`,
  * `validateGruppkalendrar` (appens functions, via bron `functions/ramverkskalendrar.js`) och `postFel`, `olastaI`, `STANDARD_TIDSZON`, `byggMinKalender`, `INBJUDNING_GILTIGHET_DAGAR` (appens prov).
  */
-export { AGENTMODELLER, FORVALD_AGENTMODELL } from "../lib/agentmodeller.js";
+export { AGENTMODELLER, ERSATTA_AGENTMODELLER, FORVALD_AGENTMODELL, modellUrId } from "../lib/agentmodeller.js";
 export { GRUPPIKONKATALOG } from "../lib/gruppikonkatalog.generated.js";
 export { KALENDERFARGER, KALENDERIKONER, forvaldKalender, arkiveraKalender, byggGruppkalender, byggMinKalender, kalenderIdUrNamn, nastaOrdning, STANDARD_TIDSZON, valjForvald, validateGruppkalendrar } from "../lib/kalendrar.js";
 export { MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, arLjudpost, arMittBibliotek, byggPost, ljudRubrik, postFel, utskriftFel } from "../lib/bibliotek.js";

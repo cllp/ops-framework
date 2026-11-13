@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { avkodaToppar, kodaToppar, toppListaGiltig } from "../lib/bibliotek.js";
 import {
   HOPP_SEKUNDER,
@@ -315,7 +315,14 @@ function Spelare({ adress, namn, visaNamn, kompakt, liten, meta, durationMs, pea
     });
   }, [styrId]);
 
-  useEffect(() => {
+  // ⛔ LYSSNARNA KOPPLAS I COMMIT, INTE EFTERÅT (0.218.1, cllp/ops-framework#579, mätt i cllp/lifehub.app#772). Som `useEffect` kördes
+  // effekten i en senare uppgift än den som satte `<audio>` i DOM när adressen kom efter ett löfte (`hamtaAdress`, en delad lista).
+  // Ett tryck i glappet startade uppspelningen, sedan körde React den väntande effekten, och den satte `begart` till falskt igen: ett
+  // fel från filen räknades inte som begärt, och `onFel` (en ny adress för en som gått ut) kom aldrig. Ett fel före effekten nådde
+  // ingen lyssnare alls. Som layouteffekt finns inget glapp: lyssnarna sitter innan något kan tryckas eller skicka en händelse.
+  // Inget här ska vara passivt: att koppla och ta bort lyssnare är billigt, `lasOm` söker asynkront (`lasLangdMedSok`), och
+  // nollställningen av tid och läge ritas före målningen i stället för en bild senare. Spelaren ritas aldrig på servern.
+  useLayoutEffect(() => {
     const el = ljud.current;
     if (!el) return undefined;
     begart.current = false;

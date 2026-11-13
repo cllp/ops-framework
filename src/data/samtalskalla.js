@@ -1,7 +1,7 @@
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { FALT_BORT } from "./contract.js";
 import { KOMMENTARBILAGAFALT } from "../lib/handelsemodell.js";
-import { AGENTSTATUS_ID, FASTA_TAK, OMROSTNINGSTAK, REAKTIONSTAK, amnesId, arNamnd, bilagenyckel, byggFastning, byggMeddelande, byggOmrostningsmeddelande, byggOmrostningsrost, byggOmrostningsval, byggReaktion, omrostningsrostnyckel, byggSamtal, byggTrad, kravAmnesrubrik, kravTradnamn, motpart, nyttAmnesId, olastaI, samtalsnyckel, synligText, undersamlingskrock } from "../lib/samtal.js";
+import { AGENTSTATUS_ID, FASTA_TAK, OMROSTNINGSROSTTAK, OMROSTNINGSVALTAK, REAKTIONSTAK, amnesId, arDelatSamtal, arNamnd, bilagenyckel, byggFastning, byggMeddelande, byggOmrostningsmeddelande, byggOmrostningsrost, byggOmrostningsval, byggReaktion, omrostningsrostnyckel, byggSamtal, byggTrad, kravAmnesrubrik, kravTradnamn, motpart, nyttAmnesId, olastaI, samtalsnyckel, synligText, undersamlingskrock } from "../lib/samtal.js";
 
 /**
  * Samtalskällan: läser och skriver ramverkets samtal genom en datakälla (0.34.0, #182, #185).
@@ -57,6 +57,10 @@ import { AGENTSTATUS_ID, FASTA_TAK, OMROSTNINGSTAK, REAKTIONSTAK, amnesId, arNam
  *   `oppnaAmne`, `sattRubrik` och `arkivera`, och översikten hoppar över arkiverade ämnen. ⛔ INGET FÖRVAL: utan det finns ett
  *   agentsamtal per person, som förut. Samma val som till `samtalsregelfragment({ amnen: true })`, som släpper in den fjärde delen i
  *   nyckeln, `rubrik` och `arkiverad`.
+ * @param {boolean} [konfig.projekt] (0.215.0, cllp/lifehub.app#760 skiva 2) `true` slår på projektens chattar: `oppnaProjekt`, och `lista` och `oversikt` tar med gruppens
+ *   projektchattar (en tredje fråga, `slag: "projekt"`). ⛔ INGET FÖRVAL: utan det finns inga projektchattar i källan, som förut. Samma val som till
+ *   `samtalsregelfragment({ projekt: true })`, som släpper in nyckeln och läsningen. ⛔ EN PROJEKTCHATT UTAN MEDDELANDEN STÅR INTE I `oversikt`: raden härleds ur att
+ *   samtalet har ett meddelande, och ett projekt som någon bara tittat in i ska inte fylla inkorgen.
  * @param {boolean} [konfig.levandeInkorg] (0.106.0, #386 skiva 7) `true` ger `bevakaInkorg`: en lyssnare per samtal i inkorgen på
  *   dess TVÅ senaste meddelanden (`limit: 2`, se `inkorgsradMed`), och `inkorgsrad`, som läser om en rad. `useSamtal` läser då om den rad som fått ett meddelande
  *   från någon annan, i stället för att vänta på att fönstret får fokus. ⛔ INGET FÖRVAL: varje synligt samtal är en lyssnare, och det
@@ -66,7 +70,7 @@ import { AGENTSTATUS_ID, FASTA_TAK, OMROSTNINGSTAK, REAKTIONSTAK, amnesId, arNam
  * @param {() => number} [konfig.klocka] Förval `Date.now`. Prov byter den.
  */
 export function createSamtalskalla(konfig) {
-  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omrostningsval, omrostningsroster, omnamnanden, citat, fasta, bilagor, bilagaSamling, tyst, amnen, levandeInkorg, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
+  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omrostningsval, omrostningsroster, omnamnanden, citat, fasta, bilagor, bilagaSamling, tyst, amnen, projekt, levandeInkorg, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.list !== "function") {
     throw new Error("createSamtalskalla: kalla krävs, en datakälla (createFirestoreSource, createMemorySource).");
   }
@@ -84,6 +88,7 @@ export function createSamtalskalla(konfig) {
   if (omnamnanden !== undefined && typeof omnamnanden !== "boolean") throw new Error("createSamtalskalla: omnamnanden är true eller utelämnat.");
   if (citat !== undefined && typeof citat !== "boolean") throw new Error("createSamtalskalla: citat är true eller utelämnat.");
   if (amnen !== undefined && amnen !== true) throw new Error("createSamtalskalla: amnen är true eller utelämnat.");
+  if (projekt !== undefined && projekt !== true) throw new Error("createSamtalskalla: projekt är true eller utelämnat.");
   if (levandeInkorg !== undefined && levandeInkorg !== true) throw new Error("createSamtalskalla: levandeInkorg är true eller utelämnat.");
   if (bilagor !== undefined && bilagor !== true) throw new Error("createSamtalskalla: bilagor är true eller utelämnat.");
   if (bilagor === true && bilagaSamling === undefined) throw new Error("createSamtalskalla: bilagor: true kräver bilagaSamling, samlingsnamnet för filerna. Samma namn som till samtalsregelfragment.");
@@ -188,12 +193,14 @@ export function createSamtalskalla(konfig) {
    */
   async function lista({ groupId, uid }) {
     if (!groupId || !uid) throw new Error("samtalskalla.lista: groupId och uid krävs.");
-    const [gruppens, mina] = await Promise.all([
+    const [gruppens, mina, projektens] = await Promise.all([
       kalla.list(samtal, { where: { groupId, slag: "grupp" } }),
       kalla.list(samtal, { where: { groupId }, innehaller: { deltagare: uid } }),
+      // (0.215.0) Projektens chattar: en fråga på `slag`, som gruppchatten. Regeln släpper in dem för gruppens medlemmar (`samtalsregelfragment({ projekt: true })`).
+      projekt === true ? kalla.list(samtal, { where: { groupId, slag: "projekt" } }) : Promise.resolve([]),
     ]);
     const sedda = new Set();
-    const ut = [...gruppens, ...mina].filter((s) => (sedda.has(s.id) ? false : (sedda.add(s.id), true)));
+    const ut = [...gruppens, ...projektens, ...mina].filter((s) => (sedda.has(s.id) ? false : (sedda.add(s.id), true)));
     // ⛔ Ett ämne i listan finns: `skickaIAmne` skapar det inte igen (P0 2026-10-15, se där).
     for (const s of ut) if (s.slag === "agent") kandaAmnen.add(s.id);
     return ut;
@@ -226,6 +233,17 @@ export function createSamtalskalla(konfig) {
     const finns = (await lista({ groupId, uid })).find((x) => x.id === id);
     if (finns) return finns;
     return skapaEllerHamta(byggSamtal({ groupId, slag: "grupp", skapadAv: uid, skapad: klocka() }), uid);
+  }
+
+  /**
+   * (0.215.0) Ett projekts chatt, nyckeln `<grupp>|projekt|<tagg>`. Skapas första gången någon öppnar den, som gruppchatten. ⛔ Taggen prövas av `byggSamtal`, och om projektet finns
+   * avgör appen: chatten är gruppens rum för projektet och behöver inget projektdokument för att reglerna ska släppa in en medlem.
+   * @param {{ groupId: string, uid: string, tagg: string }} d
+   */
+  async function oppnaProjekt({ groupId, uid, tagg }) {
+    const s = byggSamtal({ groupId, slag: "projekt", tagg, skapadAv: uid, skapad: klocka() });
+    const finns = (await lista({ groupId, uid })).find((x) => x.id === s.id);
+    return finns ?? skapaEllerHamta(s, uid);
   }
 
   /**
@@ -502,8 +520,9 @@ export function createSamtalskalla(konfig) {
     const alla = (await lista({ groupId, uid })).filter((s) => (amnen === true && s.slag === "agent" ? (s.arkiverad === true) === arkiverade : !arkiverade));
     const rader = await Promise.all(alla.map((s) => inkorgsrad(s, uid)));
     // ⛔ Ett ämne utan meddelanden visas inte: det är ett ämne vars första meddelande inte gick att skriva efter samtalet (0.106.0).
+    // ⛔ (0.215.0) Inte heller en projektchatt utan meddelanden: raden finns när någon skrivit, inte när någon tittat in.
     return rader
-      .filter((r) => !(r.senaste === null && amnesId(r.samtal.id)))
+      .filter((r) => !(r.senaste === null && (amnesId(r.samtal.id) || r.samtal.slag === "projekt")))
       .sort((a, b) => (b.senaste?.tid ?? b.samtal.skapad ?? 0) - (a.senaste?.tid ?? a.samtal.skapad ?? 0));
   }
 
@@ -923,54 +942,66 @@ export function createSamtalskalla(konfig) {
   const reaktionsfunktioner = reaktioner === undefined ? {} : { reaktioner, lasReaktioner, prenumereraReaktioner, reagera, taBortReaktion };
 
   /*
-   * ══ ⛔ OMRÖSTNINGARNA (cllp/lifehub.app#438 skiva 1) ═════════════════════════════════════════════════════════════════════
+   * ══ ⛔ OMRÖSTNINGARNA (cllp/lifehub.app#438 skiva 1, läsningen skiva 2 #742) ════════════════════════════════════════════════
    *
-   * Modellen och skälen står i `lib/samtal.js`. Samma form som reaktionerna: EN läsning per samling och samtal, de senaste
-   * `OMROSTNINGSTAK`, inte en per meddelande. Bara i samtalet: en omröstning i en tråd finns inte i skiva 1, och reglerna har ingen väg dit.
+   * Modellen och skälen står i `lib/samtal.js`. ⛔ EN LÄSNING PER OMRÖSTNING (skiva 2): likhet på `mid` och ett tak per omröstning
+   * (`OMROSTNINGSVALTAK`, `OMROSTNINGSROSTTAK`), inte de senaste i hela samtalet. Ingen sortering, så frågan behöver inget sammansatt index.
+   * Bara i samtalet: en omröstning i en tråd finns inte, och reglerna har ingen väg dit.
    */
 
   /** @param {string} sid */
   const valvag = (sid) => `${samtal}/${sid}/${omrostningsval}`;
   /** @param {string} sid */
   const rostvag = (sid) => `${samtal}/${sid}/${omrostningsroster}`;
-  const omrostningsfraga = /** @type {const} */ ({ sortBy: "tid", direction: "desc", limit: OMROSTNINGSTAK });
+  /**
+   * Frågan för en omröstning: en rad över taket, så att `fler` betyder att fler finns och inte att taket råkade fyllas.
+   * @param {unknown} mid @param {number} tak @param {string} vem
+   */
+  const omrostningsfraga = (mid, tak, vem) => {
+    if (typeof mid !== "string" || !mid) throw new Error(`samtalskalla.${vem}: mid krävs, omröstningens meddelande. Alternativ och röster läses per omröstning (cllp/lifehub.app#742).`);
+    return { where: { mid }, limit: tak + 1 };
+  };
+  /** @param {any[]} rader @param {number} tak @returns {{ rader: any[], fler: boolean }} */
+  const inomTak = (rader, tak) => ({ rader: rader.length > tak ? rader.slice(0, tak) : rader, fler: rader.length > tak });
 
   /**
-   * Alternativen i ett samtal. `fler`: taket nåddes.
-   * @param {string} sid @returns {Promise<{ rader: any[], fler: boolean }>}
+   * Alternativen i en omröstning, högst `OMROSTNINGSVALTAK`. `fler`: omröstningen har fler än så (bara förbi byggaren).
+   * @param {string} sid @param {string} mid @returns {Promise<{ rader: any[], fler: boolean }>}
    */
-  async function lasOmrostningsval(sid) {
-    const rader = await kalla.list(valvag(sid), omrostningsfraga);
-    return { rader, fler: rader.length >= OMROSTNINGSTAK };
+  function lasOmrostningsval(sid, mid) {
+    const fraga = omrostningsfraga(mid, OMROSTNINGSVALTAK, "lasOmrostningsval");
+    return kalla.list(valvag(sid), fraga).then((rader) => inomTak(rader, OMROSTNINGSVALTAK));
   }
 
   /**
-   * Rösterna i ett samtal. `fler`: taket nåddes.
-   * @param {string} sid @returns {Promise<{ rader: any[], fler: boolean }>}
+   * Rösterna i en omröstning, högst `OMROSTNINGSROSTTAK`. `fler`: fler har röstat än så.
+   * @param {string} sid @param {string} mid @returns {Promise<{ rader: any[], fler: boolean }>}
    */
-  async function lasOmrostningsroster(sid) {
-    const rader = await kalla.list(rostvag(sid), omrostningsfraga);
-    return { rader, fler: rader.length >= OMROSTNINGSTAK };
+  function lasOmrostningsroster(sid, mid) {
+    const fraga = omrostningsfraga(mid, OMROSTNINGSROSTTAK, "lasOmrostningsroster");
+    return kalla.list(rostvag(sid), fraga).then((rader) => inomTak(rader, OMROSTNINGSROSTTAK));
   }
 
   /**
-   * Lyssnar på alternativen, om källan kan prenumerera. Annars `null`, och vyn läser om efter varje egen ändring.
-   * @param {string} sid @param {{ onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }} lyssnare
+   * Lyssnar på en omröstnings alternativ, om källan kan prenumerera. Annars `null`, och vyn läser om efter varje egen ändring.
+   * @param {string} sid @param {string} mid @param {{ onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }} lyssnare
    * @returns {(() => void) | null}
    */
-  function prenumereraOmrostningsval(sid, lyssnare) {
+  function prenumereraOmrostningsval(sid, mid, lyssnare) {
+    const fraga = omrostningsfraga(mid, OMROSTNINGSVALTAK, "prenumereraOmrostningsval");
     if (typeof kalla.subscribe !== "function") return null;
-    return kalla.subscribe(valvag(sid), omrostningsfraga, { onData: (rader) => lyssnare.onData({ rader, fler: rader.length >= OMROSTNINGSTAK }), onError: lyssnare.onError });
+    return kalla.subscribe(valvag(sid), fraga, { onData: (rader) => lyssnare.onData(inomTak(rader, OMROSTNINGSVALTAK)), onError: lyssnare.onError });
   }
 
   /**
-   * Lyssnar på rösterna, om källan kan prenumerera. Annars `null`.
-   * @param {string} sid @param {{ onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }} lyssnare
+   * Lyssnar på en omröstnings röster, om källan kan prenumerera. Annars `null`.
+   * @param {string} sid @param {string} mid @param {{ onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }} lyssnare
    * @returns {(() => void) | null}
    */
-  function prenumereraOmrostningsroster(sid, lyssnare) {
+  function prenumereraOmrostningsroster(sid, mid, lyssnare) {
+    const fraga = omrostningsfraga(mid, OMROSTNINGSROSTTAK, "prenumereraOmrostningsroster");
     if (typeof kalla.subscribe !== "function") return null;
-    return kalla.subscribe(rostvag(sid), omrostningsfraga, { onData: (rader) => lyssnare.onData({ rader, fler: rader.length >= OMROSTNINGSTAK }), onError: lyssnare.onError });
+    return kalla.subscribe(rostvag(sid), fraga, { onData: (rader) => lyssnare.onData(inomTak(rader, OMROSTNINGSROSTTAK)), onError: lyssnare.onError });
   }
 
   /**
@@ -1153,6 +1184,9 @@ export function createSamtalskalla(konfig) {
     await kalla.create(tystvag(sid), { id: uid, tyst: pa });
   }
   const tystfunktioner = tyst === undefined ? {} : { tyst, tystFor, sattTyst };
+  // ⛔ (0.215.0, #760) SOM OMRÖSTNINGARNA: spridningen står som `{}` för kompilatorn, och typen nås genom `harProjekt(kalla)`. Med en spridning till blev den härledda typen för lång för
+  // deklarationsfilen (TS7056 i `npm pack`, mätt 2026-11-11 i `samtalskalla.js` och i `OpsMeddelanden.jsx`). I körningen är `oppnaProjekt` där som vanligt.
+  const projektfunktioner = /** @type {{}} */ (projekt === true ? { oppnaProjekt } : {});
 
   return Object.freeze({
     lista,
@@ -1175,6 +1209,7 @@ export function createSamtalskalla(konfig) {
     ...bilagefunktioner,
     ...tystfunktioner,
     ...amnesfunktioner,
+    ...projektfunktioner,
     ...inkorgsfunktioner,
     ...(omnamnanden === true ? { omnamnanden: true } : {}),
     ...(citat === true ? { citat: true } : {}),
@@ -1241,10 +1276,10 @@ export function harReaktioner(kalla) {
  * @typedef {object} Omrostningsfunktioner (cllp/lifehub.app#438 skiva 1) Det en samtalskälla har när appen skickat `omrostningsval` och `omrostningsroster`.
  * @property {string} omrostningsval
  * @property {string} omrostningsroster
- * @property {(sid: string) => Promise<{ rader: any[], fler: boolean }>} lasOmrostningsval
- * @property {(sid: string) => Promise<{ rader: any[], fler: boolean }>} lasOmrostningsroster
- * @property {(sid: string, lyssnare: { onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraOmrostningsval
- * @property {(sid: string, lyssnare: { onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraOmrostningsroster
+ * @property {(sid: string, mid: string) => Promise<{ rader: any[], fler: boolean }>} lasOmrostningsval (#742) En omröstnings alternativ.
+ * @property {(sid: string, mid: string) => Promise<{ rader: any[], fler: boolean }>} lasOmrostningsroster (#742) En omröstnings röster.
+ * @property {(sid: string, mid: string, lyssnare: { onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraOmrostningsval
+ * @property {(sid: string, mid: string, lyssnare: { onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraOmrostningsroster
  * @property {(sid: string, d: { fraga: string, alternativ: ReadonlyArray<string>, av: string }) => Promise<any>} skickaOmrostning
  * @property {(sid: string, d: { mid: string, text: string, av: string, befintliga?: ReadonlyArray<string> }) => Promise<any>} laggTillAlternativ
  * @property {(sid: string, d: { mid: string, val: string, av: string }) => Promise<any>} rosta
@@ -1299,6 +1334,16 @@ export function harFasta(kalla) {
  */
 export function harAmnen(kalla) {
   return Boolean(kalla) && typeof (/** @type {any} */ (kalla).skickaIAmne) === "function";
+}
+
+/**
+ * Har källan projektens chattar, alltså har appen slagit på dem med `projekt: true`? (0.215.0, lifehub.app#760) Samma form som `harTradar`.
+ * @template {object} K
+ * @param {K | null | undefined} kalla
+ * @returns {kalla is K & { oppnaProjekt: (d: { groupId: string, uid: string, tagg: string }) => Promise<import("../lib/samtal.js").Samtal> }}
+ */
+export function harProjekt(kalla) {
+  return Boolean(kalla) && typeof (/** @type {any} */ (kalla).oppnaProjekt) === "function";
 }
 
 /**
@@ -1396,17 +1441,19 @@ export function harTradar(kalla) {
  * @param {(namn: string) => string} [konfig.titel] Förval `"<namn> skickade ett meddelande"`.
  * @param {ReadonlyArray<{ userId: string, typ?: string, status?: string }>} [konfig.medlemmar] (chattens nattskiva) Gruppens medlemskap,
  *   för notisen "nämnd i gruppchatten". Utelämnat: ingen sådan notis.
- * @param {(namn: string) => string} [konfig.namndTitel] Förval `"<namn> nämnde dig i gruppchatten"`.
+ * @param {(namn: string, samtal?: import("../lib/samtal.js").Samtal) => string} [konfig.namndTitel] Förval `"<namn> nämnde dig i gruppchatten"`, och (0.215.0) `"<namn> nämnde dig i projektets chatt"` i ett projekts chatt.
+ *   (0.215.0) Andra argumentet är samtalet, så att appen kan säga vilket projekt.
  * @returns {(fraga: { groupId: string }) => Promise<Array<{ id: string, titel: string, text: string, prio: "normal", href?: string }>>}
  */
-export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `${namn} skickade ett meddelande`, medlemmar, namndTitel = (namn) => `${namn} nämnde dig i gruppchatten` }) {
+export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `${namn} skickade ett meddelande`, medlemmar, namndTitel = (namn, s) => (s?.slag === "projekt" ? `${namn} nämnde dig i projektets chatt` : `${namn} nämnde dig i gruppchatten`) }) {
   if (!samtal || typeof samtal.oversikt !== "function") throw new Error("samtalsnotiser: samtal krävs, en källa ur createSamtalskalla.");
   if (!uid) throw new Error("samtalsnotiser: uid krävs. Notiserna är en persons, inte gruppens.");
   if (typeof namnFor !== "function") throw new Error("samtalsnotiser: namnFor krävs. En notis utan namn säger inte vem som skrev.");
   return async ({ groupId }) => {
     const rader = (await samtal.oversikt({ groupId, uid })).filter((r) => r.tyst !== true);
     const privata = rader
-      .filter((r) => r.samtal.slag !== "grupp" && r.olasta > 0 && r.senaste)
+      // ⛔ (0.215.0) Ett projekts chatt är ett rum för flera, som gruppchatten: notis vid ett omnämnande, inte vid varje meddelande.
+      .filter((r) => !arDelatSamtal(r.samtal.slag) && r.olasta > 0 && r.senaste)
       .map((r) => {
         const s = /** @type {NonNullable<typeof r.senaste>} */ (r.senaste);
         return {
@@ -1419,13 +1466,13 @@ export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `
       });
     if (!medlemmar) return privata;
     const namnda = rader
-      .filter((r) => r.samtal.slag === "grupp")
+      .filter((r) => arDelatSamtal(r.samtal.slag))
       .flatMap((r) => {
         const s = [...(r.olastaRader ?? [])].reverse().find((m) => arNamnd(m, uid, medlemmar));
         if (!s) return [];
         return [{
           id: `${r.samtal.id}|${s.id}`,
-          titel: namndTitel(namnFor(s.av) || NAMN_SAKNAS),
+          titel: namndTitel(namnFor(s.av) || NAMN_SAKNAS, r.samtal),
           text: synligText(s),
           prio: /** @type {const} */ ("normal"),
           ...(href ? { href: href(r.samtal.id) } : {}),

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { exempelkarta } from "../../examples/karta/dahab.js";
 
 /*
- * Kartan hämtas när den ritas (0.214.0, cllp/ops-framework#570). Modulen `OpsKartaVy` ersätts av en som räknar utvärderingar.
+ * Kartan hämtas när den ritas (0.223.0, cllp/ops-framework#570). Modulen `OpsKartaVy` ersätts av en som räknar utvärderingar.
  * Ett grep efter ordet import hade stått grönt genom en statisk import. Bytesmåttet är `check:delbarhet`.
  */
 

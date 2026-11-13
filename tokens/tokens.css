@@ -845,7 +845,7 @@
   --marke-storlek-stor: 32px;
   --marke-undertext-stor: 12px;
 
-  /* ─── Kartan (0.214.0, cllp/ops-framework#570) ────────────────────────────
+  /* ─── Kartan (0.223.0, cllp/ops-framework#570) ────────────────────────────
    * CP 2026-11-11: kartan ska kännas som skissramverket, och färgerna ska vara
    * tokens, inte tal i kartstilen. Värdena är lästa ur cllp/skissramverk
    * tokens.css. Ramverket är inte kopierat.
@@ -1218,7 +1218,7 @@
   --logo-bredd: 180px;
   --logo-bredd-infalld: 40px;
 
-  /* Kartans mörka värden (0.214.0, #570). Samma familj, lyfta så att texten
+  /* Kartans mörka värden (0.223.0, #570). Samma familj, lyfta så att texten
    * på land håller AA. Mätt: text på papper 13,34:1, lera på papper 8,13:1. */
   --dark-karta-papper: #2a2622;
   --dark-karta-creme: #1c1916;
@@ -1954,6 +1954,19 @@
   .ops-reglage:focus-visible::-moz-range-thumb {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
+  }
+
+  /*
+   * ⛔ FÄRGVÄLJARENS REGLAGE (`OpsFargval`, 0.219.0, cllp/lifehub.app#798): samma tumme, men skenan är genomskinlig, så att
+   * färgskalan under elementet syns (kulören, mättnaden, ljusheten och var på ljusheten färgen håller). Skenans höjd och tummens
+   * plats är oförändrade, så tummen står mitt på skalan i båda motorerna.
+   */
+  .ops-reglage.ops-fargreglage::-webkit-slider-runnable-track {
+    background: transparent;
+  }
+
+  .ops-reglage.ops-fargreglage::-moz-range-track {
+    background: transparent;
   }
 
   /*
