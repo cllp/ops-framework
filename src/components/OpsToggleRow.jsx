@@ -1,4 +1,5 @@
 import { cx } from "../lib/cx.js";
+import { BockIkon } from "./icons.jsx";
 
 /**
  * En rad som går att tona ned: med i summan, eller inte.
@@ -129,6 +130,12 @@ export function OpsToggleRow({ label, value, on, onChange, offLabel = "räknas i
       {value === undefined || value === null ? null : (
         <span className={cx("shrink-0 tabular-nums", on ? "text-ink-secondary" : "line-through")}>{value}</span>
       )}
+      {/* ⛔ BOCKEN NÄR RADEN RÄKNAS (0.225.0, CP 2026-11-13). På och av syntes bara som en dämpad text och en överstruken
+          siffra, och i Idag knappt alls ("färgen ... blev så det syns inte. Blek"). Samma bock som `ValRad`, i samma kolumn
+          längst till höger, så att varje val i ramverket ser likadant ut. */}
+      <span aria-hidden="true" data-togglebock={on ? "" : undefined} className="flex w-3.5 shrink-0 justify-center text-accent">
+        {on ? <BockIkon size={14} /> : null}
+      </span>
     </button>
   );
 

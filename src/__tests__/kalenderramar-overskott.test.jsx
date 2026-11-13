@@ -6,6 +6,9 @@ import { kalenderRamarAlla, ramarEfterText } from "../lib/kalenderramar.js";
 import { LANGTRYCK_MS } from "../lib/talk.js";
 import { OpsSprakProvider } from "../components/OpsSprak.jsx";
 
+/** ⛔ En kalender i listan är en `ValRad` med bock (0.225.0), inte en strömbrytare. Namnet matchas från början, eftersom märket kan stå efter. @param {string} namn */
+const kalenderrad = (namn) => new RegExp("^" + namn.replace(/[.*+?^$()|[\]\\{}]/g, "\\$&") + "(\\s|$)");
+
 /**
  * Lagerbrickan visar kalendrarna med ram som inte får plats (0.151.0, CP 2026-10-28): "+1" för tre kalendrar, "+2" för fyra, ingenting för två eller färre.
  *
@@ -110,7 +113,7 @@ describe("lagerbrickan för ramar som inte får plats", () => {
     rita();
     fireEvent.click(screen.getByRole("button", { name: /^Kalendrar: / }));
     // Listan öppnas i ett ark: slå av Familj.
-    fireEvent.click(screen.getByRole("switch", { name: "Familj" }));
+    fireEvent.click(screen.getByRole("button", { name: kalenderrad("Familj") }));
     expect(bricka("2026-10-12")).toEqual(["+1"]);
   });
 

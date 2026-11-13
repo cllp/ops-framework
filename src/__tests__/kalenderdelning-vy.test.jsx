@@ -7,6 +7,13 @@ import { OpsHandelsePanel } from "../components/OpsHandelsePanel.jsx";
 import { byggKalenderdelning, deladKalenderTillVal, deladPostTillHandelse, deladPostTillRad, deladeKalendrar, panelForDeladPost } from "../lib/kalenderdelning.js";
 import { byggKalenderpost, byggMinKalender } from "../lib/kalendrar.js";
 
+/**
+ * ⛔ RADEN ÄR EN VALRAD MED BOCK (0.225.0), INTE EN STRÖMBRYTARE. Namnet är kalenderns namn, följt av märket när det finns ("Delad av Anna. Bara läsning"),
+ * så det matchas från början. Raden "Alla kalendrar" har ett annat namn och träffas inte.
+ * @param {string} namn
+ */
+const kalenderrad = (namn) => new RegExp("^" + namn.replace(/[.*+?^$()|[\]\\{}]/g, "\\$&") + "(\\s|$)");
+
 /*
  * 0.154.0 (cllp/lifehub.app#485): Dela i Hantera kalendrar, och den delade kalendern i mottagarens lista Kalendrar.
  * jsdom kör ingen CSS: hur det SER UT mäts i Chromium (`check-skalyta`, avsnittet om kalenderdelning, 390 och 1280 px).
@@ -146,11 +153,11 @@ describe("den delade kalendern hos mottagaren: en rad bland de andra, som går a
     const lista = await screen.findByRole("dialog", { name: "Kalendrar" });
     const sektion = /** @type {HTMLElement} */ (lista.querySelector('[data-kalendersektion="Delade med mig"]'));
     expect(within(sektion).getByText("Delad av Anna. Bara läsning")).toBeTruthy();
-    const vaxel = within(sektion).getByRole("switch", { name: "Barnveckor" });
-    expect(vaxel).toBeChecked();
+    const vaxel = within(sektion).getByRole("button", { name: kalenderrad("Barnveckor") });
+    expect(vaxel).toHaveAttribute("aria-pressed", "true");
     const fore = dagen();
     fireEvent.click(vaxel);
-    await waitFor(() => expect(within(sektion).getByRole("switch", { name: "Barnveckor" })).not.toBeChecked());
+    await waitFor(() => expect(within(sektion).getByRole("button", { name: kalenderrad("Barnveckor") })).toHaveAttribute("aria-pressed", "false"));
     expect(dagen()).not.toBe(fore);
     expect([...varden.values()].join("")).toContain(rad.id);
   });

@@ -102,6 +102,18 @@ describe("⛔ #451: en panel öppnas bara av ett tryck (OpsEventList)", () => {
   });
 });
 
+describe("⛔ på telefonen börjar panelen under statusfältet (CP 2026-11-13: \"Menyn att komma tillbaka är för högt upp för att nå\")", () => {
+  it("helskärmspanelen bär den säkra zonen upptill och nedtill under md, som skapa-panelen", async () => {
+    const user = userEvent.setup();
+    render(<OpsEventList events={RADER} radkallor={kallor(() => {})} />);
+    await user.click(screen.getByRole("button", { name: "Attest större leverantörsfakturor" }));
+    const panel = /** @type {HTMLElement} */ (radpanel());
+    // jsdom kör ingen CSS, så det som mäts är att panelen som är `fixed inset-0` på telefonen också bär zonerna. Utan dem låg Tillbaka bakom klockan.
+    expect(panel.className).toMatch(/\bfixed inset-0\b/);
+    expect(panel.className.split(/\s+/)).toEqual(expect.arrayContaining(["max-md:pt-(--safe-top)", "max-md:pb-(--safe-bottom)"]));
+  });
+});
+
 describe("⛔ #451: knappraden, löftet i en åtgärd (OpsEventList)", () => {
   it("en åtgärd vars löfte lyckas stänger panelen, också när raden står kvar", async () => {
     const user = userEvent.setup();

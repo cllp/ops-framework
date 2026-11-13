@@ -431,6 +431,25 @@ function platsKlass(active) {
 }
 
 /**
+ * Plattan bakom ikonen och etikettens vikt, som bär det valda läget utan att lita på färgen.
+ *
+ * ⛔ CP 2026-11-13, skärmbild av bottenraden i appen: "Det är nästan ingen skillnad på ikon färgen på valt område. Om jag valt idag är det oklart vad jag
+ * valt." Mätt: `--color-accent` (#8E7A4E) och `--color-ink-muted` (#8a8078) är nästan lika ljusa, kontrast cirka 1,05:1 mellan dem, så bara nyansen skilde.
+ * Nu har den valda platsen en ljus platta bakom ikonen (`bg-accent-subtle`, samma språk som toppradens valda ikon) och etiketten i `text-ink` och `font-medium` (flikens vikt, typografivakten).
+ * @param {boolean} active
+ */
+function ikonPlatta(active) {
+  // ⛔ `-my-0.5` TAR TILLBAKA PLATTANS `py-0.5`: plattan ritas 2 px utanför ikonen, men ikonen står kvar där `check-skalyta` mäter den
+  // (8 px under radens överkant, bolag-ops#565). Utan den flyttade plattan ikonen 2 px nedåt, och `scaffold` blev röd på 30 kontroller (PR 591, 56793fc).
+  return cx("relative -my-0.5 inline-flex items-center justify-center rounded-full px-3 py-0.5 [&_svg]:size-6", active ? "bg-accent-subtle" : "");
+}
+
+/** @param {boolean} active */
+function etikettKlass(active) {
+  return cx("max-w-full truncate text-liten", active ? "font-medium text-ink" : "");
+}
+
+/**
  * En flik, eller knappen som öppnar app-arket när href är arkets.
  * Medan arket är öppet är den knappen den enda aktiva fliken. Adressen rörs inte,
  * så när arket stängs är den tidigare fliken vald igen.
@@ -467,11 +486,11 @@ function BottomPost({ entry, activeHref, ark, onClick, badgeText }) {
         }}
         className={cx(platsKlass(active), lang.aktiv ? LANGTRYCK_KLASS : "")}
       >
-        <span className="relative inline-flex [&_svg]:size-6">
+        <span data-bottenplatta={active ? "" : undefined} className={ikonPlatta(active)}>
           {entry.icon ?? <span className="inline-block size-6 rounded-full border-2 border-current" aria-hidden="true" />}
           {typeof entry.badge === "number" ? <OpsCountBadge count={entry.badge} text={badgeText} placement="inline" /> : null}
         </span>
-        <span className="max-w-full truncate text-liten">{entry.label}</span>
+        <span className={etikettKlass(active)}>{entry.label}</span>
       </button>
     );
   }
@@ -495,11 +514,11 @@ function BottomLank({ entry, active, onClick, badgeText, genvag }) {
       aria-current={active ? "page" : undefined}
       className={cx(platsKlass(active), genvag.klass)}
     >
-      <span className="relative inline-flex [&_svg]:size-6">
+      <span data-bottenplatta={active ? "" : undefined} className={ikonPlatta(active)}>
         {entry.icon ?? <span className="inline-block size-6 rounded-full border-2 border-current" aria-hidden="true" />}
         {typeof entry.badge === "number" ? <OpsCountBadge count={entry.badge} text={badgeText} placement="inline" /> : null}
       </span>
-      <span className="max-w-full truncate text-liten">{entry.label}</span>
+      <span className={etikettKlass(active)}>{entry.label}</span>
     </a>
   );
 }

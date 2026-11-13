@@ -149,6 +149,38 @@ describe("OpsSnabbmeny", () => {
   });
 });
 
+describe("⛔ Appar får platsen ovanför knappen (CP 2026-11-13, TestFlight: \"Liten visuell bug\")", () => {
+  it("höjden är avståndet från knappen upp till den säkra ytan, inte 70 procent av skärmen", () => {
+    const knapp = document.createElement("button");
+    knapp.setAttribute("data-ops-appar-knapp", "");
+    knapp.textContent = "Appar";
+    document.body.appendChild(knapp);
+    knapp.getBoundingClientRect = () => /** @type {DOMRect} */ ({ top: 590, left: 180, right: 240, bottom: 640, width: 60, height: 50, x: 180, y: 590, toJSON: () => ({}) });
+    try {
+      render(
+        <OpsSnabbmeny
+          oppen
+          onOppen={vi.fn()}
+          variant="appar"
+          etikett="Appar"
+          ankare="[data-ops-appar-knapp]"
+          poster={["Bibliotek", "Ekonomi", "Meddelanden", "Projekt", "Ärenden"].map((e) => ({ id: e, etikett: e, onValj: vi.fn() }))}
+        />,
+      );
+      const dialog = /** @type {HTMLElement} */ (screen.getByRole("dialog", { name: "Appar" }));
+      expect(dialog.style.maxHeight).toBe("calc(582px - env(safe-area-inset-top, 0px) - 0.5rem)");
+      expect(dialog.className).not.toMatch(/max-h-\[70dvh\]/);
+      // Etiketten bär sin egen mörka botten, som i skapa-menyn, och är inte vit text direkt på dimman.
+      const etikett = /** @type {HTMLElement} */ (screen.getByText("Meddelanden"));
+      expect(etikett.className).toMatch(/\bbg-ink\b/);
+      expect(etikett.className).toMatch(/\btext-canvas\b/);
+      expect(etikett.className).not.toMatch(/\btext-white\b/);
+    } finally {
+      knapp.remove();
+    }
+  });
+});
+
 describe("skalet med snabbmenyer", () => {
   const inspelare = () => ({
     starta: vi.fn(() => Promise.resolve()),

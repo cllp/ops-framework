@@ -5430,9 +5430,9 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       krav(/Alla kalendrar/.test(meny) && /Gruppens kalendrar/.test(meny) && /Styrelsen/.test(meny) && /Mina kalendrar/.test(meny) && /Privat/.test(meny) && hanteraKnapp && !/kommer i nästa steg/.test(meny), `${namn}: kalendermenyn säger "${meny.slice(0, 160)}" (knappen Hantera kalendrar ${hanteraKnapp ? "finns" : "saknas"}), väntat Alla kalendrar, gruppens (Styrelsen), mina (Privat) och knappen Hantera kalendrar, utan "kommer i nästa steg".`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kalender-kalendrar-${vp.width}.png`) });
       // ⛔ 0.134.0 (cllp/lifehub.app#402): ett tryck på en rad slår AV kalendern (en växel), och betydde förut "visa bara denna". "Bara Styrelsen" är nu Resor och Privat avslagna.
-      // Raden är en etikett runt en dold ruta (`OpsSwitch`): ett riktigt tryck träffar etiketten, inte rutan.
-      await page.locator("[data-radix-popper-content-wrapper] label", { hasText: "Resor" }).click();
-      await page.locator("[data-radix-popper-content-wrapper] label", { hasText: "Privat" }).click();
+      // Raden är en valrad med bock (`ValRad`, 0.225.0, förut en `OpsSwitch` med dold ruta): trycket går på radens knapp.
+      await page.locator("[data-radix-popper-content-wrapper] [data-kalenderrad] button[aria-pressed]", { hasText: "Resor" }).click();
+      await page.locator("[data-radix-popper-content-wrapper] [data-kalenderrad] button[aria-pressed]", { hasText: "Privat" }).click();
       await page.keyboard.press("Escape");
       await page.waitForTimeout(150);
       const tolv = await page.evaluate(() => (document.querySelector('[data-cal-day="2026-10-12"]') || { getAttribute: () => "" }).getAttribute("aria-label"));
@@ -9396,19 +9396,20 @@ async function kalenderdelning() {
       steg = "läsa sektionen";
       const g = await m.page.evaluate(() => {
         const sek = document.querySelector('[data-kalendersektion="Delade med mig"]');
-        const vaxel = /** @type {HTMLInputElement | null} */ (sek ? sek.querySelector('[role="switch"]') : null);
-        return { finns: !!sek, text: sek ? (sek.textContent || "").replace(/\s+/g, " ").trim() : "", pa: vaxel ? vaxel.checked : null, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+        // ⛔ RADEN ÄR EN VALRAD MED BOCK SEDAN 0.225.0 (`aria-pressed`), INTE EN STRÖMBRYTARE.
+        const vaxel = sek ? sek.querySelector("[data-kalenderrad] [aria-pressed]") : null;
+        return { finns: !!sek, text: sek ? (sek.textContent || "").replace(/\s+/g, " ").trim() : "", pa: vaxel ? vaxel.getAttribute("aria-pressed") === "true" : null, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
       });
       if (bildmapp) await m.page.screenshot({ path: path.join(bildmapp, `kalenderdelning-mottagare-lista-${vp.width}.png`) });
       steg = "slå av";
-      // Ett tryck på radens namn, som en person gör: växeln är en dold `input` i en `label`, och den går inte att klicka på själv.
+      // Ett tryck på radens namn, som en person gör: namnet står i radens knapp (`ValRad`, 0.225.0).
       await lista.getByText("Barnveckor", { exact: true }).click();
-      await m.page.waitForFunction(() => /** @type {HTMLInputElement | null} */ (document.querySelector('[data-kalendersektion="Delade med mig"] [role="switch"]'))?.checked === false, null, { timeout: 3000 });
+      await m.page.waitForFunction(() => document.querySelector('[data-kalendersektion="Delade med mig"] [data-kalenderrad] [aria-pressed]')?.getAttribute("aria-pressed") === "false", null, { timeout: 3000 });
       const dold = await dag();
       steg = "slå på";
-      // Ett tryck på radens namn, som en person gör: växeln är en dold `input` i en `label`, och den går inte att klicka på själv.
+      // Ett tryck på radens namn, som en person gör: namnet står i radens knapp (`ValRad`, 0.225.0).
       await lista.getByText("Barnveckor", { exact: true }).click();
-      await m.page.waitForFunction(() => /** @type {HTMLInputElement | null} */ (document.querySelector('[data-kalendersektion="Delade med mig"] [role="switch"]'))?.checked === true, null, { timeout: 3000 });
+      await m.page.waitForFunction(() => document.querySelector('[data-kalendersektion="Delade med mig"] [data-kalenderrad] [aria-pressed]')?.getAttribute("aria-pressed") === "true", null, { timeout: 3000 });
       const igen = await dag();
       matt.push(`${namn} (g): ${JSON.stringify(g)}, dagen före ${JSON.stringify(fore)}, dold ${JSON.stringify(dold)}, igen ${JSON.stringify(igen)}`);
       krav(g.finns && /Barnveckor/.test(g.text) && /Delad av Anna Berg\. Bara läsning/.test(g.text) && g.pa === true, `${namn} (g): sektionen ${g.finns ? JSON.stringify(g.text) : "saknas"}, växeln ${g.pa}. Väntat Barnveckor med "Delad av Anna Berg. Bara läsning" och växeln på.`);

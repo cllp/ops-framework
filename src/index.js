@@ -302,7 +302,11 @@ export { useKalenderSynlighet } from "./lib/useKalenderSynlighet.js";
 export { createKalendervalskalla } from "./data/kalendervalskalla.js";
 export { kalenderRamar, kalenderRamarAlla, ramarEfterText, ORD_KALENDERRAMAR, MAX_KALENDERRAMAR } from "./lib/kalenderramar.js";
 export { OpsDoldMarke, DOLD_RAD_KLASS, ORD_OPSDOLDMARKE } from "./components/OpsDoldMarke.jsx";
-export { ORD_OPSKALENDERLISTA } from "./components/OpsKalenderLista.jsx";
+/*
+ * ⛔ LISTAN KALENDRAR ÄR EN, OCH ANVÄNDS PÅ VARJE STÄLLE (0.225.0, CP 2026-11-13: "VI skall ha enhetligt, alltså så lite dublicerad kod som möjligt").
+ * Idag ritade en egen lista med `OpsToggleRow`, Kalender den här med strömbrytare. Nu exporteras den, så att appens Idag ger samma rader, samma bock och samma långtryck.
+ */
+export { OpsKalenderLista, ORD_OPSKALENDERLISTA } from "./components/OpsKalenderLista.jsx";
 /*
  * ⛔ TILLGÄNGLIGHETEN (0.61.0, #259 skiva 1): vem i gruppen som är borta eller upptagen en dag, härledd ur posterna och aldrig
  * lagrad. En post med läget `dold` räknas inte alls. Hörnbrickan i `OpsCalendar` får `bortaAntal` via `dagdekor`.

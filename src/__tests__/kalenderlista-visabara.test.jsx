@@ -9,6 +9,13 @@ import { registreraFelmottagare } from "../lib/felrapport.js";
 import { KORTKOMMANDO } from "../components/useLangtryck.js";
 
 /**
+ * ⛔ RADEN ÄR EN VALRAD MED BOCK (0.225.0), INTE EN STRÖMBRYTARE. Namnet är kalenderns namn, följt av märket när det finns ("Delad av Anna. Bara läsning"),
+ * så det matchas från början. Raden "Alla kalendrar" har ett annat namn och träffas inte.
+ * @param {string} namn
+ */
+const kalenderrad = (namn) => new RegExp("^" + namn.replace(/[.*+?^$()|[\]\\{}]/g, "\\$&") + "(\\s|$)");
+
+/**
  * Långtryck i kalenderlistan visar bara den kalendern (0.151.0, CP 2026-10-28: "kör").
  *
  * Provet gör det en person gör: håller in en rad, släpper, och ser att de andra är avslagna; håller in samma rad igen och ser att allt är som förut. Med mus och tangentbord nås
@@ -50,7 +57,7 @@ function peka(el, typ, pos = {}) {
 }
 const rad = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.querySelector(`[data-kalenderrad="${id}"]`));
 const yta = (/** @type {string} */ id) => /** @type {HTMLElement} */ (rad(id).querySelector("[data-kalenderrad-yta]"));
-const paslagna = () => screen.getAllByRole("switch").filter((s) => /** @type {HTMLInputElement} */ (s).checked).map((s) => s.getAttribute("aria-labelledby") && document.getElementById(/** @type {string} */ (s.getAttribute("aria-labelledby")))?.textContent);
+const paslagna = () => [...document.querySelectorAll('[data-kalenderrad] [aria-pressed="true"]')].map((s) => s.querySelector(".truncate")?.textContent);
 
 /** Håller in en rad och släpper: ett långtryck, med fingret som lyfts efteråt och klicket som följer. @param {string} id */
 function langtryck(id) {
@@ -59,22 +66,22 @@ function langtryck(id) {
     vi.advanceTimersByTime(LANGTRYCK_MS + 50);
   });
   peka(document, "pointerup");
-  // Klicket webbläsaren skickar när fingret lyfts, på etiketten.
-  fireEvent.click(/** @type {HTMLElement} */ (rad(id).querySelector("label")));
+  // Klicket webbläsaren skickar när fingret lyfts, på radens knapp (en `ValRad` sedan 0.225.0, förut strömbrytarens etikett).
+  fireEvent.click(/** @type {HTMLElement} */ (rad(id).querySelector("[aria-pressed]")));
 }
 
 describe("långtryck på en rad", () => {
   it("gör den ensam synlig, och ett nytt långtryck på samma rad tar tillbaka valen som gällde före", () => {
     render(<Lista lagring={minne()} />);
     // Före: personen har själv slagit av Privat och på Ärenden.
-    fireEvent.click(screen.getByRole("switch", { name: "Privat" }));
-    fireEvent.click(screen.getByRole("switch", { name: "Ärenden" }));
+    fireEvent.click(screen.getByRole("button", { name: kalenderrad("Privat") }));
+    fireEvent.click(screen.getByRole("button", { name: kalenderrad("Ärenden") }));
     expect(paslagna()).toEqual(["Styrelsen", "Apple Calendar", "Ärenden"]);
 
     langtryck("apple");
     expect(paslagna()).toEqual(["Apple Calendar"]);
     // ⛔ Klicket som följde släppet växlade inte raden: den är kvar på.
-    expect(screen.getByRole("switch", { name: "Apple Calendar" })).toBeChecked();
+    expect(screen.getByRole("button", { name: kalenderrad("Apple Calendar") })).toHaveAttribute("aria-pressed", "true");
 
     act(() => {
       vi.advanceTimersByTime(500);
@@ -85,16 +92,16 @@ describe("långtryck på en rad", () => {
 
   it("en dold rad blir synlig och ensam", () => {
     render(<Lista lagring={minne()} />);
-    expect(screen.getByRole("switch", { name: "Ärenden" })).not.toBeChecked();
+    expect(screen.getByRole("button", { name: kalenderrad("Ärenden") })).toHaveAttribute("aria-pressed", "false");
     langtryck("arenden");
     expect(paslagna()).toEqual(["Ärenden"]);
   });
 
   it("⛔ ett vanligt tryck gör som förut: växlar raden, och ingenting annat", () => {
     render(<Lista lagring={minne()} />);
-    fireEvent.click(screen.getByRole("switch", { name: "Apple Calendar" }));
+    fireEvent.click(screen.getByRole("button", { name: kalenderrad("Apple Calendar") }));
     expect(paslagna()).toEqual(["Styrelsen", "Privat"]);
-    fireEvent.click(screen.getByRole("switch", { name: "Apple Calendar" }));
+    fireEvent.click(screen.getByRole("button", { name: kalenderrad("Apple Calendar") }));
     expect(paslagna()).toEqual(["Styrelsen", "Privat", "Apple Calendar"]);
   });
 
@@ -121,7 +128,7 @@ describe("långtryck på en rad", () => {
   it("valet sparas som vilket val som helst, med 'före' i samma dokument", () => {
     const lag = minne();
     render(<Lista lagring={lag} />);
-    fireEvent.click(screen.getByRole("switch", { name: "Privat" }));
+    fireEvent.click(screen.getByRole("button", { name: kalenderrad("Privat") }));
     langtryck("apple");
     const sparat = JSON.parse(lag.varden.get("ops-kalender-synlighet:p:g"));
     expect(sparat).toEqual({ v: 1, syns: { mina: false, gruppen: false }, visning: {}, fore: { mina: false } });
@@ -139,9 +146,9 @@ describe("långtryck på en rad", () => {
 describe("⛔ mus och tangentbord: samma val utan långtryck", () => {
   it("Shift+F10 på raden, och menytangenten, gör samma sak", () => {
     render(<Lista lagring={minne()} />);
-    fireEvent.keyDown(screen.getByRole("switch", { name: "Apple Calendar" }), { key: "F10", shiftKey: true });
+    fireEvent.keyDown(screen.getByRole("button", { name: kalenderrad("Apple Calendar") }), { key: "F10", shiftKey: true });
     expect(paslagna()).toEqual(["Apple Calendar"]);
-    fireEvent.keyDown(screen.getByRole("switch", { name: "Apple Calendar" }), { key: "ContextMenu" });
+    fireEvent.keyDown(screen.getByRole("button", { name: kalenderrad("Apple Calendar") }), { key: "ContextMenu" });
     expect(paslagna()).toEqual(["Styrelsen", "Privat", "Apple Calendar"]);
     expect(KORTKOMMANDO).toBe("Shift+F10");
   });
@@ -196,7 +203,7 @@ describe("språket", () => {
     expect(within(rad("apple")).getByRole("tab", { name: "Frame" })).toBeTruthy();
     expect(within(rad("apple")).getByRole("tablist", { name: "Display for Apple Calendar" })).toBeTruthy();
     // Appens eget namn och sektionsnamn är appens.
-    expect(screen.getByRole("switch", { name: "Apple Calendar" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: kalenderrad("Apple Calendar") })).toBeTruthy();
     expect(document.querySelector('[data-kalendersektion="Från Mitt konto"]')).toBeTruthy();
     // De två förvalda sektionerna är listans, på listans språk.
     expect(document.querySelector('[data-kalendersektion="Group calendars"]')).toBeTruthy();
@@ -219,13 +226,13 @@ describe("⛔ felet mot kontot syns i listan, med en knapp", () => {
     const konto = { las: () => Promise.resolve(null), skriv };
     render(<Lista lagring={minne()} konto={konto} />);
     await act(async () => {});
-    fireEvent.click(screen.getByRole("switch", { name: "Apple Calendar" }));
+    fireEvent.click(screen.getByRole("button", { name: kalenderrad("Apple Calendar") }));
     await act(async () => {});
     const larm = await screen.findByRole("alert");
     expect(larm.textContent).toContain("Valet sparades inte på kontot");
     expect(larm.getAttribute("data-kalender-kontofel")).toBe("skriv");
     // Valet står kvar.
-    expect(screen.getByRole("switch", { name: "Apple Calendar" })).not.toBeChecked();
+    expect(screen.getByRole("button", { name: kalenderrad("Apple Calendar") })).toHaveAttribute("aria-pressed", "false");
     nekar = false;
     fireEvent.click(within(larm).getByRole("button", { name: "Försök igen" }));
     await act(async () => {});
@@ -266,9 +273,9 @@ describe("⛔ felet mot kontot syns i listan, med en knapp", () => {
     expect(larm.textContent).toContain("För många val sparade");
     expect(within(larm).queryByRole("button")).toBeNull();
     // Tryck vid tryck: inga skrivförsök, ingen ny rapport.
-    fireEvent.click(screen.getByRole("switch", { name: "Apple Calendar" }));
+    fireEvent.click(screen.getByRole("button", { name: kalenderrad("Apple Calendar") }));
     await act(async () => {});
-    fireEvent.click(screen.getByRole("switch", { name: "Apple Calendar" }));
+    fireEvent.click(screen.getByRole("button", { name: kalenderrad("Apple Calendar") }));
     await act(async () => {});
     expect(skriv).not.toHaveBeenCalled();
     expect(fanget).toHaveLength(1);

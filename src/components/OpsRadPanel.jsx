@@ -19,6 +19,10 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * med sitt urval, sin månad och sina filter, och Tillbaka (eller Escape) lämnar den som den var. Fokus går till panelen, inte till dialogens första knapp.
  * ⛔ Att en rad också ska gå att länka till (`?rad=<id>` som en omladdning öppnar) kräver att appen kan slå upp raden på id, och det är ett eget beslut (se PR-texten).
  *
+ * ⛔ PÅ TELEFONEN BÖRJAR PANELEN UNDER STATUSFÄLTET (`max-md:pt-(--safe-top)`, som `OpsSkapaPanel`). CP 2026-11-13, skärmbild från appen i TestFlight: "I native fastnar jag
+ * på ärende eller händelse detalj. Menyn att komma tillbaka är för högt upp för att nå." Panelen är `fixed inset-0` under `md`, och utan den säkra zonen låg Tillbaka
+ * bakom klockan, där ett tryck når statusfältet och inte knappen. Samma sak längst ned (`--safe-bottom`) för knappraden.
+ *
  * ⛔ PANELEN LÄSER RADEN, DEN ÄNDRAR DEN INTE. Det raden bär visas; det en källa kan göra åt den är en knapp som källan själv levererar.
  *
  * @param {object} props
@@ -66,7 +70,7 @@ function OpsRadPanelRitad({
           data-radpanel=""
           aria-describedby={undefined}
           onOpenAutoFocus={(e) => e.preventDefault()}
-          className="fixed inset-0 z-(--z-modal) overflow-y-auto bg-canvas outline-none md:inset-auto md:top-6 md:left-1/2 md:max-h-[calc(100dvh-3rem)] md:w-[min(48rem,calc(100vw-3rem))] md:-translate-x-1/2 md:rounded-base md:border md:border-line"
+          className="fixed inset-0 z-(--z-modal) overflow-y-auto bg-canvas outline-none max-md:pt-(--safe-top) max-md:pb-(--safe-bottom) md:inset-auto md:top-6 md:left-1/2 md:max-h-[calc(100dvh-3rem)] md:w-[min(48rem,calc(100vw-3rem))] md:-translate-x-1/2 md:rounded-base md:border md:border-line"
         >
           <Dialog.Title className="sr-only">{handelse ? handelse.titel : ""}</Dialog.Title>
           {handelse && knapprad ? (

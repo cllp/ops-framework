@@ -5,6 +5,16 @@ import { OpsFilterChip } from "../components/OpsFilterChip.jsx";
 import { OpsFullscreenToggle } from "../components/OpsFullscreenToggle.jsx";
 
 describe("OpsToggleRow", () => {
+  it("⛔ en rad som räknas bär samma bock som ValRad, en som inte räknas har ingen (0.225.0, CP 2026-11-13)", () => {
+    // "Det är nästan ingen skillnad ... färgen blev så det syns inte. Blek." Röd utan ändringen: raden hade ingen bock alls.
+    const { container, rerender } = render(<OpsToggleRow label="Bostad" value="4 200 000 kr" on onChange={() => {}} />);
+    expect(container.querySelector("[data-togglebock] svg")).not.toBeNull();
+    rerender(<OpsToggleRow label="Bostad" value="4 200 000 kr" on={false} onChange={() => {}} />);
+    expect(container.querySelector("[data-togglebock]")).toBeNull();
+    // Golv: raden ritades, med namnet.
+    expect(screen.getByRole("button", { name: /Bostad/ })).toBeTruthy();
+  });
+
   it("säger sitt tillstånd med aria-pressed, inte bara med opacitet", () => {
     // ⛔ Utan aria-pressed finns urvalet helt enkelt inte för den som inte ser
     // skärmen: en opacitetsskillnad går inte att läsa upp.

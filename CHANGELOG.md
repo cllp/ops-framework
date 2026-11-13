@@ -9,6 +9,43 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.225.0
+
+### Ändrat
+
+- ⛔ **Ett val ser likadant ut överallt: en valrad med bock till höger** (CP 2026-11-13). Idag ritade
+  kalendrarna som nedtonade rader där på och av knappt syntes ("färgen ... blev så det syns inte.
+  Blek"), Kalender med strömbrytare. CP: "en liten högerställd bock när den är vald" och "VI skall ha
+  enhetligt, alltså så lite dublicerad kod som möjligt."
+  - `OpsKalenderLista` ritar varje kalender som `ValRad` (samma rad som filtermenyerna och "Alla
+    kalendrar"), med pricken till vänster, märket på en andra rad och bocken när kalendern syns.
+    Långtrycket "visa bara den här", visningen och knappen för den som inte har ett långtryck är kvar.
+  - `OpsToggleRow` får samma bock, i samma kolumn, när raden räknas.
+  - Inställningar som är på eller av (till exempel "Kräv svar") är fortfarande `OpsSwitch`: det är en
+    inställning, inte ett val i en lista.
+
+### Tillagt
+
+- `OpsKalenderLista` exporteras, så att appens Idag kan rita samma lista i stället för en egen.
+
+## 0.224.1
+
+### Rättat
+- **En radbruten punkt i en lista fortsätter på nästa rad** (`splitMarkdown`, `src/lib/markdown.js`). CP 2026-11-13, med en skärmbild av README:n i strategigruppen: "5 punkter i readme alla fick en 1:a". Varje punkt var radbruten i källan, och raden efter bröt listan, så varje punkt blev en egen lista som började om på 1. Nu hör en rad utan tom rad före till punkten ovanför, som i GitHub. En tom rad, en rubrik, ett citat, en tabell, en avgränsare och ett kodblock avslutar punkten. I chatten fortsätter punkten bara på en indragen rad, så att en vanlig rad efter en lista i ett meddelande står kvar som eget stycke. Ett citat eller ett stycke avslutar punkten, så att en senare rad aldrig flyttas tillbaka in i den (GPT:s granskning).
+- **Appar-menyn får platsen ovanför knappen, och etiketterna syns i ljust läge** (`OpsSnabbmeny`). CP 2026-11-13, skärmbild från TestFlight: "Liten visuell bug. Syns mest i ljust läge." Med fem appar på en telefon som är 667 punkter hög räckte inte `max-h-[70dvh]`. Listan rullade, den översta cirkeln klipptes mot kanten, och rullningsindikatorn låg över etiketten Meddelanden. Nu är höjden avståndet från knappen upp till den säkra ytan (`ovanfor`), och kolumnen har luft på sidorna och upptill. Etiketterna är små mörka märken som i skapa-menyn, eftersom vit text direkt på den grå dimman i ljust läge hade för låg kontrast.
+
+- **På telefonen börjar rad- och händelsepanelen under statusfältet** (`OpsRadPanel`, `OpsExternPanel`). CP 2026-11-13, skärmbild från appen i TestFlight: "I native fastnar jag på ärende eller händelse detalj. Menyn att komma tillbaka är för högt upp för att nå." Båda är `fixed inset-0` under `md` och saknade den säkra zonen, så Tillbaka låg bakom klockan. Nu `max-md:pt-(--safe-top)` och `max-md:pb-(--safe-bottom)`, som `OpsSkapaPanel` redan hade.
+- **Bottenradens valda plats syns utan färg** (`OpsBottomNav`). CP 2026-11-13: "Det är nästan ingen skillnad på ikon färgen på valt område. Om jag valt idag är det oklart vad jag valt." Mätt: `--color-accent` (#8E7A4E) och `--color-ink-muted` (#8a8078) är nästan lika ljusa (cirka 1,05:1 mellan dem). Den valda platsen har nu en ljus platta bakom ikonen (`bg-accent-subtle`, som toppradens valda ikon) och etiketten i `text-ink` och `font-medium`.
+
+### Prov
+- `bottomnav.test.jsx`: ett nytt prov. Den valda platsen bär plattan och etiketten i `font-medium`, en annan gör det inte. Rött utan ändringen.
+- `radpanel-atgard.test.jsx`: ett nytt prov. Panelen som öppnas ur en rad i Idag bär båda zonerna under `md`. Rött utan ändringen.
+- `snabbmeny.test.jsx`: ett nytt prov. Med knappens överkant på 590 px är menyns `maxHeight` `calc(582px - env(safe-area-inset-top, 0px) - 0.5rem)`, och etiketten har `bg-ink` och `text-canvas`. Det är rött utan ändringen.
+- `markdown.test.js`: fem nya prov. Fem radbrutna punkter är en lista med fem punkter och fetstilen kvar; en tom rad och ett citat avslutar punkten; i chatten fortsätter bara en indragen rad; en rad efter ett citat, och i chatten en indragen rad efter ett påbörjat stycke, hamnar efter det och inte i punkten. Fyra av dem är röda utan ändringen.
+
+### Appen
+- Ingen ändring i appen utöver ompinningen.
+
 ## 0.224.0
 
 ### Tillagt
