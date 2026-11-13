@@ -158,3 +158,42 @@ describe("OpsProfil utan konto (bolag-ops läge): orört av #813", () => {
     expect(screen.queryByRole("button", { name: "Redigera profil" })).toBeNull();
   });
 });
+
+describe("OpsProfil i kontoläget: ändringar medan sparningen väntar (granskningen av feaab25, P2)", () => {
+  /** En sparning som väntar tills provet släpper den. */
+  function vantande() {
+    /** @type {() => void} */
+    let slapp = () => {};
+    const onSpara = vi.fn(() => new Promise((klar) => { slapp = () => klar(undefined); }));
+    return { onSpara, slapp: () => slapp() };
+  }
+
+  it("⛔ en text som ändrats under sparningen står kvar i arket, som inte stängs", async () => {
+    const s = vantande();
+    rita({ onSpara: /** @type {any} */ (s.onSpara) });
+    oppna();
+    fireEvent.change(presentationen(), { target: { value: "Första" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    await waitFor(() => expect(s.onSpara).toHaveBeenCalledWith({ presentation: "Första" }));
+    fireEvent.change(presentationen(), { target: { value: "Nyare osparat" } });
+    s.slapp();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Spara" }).hasAttribute("disabled")).toBe(false));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(presentationen().value).toBe("Nyare osparat");
+  });
+
+  it("⛔ ett svar från ett ark som avbrutits stänger inte ett ark som öppnats igen", async () => {
+    const s = vantande();
+    rita({ onSpara: /** @type {any} */ (s.onSpara) });
+    oppna();
+    fireEvent.change(presentationen(), { target: { value: "Första" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    await waitFor(() => expect(s.onSpara).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    oppna();
+    s.slapp();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+});

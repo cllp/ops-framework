@@ -288,6 +288,9 @@ function OpsProfilRitad({
    *   - en annan person (`anvandare.id`) tömmer utkastet helt.
    */
   const [utkastet, setUtkastet] = useState(/** @type {Record<string, any>} */ ({}));
+  // Utkastet som det står vid senaste ritningen, för `spara`, som läser det efter sitt eget `await`.
+  const utkastRef = useRef(utkastet);
+  utkastRef.current = utkastet;
   const [sparar, setSparar] = useState(false);
   const [sparaFel, setSparaFel] = useState("");
   // ⛔ En ny ändring tar bort ett gammalt nej (omgranskningen av #786): felet gällde det som skickades, inte det som står nu.
@@ -300,6 +303,8 @@ function OpsProfilRitad({
   const filValjare = useRef(/** @type {HTMLInputElement | null} */ (null));
   // cllp/lifehub.app#813: arket i kontoläget, och ett nej på ett språkbyte (som sparas direkt där).
   const [redigerar, setRedigerar] = useState(false);
+  // ⛔ VILKEN GÅNG ARKET ÄR ÖPPET (granskningen av feaab25): ett svar från en sparning i ett ark som stängts och öppnats igen får inte stänga det nya.
+  const arkRunda = useRef(0);
   const [sprakFel, setSprakFel] = useState("");
 
   const kontoLasning = Boolean(konto && "href" in konto && konto.href !== undefined);
@@ -375,11 +380,15 @@ function OpsProfilRitad({
     setSparaFel("");
     try {
       await onSpara?.(falt ? { ...andring } : { ...andring, lankar: [...andring.lankar] });
+      const kvarAv = (/** @type {Record<string, any>} */ u) =>
+        Object.fromEntries(Object.entries(u).filter(([f, v]) => !(f in skickat) || JSON.stringify(v ?? null) !== JSON.stringify(skickat[f] ?? null)));
       setUtkastet((u) => {
-        const kvar = Object.fromEntries(Object.entries(u).filter(([f, v]) => !(f in skickat) || JSON.stringify(v ?? null) !== JSON.stringify(skickat[f] ?? null)));
+        const kvar = kvarAv(u);
         return Object.keys(kvar).length === Object.keys(u).length ? u : kvar;
       });
-      return true;
+      // ⛔ SANT BARA OM INGET NYARE STÅR KVAR (granskningen av feaab25, P2): fälten går att ändra medan sparningen väntar, och en ändring
+      // som inte var med i sparningen får inte försvinna ur ett ark som stängs. `utkastRef` är utkastet som det står nu, inte när Spara trycktes.
+      return Object.keys(kvarAv(utkastRef.current)).length === 0;
     } catch (fel) {
       setSparaFel(felTexten(fel));
       return false;
@@ -821,9 +830,14 @@ function OpsProfilRitad({
    */
   if (kontoLankar) {
     const stangArket = () => {
+      arkRunda.current += 1;
       setUtkastet({});
       setSparaFel("");
       setRedigerar(false);
+    };
+    const oppnaArket = () => {
+      arkRunda.current += 1;
+      setRedigerar(true);
     };
     /** @param {string} v */
     const sparaSprak = async (v) => {
@@ -845,7 +859,7 @@ function OpsProfilRitad({
         <OpsCard kant>
           {identitet}
           <div className="mt-3">
-            <OpsButton variant="secondary" size="sm" onClick={() => setRedigerar(true)}>
+            <OpsButton variant="secondary" size="sm" onClick={oppnaArket}>
               {redigeraEtikett}
             </OpsButton>
           </div>
@@ -904,7 +918,7 @@ function OpsProfilRitad({
 
         <OpsModal
           open={redigerar}
-          onOpenChange={(oppen) => (oppen ? setRedigerar(true) : stangArket())}
+          onOpenChange={(oppen) => (oppen ? oppnaArket() : stangArket())}
           title={redigeraEtikett}
           footer={
             <>
@@ -915,7 +929,8 @@ function OpsProfilRitad({
               <OpsButton
                 variant="primary"
                 onClick={async () => {
-                  if (await spara()) setRedigerar(false);
+                  const runda = arkRunda.current;
+                  if ((await spara()) && runda === arkRunda.current) setRedigerar(false);
                 }}
                 disabled={!andrat}
                 busy={sparar}
