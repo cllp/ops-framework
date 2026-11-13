@@ -21,6 +21,8 @@ const FALGER = {
 vi.mock("maplibre-gl", () => {
   class Map {
     constructor(opts) {
+      // ⛔ SOM MAPLIBRE 6.17.0 UTAN WEBGL (map.ts:4242, GPUInitializationError): konstruktorn kastar synkront, före varje lyssnare.
+      if (globalThis.__opsKartaUtanWebgl) throw new Error("Failed to initialize WebGL");
       this.opts = opts;
       this._on = {};
       this.paints = [];
@@ -158,6 +160,23 @@ describe("OpsKarta ritar exemplet", () => {
     render(<OpsKarta data={exempelkarta} />);
     expect((await screen.findByRole("alert")).textContent).toBe("Kartans färger saknas i temat.");
     expect(globalThis.__opsKartor.length).toBe(fore);
+  });
+});
+
+describe("utan WebGL", () => {
+  // ⛔ CHATGPT:S GRANSKNING AV 587: `new Map` kastar synkront när webbläsaren inte ger någon WebGL-yta, och felet lämnade komponenten
+  // som en krasch i React-effekten i stället för kartans egen felrad. Lyssnaren på "error" registreras först efter konstruktionen och når det aldrig.
+  it("en karta som inte kan starta visar felraden i kartans ruta, och inget kastas", async () => {
+    globalThis.__opsKartaUtanWebgl = true;
+    try {
+      const { OpsKarta } = await import("../components/OpsKarta.jsx");
+      render(<OpsKarta data={exempelkarta} />);
+      const fel = await screen.findByRole("alert");
+      expect(fel.textContent).toBe("Kartan gick inte att hämta. Kontrollera nätet och försök igen.");
+      expect(document.querySelector("[data-karta-fel=lasfel]")).toBeTruthy();
+    } finally {
+      globalThis.__opsKartaUtanWebgl = false;
+    }
   });
 });
 

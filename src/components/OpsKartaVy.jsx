@@ -34,23 +34,32 @@ export function OpsKartaVy({ samling, texter }) {
     }
     setFel("");
     let kvar = true;
-    const kartaNu = new Map({
-      container: el,
-      style: /** @type {any} */ (byggStil(farger, senast.current.samling)),
-      attributionControl: { compact: false },
-      cooperativeGestures: true,
-      locale: {
-        "NavigationControl.ZoomIn": senast.current.texter.zoomaIn,
-        "NavigationControl.ZoomOut": senast.current.texter.zoomaUt,
-        "NavigationControl.ResetBearing": senast.current.texter.aterstall,
-        "Popup.Close": senast.current.texter.stang,
-        "AttributionControl.ToggleAttribution": senast.current.texter.visaTillhorighet,
-        "CooperativeGesturesHandler.WindowsHelpText": senast.current.texter.ctrl,
-        "CooperativeGesturesHandler.MacHelpText": senast.current.texter.cmd,
-        "CooperativeGesturesHandler.MobileHelpText": senast.current.texter.tvaFingrar,
-      },
-      fadeDuration: 0,
-    });
+    /** @type {any} */
+    let kartaNu;
+    // ⛔ KONSTRUKTORN KASTAR SYNKRONT UTAN WEBGL (MapLibre 6.17.0, `map.ts:4242`, GPUInitializationError), före varje lyssnare, så lyssnaren
+    // på "error" nedan når aldrig det felet. Utan fångsten kraschade effekten i stället för att visa kartans egen felrad (ChatGPT:s granskning av 587).
+    try {
+      kartaNu = new Map({
+        container: el,
+        style: /** @type {any} */ (byggStil(farger, senast.current.samling)),
+        attributionControl: { compact: false },
+        cooperativeGestures: true,
+        locale: {
+          "NavigationControl.ZoomIn": senast.current.texter.zoomaIn,
+          "NavigationControl.ZoomOut": senast.current.texter.zoomaUt,
+          "NavigationControl.ResetBearing": senast.current.texter.aterstall,
+          "Popup.Close": senast.current.texter.stang,
+          "AttributionControl.ToggleAttribution": senast.current.texter.visaTillhorighet,
+          "CooperativeGesturesHandler.WindowsHelpText": senast.current.texter.ctrl,
+          "CooperativeGesturesHandler.MacHelpText": senast.current.texter.cmd,
+          "CooperativeGesturesHandler.MobileHelpText": senast.current.texter.tvaFingrar,
+        },
+        fadeDuration: 0,
+      });
+    } catch {
+      setFel("lasfel");
+      return undefined;
+    }
     karta.current = kartaNu;
     kartaNu.addControl(new NavigationControl({ showCompass: false, visualizePitch: false }), "top-right");
     kartaNu.on("click", (e) => {
