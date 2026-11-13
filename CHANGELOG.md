@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.222.1
+
+**Inkorgens svarsrad i mobil (`OpsSvarsrad`).** CP 2026-11-13, med en skärmbild ur Inkorgen i telefonen: "Allt ihoptryckta." Texten krympte till ett ord per rad ("Medl…", "Måndag", "16") medan Kommer, Kanske och Kommer inte stod kvar bredvid. Knapparna står nu på en egen rad under texten under 768 px (`variant="egen-rad"`, som i händelsens detalj), och bredvid från 768 px. Ingen ändring i API:t.
+
+---
+
 ## 0.222.0
 
 **Profilen i kontoläget blir en kort sida (cllp/lifehub.app#813).** CP 2026-11-12, med en skärmbild: "Det ser rörigt ut. Massa saker som syns. Not clean." Med `konto={{ sakerhetHref, raderaHref }}` visar `OpsProfil` nu personen, Språk, Nycklar och kopplingar, Mina grupper och Konto. Bild, färg, ikon, uppgifter och länkar ligger i arket "Redigera profil", med Spara och Avbryt. Språket sparas direkt. Radera kontot är en diskret länk under Konto. Nytt: `konto.nycklarHref` ger raden Nycklar och kopplingar. De andra lägena (utan `konto`, och `konto.href`) ritas som förut.
