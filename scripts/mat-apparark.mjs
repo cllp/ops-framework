@@ -73,6 +73,7 @@ fs.writeFileSync(entryFil, entryKalla);
 const js = await build({
   entryPoints: [entryFil],
   bundle: true,
+  loader: { ".css": "empty" },
   write: false,
   format: "iife",
   jsx: "automatic",
