@@ -3464,6 +3464,8 @@ Klart först när en integration utan att någon är inloggad kan göra allt ned
 
 ## Karta (0.223.0, cllp/ops-framework#570)
 
+**I Biblioteket (0.224.0, cllp/lifehub.app#765):** en GeoJSON-fil (`application/geo+json`) visas som karta i detaljen när appen ger `hamtaFil`, upp till 10 MB, med länken kvar under. En app med en CSP som begränsar `connect-src` måste tillåta `tiles.openfreemap.org`.
+
 En GeoJSON-fil som karta, så att en agent kan lämna platser, sträckor och ytor och appen visar dem i bibliotek, projekt eller chatt. Komponenten hämtar ingenting själv: appen läser filen (samma behörighet som övriga filer) och ger den som `data`.
 
 ```jsx
