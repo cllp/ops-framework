@@ -435,7 +435,7 @@ function platsKlass(active) {
  *
  * ⛔ CP 2026-11-13, skärmbild av bottenraden i appen: "Det är nästan ingen skillnad på ikon färgen på valt område. Om jag valt idag är det oklart vad jag
  * valt." Mätt: `--color-accent` (#8E7A4E) och `--color-ink-muted` (#8a8078) är nästan lika ljusa, kontrast cirka 1,05:1 mellan dem, så bara nyansen skilde.
- * Nu har den valda platsen en ljus platta bakom ikonen (`bg-accent-subtle`, samma språk som toppradens valda ikon) och etiketten i `text-ink` och halvfet.
+ * Nu har den valda platsen en ljus platta bakom ikonen (`bg-accent-subtle`, samma språk som toppradens valda ikon) och etiketten i `text-ink` och `font-medium` (flikens vikt, typografivakten).
  * @param {boolean} active
  */
 function ikonPlatta(active) {
@@ -444,7 +444,7 @@ function ikonPlatta(active) {
 
 /** @param {boolean} active */
 function etikettKlass(active) {
-  return cx("max-w-full truncate text-liten", active ? "font-semibold text-ink" : "");
+  return cx("max-w-full truncate text-liten", active ? "font-medium text-ink" : "");
 }
 
 /**
