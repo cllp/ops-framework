@@ -18,6 +18,7 @@ import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsHtmlDokumentLat } from "./OpsHtmlDokumentLat.jsx";
 import { OpsPdfVisningLat } from "./OpsPdfVisningLat.jsx";
 import { TextForhandsvisning } from "./TextForhandsvisning.jsx";
+import { KartaForhandsvisning } from "./KartaForhandsvisning.jsx";
 import { htmlVyAdress } from "../lib/htmldokument.js";
 import { arPdfDokument, arPdfMime, pdfVyAdress } from "../lib/pdfvisning.js";
 import { lasFilbytes } from "../data/filbytes.js";
@@ -337,7 +338,7 @@ const repoplatsForm = (plats) => typeof plats === "string" && (arPlatsBibliotek(
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl] Appen ger adressen till en fil. Tom sträng visas som att adressen saknas. Synkron, och vinner när den är ifylld.
  * @param {(sokvag: string) => Promise<string>} [props.hamtaAdress] (0.88.2) Nedladdningsadressen för `fil.sokvag`, när `filUrl` är tom. Svaret cachas per sökväg, så listan och detaljen delar den. Medan den hämtas visas inte "Filen har ingen adress."
  * @param {(sokvag: string) => Promise<Blob>} [props.hamtaFil] (0.153.0, ops-framework#460 punkt 3) Filens byte, normalt `lagring.hamta` (`getBlob`, med inloggningen, så Storage-regeln avgör vem som får läsa). Med den visas en
- *   textfil (`text/plain`) som text i detaljen, avkodad som UTF-8 (och som Windows-1252 om byten inte är giltig UTF-8), de första 100 000 byten med en rad som säger att resten finns i filen. (0.209.0, #706) En markdownfil (`text/markdown`) ritas samma väg som markdown. Utan den visas bara länken, som förut.
+ *   textfil (`text/plain`) som text i detaljen, avkodad som UTF-8 (och som Windows-1252 om byten inte är giltig UTF-8), de första 100 000 byten med en rad som säger att resten finns i filen. (0.209.0, #706) En markdownfil (`text/markdown`) ritas samma väg som markdown. Utan den visas bara länken, som förut. (0.224.0, lifehub.app#765) En GeoJSON-fil (`application/geo+json`) ritas samma väg som karta (`KartaForhandsvisning`), upp till 10 MB.
  *   ⛔ Förhandsvisningen ändrar ingen regel och hämtar bara den öppna filen, aldrig listan.
  * @param {(post: any) => Promise<unknown>} [props.htmlVersioner] (0.158.0) Versionerna för ett HTML-dokument, `{ nuvarande, versioner: [{ nr, nuvarande, av, tid, saknas? }] }` (svaret från `createHtmlDokumentService().versioner`) eller bara listan. Med den ritas raden "Versioner"
  *   i detaljen för ett HTML-dokument (`text/html`) och bara där; utan den är Biblioteket oförändrat. Listan hämtas när raden fälls ut. Övriga fyra är frivilliga och styr vad raden kan: utan dem finns inte knappen som behöver dem. ⛔ Skrivningarna (`aterstallHtml`, `nyHtmlVersion`)
@@ -2560,6 +2561,18 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
           <Filnamnslank adress={adress} download={post.fil.namn}>{rad}</Filnamnslank>
         )}
         {versioner ? <BibliotekHtmlVersionerLat key={post.id} post={post} {...versioner} /> : null}
+      </div>
+    );
+  }
+  // ⛔ EN GEOJSON-FIL VISAS SOM KARTA (0.224.0, cllp/lifehub.app#765 skiva 1), när appen ger `hamtaFil`: samma väg som textfilen nedan, och länken står kvar under som
+  // utvägen. Utan `hamtaFil` är den en fil med länk som förut. Se `KartaForhandsvisning`.
+  if (typeof hamtaFil === "function" && normaliseraMime(post.fil?.mime) === "application/geo+json" && post.fil?.sokvag) {
+    return (
+      <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
+        <KartaForhandsvisning hamta={hamtaFil} sokvag={post.fil.sokvag} />
+        <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
+          <Filnamnslank adress={adress}>{rad}</Filnamnslank>
+        </FilMedLaddaNed>
       </div>
     );
   }

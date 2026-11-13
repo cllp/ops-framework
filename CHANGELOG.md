@@ -9,6 +9,17 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.224.0
+
+### Tillagt
+- **En GeoJSON-fil i Biblioteket visas som karta** i detaljen (cllp/lifehub.app#765, skiva 1). Med appens `hamtaFil` hämtas filen med inloggningen och ritas av `OpsKarta`, med länken kvar under. Ingen ny prop: samma väg som textfilen. Över 10 MB (`KARTA_BYTE`) står det att kartan är för stor att visa här, och filen laddas ned. Utan `hamtaFil` är den en fil med länk som förut. MapLibre hämtas först när kartan ritas.
+
+### Prov
+- `bibliotek-karta.test.jsx`: fyra prov. Tre är röda utan grenen i `FilVisning` (karta, för stor, fel) och gröna med den; det fjärde visar att länken står kvar utan `hamtaFil`.
+
+### Appen
+- En app med en CSP som begränsar `connect-src` måste tillåta `tiles.openfreemap.org` (brickor och glyfer). lifehub.app sätter bara `frame-ancestors` (mätt i `firebase.json` 2026-11-13) och behöver ingen ändring.
+
 ## 0.223.0
 
 Kartkomponent: en GeoJSON-fil som karta (cllp/ops-framework#570). Inget brytande.
