@@ -12,12 +12,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 ## 0.224.1
 
 ### Rättat
-- **En radbruten punkt i en lista fortsätter på nästa rad** (`splitMarkdown`, `src/lib/markdown.js`). CP 2026-11-13, med en skärmbild av README:n i strategigruppen: "5 punkter i readme alla fick en 1:a". Varje punkt var radbruten i källan, och raden efter bröt listan, så varje punkt blev en egen lista som började om på 1. Nu hör en rad utan tom rad före till punkten ovanför, som i GitHub. En tom rad, en rubrik, ett citat, en tabell, en avgränsare och ett kodblock avslutar punkten. I chatten fortsätter punkten bara på en indragen rad, så att en vanlig rad efter en lista i ett meddelande står kvar som eget stycke.
+- **En radbruten punkt i en lista fortsätter på nästa rad** (`splitMarkdown`, `src/lib/markdown.js`). CP 2026-11-13, med en skärmbild av README:n i strategigruppen: "5 punkter i readme alla fick en 1:a". Varje punkt var radbruten i källan, och raden efter bröt listan, så varje punkt blev en egen lista som började om på 1. Nu hör en rad utan tom rad före till punkten ovanför, som i GitHub. En tom rad, en rubrik, ett citat, en tabell, en avgränsare och ett kodblock avslutar punkten. I chatten fortsätter punkten bara på en indragen rad, så att en vanlig rad efter en lista i ett meddelande står kvar som eget stycke. Ett citat eller ett stycke avslutar punkten, så att en senare rad aldrig flyttas tillbaka in i den (GPT:s granskning).
 - **Appar-menyn får platsen ovanför knappen, och etiketterna syns i ljust läge** (`OpsSnabbmeny`). CP 2026-11-13, skärmbild från TestFlight: "Liten visuell bug. Syns mest i ljust läge." Med fem appar på en telefon som är 667 punkter hög räckte inte `max-h-[70dvh]`. Listan rullade, den översta cirkeln klipptes mot kanten, och rullningsindikatorn låg över etiketten Meddelanden. Nu är höjden avståndet från knappen upp till den säkra ytan (`ovanfor`), och kolumnen har luft på sidorna och upptill. Etiketterna är små mörka märken som i skapa-menyn, eftersom vit text direkt på den grå dimman i ljust läge hade för låg kontrast.
 
 ### Prov
 - `snabbmeny.test.jsx`: ett nytt prov. Med knappens överkant på 590 px är menyns `maxHeight` `calc(582px - env(safe-area-inset-top, 0px) - 0.5rem)`, och etiketten har `bg-ink` och `text-canvas`. Det är rött utan ändringen.
-- `markdown.test.js`: tre nya prov. Fem radbrutna punkter är en lista med fem punkter och fetstilen kvar; en tom rad och ett citat avslutar punkten; i chatten fortsätter bara en indragen rad. De två första är röda utan ändringen.
+- `markdown.test.js`: fem nya prov. Fem radbrutna punkter är en lista med fem punkter och fetstilen kvar; en tom rad och ett citat avslutar punkten; i chatten fortsätter bara en indragen rad; en rad efter ett citat, och i chatten en indragen rad efter ett påbörjat stycke, hamnar efter det och inte i punkten. Fyra av dem är röda utan ändringen.
 
 ### Appen
 - Ingen ändring i appen utöver ompinningen.

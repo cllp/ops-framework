@@ -130,6 +130,26 @@ describe("splitMarkdown", () => {
   });
 });
 
+describe("⛔ en annan blocktyp avslutar listpunkten (GPT:s granskning av 12200f6, P2)", () => {
+  /** @param {any} inline */
+  const text = (inline) => (inline ?? []).map((/** @type {any} */ d) => (typeof d.value === "string" ? d.value : d.kind === "br" ? "\n" : "")).join("");
+  it("en rad efter ett citat hör till ett nytt stycke efter citatet, inte till punkten före", () => {
+    const b = splitMarkdown("1. Första\n> Citat\nEfter citatet");
+    expect(b.map((x) => x.kind)).toEqual(["list", "quote", "paragraph"]);
+    expect(text(b[0].entries[0].inline)).toBe("Första");
+    expect(text(b[1].inline)).toBe("Citat");
+    expect(text(b[2].inline)).toBe("Efter citatet");
+  });
+  it("i chatten hoppar en indragen rad inte över ett stycke som redan börjat", () => {
+    const b = splitMarkdown("1. Första\nvanligt stycke\n  indragen fortsättning", { chatt: true });
+    expect(text(b[0].entries[0].inline)).toBe("Första");
+    expect(text(b[0].entries[0].inline)).not.toMatch(/indragen/);
+    const resten = b.slice(1).map((/** @type {any} */ x) => text(x.inline)).join(" | ");
+    expect(resten).toMatch(/vanligt stycke/);
+    expect(resten.indexOf("vanligt stycke")).toBeLessThan(resten.indexOf("indragen fortsättning"));
+  });
+});
+
 describe("delaInline", () => {
   it("gör både markdown-länkar och nakna adresser till länkar", () => {
     expect(splitInline("se [PR 53](https://github.com/cllp/ops-framework/pull/53) och https://example.com/x.")).toEqual([

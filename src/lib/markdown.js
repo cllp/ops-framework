@@ -452,6 +452,9 @@ export function splitMarkdown(text, val = {}) {
       continue;
     }
 
+    // ⛔ En annan blocktyp tar över, och då är punkten slut (GPT:s granskning av 12200f6, P2): utan det flyttades en senare rad
+    // tillbaka in i punkten, förbi citatet eller stycket som kom emellan, och läsordningen ändrades.
+    punkt = null;
     const quote = chatt ? null : row.match(/^\s*>\s?(.*)$/);
     if (quote) {
       closeParagraph();
