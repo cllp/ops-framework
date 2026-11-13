@@ -26,6 +26,9 @@ import {
 import { KATEGORIFALT } from "../lib/katalog.js";
 import { bandIVecka, datumOmfang, isoVecka, kalenderfonster, perDay, reserveradeFiler, traffar, valjDag, valjIntervall, valjVecka } from "../lib/calendar.js";
 
+/** ⛔ En kalender i listan är en `ValRad` med bock (0.225.0), inte en strömbrytare. Namnet matchas från början, eftersom märket kan stå efter. @param {string} namn */
+const kalenderrad = (namn) => new RegExp("^" + namn.replace(/[.*+?^$()|[\]\\{}]/g, "\\$&") + "(\\s|$)");
+
 /*
  * 0.36.0 (#179 F0 och F1). Datakontraktet för kalendrarna och de delar av månadsvyn som är logik. Regelproven ligger i
  * `rules/__tests__/kalendrar.test.mjs`, och det som bara syns i en riktig webbläsare (höjder, band, piller vid 390 och
@@ -346,14 +349,14 @@ describe("OpsCalendar som SS (F1)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
     const meny = await screen.findByRole("dialog", { name: "Kalendrar" });
     expect(within(meny).getByText("Mina kalendrar")).toBeInTheDocument();
-    expect(within(meny).getByRole("switch", { name: "Privat" })).toBeInTheDocument();
+    expect(within(meny).getByRole("button", { name: kalenderrad("Privat") })).toBeInTheDocument();
     expect(within(meny).queryByText("Gruppens kalendrar")).toBeNull();
     unmount();
     kal();
     fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
     const meny2 = await screen.findByRole("dialog", { name: "Kalendrar" });
     expect(within(meny2).getByText("Gruppens kalendrar")).toBeInTheDocument();
-    expect(within(meny2).getByRole("switch", { name: "Styrelsen" })).toBeInTheDocument();
+    expect(within(meny2).getByRole("button", { name: kalenderrad("Styrelsen") })).toBeInTheDocument();
   });
 
   /*
@@ -364,11 +367,11 @@ describe("OpsCalendar som SS (F1)", () => {
     kal();
     expect(screen.getByRole("button", { name: "12, 2 poster" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
-    fireEvent.click(await screen.findByRole("switch", { name: "Styrelsen" }));
+    fireEvent.click(await screen.findByRole("button", { name: kalenderrad("Styrelsen") }));
     // ⛔ En post utan `kalender` hör till den förvalda, alltså försvinner mötet och resan står kvar.
     expect(screen.getByRole("button", { name: "12, 1 post" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Kalendrar: 2 kalendrar" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("switch", { name: "Styrelsen" }));
+    fireEvent.click(screen.getByRole("button", { name: kalenderrad("Styrelsen") }));
     expect(screen.getByRole("button", { name: "12, 2 poster" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" })).toBeInTheDocument();
   });
@@ -380,7 +383,7 @@ describe("OpsCalendar som SS (F1)", () => {
   it("⛔ alla kalendrar avslagna är en tom månad som säger det, och Alla kalendrar tar fram allt", async () => {
     kal();
     fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
-    for (const namn of ["Styrelsen", "Resor", "Privat"]) fireEvent.click(await screen.findByRole("switch", { name: namn }));
+    for (const namn of ["Styrelsen", "Resor", "Privat"]) fireEvent.click(await screen.findByRole("button", { name: kalenderrad(namn) }));
     expect(screen.getByRole("button", { name: "Kalendrar: Inga kalendrar" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "12" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Alla kalendrar" }));
@@ -410,7 +413,7 @@ describe("OpsCalendar som SS (F1)", () => {
     unmount();
     kal();
     fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
-    await screen.findByRole("switch", { name: "Styrelsen" });
+    await screen.findByRole("button", { name: kalenderrad("Styrelsen") });
     expect(screen.queryByText(/Hantera kalendrar/)).toBeNull();
   });
 
@@ -426,7 +429,7 @@ describe("OpsCalendar som SS (F1)", () => {
   it("visar filtrets dolda poster i snabbtitten, märkta Dold", async () => {
     kal();
     fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
-    fireEvent.click(await screen.findByRole("switch", { name: "Resor" }));
+    fireEvent.click(await screen.findByRole("button", { name: kalenderrad("Resor") }));
     fireEvent.keyDown(document.body, { key: "Escape" });
     fireEvent.contextMenu(screen.getByRole("button", { name: "12, 1 post" }));
     const titt = document.querySelector("[data-snabbtitt]");

@@ -6,6 +6,9 @@ import { OpsSprakProvider } from "../components/OpsSprak.jsx";
 import { useKalenderSynlighet } from "../lib/useKalenderSynlighet.js";
 import { LANGTRYCK_MS } from "../lib/talk.js";
 
+/** ⛔ En kalender i listan är en `ValRad` med bock (0.225.0), inte en strömbrytare. Namnet matchas från början, eftersom märket kan stå efter. @param {string} namn */
+const kalenderrad = (namn) => new RegExp("^" + namn.replace(/[.*+?^$()|[\]\\{}]/g, "\\$&") + "(\\s|$)");
+
 /**
  * Två ramar inuti varandra, högst två (0.151.0, CP 2026-10-28), och märket Dold som både snabbtitten och appens Dagen ritar.
  *
@@ -93,7 +96,7 @@ describe("två ramar på en dag", () => {
     rita({ gruppen: "ram", resor: "ram" });
     fireEvent.click(screen.getByRole("button", { name: /^Kalendrar: / }));
     const lista = await screen.findByRole("dialog", { name: "Kalendrar" });
-    fireEvent.click(within(lista).getByRole("switch", { name: "Styrelsen" }));
+    fireEvent.click(within(lista).getByRole("button", { name: kalenderrad("Styrelsen") }));
     expect(yttre("2026-10-12")?.getAttribute("data-dagram")).toBe("1");
     expect(inre("2026-10-12")).toBeNull();
   });
