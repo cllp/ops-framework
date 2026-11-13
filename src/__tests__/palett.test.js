@@ -177,6 +177,8 @@ describe("⛔ samma par som check-kontrast, och ramverkets statusfärger mot hub
     "ink-secondary|surface|", "ink-secondary|canvas|", "ink-secondary|hover|", "ink|canvas|", "ink|sunken|", "ink|hover|", "accent|raised|",
     "danger|canvas|", "success|canvas|", "success|surface|", "success|raised|", "warning|canvas|", "warning|surface|", "warning|raised|",
     "info|canvas|", "info|surface|", "info|raised|", "badge|canvas|", "marke-accent|raised|",
+    /* Kartans text (0.223.0, #570): kartans egna tokens, oberoende av hubbens palett, som räknemärket. */
+    "karta-text|karta-papper|", "karta-text|karta-creme|",
   ];
   const nyckel = (/** @type {{ text: string, yta: string, bas?: string }} */ p) => `${p.text}|${p.yta}|${p.bas ?? ""}`;
 
@@ -231,8 +233,8 @@ describe("⛔ samma par som check-kontrast, och ramverkets statusfärger mot hub
   ];
 
   it("varje par som beror på paletten fälls av sin palett", () => {
-    // ⛔ GOLV: varje par utom det enda som inte beror på paletten.
-    expect(FALLER.length).toBe(VANTADE.length - 1);
+    // ⛔ GOLV: varje par utom de tre som inte beror på paletten (räknemärket och kartans två, 0.223.0).
+    expect(FALLER.length).toBe(VANTADE.length - 3);
     for (const [k, ljus] of FALLER) {
       const fynd = granskaPalett({ ljus, mork: SESSIONSTUDIO.mork });
       expect(fynd.some((f) => f.lage === "ljus" && nyckel(f) === k), k).toBe(true);
