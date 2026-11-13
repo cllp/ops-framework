@@ -88,6 +88,9 @@ let matningar = 0;
 try {
   const entryFil = path.join(arbetsmapp, "entry.jsx");
   fs.writeFileSync(entryFil, fs.readFileSync(path.join(rot, "scripts", "lib", "kontrollyta-entry.jsx"), "utf8").replace("OPS_DIST", dist.replace(/\\/g, "/")));
+  // ⛔ CSS SOM ETT BIBLIOTEK IMPORTERAR LÄSES SOM TOM (0.223.0, #570). Kartvyn importerar `maplibre-gl/dist/maplibre-gl.css`, och esbuild utan utdatamapp kan inte
+  // bunta en CSS-import (`Cannot import ... without an output path configured`). Vakten mäter ramverkets egna klasser i sin egen CSS, inte bibliotekets.
+  // Appens bundler (Vite) tar CSS:en på riktigt, och `check:delbarhet` mäter den vägen.
   const js = await build({
     entryPoints: [entryFil],
     bundle: true,
@@ -97,6 +100,7 @@ try {
     platform: "browser",
     target: ["es2022"],
     define: { "process.env.NODE_ENV": '"production"' },
+    loader: { ".css": "empty" },
     logLevel: "error",
   });
   // ⛔ Kommentarerna bort ur dist innan Tailwind skannar den, annars blir ord i kommentarer klasser (samma som bibliotek-montage).
