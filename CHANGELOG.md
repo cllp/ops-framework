@@ -9,6 +9,17 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.224.1
+
+### Rättat
+- **En radbruten punkt i en lista fortsätter på nästa rad** (`splitMarkdown`, `src/lib/markdown.js`). CP 2026-11-13, med en skärmbild av README:n i strategigruppen: "5 punkter i readme alla fick en 1:a". Varje punkt var radbruten i källan, och raden efter bröt listan, så varje punkt blev en egen lista som började om på 1. Nu hör en rad utan tom rad före till punkten ovanför, som i GitHub. En tom rad, en rubrik, ett citat, en tabell, en avgränsare och ett kodblock avslutar punkten. I chatten fortsätter punkten bara på en indragen rad, så att en vanlig rad efter en lista i ett meddelande står kvar som eget stycke.
+
+### Prov
+- `markdown.test.js`: tre nya prov. Fem radbrutna punkter är en lista med fem punkter och fetstilen kvar; en tom rad och ett citat avslutar punkten; i chatten fortsätter bara en indragen rad. De två första är röda utan ändringen.
+
+### Appen
+- Ingen ändring i appen utöver ompinningen.
+
 ## 0.224.0
 
 ### Tillagt

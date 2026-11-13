@@ -44,6 +44,38 @@ describe("splitMarkdown", () => {
     expect(block.map((b) => b.kind === "list" && b.ordered)).toEqual([false, true]);
   });
 
+  it("⛔ en radbruten punkt fortsätter på nästa rad, och listan står kvar med sina fem punkter (CP 2026-11-13)", () => {
+    // CP, med en skärmbild av strategins README i Biblioteket: "5 punkter i readme alla fick en 1:a". Fortsättningen blev ett stycke,
+    // stycket stängde listan, och varje punkt blev en egen lista som numrerades från 1. GitHub visade samma fil rätt.
+    const text = [1, 2, 3, 4, 5].map((n) => `${n}. **Punkt ${n}.** Början på punkten\n   och fortsättningen, med **fet** text.`).join("\n");
+    const block = splitMarkdown(text);
+    expect(block).toHaveLength(1);
+    expect(block[0]).toMatchObject({ kind: "list", ordered: true });
+    const entries = /** @type {any} */ (block[0]).entries;
+    expect(entries).toHaveLength(5);
+    expect(entries[2].inline).toEqual([
+      { kind: "bold", value: "Punkt 3." },
+      { kind: "text", value: " Början på punkten och fortsättningen, med " },
+      { kind: "bold", value: "fet" },
+      { kind: "text", value: " text." },
+    ]);
+  });
+
+  it("en tom rad efter en punkt avslutar den: raden efter är ett stycke, och en punkt efter tom rad hör till samma lista", () => {
+    expect(splitMarkdown("1. Ett\n\nStycke.").map((b) => b.kind)).toEqual(["list", "paragraph"]);
+    const b = splitMarkdown("1. Ett\n\n2. Två");
+    expect(b).toHaveLength(1);
+    expect(/** @type {any} */ (b[0]).entries).toHaveLength(2);
+    expect(splitMarkdown("- punkt\n> citat").map((x) => x.kind)).toEqual(["list", "quote"]);
+  });
+
+  it("i chatten fortsätter bara en indragen rad punkten, en rad utan indrag är ett nytt stycke", () => {
+    expect(splitMarkdown("- punkt\nny mening", { chatt: true }).map((b) => b.kind)).toEqual(["list", "paragraph"]);
+    const b = splitMarkdown("- punkt\n  fortsätter", { chatt: true });
+    expect(b).toHaveLength(1);
+    expect(/** @type {any} */ (b[0]).entries[0].inline).toEqual([{ kind: "text", value: "punkt fortsätter" }]);
+  });
+
   it("läser en tabell bara när strecket finns under rubrikraden", () => {
     const [tabell] = splitMarkdown("| Vad | Färg |\n|---|---|\n| Öppet | gul |");
     expect(tabell.kind).toBe("table");

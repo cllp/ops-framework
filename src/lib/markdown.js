@@ -338,6 +338,14 @@ export function splitMarkdown(text, val = {}) {
   const block = [];
   /** @type {string[]} */
   let paragraph = [];
+  /**
+   * Den listpunkt som en följande rad fortsätter, med sin råa text (cllp/lifehub.app, CP 2026-11-13: "5 punkter i readme alla fick en 1:a").
+   * ⛔ En punkt som radbryts i filen fortsätter på nästa rad, som i GitHub och CommonMark. Förut blev fortsättningen ett stycke, stycket
+   * stängde listan, och nästa punkt började en ny lista som numrerades från 1. Råtexten sparas och delas om, av samma skäl som citaten nedan:
+   * en redan delad bit har tappat sina stjärnor.
+   * @type {{ entry: ListEntry, raw: string } | null}
+   */
+  let punkt = null;
 
   const closeParagraph = () => {
     if (paragraph.length === 0) return;
@@ -370,11 +378,13 @@ export function splitMarkdown(text, val = {}) {
       // stället kasta tillbaka raderna som stycken hade gett en text som ser
       // annorlunda ut här än där den skrevs.
       block.push({ kind: "code", text: code.join("\n") });
+      punkt = null;
       continue;
     }
 
     if (!row.trim()) {
       closeParagraph();
+      punkt = null;
       continue;
     }
 
@@ -382,12 +392,14 @@ export function splitMarkdown(text, val = {}) {
     if (title) {
       closeParagraph();
       block.push({ kind: "heading", level: title[1].length, inline: inl(title[2].trim()) });
+      punkt = null;
       continue;
     }
 
     if (!chatt && /^\s*([-*_])\s*(\1\s*){2,}$/.test(row)) {
       closeParagraph();
       block.push({ kind: "rule" });
+      punkt = null;
       continue;
     }
 
@@ -404,6 +416,7 @@ export function splitMarkdown(text, val = {}) {
       }
       i -= 1;
       block.push({ kind: "table", header, rows: body });
+      punkt = null;
       continue;
     }
 
@@ -423,10 +436,19 @@ export function splitMarkdown(text, val = {}) {
       // `- [x]` som renderas som text ser ut som en skrivfel-parentes, och en
       // lista där hälften är gjort går då inte att skumma.
       const cross = entry[3].match(/^\[([ xX])\]\s*(.*)$/);
-      list.entries.push({
-        cross: cross ? cross[1].toLowerCase() === "x" : null,
-        inline: inl((cross ? cross[2] : entry[3]).trim()),
-      });
+      const raw = (cross ? cross[2] : entry[3]).trim();
+      /** @type {ListEntry} */
+      const ny = { cross: cross ? cross[1].toLowerCase() === "x" : null, inline: inl(raw) };
+      list.entries.push(ny);
+      punkt = { entry: ny, raw };
+      continue;
+    }
+
+    // ⛔ Fortsättningen av en punkt: raden direkt efter, utan tom rad emellan. I chatten bara en indragen rad, eftersom chattens rader
+    // är det som skrevs (en rad under en punkt är där oftast en ny mening, inte en radbruten punkt).
+    if (punkt && !/^\s*>/.test(row) && (!chatt || /^\s/.test(row))) {
+      punkt.raw = `${punkt.raw} ${row.trim()}`;
+      punkt.entry.inline = inl(punkt.raw);
       continue;
     }
 
