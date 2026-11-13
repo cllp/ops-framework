@@ -26,7 +26,7 @@ const poster = [
 createRoot(document.getElementById("root")).render(<div className="p-4"><Ops.OpsBibliotek poster={poster} jag={{uid:"uid-1",roll:"admin"}} onOppna={()=>{}} onStang={()=>{}} onSpara={()=>{}} hubHref="/hub" oppnaHtml={(p)=>"/bibliotek/visa/"+p.id} filUrl={()=>""} /></div>);
 `;
 const ef = path.join(arb, "entry.jsx"); fs.writeFileSync(ef, entry);
-const js = await build({ entryPoints:[ef], bundle:true, write:false, format:"iife", jsx:"automatic", platform:"browser", define:{"process.env.NODE_ENV":'"production"'}, logLevel:"error" });
+const js = await build({ entryPoints:[ef], bundle:true, loader:{".css":"empty"}, write:false, format:"iife", jsx:"automatic", platform:"browser", define:{"process.env.NODE_ENV":'"production"'}, logLevel:"error" });
 const ds = path.join(arb,"d.js"); fs.writeFileSync(ds, distUtanKommentarer(dist));
 const css = (await postcss([tailwind()]).process(`@import "tailwindcss" source(none);\n@import "${path.join(rot,"tokens","tokens.css")}";\n@source "${ds}";\n@source "${ef}";\n`,{from:path.join(arb,"a.css")})).css;
 const html = `<!doctype html><html lang="sv"><head><meta charset="utf-8"><style>${css}</style></head><body class="bg-canvas text-ink font-sans"><div id="root"></div><script>${js.outputFiles[0].text.replace(/<\/script>/g,"<\\/script>")}</script></body></html>`;

@@ -330,11 +330,14 @@ process.on("exit", () => fs.rmSync(arbetsmapp, { recursive: true, force: true })
 const entry = fs.readFileSync(path.join(rot, "scripts", "lib", "brand-entry.jsx"), "utf8").replace("OPS_DIST", dist.replace(/\\/g, "/"));
 const entryFil = path.join(arbetsmapp, "entry.jsx");
 fs.writeFileSync(entryFil, entry);
-const js = await build({ entryPoints: [entryFil], bundle: true, write: false, format: "iife", jsx: "automatic", platform: "browser", target: ["es2022"], define: { "process.env.NODE_ENV": '"production"' }, logLevel: "error" });
+// ⛔ CSS SOM ETT BIBLIOTEK IMPORTERAR LÄSES SOM TOM (0.223.0, #570). Kartvyn importerar `maplibre-gl/dist/maplibre-gl.css`, och esbuild utan utdatamapp kan inte
+// bunta en CSS-import (`Cannot import ... without an output path configured`). Vakten mäter ramverkets egna klasser i sin egen CSS, inte bibliotekets.
+// Appens bundler (Vite) tar CSS:en på riktigt, och `check:delbarhet` mäter den vägen.
+const js = await build({ entryPoints: [entryFil], bundle: true, write: false, format: "iife", jsx: "automatic", platform: "browser", target: ["es2022"], define: { "process.env.NODE_ENV": '"production"' }, loader: { ".css": "empty" }, logLevel: "error" });
 const skript = js.outputFiles[0].text;
 const publikEntryFil = path.join(arbetsmapp, "publik-entry.jsx");
 fs.writeFileSync(publikEntryFil, fs.readFileSync(path.join(rot, "scripts", "lib", "publik-prov.jsx"), "utf8").replace("OPS_DIST", dist.replace(/\\/g, "/")));
-const publikJs = await build({ entryPoints: [publikEntryFil], bundle: true, write: false, format: "iife", jsx: "automatic", platform: "browser", target: ["es2022"], define: { "process.env.NODE_ENV": '"production"' }, logLevel: "error" });
+const publikJs = await build({ entryPoints: [publikEntryFil], bundle: true, write: false, format: "iife", jsx: "automatic", platform: "browser", target: ["es2022"], define: { "process.env.NODE_ENV": '"production"' }, loader: { ".css": "empty" }, logLevel: "error" });
 const publikSkript = publikJs.outputFiles[0].text;
 
 // ⛔ dist skannas utan sina kommentarer, av samma skäl som i check-css-build: citerade klasser är inte vår kod.

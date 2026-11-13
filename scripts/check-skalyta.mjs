@@ -122,6 +122,9 @@ process.on("exit", () => fs.rmSync(arbetsmapp, { recursive: true, force: true })
 const entry = fs.readFileSync(path.join(rot, "scripts", "lib", "skalyta-entry.jsx"), "utf8").replace("OPS_DIST", dist.replace(/\\/g, "/"));
 const entryFil = path.join(arbetsmapp, "entry.jsx");
 fs.writeFileSync(entryFil, entry);
+// ⛔ CSS SOM ETT BIBLIOTEK IMPORTERAR LÄSES SOM TOM (0.223.0, #570). Kartvyn importerar `maplibre-gl/dist/maplibre-gl.css`, och esbuild utan utdatamapp kan inte
+// bunta en CSS-import (`Cannot import ... without an output path configured`). Vakten mäter ramverkets egna klasser i sin egen CSS, inte bibliotekets.
+// Appens bundler (Vite) tar CSS:en på riktigt, och `check:delbarhet` mäter den vägen.
 const js = await build({
   entryPoints: [entryFil],
   bundle: true,
@@ -131,6 +134,7 @@ const js = await build({
   platform: "browser",
   target: ["es2022"],
   define: { "process.env.NODE_ENV": '"production"' },
+  loader: { ".css": "empty" },
   logLevel: "error",
 });
 const skript = js.outputFiles[0].text;

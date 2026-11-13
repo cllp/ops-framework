@@ -103,7 +103,7 @@ const ssCss = (
 // ── Ramverkets sidor ─────────────────────────────────────────────────────────────────────────────────────────────
 const fwEntry = path.join(arbete, "fw-entry.jsx");
 fs.writeFileSync(fwEntry, fs.readFileSync(path.join(rot, "scripts", "lib", "publik-prov.jsx"), "utf8").replace("OPS_DIST", slash(dist)));
-const fwJs = await build({ entryPoints: [fwEntry], bundle: true, write: false, format: "iife", jsx: "automatic", platform: "browser", target: ["es2022"], define: { "process.env.NODE_ENV": '"production"' }, logLevel: "error" });
+const fwJs = await build({ entryPoints: [fwEntry], bundle: true, loader: { ".css": "empty" }, write: false, format: "iife", jsx: "automatic", platform: "browser", target: ["es2022"], define: { "process.env.NODE_ENV": '"production"' }, logLevel: "error" });
 const fwSkript = fwJs.outputFiles[0].text;
 const distSkannad = path.join(arbete, "dist-skannad.js");
 fs.writeFileSync(distSkannad, distUtanKommentarer(dist));

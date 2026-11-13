@@ -844,6 +844,31 @@
   --marke-monogram-sparrning: 0.04em;
   --marke-storlek-stor: 32px;
   --marke-undertext-stor: 12px;
+
+  /* ─── Kartan (0.223.0, cllp/ops-framework#570) ────────────────────────────
+   * CP 2026-11-11: kartan ska kännas som skissramverket, och färgerna ska vara
+   * tokens, inte tal i kartstilen. Värdena är lästa ur cllp/skissramverk
+   * tokens.css. Ramverket är inte kopierat.
+   *
+   * Land är papper, ramen runt kartan är creme. Vatten är salvia #4e7558
+   * blandad 55 procent mot papper, alltså #adbdac, ljusare än salvia.
+   * Vägar och gränser är linje. Text som ska läsas är #2e2a24. Lera är den
+   * tystare texten (vägnamn). Salvia, ockra och terrakotta är objektens palett.
+   * Accenten är instansens egen och hör inte hemma här.
+   *
+   * Typsnitten pekar på familjer som redan finns: serif för popupens rubrik,
+   * sans för etiketterna. Inget nytt typsnitt laddas. */
+  --color-karta-papper: #faf7f1;
+  --color-karta-creme: #f3eee4;
+  --color-karta-vatten: #adbdac;
+  --color-karta-linje: #cfc6b6;
+  --color-karta-lera: #8a8073;
+  --color-karta-text: #2e2a24;
+  --color-karta-salvia: #4e7558;
+  --color-karta-ockra: #bf9522;
+  --color-karta-terrakotta: #c0683a;
+  --font-karta-ort: var(--font-display-publik);
+  --font-karta-etikett: var(--font-sans);
 }
 
 /**
@@ -1193,6 +1218,18 @@
   --logo-bredd: 180px;
   --logo-bredd-infalld: 40px;
 
+  /* Kartans mörka värden (0.223.0, #570). Samma familj, lyfta så att texten
+   * på land håller AA. Mätt: text på papper 13,34:1, lera på papper 8,13:1. */
+  --dark-karta-papper: #2a2622;
+  --dark-karta-creme: #1c1916;
+  --dark-karta-vatten: #4d6b58;
+  --dark-karta-linje: #8d8476;
+  --dark-karta-lera: #c9bdae;
+  --dark-karta-text: #f6f1e8;
+  --dark-karta-salvia: #8fb59a;
+  --dark-karta-ockra: #e0b84a;
+  --dark-karta-terrakotta: #e5926a;
+
   color-scheme: light;
 }
 
@@ -1330,6 +1367,16 @@
     --color-scale-2: var(--dark-scale-2);
     --color-scale-3: var(--dark-scale-3);
 
+    --color-karta-papper: var(--dark-karta-papper);
+    --color-karta-creme: var(--dark-karta-creme);
+    --color-karta-vatten: var(--dark-karta-vatten);
+    --color-karta-linje: var(--dark-karta-linje);
+    --color-karta-lera: var(--dark-karta-lera);
+    --color-karta-text: var(--dark-karta-text);
+    --color-karta-salvia: var(--dark-karta-salvia);
+    --color-karta-ockra: var(--dark-karta-ockra);
+    --color-karta-terrakotta: var(--dark-karta-terrakotta);
+
     --shadow-sm: var(--dark-shadow-sm);
     --shadow-md: var(--dark-shadow-md);
     --shadow-lg: var(--dark-shadow-lg);
@@ -1434,6 +1481,16 @@
   --color-scale-1: var(--dark-scale-1);
   --color-scale-2: var(--dark-scale-2);
   --color-scale-3: var(--dark-scale-3);
+
+  --color-karta-papper: var(--dark-karta-papper);
+  --color-karta-creme: var(--dark-karta-creme);
+  --color-karta-vatten: var(--dark-karta-vatten);
+  --color-karta-linje: var(--dark-karta-linje);
+  --color-karta-lera: var(--dark-karta-lera);
+  --color-karta-text: var(--dark-karta-text);
+  --color-karta-salvia: var(--dark-karta-salvia);
+  --color-karta-ockra: var(--dark-karta-ockra);
+  --color-karta-terrakotta: var(--dark-karta-terrakotta);
 
   --shadow-sm: var(--dark-shadow-sm);
   --shadow-md: var(--dark-shadow-md);

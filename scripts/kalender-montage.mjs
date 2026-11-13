@@ -30,7 +30,7 @@ const arbetsmapp = fs.mkdtempSync(path.join(rot, "node_modules", ".ops-kalender-
 const entry = fs.readFileSync(path.join(rot, "scripts", "lib", "kalender-yta.jsx"), "utf8").replace("OPS_DIST", dist.replace(/\\/g, "/"));
 const entryFil = path.join(arbetsmapp, "entry.jsx");
 fs.writeFileSync(entryFil, entry);
-const js = await build({ entryPoints: [entryFil], bundle: true, write: false, format: "iife", jsx: "automatic", platform: "browser", target: ["es2022"], define: { "process.env.NODE_ENV": '"production"' }, logLevel: "error" });
+const js = await build({ entryPoints: [entryFil], bundle: true, loader: { ".css": "empty" }, write: false, format: "iife", jsx: "automatic", platform: "browser", target: ["es2022"], define: { "process.env.NODE_ENV": '"production"' }, logLevel: "error" });
 const distSkannad = path.join(arbetsmapp, "dist-skannad.js");
 fs.writeFileSync(distSkannad, distUtanKommentarer(dist));
 const cssRatt = (

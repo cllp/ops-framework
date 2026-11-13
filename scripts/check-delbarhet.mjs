@@ -52,6 +52,12 @@
  * 0.206.0 importerade rutan med "Lägg till bild" (`AnteckningsText`) och krympningen före uppladdningen (`forbered`) statiskt i `OpsBibliotek`. De ritas bara när en sparad anteckning
  * redigeras med appens uppladdning, och ska ligga i en egen bit (`BibliotekAnteckningsbildLat`).
  *
+ * ══ ⛔ KARTAN OCH MAPLIBRE (0.223.0, cllp/ops-framework#570) ═══════════════════════════════════════
+ *
+ * MapLibre är ett eget paket, och det behövs bara när en karta ritas. `OpsKarta` läser in `OpsKartaVy` med en dynamisk import, och det är vyn som importerar `maplibre-gl`.
+ * En startfil som importerar `OpsKarta` får inte innehålla `OpsKartaVy` eller importen av `maplibre-gl`, och någon bit utanför startfilen ska göra det.
+ * Workern mäts i ett bygge där Vite får bunta `maplibre-gl`: `new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url)` i `OpsKartaVy` ska bli en egen fil som bara den lata biten pekar på.
+ *
  * ⛔ RÖTT UTAN DELNINGEN, GRÖNT MED DEN (arbetsreglernas punkt 4): `--bevisa` slår ihop samma `dist` till en enda fil (som före 0.156.0) och kör
  * samma mätning. Den ska ge rött på punkt 2 för båda komponenterna. Är den grön mäter provet ingenting.
  *
@@ -85,6 +91,8 @@ const SKALEN = [
   // (0.209.1, lifehub.app#706) Tolkningen av en .md och anteckningen som HTML-sida används bara när någon lägger in en .md eller laddar ned som HTML eller PDF. 0.209.0 importerade dem
   // statiskt, och appens `check:jsstorlek` växte med 4 kB. Modulerna läses in med en dynamisk import i `OpsBibliotek`.
   { skal: "OpsBibliotek", lata: ["markdownSomHtml", "markdownSomAnteckning"], via: "import(\"../lib/markdownhtml.js\") och import(\"../lib/anteckningsfil.js\")" },
+  // (0.223.0, #570) MapLibre ritas bara när en karta visas. Startfilen importerar `OpsKarta`, inte vyn och inte paketet.
+  { skal: "OpsKarta", lata: ["OpsKartaVy"], via: "OpsKarta", paket: ["maplibre-gl"] },
 ];
 
 /** En import av paketet (statisk eller dynamisk) i en bit. Ett namn i en kommentar eller en text räknas inte. @param {string} kod @param {string} paket */
@@ -215,6 +223,53 @@ async function matWorker() {
   return { fel, worker: worker?.fileName ?? "", lat: pdfjsBit?.code.length ?? 0 };
 }
 
+/**
+ * (0.223.0, #570) MapLibres worker i en app som bundlar ramverket med Vite. Startfilen importerar `OpsKarta`, och `maplibre-gl` buntas (är inte externt).
+ * @returns {Promise<{ fel: string[], worker: string }>}
+ */
+async function matKarta() {
+  const app = path.join(arbete, "kartworker");
+  fs.mkdirSync(path.join(app, "node_modules"), { recursive: true });
+  fs.symlinkSync(rot, path.join(app, "node_modules", "ops-framework"), "dir");
+  fs.writeFileSync(path.join(app, "start.js"), `import { OpsKarta } from "ops-framework";\nglobalThis.__skal = OpsKarta;\n`);
+  const ut = /** @type {import("rollup").RollupOutput} */ (
+    await vite({
+      root: app,
+      configFile: false,
+      logLevel: "silent",
+      build: {
+        write: false,
+        minify: false,
+        modulePreload: false,
+        rollupOptions: {
+          input: path.join(app, "start.js"),
+          external: (id) => !id.startsWith(".") && !path.isAbsolute(id) && id !== "ops-framework" && !id.startsWith("maplibre-gl"),
+        },
+      },
+    })
+  );
+  const bitar = ut.output.filter((o) => o.type === "chunk");
+  const start = bitar.find((b) => b.isEntry);
+  if (!start) throw new Error("kartworker: ingen startfil i bygget.");
+  const iStart = new Set();
+  const gaIgenom = (/** @type {string} */ fil) => {
+    if (iStart.has(fil)) return;
+    iStart.add(fil);
+    for (const i of bitar.find((x) => x.fileName === fil)?.imports ?? []) gaIgenom(i);
+  };
+  gaIgenom(start.fileName);
+  const kodStart = bitar.filter((b) => iStart.has(b.fileName)).map((b) => b.code).join("\n");
+  const andra = bitar.filter((b) => !iStart.has(b.fileName));
+  const worker = ut.output.find((o) => o.type === "asset" && /maplibre-gl-worker/.test(o.fileName));
+  /** @type {string[]} */
+  const fel = [];
+  if (!worker) fel.push("Kartans worker blev ingen egen fil. `new URL(\"maplibre-gl/dist/maplibre-gl-worker.mjs\", import.meta.url)` i OpsKartaVy löses inte av Vite, och kartan startar utan worker.");
+  if (worker && !andra.some((b) => b.code.includes(path.basename(worker.fileName)))) fel.push(`Ingen lat bit pekar på kartans worker (${worker.fileName}).`);
+  if (/maplibre-gl-worker|setWorkerUrl/.test(kodStart)) fel.push("MapLibre eller workern ligger i startfilen som importerar OpsKarta.");
+  if (!andra.some((b) => b.code.includes("function OpsKartaVy("))) fel.push("GOLV: ingen bit utanför startfilen innehåller OpsKartaVy. Workerns mätning har inte sett kartan.");
+  return { fel, worker: worker?.fileName ?? "" };
+}
+
 /** @param {Awaited<ReturnType<typeof matSkal>>} m @param {(typeof SKALEN)[number]} s @returns {string[]} */
 function skalBrott(m, s) {
   /** @type {string[]} */
@@ -283,9 +338,10 @@ const m = await mat(rot, "delat");
 const matta = [];
 for (const [i, s] of SKALEN.entries()) matta.push({ s, ms: await matSkal(rot, `delat-${i}-${s.skal}`, s.skal) });
 const w = await matWorker();
-const fel = [...brott(m), ...matta.flatMap(({ s, ms }) => skalBrott(ms, s)), ...w.fel];
+const karta = await matKarta();
+const fel = [...brott(m), ...matta.flatMap(({ s, ms }) => skalBrott(ms, s)), ...w.fel, ...karta.fel];
 if (fel.length) {
   console.error(`check-delbarhet: RÖTT. ${fel.length} brott:\n${fel.map((f) => `  - ${f}`).join("\n")}`);
   process.exit(1);
 }
-console.log(`check-delbarhet: GRÖNT. ${LATA.join(" och ")} ligger i den lata sidans bit och inte i startfilen (${m.bitarStart} bit(ar), ${m.bytesStart} tecken före första vyn), och ${START} ligger i startfilen. ${matta.map(({ s, ms }) => `${s.skal} (${ms.bitarStart} bit(ar), ${ms.bytesStart} tecken före första vyn) har ${s.lata.join(" och ")}${s.paket ? ` och importen av ${s.paket.join(" och ")}` : ""} i en egen bit`).join(", och ")}. pdf.js-workern blir en egen fil i appens bygge (${w.worker}), och bara den lata biten pekar på den.`);
+console.log(`check-delbarhet: GRÖNT. ${LATA.join(" och ")} ligger i den lata sidans bit och inte i startfilen (${m.bitarStart} bit(ar), ${m.bytesStart} tecken före första vyn), och ${START} ligger i startfilen. ${matta.map(({ s, ms }) => `${s.skal} (${ms.bitarStart} bit(ar), ${ms.bytesStart} tecken före första vyn) har ${s.lata.join(" och ")}${s.paket ? ` och importen av ${s.paket.join(" och ")}` : ""} i en egen bit`).join(", och ")}. pdf.js-workern blir en egen fil i appens bygge (${w.worker}), och bara den lata biten pekar på den. Kartans worker blir en egen fil (${karta.worker}), och bara den lata biten pekar på den.`);

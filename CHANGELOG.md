@@ -9,6 +9,18 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.223.0
+
+Kartkomponent: en GeoJSON-fil som karta (cllp/ops-framework#570). Inget brytande.
+
+### Tillagt
+
+- **`OpsKarta`** ritar punkter, linjer och ytor. Ett tryck visar namn och beskrivning ur properties. Färg per objekt ur simplestyle, annars ur `typ` mot paletten salvia, ockra och terrakotta, annars instansens accent. Underlaget är OpenFreeMap (OpenStreetMap, ingen nyckel). Färger och typsnitt är tokens, med mörka värden. MapLibre och vyn hämtas först när en karta ritas. Exemplet är `ops-framework/exempel/karta` (Dahab). Orden: `ORD_OPSKARTA`.
+
+### Prov
+
+- **`karta.test.js`**, **`karta-vy.test.jsx`**, **`karta-lat.test.jsx`**: läsning, simplestyle mot palett och accent, stilen tar färgerna den får, popupen ritar text och inte HTML, exemplet i två språk, temabyte, saknade färger, tom och trasig fil, och att vyn inte hämtas förrän kartan ritas. `check:delbarhet` mäter att `maplibre-gl` och workern ligger utanför startfilen. `check:kontrast` vaktar kartans text mot land och creme.
+
 ## 0.222.1
 
 **Inkorgens svarsrad i mobil (`OpsSvarsrad`).** CP 2026-11-13, med en skärmbild ur Inkorgen i telefonen: "Allt ihoptryckta." Texten krympte till ett ord per rad ("Medl…", "Måndag", "16") medan Kommer, Kanske och Kommer inte stod kvar bredvid. Knapparna står nu på en egen rad under texten under 768 px (`variant="egen-rad"`, som i händelsens detalj), och bredvid från 768 px. Ingen ändring i API:t.

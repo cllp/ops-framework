@@ -31,6 +31,7 @@ export async function byggYta({ rot, yta, namn, dist: annanDist }) {
     const js = await build({
       entryPoints: [entryFil],
       bundle: true,
+      loader: { ".css": "empty" },
       write: false,
       format: "iife",
       jsx: "automatic",
