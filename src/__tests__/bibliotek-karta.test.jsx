@@ -22,13 +22,16 @@ const visa = (/** @type {Record<string, unknown>} */ extra) =>
   render(<OpsBibliotek poster={[post]} vald={post} jag={JAG} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} hubHref="/hub" filUrl={() => "https://lagring.example/resan.geojson"} {...extra} />);
 
 describe("GeoJSON i Biblioteket som karta (#765)", () => {
-  it("hämtar filen med hamtaFil och lämnar texten till kartan, med länken kvar under", async () => {
+  it("hämtar filen med hamtaFil och lämnar texten till kartan, med filnamnet och Ladda ned under", async () => {
     const hamtaFil = vi.fn(async () => new Blob([GEO]));
     const { container } = visa({ hamtaFil });
     await waitFor(() => expect(container.querySelector("[data-bibliotek-karta=klar]")).not.toBeNull());
     expect(hamtaFil).toHaveBeenCalledWith("g/a/resan.geojson");
     expect(container.querySelector("[data-karta-stub]")?.textContent).toBe(GEO);
-    expect(screen.getByRole("link", { name: /resan\.geojson/ })).toBeInTheDocument();
+    // ⛔ (0.228.0) Filnamnet var en länk till lagringen. Nu är det text, och filen nås genom Ladda ned.
+    expect(screen.queryByRole("link", { name: /resan\.geojson/ })).toBeNull();
+    expect(container.querySelector("[data-bibliotek-filnamn]")?.textContent).toContain("resan.geojson");
+    expect(screen.getByRole("button", { name: "Ladda ned" })).toBeInTheDocument();
   });
 
   it("en fil över taket ritas inte, och beskedet säger att den laddas ned", async () => {
@@ -45,9 +48,10 @@ describe("GeoJSON i Biblioteket som karta (#765)", () => {
     expect(container.querySelector("[data-karta-stub]")).toBeNull();
   });
 
-  it("utan hamtaFil är den en fil med länk, som förut", () => {
+  it("utan hamtaFil är den en fil med Ladda ned, utan länk till lagringen (0.228.0)", () => {
     const { container } = visa({});
     expect(container.querySelector("[data-bibliotek-karta]")).toBeNull();
-    expect(screen.getByRole("link", { name: /resan\.geojson/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /resan\.geojson/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Ladda ned" })).toBeInTheDocument();
   });
 });

@@ -7502,8 +7502,10 @@ async function nyHandelseTillagg() {
 // CP 2026-10-19: video i Biblioteket, spelad "med en vanlig <video controls playsinline>, utan egen spelare". jsdom ritar ingen video och ingen CSS, så vad som går att
 // mäta är hur elementet ligger i detaljen. Scenen `bibliotekvideo` (skalyta-entry.jsx) öppnar en film på 90 MB med en tom data-URL: webbläsaren kan inte spela den
 // men ritar sina kontroller ändå. Krav, vid 390 och 1280 px: (a) videon har kontroller, `playsinline` och `preload` metadata, (b) den fyller sin behållare i bredd
-// och sticker inte ut, (c) den är varken hopskrumpen (minst 100 px hög) eller högre än 384 px, (d) länken till filen står UNDER den och inom fönstret, och (e) sidan
-// flödar inte över i sidled. Golv: ett videoelement och en länk mättes.
+// och sticker inte ut, (c) den är varken hopskrumpen (minst 100 px hög) eller högre än 384 px, (d) Ladda ned står UNDER den och inom fönstret, och (e) sidan
+// flödar inte över i sidled. Golv: ett videoelement och en Ladda ned mättes.
+// ⛔ (0.228.0, cllp/lifehub.app#765) Förut mättes filnamnet som länk under videon. Filnamnet är nu text och Ladda ned en knapp, så utvägen som mäts är knappen, och
+// (f) ingen länk i videons behållare bär en adress: ingen lagringsadress med token går att trycka på.
 async function bibliotekVideo() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const namn = `video i biblioteket ${vp.width}`;
@@ -7517,20 +7519,22 @@ async function bibliotekVideo() {
         const kol = /** @type {HTMLElement} */ (v.parentElement);
         const vr = v.getBoundingClientRect();
         const kr = kol.getBoundingClientRect();
-        const lank = v.parentElement ? v.parentElement.querySelector("a") : null;
+        const lank = v.parentElement ? v.parentElement.querySelector("[data-bibliotek-ladda-ned]") : null;
         const lr = lank ? lank.getBoundingClientRect() : null;
+        const adresser = v.parentElement ? v.parentElement.querySelectorAll("a[href]").length : -1;
         return {
           videor: document.querySelectorAll("video").length, kontroller: v.controls, inline: v.hasAttribute("playsinline"), preload: v.preload,
           w: vr.width, h: vr.height, vl: vr.left, vr: vr.right, vb: vr.bottom, kw: kr.width, kl: kr.left, kr: kr.right,
-          lank: lr ? { t: lr.top, b: lr.bottom, r: lr.right } : null, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerHeight,
+          lank: lr ? { t: lr.top, b: lr.bottom, r: lr.right, tag: lank?.tagName } : null, adresser, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerHeight,
         };
       });
-      matt.push(`${namn}: video ${m.w.toFixed(0)}x${m.h.toFixed(0)} i en kolumn på ${m.kw.toFixed(0)}, länken ${JSON.stringify(m.lank)}`);
-      krav(m.videor === 1 && m.lank !== null, `${namn}: ${m.videor} videoelement och ${m.lank ? "en" : "ingen"} länk mättes, väntat 1 och en (golv).`);
+      matt.push(`${namn}: video ${m.w.toFixed(0)}x${m.h.toFixed(0)} i en kolumn på ${m.kw.toFixed(0)}, Ladda ned ${JSON.stringify(m.lank)}, länkar med adress ${m.adresser}`);
+      krav(m.videor === 1 && m.lank !== null, `${namn}: ${m.videor} videoelement och ${m.lank ? "en" : "ingen"} Ladda ned mättes, väntat 1 och en (golv).`);
+      krav(m.lank?.tag === "BUTTON" && m.adresser === 0, `${namn} (f): Ladda ned är ${m.lank?.tag ?? "inget"} och behållaren har ${m.adresser} länkar med adress, väntat en knapp och inga länkar.`);
       krav(m.kontroller && m.inline && m.preload === "metadata", `${namn} (a): controls ${m.kontroller}, playsinline ${m.inline}, preload "${m.preload}", väntat true, true och "metadata".`);
       krav(Math.abs(m.w - m.kw) <= 1 && m.vl >= m.kl - 0.5 && m.vr <= m.kr + 0.5, `${namn} (b): videon är ${m.w.toFixed(0)} px bred i en kolumn på ${m.kw.toFixed(0)} (${m.vl.toFixed(0)}-${m.vr.toFixed(0)} mot ${m.kl.toFixed(0)}-${m.kr.toFixed(0)}), väntat full bredd inom kolumnen.`);
       krav(m.h >= 100 && m.h <= 384.5, `${namn} (c): videon är ${m.h.toFixed(0)} px hög, väntat 100 till 384.`);
-      krav(!!m.lank && m.lank.t >= m.vb - 0.5 && m.lank.r <= vp.width && m.lank.b <= m.fonsterB * 3, `${namn} (d): länken ${m.lank ? `ligger ${m.lank.t.toFixed(0)}-${m.lank.b.toFixed(0)} och slutar ${m.lank.r.toFixed(0)}` : "saknas"}, videon slutar ${m.vb.toFixed(0)}, väntat länken under videon och inom bredden.`);
+      krav(!!m.lank && m.lank.t >= m.vb - 0.5 && m.lank.r <= vp.width && m.lank.b <= m.fonsterB * 3, `${namn} (d): Ladda ned ${m.lank ? `ligger ${m.lank.t.toFixed(0)}-${m.lank.b.toFixed(0)} och slutar ${m.lank.r.toFixed(0)}` : "saknas"}, videon slutar ${m.vb.toFixed(0)}, väntat Ladda ned under videon och inom bredden.`);
       krav(m.over <= 0, `${namn} (e): sidan flödar över ${m.over} px.`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `bibliotek-video-${vp.width}.png`) });
     } catch (e) {
@@ -8961,14 +8965,15 @@ async function bibliotekHtmlVy() {
         const m = await page.evaluate(() => {
           // 0.192.0 (#529): med rutan står Öppna i eget fönster i rutans verktygsrad, och filnamnet är text bredvid Ladda ned. Sedan 0.196.0 en ikonknapp (`DokumentKnapp`): namnet står i aria-label.
           const oppna = /** @type {HTMLElement} */ (document.querySelector("[data-html-dokument-fonster] a"));
-          const ladda = /** @type {HTMLAnchorElement} */ (document.querySelector("[data-bibliotek-ladda-ned]"));
+          // ⛔ (0.228.0, cllp/lifehub.app#765) Ladda ned är en knapp som sparar byten, inte lagringens länk: ingen `href` och ingen `download`.
+          const ladda = /** @type {HTMLElement} */ (document.querySelector("[data-bibliotek-ladda-ned]"));
           const filnamn = (document.querySelector("[data-bibliotek-filnamn]")?.textContent || "").trim();
           const or = oppna.getBoundingClientRect();
           const lr = ladda.getBoundingClientRect();
-          return { o: { l: or.left, r: or.right, h: or.height, t: or.top, b: or.bottom, text: (oppna.getAttribute("aria-label") || oppna.textContent || "").replace(/\s+/g, " ").trim(), href: oppna.getAttribute("href"), target: oppna.getAttribute("target"), filnamn }, l: { l: lr.left, r: lr.right, h: lr.height, t: lr.top, b: lr.bottom, text: (ladda.textContent || "").trim(), download: ladda.hasAttribute("download"), href: ladda.getAttribute("href") }, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerWidth, ruta: document.querySelectorAll("[data-html-dokument-ruta]").length };
+          return { o: { l: or.left, r: or.right, h: or.height, t: or.top, b: or.bottom, text: (oppna.getAttribute("aria-label") || oppna.textContent || "").replace(/\s+/g, " ").trim(), href: oppna.getAttribute("href"), target: oppna.getAttribute("target"), filnamn }, l: { l: lr.left, r: lr.right, h: lr.height, t: lr.top, b: lr.bottom, text: (ladda.textContent || "").trim(), tag: ladda.tagName, download: ladda.hasAttribute("download"), href: ladda.getAttribute("href") }, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fonsterB: window.innerWidth, ruta: document.querySelectorAll("[data-html-dokument-ruta]").length };
         });
         matt.push(`${namn} (e, detalj): Öppna i eget fönster ${m.o.l.toFixed(0)}-${m.o.r.toFixed(0)}x${m.o.h.toFixed(0)}, Ladda ned ${m.l.l.toFixed(0)}-${m.l.r.toFixed(0)}x${m.l.h.toFixed(0)}`);
-        krav(m.o.href === "/bibliotek/visa/p1?plats=cps-ab" && m.o.target === "_blank" && /Öppna i eget fönster/.test(m.o.text) && /kvartalsrapport-med-ett-langt-namn\.html/.test(m.o.filnamn) && m.l.text === "Ladda ned" && m.l.download && m.l.href === "https://lagring.example/fil" && m.ruta === 1, `${namn} (e, detalj): Öppna i eget fönster ${JSON.stringify(m.o)} och Ladda ned ${JSON.stringify(m.l)}, rutor ${m.ruta}.`);
+        krav(m.o.href === "/bibliotek/visa/p1?plats=cps-ab" && m.o.target === "_blank" && /Öppna i eget fönster/.test(m.o.text) && /kvartalsrapport-med-ett-langt-namn\.html/.test(m.o.filnamn) && m.l.text === "Ladda ned" && m.l.tag === "BUTTON" && !m.l.download && m.l.href === null && m.ruta === 1, `${namn} (e, detalj): Öppna i eget fönster ${JSON.stringify(m.o)} och Ladda ned ${JSON.stringify(m.l)}, rutor ${m.ruta}.`);
         krav(m.o.h >= knapp - 0.6 && m.l.h >= knapp - 0.6, `${namn} (e, detalj): träffytorna är ${Math.round(m.o.h)} och ${Math.round(m.l.h)} px, väntat minst ${knapp}.`);
         krav(m.o.l >= -0.5 && m.o.r <= m.fonsterB + 0.5 && m.l.l >= -0.5 && m.l.r <= m.fonsterB + 0.5 && m.over <= 0, `${namn} (e, detalj): Öppna i eget fönster ${m.o.l.toFixed(0)}-${m.o.r.toFixed(0)} och Ladda ned ${m.l.l.toFixed(0)}-${m.l.r.toFixed(0)} ska ligga inom fönstret på ${m.fonsterB}, och sidan flödar över ${m.over} px.`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `html-oppna-detalj-${vp.width}.png`), fullPage: true });

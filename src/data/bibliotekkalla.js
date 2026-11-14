@@ -28,7 +28,7 @@
  * strömma utan att kunna hade varit den tysta nedfallsväg `contract.js` varnar för. Ingen polling.
  */
 
-import { NALTAGG, normaliseraTaggar, arHtmlMime, byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, lagringsContentDisposition, lagringsContentType, mimeUrFilnamn, normaliseraMime, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS, MAX_BIBLIOTEKFIL, FILMIME, beskrivObjektbibliotek } from "../lib/bibliotek.js";
+import { NALTAGG, normaliseraTaggar, arHtmlMime, byggPost, farAndra, filInmatningsfel, filSort, kodaToppar, lagringsContentDisposition, lagringsContentType, mimeForFil, peaksGiltiga, postFel, trimSomRegeln, MAX_LJUD_MS, MAX_BIBLIOTEKFIL, FILMIME, beskrivObjektbibliotek } from "../lib/bibliotek.js";
 import { metaUrBytes, wavMetaUrBlob } from "../lib/ljudspelare.js";
 import { byggSkapare } from "../lib/skapare.js";
 import { bilagaTillBlob } from "../lib/file.js";
@@ -386,7 +386,7 @@ export function createBibliotekskalla(config) {
       }
       const fil = inmatning?.fil;
       const namn = trimSomRegeln(inmatning?.namn) || (typeof fil?.name === "string" ? fil.name : fil?.namn);
-      const mime = normaliseraMime(fil?.type || fil?.mime || "") || mimeUrFilnamn(namn);
+      const mime = mimeForFil(namn, fil?.type || fil?.mime);
       const byte = Number.isInteger(fil?.size) ? fil.size : fil?.byte;
       const yta = filInmatningsfel({ namn, mime, byte });
       if (yta) throw new Error(yta);
@@ -583,7 +583,7 @@ export async function flyttaBibliotekspost(inmatning) {
 }
 
 /**
- * Kan en chattbilaga läggas i Biblioteket? Typen ska vara en som Biblioteket tar emot (`FILMIME`, efter `normaliseraMime`, så `audio/webm;codecs=opus` är `audio/webm`) och bilagan ska klara samma prövning som i chatten.
+ * Kan en chattbilaga läggas i Biblioteket? Typen ska vara en som Biblioteket tar emot (`FILMIME`, efter `mimeForFil`, så `audio/webm;codecs=opus` är `audio/webm` och en `.geojson` som sades vara `application/json` är GeoJSON) och bilagan ska klara samma prövning som i chatten.
  * Chattens `text/csv` är den enda typ bilagan får som Biblioteket inte tar emot; den går inte att kopiera dit, och åtgärden ritas inte för den.
  *
  * @param {unknown} bilaga
@@ -591,7 +591,7 @@ export async function flyttaBibliotekspost(inmatning) {
  */
 export function bilagaKanKopieras(bilaga) {
   if (kommentarbilagaFel(bilaga)) return false;
-  return /** @type {readonly string[]} */ (FILMIME).includes(normaliseraMime(/** @type {any} */ (bilaga).typ));
+  return /** @type {readonly string[]} */ (FILMIME).includes(mimeForFil(/** @type {any} */ (bilaga).namn, /** @type {any} */ (bilaga).typ));
 }
 
 /**
@@ -644,7 +644,7 @@ export async function kopieraBilagaTillPlats(inmatning) {
   }
   const fel = kommentarbilagaFel(bilaga);
   if (fel) throw new Error(`Bilagan går inte att kopiera: ${fel}`);
-  const mime = normaliseraMime(bilaga.typ);
+  const mime = mimeForFil(bilaga.namn, bilaga.typ);
   if (!(/** @type {readonly string[]} */ (FILMIME)).includes(mime)) {
     throw new Error(`Filtypen ${bilaga.typ} går inte att lägga i Biblioteket, så bilagan kopierades inte.`);
   }

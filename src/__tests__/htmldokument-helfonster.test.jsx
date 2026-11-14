@@ -271,9 +271,9 @@ describe("OpsBibliotek med oppnaHtml", () => {
     // En länk till fönstret, inte två.
     expect(screen.getAllByRole("link").filter((l) => l.getAttribute("href") === "/bibliotek/visa/p1?plats=cps-ab")).toHaveLength(1);
     expect(document.querySelector("[data-bibliotek-filnamn]")?.textContent).toContain("rapport.html");
-    const ladda = screen.getByRole("link", { name: "Ladda ned" });
-    expect(ladda).toHaveAttribute("href", "https://lagring.example/fil");
-    expect(ladda).toHaveAttribute("download", "rapport.html");
+    // (0.228.0, cllp/lifehub.app#765) Ladda ned är en knapp som sparar byten, inte lagringens länk.
+    expect(screen.getByRole("button", { name: "Ladda ned" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Ladda ned" })).toBeNull();
     expect(document.querySelectorAll("iframe").length).toBe(1);
     expect(document.querySelector("iframe")?.hasAttribute("src")).toBe(false);
   });
@@ -281,19 +281,20 @@ describe("OpsBibliotek med oppnaHtml", () => {
   it("utan hamtaFil ritas ingen ruta i detaljen, men vyn och Ladda ned finns", async () => {
     const post = html();
     rendera({ oppnaHtml: vyFor, vald: post }, [post]);
-    await screen.findByRole("link", { name: "Ladda ned" });
+    await screen.findByRole("button", { name: "Ladda ned" });
     expect(document.querySelector("iframe")).toBeNull();
     expect(document.querySelector("[data-bibliotek-oppna-html]")?.getAttribute("href")).toBe("/bibliotek/visa/p1?plats=cps-ab");
   });
 
-  it("⛔ utan oppnaHtml är detaljen som förut: filnamnet är nedladdningen och Ladda ned finns inte som eget val", async () => {
+  // (0.228.0, cllp/lifehub.app#765) Förut var filnamnet här lagringens nedladdningslänk. Nu är filnamnet text och Ladda ned en egen knapp.
+  it("⛔ utan oppnaHtml: filnamnet är text, Ladda ned är en knapp, och ingen länk bär lagringens adress", async () => {
     const post = html();
     rendera({ vald: post, hamtaFil: hamtaSida() }, [post]);
     await waitFor(() => expect(document.querySelector("iframe")).not.toBeNull());
-    const lank = screen.getByRole("link", { name: /rapport\.html/ });
-    expect(lank).toHaveAttribute("href", "https://lagring.example/fil");
-    expect(lank).toHaveAttribute("download", "rapport.html");
-    expect(screen.queryByRole("link", { name: "Ladda ned" })).toBeNull();
+    expect(screen.queryByRole("link", { name: /rapport\.html/ })).toBeNull();
+    expect(document.querySelector("[data-bibliotek-filnamn]")?.textContent).toContain("rapport.html");
+    expect(screen.getByRole("button", { name: "Ladda ned" })).toBeTruthy();
+    for (const el of document.querySelectorAll("[href]")) expect(el.getAttribute("href")).not.toContain("lagring.example");
     expect(document.querySelector("[data-bibliotek-oppna-html]")).toBeNull();
   });
 });

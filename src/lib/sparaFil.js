@@ -5,7 +5,8 @@
  *
  * ⛔ TYPEN TVINGAS TILL application/octet-stream, så adressen bara kan sparas och aldrig ritas (till exempel som HTML) i appens origin.
  * Därför ligger den här i lib och inte i en komponent: komponenter skapar aldrig blob-adresser (htmldokument-helfonster-provet).
- * HTML-dokumentet går inte hit, det behåller lagringens `attachment`-länk.
+ * Sedan 0.228.0 (cllp/lifehub.app#765) går också HTML-dokumentet hit: Ladda ned i detaljen är en knapp och inte lagringens `attachment`-länk, så ingen adress med token ritas. Typen ovan gör att det bara
+ * kan sparas. Utan appens `hamta` ger detaljen `lasFilbytes` med adressen Biblioteket redan har.
  * @param {{ hamta: (sokvag: string) => Promise<Blob>, sokvag: string, namn: string, adress?: string, doc?: any, url?: any, oppna?: (a: string) => unknown }} arg
  * @returns {Promise<boolean>}
  */

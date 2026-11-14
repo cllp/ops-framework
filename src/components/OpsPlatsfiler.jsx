@@ -46,6 +46,8 @@ import { OpsButton } from "./OpsButton.jsx";
  * @param {"handelse" | "arende"} [props.slag] Spärr: kastar om källan är av det andra slaget. Utelämnad godtas båda.
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl] Se `OpsBibliotek`.
  * @param {(sokvag: string) => Promise<string>} [props.hamtaAdress] Se `OpsBibliotek`.
+ * @param {(sokvag: string) => Promise<Blob>} [props.hamtaFil] (0.228.0, cllp/lifehub.app#765) Se `OpsBibliotek`. Filens byte, normalt `lagring.hamta`. Med den ritas en GeoJSON-fil som karta, en textfil och
+ *   annan JSON som text och ett HTML-dokument i sin ruta, och Ladda ned hämtar byten med inloggningen. ⛔ Förut vidarebefordrades den inte: ett ärendes eller en händelses GeoJSON-fil var då bara ett filnamn.
  * @param {(inmatning: { id: string, durationMs?: number, peaks?: string }) => void | Promise<void>} [props.onFyllLjud] Se `OpsBibliotek`.
  * @param {(post: any) => Promise<void> | void} [props.onSkrivUt] Se `OpsBibliotek`. Appens server måste slå upp medlemskapet med `gruppForPlats(post.groupId)`.
  * @param {(post: any) => Promise<void> | void} [props.onAnteckningAvUtskrift] Se `OpsBibliotek`.
@@ -90,7 +92,7 @@ const SLAG = {
 };
 
 /** @param {any} p */
-function PlatsfilerRitad({ slag: kravtSlag, kalla, jag, kanLaggaTill, rubrik, laddaUppEtikett, grupper, onDela, filUrl, hamtaAdress, onFyllLjud, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, delningar, delningGruppdel, gruppnamn, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank }) {
+function PlatsfilerRitad({ slag: kravtSlag, kalla, jag, kanLaggaTill, rubrik, laddaUppEtikett, grupper, onDela, filUrl, hamtaAdress, hamtaFil, onFyllLjud, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, delningar, delningGruppdel, gruppnamn, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank }) {
   const rubrikId = useId();
   const [vald, setVald] = useState(/** @type {any} */ (null));
   const [skapar, setSkapar] = useState(/** @type {"fil" | null} */ (null));
@@ -161,6 +163,7 @@ function PlatsfilerRitad({ slag: kravtSlag, kalla, jag, kanLaggaTill, rubrik, la
         {...(onDela ? { onDela } : {})}
         {...(filUrl ? { filUrl } : {})}
         {...(hamtaAdress ? { hamtaAdress } : {})}
+        {...(hamtaFil ? { hamtaFil } : {})}
         {...(onFyllLjud ? { onFyllLjud } : {})}
         {...(onSkrivUt ? { onSkrivUt } : {})}
         {...(onSkrivUtIgen ? { onSkrivUtIgen } : {})}

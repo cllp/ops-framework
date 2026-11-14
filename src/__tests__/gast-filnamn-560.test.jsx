@@ -82,11 +82,13 @@ describe("filnamnet i gästens detalj", () => {
       expect(document.querySelector("[data-bibliotek-filnamn]")?.textContent).toContain(post.fil.namn);
       expect(screen.queryByRole("link", { name: "Ladda ned" })).toBeNull();
     });
-    it(`${namn}: med nedladdning på finns länken som förut`, async () => {
+    // ⛔ (0.228.0, cllp/lifehub.app#765) Förut var filnamnet här en länk med den signerade adressen. Nu är det text också med nedladdning på, och Ladda ned är en knapp som sparar filen.
+    it(`⛔ ${namn}: med nedladdning på är filnamnet text, Ladda ned en knapp, och ingen länk bär adressen`, async () => {
       await oppna(post, { ...props, utanNedladdning: false });
-      const lank = document.querySelector("a[data-bibliotek-filnamnslank]");
-      expect(lank?.getAttribute("href")).toBe(adressFor(post.id));
-      expect(lank?.textContent).toContain(post.fil.namn);
+      expect(document.querySelector("[data-bibliotek-filnamnslank]")).toBeNull();
+      expect(document.querySelector("[data-bibliotek-filnamn]")?.textContent).toContain(post.fil.namn);
+      expect(lankarMedAdress().map((a) => a.outerHTML)).toEqual([]);
+      expect(screen.getByRole("button", { name: "Ladda ned" })).toBeTruthy();
     });
   }
 });

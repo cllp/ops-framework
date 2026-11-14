@@ -32,7 +32,7 @@ import { githubDokument } from "../lib/githubdokument.js";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
 import { ID_FORM } from "../lib/katalog.js";
-import { ARKIVTAGG, POSTIDFORM, arArkiverad, kortRubrik, avkodaTextfil, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeUrFilnamn, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
+import { ARKIVTAGG, POSTIDFORM, arArkiverad, kortRubrik, avkodaTextfil, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeForFil, arKartfil, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
 import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
 export { menyPilar, OpsTaggFilter as TaggFilter };
@@ -338,7 +338,7 @@ const repoplatsForm = (plats) => typeof plats === "string" && (arPlatsBibliotek(
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl] Appen ger adressen till en fil. Tom sträng visas som att adressen saknas. Synkron, och vinner när den är ifylld.
  * @param {(sokvag: string) => Promise<string>} [props.hamtaAdress] (0.88.2) Nedladdningsadressen för `fil.sokvag`, när `filUrl` är tom. Svaret cachas per sökväg, så listan och detaljen delar den. Medan den hämtas visas inte "Filen har ingen adress."
  * @param {(sokvag: string) => Promise<Blob>} [props.hamtaFil] (0.153.0, ops-framework#460 punkt 3) Filens byte, normalt `lagring.hamta` (`getBlob`, med inloggningen, så Storage-regeln avgör vem som får läsa). Med den visas en
- *   textfil (`text/plain`) som text i detaljen, avkodad som UTF-8 (och som Windows-1252 om byten inte är giltig UTF-8), de första 100 000 byten med en rad som säger att resten finns i filen. (0.209.0, #706) En markdownfil (`text/markdown`) ritas samma väg som markdown. Utan den visas bara länken, som förut. (0.224.0, lifehub.app#765) En GeoJSON-fil (`application/geo+json`) ritas samma väg som karta (`KartaForhandsvisning`), upp till 10 MB.
+ *   textfil (`text/plain`) som text i detaljen, avkodad som UTF-8 (och som Windows-1252 om byten inte är giltig UTF-8), de första 100 000 byten med en rad som säger att resten finns i filen. (0.209.0, #706) En markdownfil (`text/markdown`) ritas samma väg som markdown. Utan den visas bara filnamnet och Ladda ned. (0.224.0, lifehub.app#765) En GeoJSON-fil (`application/geo+json`) ritas samma väg som karta (`KartaForhandsvisning`), upp till 10 MB. (0.228.0, #765) Det som är en karta avgör `arKartfil`: också en `.geojson` som sades vara `application/json`, och en `.json` med GeoJSON i. Annan JSON visas som text. Ladda ned under en fil hämtar byten härifrån.
  *   ⛔ Förhandsvisningen ändrar ingen regel och hämtar bara den öppna filen, aldrig listan.
  * @param {(post: any) => Promise<unknown>} [props.htmlVersioner] (0.158.0) Versionerna för ett HTML-dokument, `{ nuvarande, versioner: [{ nr, nuvarande, av, tid, saknas? }] }` (svaret från `createHtmlDokumentService().versioner`) eller bara listan. Med den ritas raden "Versioner"
  *   i detaljen för ett HTML-dokument (`text/html`) och bara där; utan den är Biblioteket oförändrat. Listan hämtas när raden fälls ut. Övriga fyra är frivilliga och styr vad raden kan: utan dem finns inte knappen som behöver dem. ⛔ Skrivningarna (`aterstallHtml`, `nyHtmlVersion`)
@@ -2389,40 +2389,43 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
 }
 
 /**
- * ⛔ FILNAMNET ÄR BARA EN LÄNK DÄR GÄSTEN FÅR LADDA NED (cllp/ops-framework#560). Med `utanNedladdning` (lifehub.app#691) ritades filnamnet ändå som
- * `<a href={adress}>` för video, textfil, HTML utan `hamtaFil` och övriga filer. Gästen kunde långtrycka på den, välja Kopiera länkadress och dela den signerade adressen,
- * som öppnar filen för vem som helst i en kvart: precis den väg Kopiera länk stängdes för i menyn. Nu är filnamnet text när gruppen stängt av nedladdningen. Det som visas i sidan
- * (video, bild, ljud, PDF) står kvar, för det ger ingen adress att kopiera.
+ * Filnamnet i detaljen, som text.
  *
- * @param {{ adress: string, download?: string, children: any }} props
+ * ⛔ FILNAMNET ÄR ALDRIG EN LÄNK TILL LAGRINGEN (0.228.0, cllp/lifehub.app#765). CP 2026-11-14: "Jag kan inte se att jag får upp en karta. Bara json från firebase storage." Filnamnet var
+ * `<a href={adress}>`, och adressen är lagringens, med sin token. Ett tryck öppnade rå JSON i en ny flik, och ett långtryck gav Kopiera länkadress: en adress som öppnar filen för vem som helst.
+ * Sedan 0.190.0 (cllp/ops-framework#560) var den text bara när gruppen stängt av nedladdningen. Nu är den alltid text, och filen nås genom Ladda ned (`LaddaNedLank`), som sparar den utan att
+ * adressen ritas. Det som visas i sidan (karta, text, PDF, HTML-rutan, video, bild, ljud) står kvar.
+ *
+ * @param {{ children: any }} props
  */
-function Filnamnslank({ adress, download, children }) {
-  const far = useContext(NedladdningKontext);
-  if (!far) return <span data-bibliotek-filnamn="" className="min-w-0 break-words text-etikett text-ink-secondary">{children}</span>;
-  return (
-    <a href={adress} target="_blank" rel="noopener noreferrer" download={download} data-bibliotek-filnamnslank="" className="w-fit text-etikett text-accent underline underline-offset-2">
-      {children}
-    </a>
-  );
+function Filnamn({ children }) {
+  return <span data-bibliotek-filnamn="" className="min-w-0 break-words text-etikett text-ink-secondary">{children}</span>;
 }
 
 /**
- * ⛔ LADDA NED FÖR VARJE FIL I DETALJEN (lifehub.app QA 2026-11-01): sedan 0.102.0 står nedladdningen i detaljen och inte i menyn, men bara
- * HTML-dokumentet med `oppnaHtml` fick knappen. En textfil, en video, en PDF och övriga filer hade bara filnamnet som länk, som öppnar
- * filen i en ny flik. Knappen bär `download` med filens namn. Med `hamta` och `sokvag` sparar knappen filen via `sparaSomFil`
+ * ⛔ LADDA NED FÖR VARJE FIL I DETALJEN (lifehub.app QA 2026-11-01): sedan 0.102.0 står nedladdningen i detaljen och inte i menyn. Knappen sparar filen via `sparaSomFil`
  * (lib/sparaFil.js, 0.175.0), eftersom `download` ignoreras mot en annan origin.
+ *
+ * ⛔ EN KNAPP, INTE EN LÄNK (0.228.0, cllp/lifehub.app#765). Förut var den `<a href={adress}>`, och `sparaSomFil` gick bara när appen gav `hamta`: utan den, och för HTML-dokumentet, var den
+ * lagringens adress att trycka på. Nu hämtas byten med appens `hamta` och `sokvag`, och utan dem ur adressen Biblioteket redan har (`lasFilbytes`, samma väg som PDF-vyn), så adressen ritas aldrig.
+ * Går hämtningen fel öppnar `sparaSomFil` adressen som förut, så ingen förlorar vägen till filen. Ett HTML-dokument sparas samma väg: `sparaSomFil` tvingar typen till
+ * `application/octet-stream`, så det kan bara sparas och aldrig ritas i appens origin.
  * @param {{ adress?: string, namn: string, hamta?: (sokvag: string) => Promise<Blob>, sokvag?: string }} props */
 function LaddaNedLank({ adress, namn, hamta, sokvag }) {
   const sprak = useOpsSprak();
   const far = useContext(NedladdningKontext);
   const kanHamta = typeof hamta === "function" && Boolean(sokvag);
-  // ⛔ GRUPPEN HAR STÄNGT AV NEDLADDNING (0.190.0): ingen knapp. Filen visas fortfarande där den kan visas (länken till den, rutan, spelaren).
+  // ⛔ GRUPPEN HAR STÄNGT AV NEDLADDNING (0.190.0): ingen knapp. Filen visas fortfarande där den kan visas (rutan, spelaren).
   if (!far) return null;
+  if (!kanHamta && !adress) return null;
+  const spara = () => {
+    if (typeof hamta === "function" && sokvag) void sparaSomFil({ hamta, sokvag, namn, adress });
+    else if (adress) void sparaSomFil({ hamta: lasFilbytes, sokvag: adress, namn, adress });
+  };
   return (
-    <a href={adress} target="_blank" rel="noopener noreferrer" download={namn} data-bibliotek-ladda-ned="" className={knappKlass({ variant: "secondary", size: "sm" })}
-      onClick={kanHamta ? (e) => { e.preventDefault(); if (typeof hamta === "function" && sokvag) void sparaSomFil({ hamta, sokvag, namn, adress }); } : undefined}>
+    <button type="button" data-bibliotek-ladda-ned="" className={knappKlass({ variant: "secondary", size: "sm" })} onClick={spara}>
       {ordet(ORD_BIBLIOTEKLISTA, "laddaNed", sprak)}
-    </a>
+    </button>
   );
 }
 
@@ -2515,7 +2518,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
       <div data-bibliotek-fil="" className="flex flex-col gap-2">
         <video data-bibliotek-video="" src={adress} controls playsInline preload="metadata" aria-label={post.rubrik ?? namn} className="block h-auto max-h-96 w-full rounded-lg bg-sunken" />
         <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
-          <Filnamnslank adress={adress}>{rad}</Filnamnslank>
+          <Filnamn>{rad}</Filnamn>
         </FilMedLaddaNed>
       </div>
     );
@@ -2532,22 +2535,21 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
       </div>
     );
   }
-  // ⛔ ETT HTML-DOKUMENT RITAS I EN AVSPÄRRAD RUTA (0.156.0, cllp/ops-framework#472), aldrig som en länk som öppnar sidan och aldrig i appens ursprung: se `OpsHtmlDokument`. Länken under är nedladdning
-  // (lagringen svarar `attachment`), och den enda väg när rutan inte kan visa dokumentet. Utan `hamtaFil` finns ingen ruta, bara nedladdningen.
+  // ⛔ ETT HTML-DOKUMENT RITAS I EN AVSPÄRRAD RUTA (0.156.0, cllp/ops-framework#472), aldrig som en länk som öppnar sidan och aldrig i appens ursprung: se `OpsHtmlDokument`. Ladda ned under är
+  // den enda väg när rutan inte kan visa dokumentet. Utan `hamtaFil` finns ingen ruta, bara nedladdningen. (0.228.0, #765) Ladda ned är en knapp som sparar byten (`sparaSomFil`), inte lagringens länk.
   // ⛔ VERSIONSRADEN (0.158.0) ritas bara här, för ett HTML-dokument, och bara när appen ger `htmlVersioner`. Den kräver inte `hamtaFil`: utan den är dokumentet en nedladdning, men historiken går ändå att läsa.
   // ⛔ MED `oppnaHtml` (0.159.0, CP 2026-10-30: "de skulle gå att öppna direkt i ett fönster. Inte ladda ner så.") ÖPPNAR FILNAMNET HELFÖNSTERVYN i ett nytt fönster eller en ny flik, och nedladdningen är ett eget val bredvid ("Ladda ned").
-  // Förut var filnamnet själva nedladdningen. Utan `oppnaHtml` är raden oförändrad. Adressen under `Ladda ned` är fortfarande lagringens (`attachment`): den ritas aldrig, den laddas bara ned.
+  // Förut var filnamnet själva nedladdningen. Utan `oppnaHtml` är raden oförändrad. Sedan 0.228.0 (#765) bär `Ladda ned` ingen adress alls: den är en knapp som sparar byten.
   if ((typeof hamtaFil === "function" || versioner || htmlVy) && arHtmlMime(post.fil?.mime) && post.fil?.sokvag) {
     return (
       <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
         {typeof hamtaFil === "function" ? <OpsHtmlDokumentLat hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.fil.namn ?? namn} skapadAv={post.skapadAv} fonster={htmlVy || undefined} /> : null}
         {/* ⛔ MED RUTAN STÅR ÖPPNA I EGET FÖNSTER I DESS VERKTYGSRAD (0.192.0, #529), och filnamnet är bara text bredvid Ladda ned: två länkar till samma fönster hade varit två svar på samma fråga.
-            Utan rutan (ingen `hamtaFil`) är filnamnet länken som förut. */}
+            Utan rutan (ingen `hamtaFil`) var filnamnet förut lagringens nedladdningslänk. Sedan 0.228.0 (#765) är det text, och Ladda ned står bredvid (`LaddaNedLank`). */}
         {htmlVy && typeof hamtaFil === "function" ? (
-          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-            <span data-bibliotek-filnamn="" className="min-w-0 break-words text-etikett text-ink-secondary">{rad}</span>
-            <LaddaNedLank adress={adress} namn={post.fil.namn ?? namn} />
-          </div>
+          <FilMedLaddaNed adress={adress} namn={post.fil.namn ?? namn} hamta={hamtaFil} sokvag={post.fil.sokvag}>
+            <Filnamn>{rad}</Filnamn>
+          </FilMedLaddaNed>
         ) : htmlVy ? (
           <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
             <a href={htmlVy} target="_blank" rel="noopener noreferrer" data-bibliotek-oppna-html="" className="inline-flex min-h-11 min-w-0 max-w-full items-center gap-1.5 text-etikett text-accent underline underline-offset-2 md:min-h-8">
@@ -2555,23 +2557,28 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
               <ExternalLink size={14} aria-hidden="true" className="shrink-0" />
               <span className="sr-only">{HTML_OPPNAS_I_FONSTER}</span>
             </a>
-            <LaddaNedLank adress={adress} namn={post.fil.namn ?? namn} />
+            <LaddaNedLank adress={adress} namn={post.fil.namn ?? namn} hamta={hamtaFil} sokvag={post.fil.sokvag} />
           </div>
         ) : (
-          <Filnamnslank adress={adress} download={post.fil.namn}>{rad}</Filnamnslank>
+          <FilMedLaddaNed adress={adress} namn={post.fil.namn ?? namn} hamta={hamtaFil} sokvag={post.fil.sokvag}>
+            <Filnamn>{rad}</Filnamn>
+          </FilMedLaddaNed>
         )}
         {versioner ? <BibliotekHtmlVersionerLat key={post.id} post={post} {...versioner} /> : null}
       </div>
     );
   }
-  // ⛔ EN GEOJSON-FIL VISAS SOM KARTA (0.224.0, cllp/lifehub.app#765 skiva 1), när appen ger `hamtaFil`: samma väg som textfilen nedan, och länken står kvar under som
-  // utvägen. Utan `hamtaFil` är den en fil med länk som förut. Se `KartaForhandsvisning`.
-  if (typeof hamtaFil === "function" && normaliseraMime(post.fil?.mime) === "application/geo+json" && post.fil?.sokvag) {
+  // ⛔ EN GEOJSON-FIL VISAS SOM KARTA (0.224.0, cllp/lifehub.app#765 skiva 1), när appen ger `hamtaFil`: samma väg som textfilen nedan, med Ladda ned under som utvägen.
+  // ⛔ VAD SOM ÄR EN KARTA AVGÖR `arKartfil` (0.228.0, CP 2026-11-14: "Bara json från firebase storage."). Förut bara exakt `application/geo+json`, så en `.geojson` som sades vara `application/json`
+  // och en `.json` med GeoJSON i fick filnamnet som länk till lagringen. Nu räcker ändelsen, och för en `.json` läser `KartaForhandsvisning` innehållet: GeoJSON ritas som karta, annan JSON som text.
+  // Utan `hamtaFil` är den en fil med Ladda ned.
+  const kartfil = arKartfil(post);
+  if (typeof hamtaFil === "function" && kartfil !== false && post.fil?.sokvag) {
     return (
       <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
-        <KartaForhandsvisning hamta={hamtaFil} sokvag={post.fil.sokvag} />
+        <KartaForhandsvisning hamta={hamtaFil} sokvag={post.fil.sokvag} post={post} namn={post.rubrik ?? namn} />
         <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
-          <Filnamnslank adress={adress}>{rad}</Filnamnslank>
+          <Filnamn>{rad}</Filnamn>
         </FilMedLaddaNed>
       </div>
     );
@@ -2584,7 +2591,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
       <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
         <TextForhandsvisning hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} markdown={textMime === "text/markdown"} />
         <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
-          <Filnamnslank adress={adress}>{rad}</Filnamnslank>
+          <Filnamn>{rad}</Filnamn>
         </FilMedLaddaNed>
       </div>
     );
@@ -2592,7 +2599,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
   return (
     <div data-bibliotek-fil="">
       <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
-        <Filnamnslank adress={adress}>{rad}</Filnamnslank>
+        <Filnamn>{rad}</Filnamn>
       </FilMedLaddaNed>
     </div>
   );
@@ -3149,7 +3156,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
               }
               // ⛔ EN .MD ÄR MARKDOWN OAVSETT VAD WEBBLÄSAREN SÄGER (0.209.0, #706): text/markdown, text/x-markdown eller ingenting. Bara när en ny post skapas blir den en anteckning; att byta fil på en filpost är som förut.
               const md = Boolean(skapar) && arMarkdownFilnamn(vald.name);
-              const fel = filInmatningsfel({ namn: vald.name, mime: md ? "text/markdown" : vald.type || mimeUrFilnamn(vald.name), byte: vald.size });
+              const fel = filInmatningsfel({ namn: vald.name, mime: md ? "text/markdown" : mimeForFil(vald.name, vald.type), byte: vald.size });
               setMdFil(null);
               senasteMd.current = md ? vald : null;
               if (fel) {

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { avkodaTextfil, filadressFel } from "../lib/bibliotek.js";
+import { arKartfil, avkodaTextfil, filadressFel } from "../lib/bibliotek.js";
 import { ordet } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { blobBytes } from "../lib/blobbytes.js";
 import { OpsKarta } from "./OpsKarta.jsx";
+import { TextForhandsvisning } from "./TextForhandsvisning.jsx";
 
 /**
  * En GeoJSON-fil i Biblioteket visas som karta i detaljen (0.224.0, cllp/lifehub.app#765 skiva 1).
@@ -21,12 +22,21 @@ import { OpsKarta } from "./OpsKarta.jsx";
  * långsam. Över taket står det att kartan är för stor att visa här, och länken under laddar ned den. Tomhet och trasig JSON säger `OpsKarta`
  * själv, med sina egna ord, så att kartvyn säger samma sak var den än visas.
  *
- * @param {{ hamta: (sokvag: string) => Promise<Blob>, sokvag: string }} props
+ * ⛔ EN `.json` AVGÖRS AV SITT INNEHÅLL (0.228.0, CP 2026-11-14: "Jag kan inte se att jag får upp en karta. Bara json från firebase storage."). För en post som `arKartfil` inte kan avgöra utan
+ * innehållet (`application/json` utan ändelsen `.geojson`) läses filen här, inom `KARTA_BYTE`, och frågan ställs igen med texten. GeoJSON ritas som karta. Annan JSON, och en `.json` över taket,
+ * visas som text (`TextForhandsvisning`, med byten som redan hämtats), aldrig som en länk. En fil som redan är en karta (`geo+json`, `.geojson`) och ligger över taket säger som förut att den är för stor.
+ *
+ * @param {{ hamta: (sokvag: string) => Promise<Blob>, sokvag: string, post?: { fil?: { namn?: unknown, mime?: unknown } }, namn?: string }} props
+ *   `post` är posten filen hör till. Utan den räknas filen som en karta, som i 0.224.0. `namn` står i textrutans etikett när en `.json` visas som text.
  */
-export function KartaForhandsvisning({ hamta, sokvag }) {
+export function KartaForhandsvisning({ hamta, sokvag, post, namn = "" }) {
   const sprak = useOpsSprak();
   const o = (/** @type {keyof typeof ORD_BIBLIOTEKKARTA} */ k) => ordet(ORD_BIBLIOTEKKARTA, k, sprak);
-  const [lage, setLage] = useState(/** @type {{ lage: "hamtar" } | { lage: "klar", text: string } | { lage: "stor" } | { lage: "fel", fel: string }} */ ({ lage: "hamtar" }));
+  const [lage, setLage] = useState(/** @type {{ lage: "hamtar" } | { lage: "klar", text: string } | { lage: "text", blob: Blob } | { lage: "stor" } | { lage: "fel", fel: string }} */ ({ lage: "hamtar" }));
+  // Svaret före innehållet: `true` (en karta) eller `null` (innehållet avgör). Utan `post` en karta, som förut.
+  const kanske = post ? arKartfil(post) : true;
+  const postRef = useRef(post);
+  postRef.current = post;
   // ⛔ FUNKTIONEN I EN REF, SÖKVÄGEN SOM BEROENDE, som i `TextForhandsvisning`: en ny `hamta` vid varje rendering ska inte hämta filen igen.
   const hamtaRef = useRef(hamta);
   hamtaRef.current = hamta;
@@ -36,12 +46,16 @@ export function KartaForhandsvisning({ hamta, sokvag }) {
     Promise.resolve()
       .then(() => hamtaRef.current(sokvag))
       .then(async (blob) => {
+        const provas = postRef.current ? arKartfil(postRef.current) === null : false;
         if (blob.size > KARTA_BYTE) {
-          if (kvar) setLage({ lage: "stor" });
+          // ⛔ EN `.json` ÖVER TAKET LÄSES INTE FÖR ATT AVGÖRA OM DEN ÄR EN KARTA: den visas som text, med sin början.
+          if (kvar) setLage(provas ? { lage: "text", blob } : { lage: "stor" });
           return;
         }
-        const bytes = new Uint8Array(await blobBytes(blob));
-        if (kvar) setLage({ lage: "klar", text: avkodaTextfil(bytes, false) });
+        const text = avkodaTextfil(new Uint8Array(await blobBytes(blob)), false);
+        if (!kvar) return;
+        if (provas && !arKartfil(postRef.current, text)) setLage({ lage: "text", blob });
+        else setLage({ lage: "klar", text });
       })
       .catch((e) => {
         if (kvar) setLage({ lage: "fel", fel: filadressFel(e) });
@@ -49,8 +63,10 @@ export function KartaForhandsvisning({ hamta, sokvag }) {
     return () => {
       kvar = false;
     };
-  }, [sokvag]);
-  if (lage.lage === "hamtar") return <p role="status" data-bibliotek-karta="hamtar" className="m-0 text-etikett text-ink-muted">{o("hamtar")}</p>;
+  }, [sokvag, kanske]);
+  if (lage.lage === "text") return <TextForhandsvisning hamta={() => Promise.resolve(lage.blob)} sokvag={sokvag} namn={namn} />;
+  // En `.json` som kanske inte är en karta säger inte "Hämtar kartan.".
+  if (lage.lage === "hamtar") return <p role="status" data-bibliotek-karta="hamtar" className="m-0 text-etikett text-ink-muted">{o(kanske === null ? "hamtarFil" : "hamtar")}</p>;
   if (lage.lage === "stor") return <p role="status" data-bibliotek-karta="stor" className="m-0 text-etikett text-ink-muted">{o("stor")}</p>;
   if (lage.lage === "fel") {
     return (
@@ -71,6 +87,7 @@ export const KARTA_BYTE = 10 * 1024 * 1024;
 
 const ORD_BIBLIOTEKKARTA = {
   hamtar: { sv: "Hämtar kartan.", en: "Fetching the map." },
+  hamtarFil: { sv: "Hämtar filen.", en: "Fetching the file." },
   fel: { sv: "Kartan gick inte att hämta.", en: "The map could not be fetched." },
   stor: { sv: "Kartan är för stor att visa här. Ladda ned filen för att öppna den.", en: "The map is too large to show here. Download the file to open it." },
 };

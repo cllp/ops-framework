@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
 
 /** QA på lifehub.app 2026-11-01: txt-filen ux-upload-test hade bara en länk i detaljen, ingen Ladda ned. */
@@ -17,12 +17,13 @@ function Harness({ start }) {
 
 describe("Ladda ned i detaljen för varje filtyp", () => {
   for (const [id, namn, mime] of [["txt", "ux-upload-test.txt", "text/plain"], ["film", "rep.mp4", "video/mp4"], ["zip", "arkiv.zip", "application/zip"]]) {
-    it(`⛔ ${namn} får Ladda ned med download`, () => {
+    // ⛔ (0.228.0, cllp/lifehub.app#765) Ladda ned var en länk med lagringens adress. Nu är den en knapp, och ingen länk i detaljen bär adressen.
+    it(`⛔ ${namn} får Ladda ned, som knapp och utan lagringens adress`, () => {
       render(<Harness start={[post(id, `Post ${id}`, { namn, mime })]} />);
       fireEvent.click(screen.getByRole("button", { name: `Post ${id}` }));
-      const knapp = screen.getByRole("link", { name: "Ladda ned" });
-      expect(knapp).toHaveAttribute("download", namn);
-      expect(knapp).toHaveAttribute("href", `https://exempel.se/grupper/g/bibliotek/${id}/${namn}`);
+      expect(screen.getByRole("button", { name: "Ladda ned" })).toBeTruthy();
+      expect(screen.queryByRole("link", { name: "Ladda ned" })).toBeNull();
+      for (const el of document.querySelectorAll("[href]")) expect(el.getAttribute("href")).not.toContain(`exempel.se/grupper/g/bibliotek/${id}`);
     });
   }
   // (0.193.0, cllp/ops-framework#530) En PDF ritas i appens egen vy, och Ladda ned står i dess rad som en knapp som sparar byten vyn redan har: lagringens adress ska inte stå i någon länk.
@@ -52,12 +53,33 @@ describe("Ladda ned sparar via blob (QA 2026-11-01, download ignoreras cross-ori
     const ok = await sparaSomFil({ hamta: async () => { throw new Error("cors"); }, sokvag: "s", namn: "a.txt", adress: "https://x", oppna: (a) => oppnade.push(a) });
     expect(ok).toBe(false); expect(oppnade).toEqual(["https://x"]);
   });
-  it("⛔ klick på Ladda ned i detaljen förhindrar flik när hamtaFil finns", () => {
-    render(<Harness start={[post("txt", "Post txt", { namn: "u.txt", mime: "text/plain" })]} />);
+  // ⛔ (0.228.0, #765) Knappen har ingen adress att följa, så ingen flik kan öppnas: klicket hämtar byten med appens hamtaFil.
+  it("⛔ klick på Ladda ned i detaljen hämtar filen med hamtaFil och öppnar ingen flik", async () => {
+    const hamtade = [];
+    function HamtaHarness() {
+      const [vald, setVald] = useState(null);
+      const p = post("txt", "Post txt", { namn: "u.txt", mime: "text/plain" });
+      return (
+        <OpsBibliotek poster={[p]} jag={{ uid: "uid-1", roll: "medlem" }} vald={vald} skapar={null}
+          onOppna={setVald} onStang={() => setVald(null)} onSkapa={() => {}} onSpara={() => {}}
+          filUrl={(q) => `https://exempel.se/${q.fil.sokvag}`} hamtaFil={async (s) => { hamtade.push(s); return new Blob(["hej"], { type: "text/plain" }); }} hubHref="/hub" />
+      );
+    }
+    render(<HamtaHarness />);
     fireEvent.click(screen.getByRole("button", { name: "Post txt" }));
-    const knapp = screen.getByRole("link", { name: "Ladda ned" });
-    const ev = new MouseEvent("click", { bubbles: true, cancelable: true });
-    knapp.dispatchEvent(ev);
-    expect(ev.defaultPrevented).toBe(true);
+    await waitFor(() => expect(hamtade.length).toBeGreaterThan(0));
+    const fore = hamtade.length;
+    const oppnade = [];
+    const spy = vi.spyOn(window, "open").mockImplementation((a) => { oppnade.push(a); return null; });
+    const skapa = URL.createObjectURL; const aterkalla = URL.revokeObjectURL;
+    URL.createObjectURL = () => "blob:x"; URL.revokeObjectURL = () => {};
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Ladda ned" }));
+      await waitFor(() => expect(hamtade.length).toBe(fore + 1));
+      expect(hamtade.at(-1)).toBe("grupper/g/bibliotek/txt/u.txt");
+      expect(oppnade).toEqual([]);
+    } finally {
+      spy.mockRestore(); URL.createObjectURL = skapa; URL.revokeObjectURL = aterkalla;
+    }
   });
 });

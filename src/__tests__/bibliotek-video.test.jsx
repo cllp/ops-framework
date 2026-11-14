@@ -232,8 +232,9 @@ describe("OpsBibliotek: video i listan och i detaljen", () => {
     // Bara metadata hämtas innan någon trycker spela: filen kan vara 100 MB.
     expect(video.getAttribute("preload")).toBe("metadata");
     expect(video.getAttribute("aria-label")).toBe("Replokal");
-    // Utvägen när webbläsaren inte kan avkoda filen.
-    expect(screen.getByRole("link", { name: /rep\.mp4/ })).toHaveAttribute("href", "https://exempel.se/grupper/cps-ab/bibliotek/film/rep.mp4");
+    // Utvägen när webbläsaren inte kan avkoda filen. (0.228.0, cllp/lifehub.app#765) Ladda ned är en knapp, och filnamnet är ingen länk till lagringen.
+    expect(screen.queryByRole("link", { name: /rep\.mp4/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Ladda ned" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));
     const hamta = vi.spyOn(globalThis, "fetch").mockResolvedValue(/** @type {any} */ ({ ok: false, status: 404, blob: async () => new Blob() }));
     fireEvent.click(screen.getByRole("button", { name: "Avtal" }));
