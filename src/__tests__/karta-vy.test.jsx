@@ -180,6 +180,46 @@ describe("utan WebGL", () => {
   });
 });
 
+describe("en yta utan mått", () => {
+  // ⛔ CLLP/LIFEHUB.APP#765, CP 2026-11-14: rutan hade höjd, men ytan MapLibre ritar i hade 0 px (MapLibres CSS gav den `position: relative`,
+  // så `absolute inset-0` slutade gälla). MapLibre ritade ingenting och sade ingenting. jsdom mäter ingen CSS, så måtten sätts här för hand:
+  // rutan 384 px hög, ytan 0. Höjden i en riktig webbläsare mäts i `check-skalyta`.
+  it("en platt yta i en hög ruta säger det med en felrad, och tystnar inte", async () => {
+    const hojd = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
+    const bredd = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get() { return this.hasAttribute("data-karta") ? 384 : 0; } });
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get() { return this.hasAttribute("data-karta") || this.hasAttribute("data-karta-yta") ? 544 : 0; } });
+    try {
+      const { OpsKarta } = await import("../components/OpsKarta.jsx");
+      render(<OpsKarta data={exempelkarta} />);
+      const fel = await screen.findByRole("alert");
+      expect(fel.textContent).toBe("Kartan gick inte att rita här. Ladda om sidan och försök igen.");
+      expect(document.querySelector("[data-karta-fel=ytfel]")).toBeTruthy();
+    } finally {
+      if (hojd) Object.defineProperty(HTMLElement.prototype, "clientHeight", hojd);
+      if (bredd) Object.defineProperty(HTMLElement.prototype, "clientWidth", bredd);
+    }
+  });
+
+  it("en yta med samma mått som rutan ger ingen felrad", async () => {
+    const hojd = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get() { return this.hasAttribute("data-karta") || this.hasAttribute("data-karta-yta") ? 384 : 0; } });
+    const bredd = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get() { return this.hasAttribute("data-karta") || this.hasAttribute("data-karta-yta") ? 544 : 0; } });
+    try {
+      const { OpsKarta } = await import("../components/OpsKarta.jsx");
+      render(<OpsKarta data={exempelkarta} />);
+      await screen.findByRole("region", { name: "Karta" });
+      await waitFor(() => expect(globalThis.__opsKartor.at(-1)?.passning).toBeTruthy());
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(document.querySelector("[data-karta]").getAttribute("data-karta-fel")).toBeNull();
+    } finally {
+      if (hojd) Object.defineProperty(HTMLElement.prototype, "clientHeight", hojd);
+      if (bredd) Object.defineProperty(HTMLElement.prototype, "clientWidth", bredd);
+    }
+  });
+});
+
 describe("tomt och trasigt är svar", () => {
   it("en tom samling säger det, och en trasig fil säger att den inte går att läsa", async () => {
     const { OpsKarta } = await import("../components/OpsKarta.jsx");

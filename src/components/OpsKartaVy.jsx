@@ -19,6 +19,7 @@ if (!getWorkerUrl()) setWorkerUrl(new URL("maplibre-gl/dist/maplibre-gl-worker.m
  */
 export function OpsKartaVy({ samling, texter }) {
   const ruta = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const ram = useRef(/** @type {HTMLDivElement | null} */ (null));
   const karta = useRef(/** @type {any} */ (null));
   const senast = useRef({ samling, texter });
   senast.current = { samling, texter };
@@ -80,8 +81,20 @@ export function OpsKartaVy({ samling, texter }) {
       const meddelande = String(e?.error?.message || "");
       if (kvar && /webgl|initialize/i.test(meddelande)) setFel("lasfel");
     });
-    const observator = new ResizeObserver(() => kartaNu.resize());
+    // ⛔ YTAN MÄTS, OCH EN YTA UTAN MÅTT ÄR ETT FEL SOM SYNS (cllp/lifehub.app#765, CP 2026-11-14: kartan var en svart ruta, utan ett enda fel i konsolen).
+    // Rutan har höjd, men ytan MapLibre ritar i hade 0 px. MapLibre ritar då ingenting och säger ingenting. Är rutan hög och ytan platt är det ett
+    // layoutfel och inte ett nätfel, så det får sin egen rad (`ytfel`) och inte "kontrollera nätet".
+    const matYtan = () => {
+      const yttre = ram.current;
+      if (!kvar || !yttre || yttre.clientHeight === 0 || yttre.clientWidth === 0) return;
+      if (el.clientHeight === 0 || el.clientWidth === 0) setFel((f) => f || "ytfel");
+    };
+    const observator = new ResizeObserver(() => {
+      kartaNu.resize();
+      matYtan();
+    });
     observator.observe(el);
+    matYtan();
     return () => {
       kvar = false;
       observator.disconnect();
@@ -124,10 +137,14 @@ export function OpsKartaVy({ samling, texter }) {
   // någonstans definierade, och den inre ytan är `absolute inset-0`. Rutan blev 0 px hög, och MapLibre ritade i en yta som inte syntes. jsdom mäter ingen CSS, så inget prov såg det:
   // `check-skalyta` mäter höjden (avsnittet om kartan i Bibliotekets detalj). Storleken följer Bibliotekets andra förhandsvisningar: full bredd, `rounded-lg`, `bg-sunken`,
   // och samma tak som textrutan och videon (`max-h-96`, 384 px) från 768 px (`md:h-96`), lägre på telefon (`h-72`, 288 px) så att Ladda ned syns under. `relative` ger den inre ytan och felraden något att stå i.
+  // ⛔ DEN INRE YTAN ÄR `h-full w-full`, ALDRIG `absolute inset-0` (0.229.1, cllp/lifehub.app#765, CP 2026-11-14: "helt mörk"). MapLibre sätter klassen `maplibregl-map` på ytan,
+  // och `maplibre-gl.css` ger den `position: relative`. Den regeln ligger utanför alla lager och vinner därför över Tailwinds `absolute` (som ligger i `@layer utilities`),
+  // var den än står i filen. `inset-0` utan `absolute` ger ingen höjd: ytan blev 0 px i en ruta på 384, och MapLibre ritade ingenting. Höjden ärvs nu av rutans
+  // egen höjd, som MapLibres CSS inte rör. `check-skalyta` bäddar in `maplibre-gl.css` som appen gör och mäter ytan mot rutan.
   return (
-    <div className="relative h-72 w-full min-w-0 overflow-hidden rounded-lg bg-sunken md:h-96" role="region" aria-label={texter.rubrik} data-karta="" data-karta-fel={fel || undefined}>
-      <div ref={ruta} className="absolute inset-0" />
-      {fel === "lasfel" ? <p role="alert" className="absolute inset-x-0 bottom-0 m-0 bg-karta-papper px-3 py-2 text-etikett text-karta-text">{texter.lasfel}</p> : null}
+    <div ref={ram} className="relative h-72 w-full min-w-0 overflow-hidden rounded-lg bg-sunken md:h-96" role="region" aria-label={texter.rubrik} data-karta="" data-karta-fel={fel || undefined}>
+      <div ref={ruta} className="h-full w-full" data-karta-yta="" />
+      {fel === "lasfel" || fel === "ytfel" ? <p role="alert" className="absolute inset-x-0 bottom-0 m-0 bg-karta-papper px-3 py-2 text-etikett text-karta-text">{texter[fel]}</p> : null}
     </div>
   );
 }
