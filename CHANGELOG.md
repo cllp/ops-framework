@@ -11,8 +11,6 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.228.0
 
-⛔ **Versionen hoppar över 0.227.0**, som ligger i den omergade PR 594. Denna gren utgår från 0.226.0.
-
 ### Ändrat
 
 - ⛔ **En karta också när filen inte sades vara `application/geo+json`** (cllp/lifehub.app#765). CP
