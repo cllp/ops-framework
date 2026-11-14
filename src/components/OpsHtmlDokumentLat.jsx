@@ -2,6 +2,7 @@ import { Suspense, lazy } from "react";
 import { LatGrans } from "./LatGrans.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { ordet } from "../lib/ord.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Rutan för ett HTML-dokument i Bibliotekets detalj, inläst när den behövs (0.192.0, cllp/ops-framework#529).
@@ -31,7 +32,7 @@ export function OpsHtmlDokumentLat(props) {
   const sprak = useOpsSprak();
   return (
     <LatGrans fel={<p role="alert" data-html-dokument-lasfel="" className="m-0 text-etikett text-danger wrap-anywhere">{ordet(ORD_HTMLDOKUMENT_LAT, "lasfel", sprak)}</p>}>
-      <Suspense fallback={<p role="status" data-html-dokument-lage="hamtar" className="m-0 text-etikett text-ink-muted">{ordet(ORD_HTMLDOKUMENT_LAT, "hamtar", sprak)}</p>}>
+      <Suspense fallback={<div data-html-dokument-lage="hamtar" className="m-0 text-etikett text-ink-muted"><OpsVantar text={ordet(ORD_HTMLDOKUMENT_LAT, "hamtar", sprak)} /></div>}>
         <Ruta {...props} />
       </Suspense>
     </LatGrans>

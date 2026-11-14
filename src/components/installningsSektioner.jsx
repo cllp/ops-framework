@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { tillaggFor } from "../lib/tillagg.js";
 import { text } from "../lib/sprak.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Sektionerna som påslagna moduler bidrar med i appens inställningar (0.140.0, platsen `installningar.sektion`).
@@ -46,7 +47,7 @@ export function installningsSektioner({ moduler, grupp, sprak = "sv", extra = {}
       id: `${t.modulId}.${t.id}`,
       rubrik: text(t.etikett, sprak),
       innehall: (
-        <Suspense fallback={<p role="status" className="m-0 text-hjalp text-ink-muted">{sprak === "en" ? "Loading" : "Läser"}</p>}>
+        <Suspense fallback={<div className="m-0 text-hjalp text-ink-muted"><OpsVantar text={sprak === "en" ? "Loading" : "Läser"} /></div>}>
           <Komponent {...extra} grupp={grupp} />
         </Suspense>
       ),

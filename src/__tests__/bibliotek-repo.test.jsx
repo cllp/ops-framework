@@ -174,7 +174,7 @@ describe("trädet", () => {
     fallUt(container);
     await waitFor(() => expect(container.querySelector('[data-bibliotek-repo-lage="hamtar"]')).not.toBeNull());
     const v = /** @type {HTMLElement} */ (container.querySelector('[data-bibliotek-repo-lage="hamtar"]'));
-    expect(v.getAttribute("aria-busy")).toBe("true");
+    expect(v.querySelector('[role="status"]')?.getAttribute("aria-busy")).toBe("true");
     expect(v.textContent).toContain("Hämtar mappen från GitHub.");
   });
 

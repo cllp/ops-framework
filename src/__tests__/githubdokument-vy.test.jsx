@@ -57,7 +57,7 @@ describe("med githubLasare", () => {
     const post = lank(urlFor("README.md"));
     const { container } = visa(post, lasare);
     const vantar = container.querySelector('[data-github-dokument="hamtar"]');
-    expect(vantar?.getAttribute("aria-busy")).toBe("true");
+    expect(vantar?.querySelector('[role="status"]')?.getAttribute("aria-busy")).toBe("true");
     expect(vantar?.textContent).toContain("Hämtar filen från GitHub.");
     await waitFor(() => expect(lasare).toHaveBeenCalledTimes(1));
     expect(/** @type {any} */ (lasare.mock.calls[0])[0].url).toBe(post.url);

@@ -2,6 +2,7 @@ import { Suspense, lazy, useState } from "react";
 import { LatGrans } from "./LatGrans.jsx";
 import { OpsField, OpsTextarea } from "./OpsField.jsx";
 import { ordet } from "../lib/ord.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Anteckningens textruta med "Lägg till bild", inläst när den behövs (0.207.0, cllp/lifehub.app#696).
@@ -125,7 +126,7 @@ function Reservruta({ text, setText, sprak, fel = false }) {
       }}
     >
       {fel ? <p role="alert" data-anteckningsbild="lasfel" className="m-0 text-etikett text-danger wrap-anywhere">{ordet(ORD_ANTECKNINGSRUTA, "lasfel", sprak)}</p> : null}
-      {klistrad && !fel ? <p role="status" data-anteckningsbild="hamtar" className="m-0 text-meta text-ink-secondary">{ordet(ORD_ANTECKNINGSRUTA, "hamtar", sprak)}</p> : null}
+      {klistrad && !fel ? <div data-anteckningsbild="hamtar" className="m-0 text-meta text-ink-secondary"><OpsVantar storlek="sm" text={ordet(ORD_ANTECKNINGSRUTA, "hamtar", sprak)} /></div> : null}
     </AnteckningsRuta>
   );
 }

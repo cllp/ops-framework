@@ -86,12 +86,13 @@ describe("OpsEmpty när den hämtar", () => {
     const { container } = render(<OpsEmpty title="Inga kostnader" busy />);
     expect(screen.getByRole("status")).toHaveTextContent("Hämtar");
     expect(screen.queryByText("Inga kostnader")).toBeNull();
-    expect(container.querySelector("svg")).not.toBeNull();
+    expect(container.querySelector("[data-ops-vantar-rad]")).not.toBeNull();
   });
 
   it("visar ingen snurra när listan bara är tom", () => {
     const { container } = render(<OpsEmpty title="Inga kostnader" description="Lägg till den första." />);
     expect(container.querySelector("svg")).toBeNull();
+    expect(container.querySelector("[data-ops-vantar-rad]")).toBeNull();
   });
 });
 

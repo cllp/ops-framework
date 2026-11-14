@@ -4,6 +4,7 @@ import { ordet } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { blobBytes } from "../lib/blobbytes.js";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Textfilens innehåll i detaljen (0.153.0, ops-framework#460 punkt 3, lifehub.app QA-fynd 5).
@@ -54,7 +55,7 @@ export function TextForhandsvisning({ hamta, sokvag, namn, markdown = false }) {
       kvar = false;
     };
   }, [sokvag]);
-  if (lage.lage === "hamtar") return <p role="status" data-bibliotek-text="hamtar" className="m-0 text-etikett text-ink-muted">{o("hamtar")}</p>;
+  if (lage.lage === "hamtar") return <div data-bibliotek-text="hamtar" className="m-0 text-etikett text-ink-muted"><OpsVantar text={o("hamtar")} /></div>;
   if (lage.lage === "fel") {
     return (
       <p role="alert" data-bibliotek-text="fel" className="m-0 text-etikett text-danger">

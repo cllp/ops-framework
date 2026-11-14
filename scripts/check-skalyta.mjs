@@ -46,6 +46,7 @@
  *       node scripts/check-skalyta.mjs --bara-textfalt   bara avsnitt 45, tal i ett vanligt textfält (0.104.0)
  *       node scripts/check-skalyta.mjs --bara-talkval    bara avsnitt 46, valen efter talet och förslagen i chatten (0.105.0)
  *       node scripts/check-skalyta.mjs --bara-sidled     bara avsnitt 63, chatten rullar aldrig i sidled vid 390 och 375 px (0.212.1, cllp/lifehub.app#734), i scripts/lib/skalyta734.mjs
+ *       node scripts/check-skalyta.mjs --bara-vantar     bara avsnitt 65, väntraden (OpsVantar) rör sig vid 390 px och står still men syns med reducerad rörelse (0.229.0), i scripts/lib/skalytaVantar.mjs
  *       node scripts/check-skalyta.mjs --bara-alternativ  bara avsnitt 64, fältet Nytt alternativ i omröstningskortet tar raden vid 390 och 375 px (cllp/lifehub.app#742), i scripts/lib/skalyta734.mjs
  *       node scripts/check-skalyta.mjs --bara-0106       bara avsnitt 47, chattepiken 0.106.0 (#386), i scripts/lib/skalyta0106.mjs
  *       node scripts/check-skalyta.mjs --bara-bandkontrast  bara avsnitt 49, bandets text mot underlaget över en vald ruta (0.120.0), ljust och mörkt
@@ -75,6 +76,7 @@ import { startaWebblasare } from "./lib/matVyport.mjs";
 import { kravPaMittknappen, matMittknappen } from "./lib/mittknappMatt.mjs";
 import { chattepiken0106, FALSKT_VV } from "./lib/skalyta0106.mjs";
 import { chattISidled, nyttAlternativFalt } from "./lib/skalyta734.mjs";
+import { vantraden } from "./lib/skalytaVantar.mjs";
 import { fokusKort } from "./lib/fokusKort.mjs";
 import { distUtanKommentarer } from "./lib/dist-text.mjs";
 
@@ -1074,6 +1076,14 @@ if (argv.includes("--bara-0106")) {
 // `--bara-sidled`: bara avsnitt 63, chatten i sidled (cllp/lifehub.app#734). Hela körningen kör det också. Delarna står i scripts/lib/skalyta734.mjs.
 if (argv.includes("--bara-sidled")) {
   await chattISidled(verktyg0106);
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-vantar`: bara avsnitt 65, väntraden rör sig (0.229.0). Hela körningen kör det också. Delarna står i scripts/lib/skalytaVantar.mjs.
+if (argv.includes("--bara-vantar")) {
+  await vantraden(verktyg0106);
   await browser.close();
   avsluta();
   process.exit(0);
@@ -9484,6 +9494,7 @@ await talkValOchForslag();
 await chattepiken0106(verktyg0106);
 await chattISidled(verktyg0106);
 await nyttAlternativFalt(verktyg0106);
+await vantraden(verktyg0106);
 await kalenderEtiketter();
 await kalenderBandkontrast();
 await kalenderPreliminar();

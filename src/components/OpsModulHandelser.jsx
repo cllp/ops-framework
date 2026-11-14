@@ -1,7 +1,7 @@
 import { useKallor } from "../data/useKallor.jsx";
 import { OpsEventList } from "./OpsEventList.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
-import { OpsSpinner } from "./OpsSpinner.jsx";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Händelseytan, fylld ur modulernas källor.
@@ -44,7 +44,7 @@ export function OpsModulHandelser({
      */
     return <OpsBanner tone="danger" title="Händelserna kunde inte hämtas">{fel.message}</OpsBanner>;
   }
-  if (laddar) return <OpsSpinner label={laddarText} />;
+  if (laddar) return <OpsVantar text={laddarText} />;
 
   return <OpsEventList events={/** @type {any} */ (rader)} ariaLabel={ariaLabel} empty={tomt && fyller.length === 0 ? utanModulText : tomText} />;
 }

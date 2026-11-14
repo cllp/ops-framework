@@ -762,6 +762,29 @@
     }
   }
 
+  /* ─── Väntraden (0.229.0, `OpsVantar`) ──────────────────────────────────
+   * CP 2026-11-14: "progressbars som rör sig överallt där vi behöver vänta".
+   * En tredjedel lång bit som löper över spåret från vänster till höger och
+   * börjar om. Obestämd: den säger ATT något pågår, aldrig hur långt det kommit.
+   *
+   * ⛔ I `@theme` av samma skäl som snurren ovan: bara härifrån genereras
+   * klassen `animate-vantar`. Den som bett om mindre rörelse får
+   * `motion-reduce:animate-none` på elementet, och biten står då still vid
+   * spårets början, synlig. Till skillnad från snurren behövs inget långsamt
+   * läge: en stillastående bit i ett spår ser ut som en stapel, inte som en
+   * trasig ikon.
+   * ──────────────────────────────────────────────────────────────────────── */
+  --animate-vantar: ops-vantar 1400ms var(--ease-standard) infinite;
+
+  @keyframes ops-vantar {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(300%);
+    }
+  }
+
   /* ─── Svep ───────────────────────────────────────────────────────────────
    * En bubbla som dyker upp gör det med ett kort svep, inte genom att bara
    * finnas där nästa bildruta.

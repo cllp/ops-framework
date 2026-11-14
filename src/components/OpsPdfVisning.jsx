@@ -11,6 +11,7 @@ import { ordet } from "../lib/ord.js";
 import { PDFJS_SAKNAS, laddaPdfjs, oppnaPdf, pdfFelsort } from "../lib/pdfjs.js";
 import { SIDNUMMER_MS, bytSida, klickSteg, skarmSkala, svepSteg, tangentIPresentation } from "../lib/pdfpresentation.js";
 import { sparaSomFil } from "../lib/sparaFil.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * En PDF i appens egen vy, med Presentera i helskärm sida för sida (0.193.0, cllp/ops-framework#530).
@@ -294,7 +295,7 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
         rad
       )}
       {lage.lage === "hamtar" ? (
-        <p role="status" data-pdf-lage="hamtar" className={cx("m-0 text-etikett text-ink-muted", helfonster && "px-4 py-4")}>{o("hamtar")}</p>
+        <div data-pdf-lage="hamtar" className={cx("m-0 text-etikett text-ink-muted", helfonster && "px-4 py-4")}><OpsVantar text={o("hamtar")} /></div>
       ) : lage.lage === "fel" ? (
         <div data-pdf-lage="fel" className={cx(helfonster && "px-4 py-4")}>
           <OpsGastFelrad data="pdf-fel" text={felText(lage, o)} forsokIgen={o("forsokIgen")} onForsokIgen={() => setForsok((n) => n + 1)} />

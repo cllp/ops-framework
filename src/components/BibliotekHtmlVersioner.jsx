@@ -7,6 +7,7 @@ import { arHtmlMime, filInmatningsfel, mimeForFil } from "../lib/bibliotek.js";
 import { ordet } from "../lib/ord.js";
 import { skaparensNamn } from "../lib/skapare.js";
 import { formatDateTime } from "../lib/format.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Versionsraden för ett HTML-dokument i Bibliotekets detalj (0.158.0, cllp/ops-framework, uppföljning av #472).
@@ -193,7 +194,7 @@ export function BibliotekHtmlVersioner({ post, kanAndra, lista, hamtaVersion, at
         }
       >
         <div className="flex min-w-0 flex-col gap-3">
-          {lage === "hamtar" && !data ? <p role="status" data-html-versioner-lage="hamtar" className="m-0 text-etikett text-ink-muted">{o("hamtar")}</p> : null}
+          {lage === "hamtar" && !data ? <div data-html-versioner-lage="hamtar" className="m-0 text-etikett text-ink-muted"><OpsVantar text={o("hamtar")} /></div> : null}
           {lage === "fel" ? (
             <div role="alert" data-html-versioner-lage="fel" className="flex min-w-0 flex-col items-start gap-2">
               <p className="m-0 text-etikett text-danger wrap-anywhere">{`${o("listfel")} ${listfel}`}</p>
@@ -276,7 +277,7 @@ export function BibliotekHtmlVersioner({ post, kanAndra, lista, hamtaVersion, at
                   {o("stang")}
                 </OpsButton>
               </div>
-              {visad.lage === "hamtar" ? <p role="status" data-html-versioner-lage="oppnar" className="m-0 text-etikett text-ink-muted">{o("hamtarVersion", { nr: visad.nr })}</p> : null}
+              {visad.lage === "hamtar" ? <div data-html-versioner-lage="oppnar" className="m-0 text-etikett text-ink-muted"><OpsVantar storlek="sm" text={o("hamtarVersion", { nr: visad.nr })} /></div> : null}
               {visad.lage === "fel" ? <p role="alert" data-html-versioner-lage="oppnaFel" className="m-0 text-etikett text-danger wrap-anywhere">{`${o("oppnaFel", { nr: visad.nr })} ${visad.fel ?? ""}`}</p> : null}
               {visad.lage === "klar" && (visad.html ?? "").trim() === "" ? <p role="status" data-html-versioner-lage="tomVersion" className="m-0 text-etikett text-ink-muted">{o("tomVersion", { nr: visad.nr })}</p> : null}
               {visad.lage === "klar" && (visad.html ?? "").trim() !== "" ? (

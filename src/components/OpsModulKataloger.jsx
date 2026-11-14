@@ -4,8 +4,8 @@ import { Delrubrik, UnderDel, delrubrik, useInstallningspanel } from "./OpsInsta
 import { OpsKatalogInstallning } from "./OpsKatalogInstallning.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
-import { OpsSpinner } from "./OpsSpinner.jsx";
 import { text } from "../lib/sprak.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Modulernas egna kataloger i inställningsvyn.
@@ -78,7 +78,7 @@ export function OpsModulKataloger({ register, fraga, ikoner, onSpara, onArkivera
   if (fel) {
     return <OpsBanner tone="danger" title="Katalogerna kunde inte läsas">{fel.message}</OpsBanner>;
   }
-  if (laddar) return <OpsSpinner label="Hämtar kataloger" />;
+  if (laddar) return <OpsVantar text="Hämtar kataloger" />;
   if (rader.length === 0) return <OpsEmpty title={tomText} />;
 
   const modulNamn = register && typeof register.modulNamn === "function" ? register.modulNamn : () => null;

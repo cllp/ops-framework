@@ -3366,6 +3366,18 @@ function Scen() {
   if (s === "chattinfo") return <ChattinfoScen />;
   if (s === "chattsidled") return <ChattSidledScen />;
   if (s === "chattsidled-gast") return <ChattSidledGastScen />;
+  // Väntraden (0.229.0, avsnitt 65): en ensam `OpsVantar` i båda storlekarna, och en `OpsEmpty` som väntar.
+  if (s === "vantar") {
+    return (
+      <main className="flex flex-col gap-6 p-4">
+        <Ops.OpsVantar text="Läser nycklarna" />
+        <p className="m-0">
+          <Ops.OpsVantar storlek="sm" text="Hämtar" />
+        </p>
+        <Ops.OpsEmpty busy title="Inga rader" busyLabel="Hämtar raderna" />
+      </main>
+    );
+  }
   if (s === "installning-grupper") {
     return (
       <Skal>

@@ -38,6 +38,7 @@ import { useTangentbordTackt } from "../lib/tangentbord.js";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { LANGTRYCK_KLASS, useLangtryck } from "./useLangtryck.js";
 import { AgentIkon, AndraIkon, BockIkon, KopieraIkon, OmrostningIkon, ArkiveraIkon, TaFramIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Meddelanden: inkorgen med gruppchatten och de privata samtalen, och samtalet bredvid (0.34.0, #182, #185).
@@ -1704,7 +1705,7 @@ function AgentensSamtal({ kalla, uid, groupId, agent, agentnamn, marke, rader, t
               </p>
             ) : arkiv.rader === null ? (
               <p className="m-0 px-3 py-2 text-meta text-ink-muted">
-                <OpsSpinner size="sm" tone="muted" label="Hämtar" />
+                <OpsVantar storlek="sm" text="Hämtar" />
               </p>
             ) : arkiv.rader.length === 0 ? (
               <p data-arkiv-tomt="" className="m-0 px-3 py-2 text-meta text-ink-muted">

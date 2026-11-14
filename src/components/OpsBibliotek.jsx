@@ -71,6 +71,7 @@ import { ModulLageKnapp, OpsModulRam, kravRam } from "./OpsModulRam.jsx";
 import { OpsView } from "./OpsView.jsx";
 import { NyPlatsFormular, NyPlatsRad, ORD_BIBLIOTEKPLATSER, PlatsInstallningar, PlatsMeny } from "./BibliotekPlatser.jsx";
 import { PLATSER_UTAN_SOK } from "../lib/platser.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 
 /**
@@ -1358,7 +1359,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
             <Tabs.Root value={aktivFlik} onValueChange={(v) => setFlik(/** @type {Flik} */ (v))} className="flex min-w-0 flex-col gap-3">
             {inbaddad ? null : <Flikar flikar={synligaFlikar} antal={antal} />}
             {rostFel ? <p role="alert">{rostFel}</p> : null}
-            {laddarLjud ? <p role="status" data-bibliotek-laddar-ljud="">Laddar upp ljudfilen.</p> : null}
+            {laddarLjud ? <div data-bibliotek-laddar-ljud=""><OpsVantar storlek="sm" text="Laddar upp ljudfilen." /></div> : null}
             {trasiga.length > 0 ? (
               <div role="status" data-bibliotek-trasiga={trasiga.length} className="text-meta text-ink-muted">
                 <p>{trasiga.length === 1 ? "1 post kunde inte läsas och visas inte." : `${trasiga.length} poster kunde inte läsas och visas inte.`}</p>
@@ -2463,7 +2464,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
     );
   }
   if (lage.lage === "hamtar") {
-    return <p role="status" data-bibliotek-fil="">{o("hamtarFilen")}</p>;
+    return <div data-bibliotek-fil=""><OpsVantar text={o("hamtarFilen")} /></div>;
   }
   if (lage.lage !== "klar") {
     const text = lage.fel || (kopplad ? `${o("ingenAdress")} ${rad}` : rad);
@@ -3198,7 +3199,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
           <div className="min-w-0" onPaste={() => { klistrade.current = true; }} onBlur={() => void slaUpp(urlRef.current)}>
             <OpsInput value={url} onChange={setUrl} ariaLabel="Adress" placeholder="https://" tal={false} />
           </div>
-          {uppslag.lage === "hamtar" ? <p role="status" data-bibliotek-lankinfo="hamtar" className="m-0 text-meta text-ink-secondary">Hämtar titel och artist.</p> : null}
+          {uppslag.lage === "hamtar" ? <div data-bibliotek-lankinfo="hamtar" className="m-0 text-meta text-ink-secondary"><OpsVantar storlek="sm" text="Hämtar titel och artist." /></div> : null}
           {uppslag.lage === "fel" ? <p role="alert" data-bibliotek-lankinfo="fel" className="m-0 text-etikett text-danger wrap-anywhere">{uppslag.fel}</p> : null}
           {uppslag.lage === "notis" ? <p role="status" data-bibliotek-lankinfo="notis" className="m-0 text-meta text-ink-secondary">{uppslag.fel}</p> : null}
         </OpsField>
