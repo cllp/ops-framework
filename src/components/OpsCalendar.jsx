@@ -895,7 +895,7 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
     </button>
   );
   return (
-    <div ref={radRef} role="group" aria-label="Appar i kalendern" data-kalender-appar="" className="relative mb-2 flex shrink-0 items-center gap-1.5 overflow-hidden">
+    <div ref={radRef} role="group" aria-label="Verktyg i kalendern" data-kalender-appar="" className="relative mb-2 flex shrink-0 items-center gap-1.5 overflow-hidden">
       {/* Den osynliga kopian som mäts: alla appar, Fler i sin längsta form och Visa alla. Den tar ingen plats och läses inte upp. */}
       <div ref={matRef} aria-hidden="true" className="pointer-events-none invisible absolute top-0 left-0 flex gap-1.5">
         {appar.map((a) => (
@@ -917,7 +917,7 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
         <Popover.Root>
           <Popover.Trigger
             data-appar-fler=""
-            aria-label={doldaIResten > 0 ? `Fler appar, ${doldaIResten} dolda` : "Fler appar"}
+            aria-label={doldaIResten > 0 ? `Fler verktyg, ${doldaIResten} dolda` : "Fler verktyg"}
             className={appknappKlass(true)}
           >
             {/* ⛔ PRICKEN SÄGER ATT NÅGOT HÄR ÄR DOLT. Texten hålls lika lång i båda lägena, så att raden inte tappar en app
@@ -927,7 +927,7 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
             <ChevronNedIkon size={14} />
           </Popover.Trigger>
           <Popover.Portal>
-            <Popover.Content align="start" sideOffset={6} aria-label="Fler appar" className={cx("z-(--z-dropdown) max-h-[70vh] w-56 overflow-y-auto p-1", radBehallare())}>
+            <Popover.Content align="start" sideOffset={6} aria-label="Fler verktyg" className={cx("z-(--z-dropdown) max-h-[70vh] w-56 overflow-y-auto p-1", radBehallare())}>
               {harDolda ? (
                 <button type="button" data-appar-visa-alla="" onClick={onVisaAlla} className={radKlass({ accentFarg: true })}>
                   Visa alla

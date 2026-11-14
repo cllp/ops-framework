@@ -74,7 +74,7 @@ function kal(extra = {}) {
 describe("appraden i OpsCalendar", () => {
   it("visar en knapp per app, allt synligt från början", () => {
     kal();
-    const rad = screen.getByRole("group", { name: "Appar i kalendern" });
+    const rad = screen.getByRole("group", { name: "Verktyg i kalendern" });
     expect([...rad.querySelectorAll("[data-app]")].map((b) => [b.textContent, b.getAttribute("aria-pressed")])).toEqual([
       ["Gruppens egna", "true"],
       ["Ekonomi", "true"],
@@ -122,17 +122,17 @@ describe("appraden i OpsCalendar", () => {
 
   it("⛔ ingen rad med bara en app: det finns inget att välja mellan", () => {
     kal({ typer: [{ id: "mote", namn: "Möte" }], entries: [POSTER[0]] });
-    expect(screen.queryByRole("group", { name: "Appar i kalendern" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Verktyg i kalendern" })).toBeNull();
   });
 
   it("efter fyra fälls resten ihop under Fler, som säger hur många dolda den bär", async () => {
     const fler = ["a", "b", "c", "d", "e"].map((m) => ({ id: `${m}:x`, namn: "X", modulNamn: m.toUpperCase() }));
     kal({ typer: [...TYPER.slice(0, 1), ...fler], entries: [POSTER[0]] });
-    const rad = screen.getByRole("group", { name: "Appar i kalendern" });
+    const rad = screen.getByRole("group", { name: "Verktyg i kalendern" });
     expect(rad.querySelectorAll("[data-app]")).toHaveLength(APPRAD_SYNLIGA);
-    fireEvent.click(screen.getByRole("button", { name: "Fler appar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fler verktyg" }));
     fireEvent.click(await screen.findByRole("button", { name: "E" }));
-    expect(screen.getByRole("button", { name: "Fler appar, 1 dolda" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fler verktyg, 1 dolda" })).toBeInTheDocument();
   });
 });
 

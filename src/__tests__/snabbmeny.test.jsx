@@ -130,21 +130,29 @@ describe("OpsSnabbmeny", () => {
     await waitFor(() => expect(onOppen).toHaveBeenCalledWith(false));
   });
 
-  it("appar har en pil mot knappen", () => {
+  // ⛔ INGEN PIL (0.227.0). CP 2026-11-14, med en skärmbild av menyn ovanför fliken: "Fortfarande en liten ruta här i menyn?" Pilen
+  // pekade från en panel mot fliken, men sedan 12200f6 står ikonerna fritt på dimman utan panel, och den vridna rutan i bg-surface
+  // blev en lös vit ruta under kolumnen.
+  it("verktygsmenyn ritar ingen pil, bara ikonerna på dimman", () => {
     render(
       <>
-        <button type="button" data-ops-appar-knapp="">Appar</button>
+        <button type="button" data-ops-appar-knapp="">Verktyg</button>
         <OpsSnabbmeny
           oppen
           onOppen={vi.fn()}
           variant="appar"
-          etikett="Appar"
+          etikett="Verktyg"
           ankare="[data-ops-appar-knapp]"
           poster={[{ id: "bibliotek", etikett: "Bibliotek", ikon: "bibliotek", onValj: vi.fn() }]}
         />
       </>,
     );
-    expect(screen.getByRole("dialog", { name: "Appar" }).querySelector("[data-snabbmeny-pil]")).not.toBeNull();
+    const dialog = screen.getByRole("dialog", { name: "Verktyg" });
+    expect(dialog.querySelector("[data-snabbmeny-pil]")).toBeNull();
+    // Golv: kolumnen ritades, så tomheten ovan är inte en tom meny.
+    expect(dialog.querySelector('[data-snabbmeny="appar"]')).not.toBeNull();
+    // Ingen vriden ruta alls under kolumnen, oavsett vad den heter.
+    expect(dialog.querySelectorAll(".rotate-45")).toHaveLength(0);
     expect(screen.getByRole("button", { name: "Bibliotek" }).querySelector(".lucide-library")).not.toBeNull();
   });
 });
@@ -226,7 +234,7 @@ describe("skalet med snabbmenyer", () => {
     expect(screen.queryByRole("button", { name: "Skapa app" })).toBeNull();
     expect(document.querySelector("[data-ops-flytande-skapa]").getAttribute("aria-expanded")).toBe("true");
     fireEvent.click(document.querySelector("[data-ops-appar-knapp]"));
-    expect(await screen.findByRole("dialog", { name: "Appar" })).toBeTruthy();
+    expect(await screen.findByRole("dialog", { name: "Verktyg" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Bibliotek" })).toBeTruthy();
     expect(document.querySelector("[data-ops-flytande-skapa]")).toBeNull();
   });

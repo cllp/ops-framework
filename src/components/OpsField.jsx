@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { forvalda } from "../lib/ord.js";
 import { faltKlass } from "../lib/radKlass.js";
@@ -13,15 +13,40 @@ import { webblasarensIgenkanning } from "../lib/talk.js";
  * tal spelar i stället in, lämnar ljudet till appens `onTranscribe` och skriver in texten i fältet. Gäller tills en egen app finns.
  * Utan provider och utan igenkänning har fältet ingen mikrofon, som förut.
  */
-const TranskriberingKontext = createContext(/** @type {((blob: Blob) => Promise<string>) | null} */ (null));
+/**
+ * @typedef {object} Transkribering
+ * @property {((blob: Blob) => Promise<string>) | null} onTranscribe Appens utskrift av ljudet, eller `null`.
+ * @property {import("../lib/talk.js").Igenkanning | boolean | null} igenkanning (0.227.0) Appens igenkänning, samma som TALK:s, eller `null`.
+ */
+const TranskriberingKontext = createContext(/** @type {Transkribering | null} */ (null));
 
 /**
- * Ger alla textfält under sig en utskrift av ljud (#264). Läggs runt appen av den som har en server som skriver ut tal.
- * @param {{ onTranscribe: (blob: Blob) => Promise<string>, children?: import("react").ReactNode }} props
+ * Ger alla textfält under sig en utskrift av ljud (#264), och sedan 0.227.0 samma taligenkänning som TALK. Läggs runt appen.
+ *
+ * ⛔ `igenkanning` (0.227.0). CP 2026-11-14: textfältens mikrofon ska vara samma upplevelse som TALK. I mobilappens webbvy finns ingen
+ * `webkitSpeechRecognition`, så fälten spelade in och servern skrev ut efteråt, medan TALK fick telefonens egen igenkänning från appen.
+ * Ger appen samma `igenkanning` här som till TALK (ett `Igenkanning`-objekt, eller `true` för webbläsarens) får varje fält med förvalt
+ * tal den, med `onTranscribe` som reserv. Ett fält med uttryckligt `tal` ändras inte.
+ *
+ * @param {{ onTranscribe?: (blob: Blob) => Promise<string>, igenkanning?: import("../lib/talk.js").Igenkanning | boolean, children?: import("react").ReactNode }} props
  */
-export function OpsTranskriberingProvider({ onTranscribe, children }) {
-  if (typeof onTranscribe !== "function") throw new Error("OpsTranskriberingProvider: onTranscribe ska vara en funktion som ger texten.");
-  return <TranskriberingKontext.Provider value={onTranscribe}>{children}</TranskriberingKontext.Provider>;
+export function OpsTranskriberingProvider({ onTranscribe, igenkanning, children }) {
+  // Ett värde per par, så att fälten under inte ritas om bara för att appen ritades om.
+  const varde = useMemo(() => ({ onTranscribe: typeof onTranscribe === "function" ? onTranscribe : null, igenkanning: igenkanning || null }), [onTranscribe, igenkanning]);
+  if (onTranscribe !== undefined && typeof onTranscribe !== "function") throw new Error("OpsTranskriberingProvider: onTranscribe ska vara en funktion som ger texten.");
+  if (igenkanning !== undefined && typeof igenkanning !== "boolean") {
+    const g = /** @type {any} */ (igenkanning);
+    const saknas = !g || typeof g !== "object" || Array.isArray(g) ? null : ["starta", "stoppa", "kasta"].filter((k) => typeof g[k] !== "function");
+    if (saknas === null || saknas.length > 0) {
+      throw new Error(
+        `OpsTranskriberingProvider: igenkanning ska vara true, false eller en igenkänning med starta, stoppa och kasta (samma som TALK:s igenkanning), fick ${saknas === null ? (g === null ? "null" : Array.isArray(g) ? "en lista" : typeof g) : `ett objekt utan ${saknas.join(", ")}`}.`,
+      );
+    }
+  }
+  if (typeof onTranscribe !== "function" && !igenkanning) {
+    throw new Error("OpsTranskriberingProvider: onTranscribe eller igenkanning krävs. Utan någon av dem finns inget som kan göra text av det sagda.");
+  }
+  return <TranskriberingKontext.Provider value={varde}>{children}</TranskriberingKontext.Provider>;
 }
 
 /**
@@ -222,6 +247,8 @@ export function OpsInput({
  * @property {(blob: Blob) => Promise<string>} [onTranscribe] Appens utskrift av ljudet. Reserven: används bara när igenkänningen inte
  *   gav någon text, eller där webbläsaren saknar den.
  * @property {import("../lib/talk.js").Inspelare} [inspelare] Bara för prov. Förval: webbläsarens `MediaRecorder`.
+ * @property {boolean} [baraIgenkanning] (0.227.0) Sätts bara av ramverket (`talForval`), när fältet fått appens igenkänning ur
+ *   `OpsTranskriberingProvider`: på WebKit kör omgången då bara igenkänningen, som TALK. Inte en nyckel appen ger i `tal`.
  */
 
 /** Nycklarna `tal` får ha. Ett okänt namn är ett stavfel, och ett stavfel i `onTranscribe` hade tagit bort reserven tyst. */
@@ -247,11 +274,16 @@ const UTAN_TAL_SKAL = "Taltjänsten skriver ord, inte lösenord, adresser, tal e
  * TALTJÄNST, och fram till 0.105.0 var det därför av som förval. Ingenting skickas förrän personen trycker på ljudvågen och pratar,
  * och ingenting skrivs in förrän hen trycker Klar. En app som inte vill det ger `tal={false}` per fält.
  *
+ * ⛔ PROVIDERNS IGENKÄNNING FÖRST (0.227.0, CP 2026-11-14: samma upplevelse som TALK). Ger `OpsTranskriberingProvider` ett
+ * `Igenkanning`-objekt får fältet det, med providerns `onTranscribe` som reserv, och omgången kör bara igenkänningen på WebKit
+ * (`baraIgenkanning`), som TALK. Ger den `true` och webbläsaren har igenkänning får fältet webbläsarens, med samma reserv. Annars som förut.
+ * Uttryckligt `tal` (true, false eller ett objekt) läser aldrig providern.
+ *
  * @param {boolean | Textfaltstal | undefined} tal
  * @param {unknown} onChange
  * @param {boolean} skrivskyddat
  * @param {string} vem
- * @param {((blob: Blob) => Promise<string>) | null} [utskrift]
+ * @param {Transkribering | null} [utskrift]
  * @returns {Textfaltstal | null}
  */
 function talForval(tal, onChange, skrivskyddat, vem, utskrift = null) {
@@ -260,8 +292,11 @@ function talForval(tal, onChange, skrivskyddat, vem, utskrift = null) {
   // ⛔ #264: utan igenkänning men med appens utskrift (`OpsTranskriberingProvider`) spelar fältet in och servern skriver ut.
   if (tal === undefined) {
     if (typeof onChange !== "function" || skrivskyddat) return null;
-    if (webblasarensIgenkanning() !== null) return { igenkanning: true };
-    return utskrift ? { onTranscribe: utskrift } : null;
+    const reserv = utskrift?.onTranscribe ? { onTranscribe: utskrift.onTranscribe } : {};
+    const appens = utskrift?.igenkanning ?? null;
+    if (appens && typeof appens === "object") return { igenkanning: appens, baraIgenkanning: true, ...reserv };
+    if (webblasarensIgenkanning() !== null) return appens === true ? { igenkanning: true, ...reserv } : { igenkanning: true };
+    return utskrift?.onTranscribe ? { onTranscribe: utskrift.onTranscribe } : null;
   }
   if (tal !== true && (!tal || typeof tal !== "object" || Array.isArray(tal))) {
     // ⛔ VAD DET VAR, INTE `typeof` (0.104.0, granskningen av PR 384, KAN 8): `typeof null` är "object", och "fick object" om null
@@ -485,6 +520,7 @@ function TalFalt({ slag, f, value, onChange, placeholder, name, rows, disabled, 
     onTranscribe: tal.onTranscribe,
     inspelare: tal.inspelare,
     igenkanning: tal.igenkanning,
+    baraIgenkanning: tal.baraIgenkanning === true,
     texter: o,
     onTal: (sagt) => {
       const ut = slag === "input" ? sagt.replace(/\s*[\r\n]+\s*/g, " ").trim() : sagt;

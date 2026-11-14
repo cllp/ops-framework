@@ -191,7 +191,7 @@ describe("3. läsvägen klipper aldrig", () => {
     const forsta = render(<Skal antal={7} />);
     const ikonKlasser = NAMN.slice(0, HUVUDMENY_MAX).map(ikonKlass);
     fireEvent.click(within(screen.getByRole("banner")).getByRole("button", { name: /fler åtgärder/ }));
-    const huvudNav = screen.getByRole("navigation", { name: "Fler appar" });
+    const huvudNav = screen.getByRole("navigation", { name: "Fler verktyg" });
     const huvudKlasser = Object.fromEntries(within(huvudNav).getAllByRole("link").map((a) => [a.textContent, a.className]));
     forsta.unmount();
     render(<Skal antal={7} />);
@@ -220,7 +220,7 @@ describe("3. läsvägen klipper aldrig", () => {
   it("⛔ och i huvudets meny från md, som en egen navigering med namn: ikon 3 (dold under lg) först, med omvänd klass, sedan överskottet utan klass", () => {
     render(<Skal antal={7} />);
     fireEvent.click(within(screen.getByRole("banner")).getByRole("button", { name: /fler åtgärder/ }));
-    const nav = screen.getByRole("navigation", { name: "Fler appar" });
+    const nav = screen.getByRole("navigation", { name: "Fler verktyg" });
     const lankar = within(nav).getAllByRole("link");
     expect(lankar.map((a) => a.textContent)).toEqual(NAMN.slice(HUVUDMENY_MAX - 1));
     expect(lankar[0].className).toContain("lg:hidden");
@@ -240,7 +240,7 @@ describe("3. läsvägen klipper aldrig", () => {
     render(<Skal antal={HUVUDMENY_MAX} />);
     expect(iToppraden()).toEqual(NAMN.slice(0, HUVUDMENY_MAX));
     fireEvent.click(within(screen.getByRole("banner")).getByRole("button", { name: /fler åtgärder/ }));
-    const nav = screen.getByRole("navigation", { name: "Fler appar" });
+    const nav = screen.getByRole("navigation", { name: "Fler verktyg" });
     expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual([NAMN[HUVUDMENY_MAX - 1]]);
     expect(nav.className).toContain("lg:hidden");
   });

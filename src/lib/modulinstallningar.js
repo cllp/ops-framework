@@ -60,7 +60,7 @@ export const INSTALLNINGSTYPER = /** @type {const} */ (["boolean", "text"]);
  */
 export const ORD_VISA_I_HUVUDMENYN = {
   label: { sv: "Visa i huvudmenyn", en: "Show in the main menu" },
-  hint: { sv: "Appens ikon står i huvudet överst, på varje sida.", en: "The app's icon sits in the header, on every page." },
+  hint: { sv: "Verktygets ikon står i huvudet överst, på varje sida.", en: "The tool's icon sits in the header, on every page." },
 };
 
 /**

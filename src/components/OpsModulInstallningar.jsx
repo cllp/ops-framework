@@ -24,11 +24,11 @@ import { medKarna } from "../lib/karna.js";
 
 /** @type {import("../lib/ord.js").Ordbok} */
 export const ORD_OPSMODULINSTALLNINGAR = {
-  hamtar: { sv: "Hämtar appens inställningar.", en: "Loading the app settings." },
-  inga: { sv: "Gruppen har inga appar installerade.", en: "The group has no apps installed." },
+  hamtar: { sv: "Hämtar verktygets inställningar.", en: "Loading the tool settings." },
+  inga: { sv: "Gruppen har inga verktyg installerade.", en: "The group has no tools installed." },
   oppna: { sv: "Inställningar", en: "Settings" },
-  iAppen: { sv: "Inställningarna öppnas i appen.", en: "The settings open in the app." },
-  lista: { sv: "Installerade appar", en: "Installed apps" },
+  iAppen: { sv: "Inställningarna öppnas i verktyget.", en: "The settings open in the tool." },
+  lista: { sv: "Installerade verktyg", en: "Installed tools" },
 };
 
 /**

@@ -61,15 +61,15 @@ import { medKarna } from "../lib/karna.js";
 
 /** @type {import("../lib/ord.js").Ordbok} */
 export const ORD_OPSAPPARARK = {
-  titel: { sv: "Appar", en: "Apps" },
+  titel: { sv: "Verktyg", en: "Tools" },
   bytOrdning: { sv: "Byt ordning", en: "Reorder" },
   klar: { sv: "Klar", en: "Done" },
-  allaAppar: { sv: "Alla appar", en: "All apps" },
-  hamtar: { sv: "Hämtar apparna.", en: "Loading the apps." },
-  inga: { sv: "Gruppen har inga appar.", en: "The group has no apps." },
+  allaAppar: { sv: "Alla verktyg", en: "All tools" },
+  hamtar: { sv: "Hämtar verktygen.", en: "Loading the tools." },
+  inga: { sv: "Gruppen har inga verktyg.", en: "The group has no tools." },
   handtag: { sv: "Dra ned för att stänga", en: "Drag down to close" },
-  ordning: { sv: "Ordning på apparna", en: "App order" },
-  lista: { sv: "Installerade appar", en: "Installed apps" },
+  ordning: { sv: "Ordning på verktygen", en: "Tool order" },
+  lista: { sv: "Installerade verktyg", en: "Installed tools" },
   installningar: { sv: "Öppna inställningar", en: "Open settings" },
   flytta: { sv: "Använd piltangenterna för att flytta.", en: "Use the arrow keys to move." },
   vanster: { sv: "Flytta vänster", en: "Move left" },

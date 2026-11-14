@@ -75,9 +75,9 @@ describe("OpsModulInstallningar", () => {
 
     render(<OpsModulInstallningar moduler={[EKONOMI]} grupp={GRUPP} agare={false} />);
     expect(screen.queryByRole("switch")).toBeNull();
-    expect(screen.getByText("Inställningarna öppnas i appen.")).toBeTruthy();
+    expect(screen.getByText("Inställningarna öppnas i verktyget.")).toBeTruthy();
 
     render(<OpsModulInstallningar moduler={[EKONOMI]} grupp={{ moduler: [], huvudmeny: [] }} agare />);
-    expect(screen.getByText("Gruppen har inga appar installerade.")).toBeInTheDocument();
+    expect(screen.getByText("Gruppen har inga verktyg installerade.")).toBeInTheDocument();
   });
 });

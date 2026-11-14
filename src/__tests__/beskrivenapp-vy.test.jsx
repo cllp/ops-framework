@@ -430,7 +430,7 @@ describe("OpsBeskrivenApp: en beskrivning är text och inget annat", () => {
     const kalla = createBeskrivenAppKalla({ source: createMemorySource(), collection: "appdata", groupId: "cps-ab", beskrivning: utlaning(), skapare: skapare() });
     const dalig = { ...utlaning(), ikon: "bokhylla", listor: [{ id: "x", namn: "X", falt: [], rubrikfalt: "namn" }] };
     render(<OpsBeskrivenApp beskrivning={dalig} kalla={kalla} jag={MIG} medlemmar={MEDLEMMAR} />);
-    expect(screen.getByText("Appen går inte att visa.")).toBeInTheDocument();
+    expect(screen.getByText("Verktyget går inte att visa.")).toBeInTheDocument();
     expect(screen.getByText(/ikon: okänd ikon "bokhylla"/)).toBeInTheDocument();
     expect(screen.getByText(/listor\[0\]\.id: "x" är inget giltigt id/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Ny rad/ })).toBeNull();
@@ -567,7 +567,7 @@ describe("OpsBeskrivenApp: fältet id är upptaget", () => {
     besk.listor[1].falt.push({ id: "id", namn: "Löpnummer", typ: "tal" });
     const kalla = createBeskrivenAppKalla({ source: createMemorySource(), collection: "appdata", groupId: "cps-ab", beskrivning: utlaning(), skapare: skapare() });
     render(<OpsBeskrivenApp beskrivning={besk} kalla={kalla} jag={MIG} medlemmar={MEDLEMMAR} />);
-    expect(screen.getByText("Appen går inte att visa.")).toBeInTheDocument();
+    expect(screen.getByText("Verktyget går inte att visa.")).toBeInTheDocument();
     expect(screen.getByText(/listor\[1\]\.falt\[3\]\.id: "id" är upptaget, det är radens egen nyckel/)).toBeInTheDocument();
     expect(screen.queryByRole("table")).toBeNull();
   });

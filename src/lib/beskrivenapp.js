@@ -439,7 +439,7 @@ export function validateBeskrivning(b) {
   if (o.format === undefined) fel.push(`format: krävs. Skriv talet ${BESKRIVNINGSFORMAT}.`);
   else if (o.format !== BESKRIVNINGSFORMAT) fel.push(`format: måste vara talet ${BESKRIVNINGSFORMAT}, inte ${visa(o.format)}.`);
 
-  const id = idVarde(o.id, "id", fel, new Set(), "appen");
+  const id = idVarde(o.id, "id", fel, new Set(), "verktyget");
   const namn = textVarde(o.namn, "namn", fel, { min: 1, max: MAX_BESKRIVNINGSNAMN });
 
   /** @type {string | null} */
@@ -456,7 +456,7 @@ export function validateBeskrivning(b) {
 
   let text = null;
   if (o.beskrivning === undefined) {
-    fel.push('beskrivning: krävs. Skriv "" om appen inte behöver någon beskrivning.');
+    fel.push('beskrivning: krävs. Skriv "" om verktyget inte behöver någon beskrivning.');
   } else {
     text = textVarde(o.beskrivning, "beskrivning", fel, { min: 0, max: MAX_APPBESKRIVNING, radbrytning: true });
   }
@@ -577,7 +577,7 @@ export function validateRad(beskrivning, listaId, varden) {
   if (!b.ok) return { ok: false, fel: [`beskrivningen: är ogiltig. ${b.fel[0]}`], faltfel: {} };
   const lista = b.beskrivning.listor.find((l) => l.id === listaId);
   if (!lista) {
-    return { ok: false, fel: [`lista: ${visa(listaId)} finns inte i appen. Listor: ${b.beskrivning.listor.map((l) => l.id).join(", ")}.`], faltfel: {} };
+    return { ok: false, fel: [`lista: ${visa(listaId)} finns inte i verktyget. Listor: ${b.beskrivning.listor.map((l) => l.id).join(", ")}.`], faltfel: {} };
   }
   if (!arObjekt(varden)) {
     return { ok: false, fel: [`varden: måste vara ett objekt med fältens id som nycklar, inte ${typnamn(varden)}.`], faltfel: {} };

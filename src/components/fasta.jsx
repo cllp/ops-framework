@@ -29,7 +29,10 @@ export const FASTA_NAMN = /** @type {const} */ ({
   // ⛔ "Appar", INTE "Hub" (CP 2026-10-03): "Moduler som vi kallar det idag är egentligen appar som man installerar."
   // Ordet "hub" betydde dessutom två saker: instansen på identity ("Dina hubbar") och listan med moduler här inne.
   // Nyckeln `hub` står kvar: den är mekanik, och ett namnbyte i API:t är ett eget arbete i varje app.
-  hub: { sv: "Appar", en: "Apps" },
+  // ⛔ "Verktyg", INTE "Appar" (0.227.0, CP 2026-11-14: "Kör på Verktyg"). "App" betydde tre saker: LIFE HUB-appen i
+  // telefonen, appar i App Store, och Bibliotek, Projekt och Ekonomi i en grupp. Visionen säger redan "genom enkla verktyg",
+  // och meningen ska gå att säga: "En grupp behöver ett nytt verktyg, inte en ny plattform."
+  hub: { sv: "Verktyg", en: "Tools" },
 });
 
 /** Ordningen är ramverkets och går inte att ändra. */

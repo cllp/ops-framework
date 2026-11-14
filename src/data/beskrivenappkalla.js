@@ -115,10 +115,10 @@ export function createBeskrivenAppKalla(config) {
   function radFel(rad) {
     if (!arObjekt(rad)) return "Raden saknas.";
     const okanda = Object.keys(rad).filter((k) => k !== "id" && !(/** @type {readonly string[]} */ (BESKRIVENAPPDATAFALT)).includes(k));
-    if (okanda.length > 0) return `Fälten ${okanda.join(", ")} hör inte till en rad i en beskriven app.`;
+    if (okanda.length > 0) return `Fälten ${okanda.join(", ")} hör inte till en rad i ett beskrivet verktyg.`;
     if (rad.groupId !== groupId) return `Raden hör till gruppen "${sakna(rad.groupId)}" och inte till "${groupId}".`;
-    if (rad.appId !== appId) return `Raden hör till appen "${sakna(rad.appId)}" och inte till "${appId}".`;
-    if (!beskrivning.listor.some((l) => l.id === rad.lista)) return `Raden hör till listan "${sakna(rad.lista)}", som inte finns i appen. Listor: ${beskrivning.listor.map((l) => l.id).join(", ")}.`;
+    if (rad.appId !== appId) return `Raden hör till verktyget "${sakna(rad.appId)}" och inte till "${appId}".`;
+    if (!beskrivning.listor.some((l) => l.id === rad.lista)) return `Raden hör till listan "${sakna(rad.lista)}", som inte finns i verktyget. Listor: ${beskrivning.listor.map((l) => l.id).join(", ")}.`;
     if (!arObjekt(rad.varden)) return "Raden saknar sina värden.";
     if (!arObjekt(rad.skapadAv)) return "Raden saknar sin skapare.";
     if (!Number.isFinite(rad.skapad) || !Number.isFinite(rad.andrad)) return "Raden saknar sina tider.";
@@ -297,7 +297,7 @@ export function createBeskrivningskalla(config) {
     const r = validateBeskrivning(rad.beskrivning);
     if (!r.ok) return { id, fel: r.fel.join(" ") };
     if (id !== beskrivningsId(groupId, r.beskrivning.id)) {
-      return { id, fel: `Dokumentets id stämmer inte med appens id "${r.beskrivning.id}" i den här gruppen.` };
+      return { id, fel: `Dokumentets id stämmer inte med verktygets id "${r.beskrivning.id}" i den här gruppen.` };
     }
     if (!arObjekt(rad.skapadAv) || !Number.isFinite(rad.skapad) || !Number.isFinite(rad.andrad)) {
       return { id, fel: "Raden saknar skapare eller tider." };
@@ -361,12 +361,12 @@ export function createBeskrivningskalla(config) {
       const vem = skapare();
       const ny = byggBeskrivningsdokument({ groupId, beskrivning, skapadAv: vem, skapad: nu });
       if (ny.data.skapadAv.typ !== "manniska" || !ny.data.skapadAv.uid) {
-        throw new Error("Beskrivna appar: bara en inloggad person sparar en app härifrån. Agentens appar skrivs av servern.");
+        throw new Error("Beskrivna verktyg: bara en inloggad person sparar ett verktyg härifrån. Agentens verktyg skrivs av servern.");
       }
       const finns = await source.read(collection, ny.id);
       if (finns) {
         if (finns.groupId !== groupId) {
-          throw new Error(`Beskrivna appar: ${ny.id} hör till "${sakna(finns.groupId)}" och skrivs inte över i "${groupId}".`);
+          throw new Error(`Beskrivna verktyg: ${ny.id} hör till "${sakna(finns.groupId)}" och skrivs inte över i "${groupId}".`);
         }
         await source.update(collection, ny.id, { beskrivning: ny.data.beskrivning, andrad: ny.data.andrad });
         return { id: ny.data.beskrivning.id, beskrivning: ny.data.beskrivning, skapadAv: laesSkapare(finns.skapadAv), skapad: finns.skapad, andrad: ny.data.andrad };
@@ -382,9 +382,9 @@ export function createBeskrivningskalla(config) {
     async taBort(appId) {
       const id = beskrivningsId(groupId, sakna(appId));
       const finns = await source.read(collection, id);
-      if (!finns) throw new Error(`Beskrivna appar: appen "${sakna(appId)}" finns inte i gruppen.`);
+      if (!finns) throw new Error(`Beskrivna verktyg: verktyget "${sakna(appId)}" finns inte i gruppen.`);
       if (finns.groupId !== groupId) {
-        throw new Error(`Beskrivna appar: ${id} hör till "${sakna(finns.groupId)}" och tas inte bort i "${groupId}".`);
+        throw new Error(`Beskrivna verktyg: ${id} hör till "${sakna(finns.groupId)}" och tas inte bort i "${groupId}".`);
       }
       await source.remove(collection, id);
     },

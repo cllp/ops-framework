@@ -85,7 +85,7 @@ export const VYIKON_KLASS = "inline-flex shrink-0 text-accent [&>svg]:size-[18px
  * @param {string} props.hubHref Hubbens `href`: länkens mål när `steg` är tom.
  * @param {string} props.etikett Den nuvarande sidans namn. Rubriken när `rubrik` är sant.
  * @param {ReadonlyArray<{ href: string, label: string }>} [props.steg] Mellanliggande sidor mellan Hub och den nuvarande. Länken leder till den sista.
- * @param {string} [props.hubEtikett] Förval "Appar" (0.50.0; tidigare "Hub"). Ingår i skärmläsarnamnet när länken leder till Hub.
+ * @param {string} [props.hubEtikett] Förval "Verktyg" (0.227.0; "Appar" sedan 0.50.0, tidigare "Hub"). Ingår i skärmläsarnamnet när länken leder till Hub.
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {string} [props.brodsmulaEtikett] Skärmläsarnamn på raden. Förval "Var du är".
  * @param {string} [props.tillbakaEtikett] Ordet på länken. Förval "Tillbaka".
@@ -95,7 +95,7 @@ export const VYIKON_KLASS = "inline-flex shrink-0 text-accent [&>svg]:size-[18px
  * @param {import("react").ReactNode} [props.atgard] (0.89.0) Något till höger om rubriken, på samma rad. Kugghjulet i modulramen. Utan rubrik och utan åtgärd ritas ingenting när modulen är fäst.
  * @param {import("react").ReactNode} [props.ikon] (0.102.0) Modulens ikon före namnet, i accent, som i Meddelanden.
  */
-export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Appar", onNavigate, brodsmulaEtikett = "Var du är", tillbakaEtikett = "Tillbaka", tillbakaTillEtikett = "Tillbaka till", rubrik = false, modul, atgard = null, ikon = null }) {
+export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Verktyg", onNavigate, brodsmulaEtikett = "Var du är", tillbakaEtikett = "Tillbaka", tillbakaTillEtikett = "Tillbaka till", rubrik = false, modul, atgard = null, ikon = null }) {
   const fast = useIHuvudmenyn(modul);
   if (typeof hubHref !== "string" || hubHref === "") {
     throw new Error("OpsHubTillbaka: hubHref krävs. Tillbaka-raden är ett steg upp till Hub, och en rad som inte vet vart den leder är en knapp som inte gör något.");

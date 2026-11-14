@@ -48,9 +48,14 @@ import { LjudvagIkon } from "./icons.jsx";
  * ⛔ IGENKÄNNINGEN ÄR APPENS VAL (granskningen av PR 358, MÅSTE 3). Den är av som förval och slås på med `igenkanning`, som i TALK,
  * eftersom webbläsaren skickar talet till Google eller Apple.
  *
- * @param {{ onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, igenkanning?: import("../lib/talk.js").Igenkanning | boolean, texter: Rosttexter, onTal: (text: string) => void | Promise<void> }} p
+ * ⛔ BARA IGENKÄNNINGEN, SOM TALK (0.227.0). `baraIgenkanning` ges vidare till `useTalk`: på WebKit kör omgången då bara igenkänningen och
+ * ingen inspelare, också utan TALK:s val. Det är så telefonens egen igenkänning i mobilappen lyssnar i ett textfält (CP 2026-11-14: samma
+ * upplevelse som TALK). Faller den, eller hördes inget, står felet med "Spela in i stället" (`kanSpelaIStallet`), som spelar in och
+ * lämnar ljudet till `onTranscribe` enligt steg 3.
+ *
+ * @param {{ onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, igenkanning?: import("../lib/talk.js").Igenkanning | boolean, baraIgenkanning?: boolean, texter: Rosttexter, onTal: (text: string) => void | Promise<void> }} p
  */
-export function useRostinmatning({ onTranscribe, inspelare, igenkanning, texter: t, onTal }) {
+export function useRostinmatning({ onTranscribe, inspelare, igenkanning, baraIgenkanning = false, texter: t, onTal }) {
   /** Det som stod i ytan senast medan inspelningen pågick, eller tom när igenkänningen föll. Steg 2 ovan. */
   const visat = useRef("");
   /** Texten som ska lämnas, när den väl är bestämd. Försök igen efter ett `onTal` som föll skriver då inte ut ljudet en gång till. */
@@ -70,6 +75,7 @@ export function useRostinmatning({ onTranscribe, inspelare, igenkanning, texter:
   const talk = useTalk({
     inspelare,
     igenkanning,
+    baraIgenkanning,
     onKlick: () => {},
     onTalk: async (blob, meta) => {
       let ut = bestamd.current;
@@ -131,6 +137,12 @@ export function useRostinmatning({ onTranscribe, inspelare, igenkanning, texter:
     },
     klar: () => talk.skickaIn(),
     igen: () => talk.igen(),
+    /** (0.227.0) Igenkänningen föll i en omgång med bara den: "Spela in i stället" står i ytan. */
+    kanSpelaIStallet: talk.kanSpelaIStallet,
+    spelaIStallet: () => {
+      nollstall();
+      talk.spelaIStallet();
+    },
     avbryt: () => {
       nollstall();
       talk.avbryt();
@@ -216,6 +228,8 @@ export function Rostyta({ rost, klarEtikett, ytaRef, ram, namn }) {
           onKlar={rost.klar}
           onAvbryt={rost.avbryt}
           onIgen={rost.igen}
+          kanSpelaIStallet={rost.kanSpelaIStallet}
+          onSpelaIStallet={rost.spelaIStallet}
           onTillatMikrofon={rost.starta}
         />
       </div>

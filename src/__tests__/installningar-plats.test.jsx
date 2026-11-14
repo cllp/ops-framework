@@ -101,13 +101,13 @@ describe("manifestets plats valideras vid uppstart", () => {
   });
 });
 
-describe("OpsGruppHubb: Bokning erbjuds under Appar som kan läggas till", () => {
+describe("OpsGruppHubb: Bokning erbjuds under Verktyg som kan läggas till", () => {
   const alla = () => validateModuler([MODUL("bokning", [SEKTION()]), MODUL("stum", [])]);
 
   it("⛔ erbjuds med Installera och 'Syns på: Inställningar', och knappen installerar just den", () => {
     const klick = vi.fn();
     render(<OpsGruppHubb grupp={G([])} moduler={alla()} installera={{ onInstallera: klick }} />);
-    const lista = screen.getByRole("list", { name: "Appar som kan läggas till" });
+    const lista = screen.getByRole("list", { name: "Verktyg som kan läggas till" });
     expect(within(lista).getByText("Bokning")).toBeTruthy();
     expect(within(lista).getByText("Bokning · Syns på: Inställningar")).toBeTruthy();
     // Kontroll åt andra hållet: en modul utan kort och utan tillägg erbjuds fortfarande inte.
@@ -118,7 +118,7 @@ describe("OpsGruppHubb: Bokning erbjuds under Appar som kan läggas till", () =>
 
   it("på engelska med engelska ord", () => {
     render(<OpsGruppHubb grupp={G([])} moduler={alla()} installera={{ onInstallera: () => {} }} sprak="en" />);
-    const lista = screen.getByRole("list", { name: "Apps that can be added" });
+    const lista = screen.getByRole("list", { name: "Tools that can be added" });
     expect(within(lista).getByText("Booking · Visible in: Settings")).toBeTruthy();
   });
 
