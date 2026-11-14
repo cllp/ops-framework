@@ -3105,6 +3105,8 @@ function OpsAppShellRitad({
         {grupper && !iOversikt ? (
           <div className="hidden shrink-0 lg:sticky lg:z-(--z-sticky-header) lg:top-[calc(var(--safe-top)+var(--topbar-height))] lg:block lg:h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px)] lg:pl-4 lg:pt-5">
             <OpsGruppanel
+              // ⛔ 0.227.0: med `grupper.hem` går huset till gruppens start, och från `lg` är panelen växlaren: raden Översikt står då här.
+              {...(gruppHem && grupper.oversikt ? { oversikt: { onValj: grupper.oversikt.onValj, etikett: oversiktEtikett } } : {})}
               grupper={grupper.lista}
               aktiv={grupper.aktiv}
               onValj={grupper.onValj}

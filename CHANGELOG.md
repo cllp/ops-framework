@@ -51,6 +51,9 @@ anteckningar är en version ingen kan välja att hoppa över.
   "Gruppens start" / "Group home" (`TEXT_SKAL.gruppensStart`), och växlaren har raden Översikt igen. Appen
   utelämnar `hem` när personen redan står på gruppens start. I översiktsläget är huset Översikten som
   förut. Utelämnad är allt som förut. Fel form kastar.
+  - **Också på dator.** Från `lg` är `OpsGruppanel` växlaren, och med `hem` står raden Översikt först i
+    panelen (ny valfri `OpsGruppanel oversikt: { onValj, etikett? }`, samma ord, hus och `onValj`, infälld
+    en ruta i remsan). Utan raden hade en dator saknat vägen till Översikten. Utan `hem` är panelen som förut.
 
 ### Prov
 
@@ -67,6 +70,8 @@ anteckningar är en version ingen kan välja att hoppa över.
   Översikt står i växlaren, namnet på svenska, engelska och appens eget, och fel form kastar. Fyra röda
   mot 0.226.0, gröna med ändringen. Två vakter gröna i båda: utan `hem` är allt som förut, och i
   översiktsläget är huset Översikten också när `hem` ges.
+  Två prov till för panelen: raden står först i panelen med `hem` och saknas utan, och infälld är den en
+  ruta och fel form på `oversikt` kastar. Båda röda mot grenens förra version (2434e26), gröna med raden.
 - `snabbmeny.test.jsx`: "appar har en pil mot knappen" är omskrivet till att verktygsmenyn inte ritar
   någon pil och ingen vriden ruta, med golvet att kolumnen ritades. Rött mot 0.226.0, grönt med ändringen.
 - Sjutton provfiler läser de nya orden i stället för de gamla (bland annat `hubb`, `apparark`,

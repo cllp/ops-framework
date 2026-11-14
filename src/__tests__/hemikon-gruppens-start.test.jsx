@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsIconLink } from "../components/OpsIconLink.jsx";
+import { OpsGruppanel } from "../components/OpsGruppanel.jsx";
 
 /**
  * ⛔ HUSET GÅR TILL GRUPPENS START (0.227.0). CP 2026-11-14: "Kör på hemknappen. Jag tänker att gruppens Hem är viktig att ha också,
@@ -95,6 +96,36 @@ describe("hemikonen med grupper.hem (0.227.0)", () => {
     fireEvent.click(hus);
     expect(onOversikt).toHaveBeenCalledTimes(1);
     expect(onHem).not.toHaveBeenCalled();
+  });
+
+  it("⛔ på dator (gruppanelen, från lg) står raden Översikt först i panelen med hem, och inte utan (CP: vägen går genom växlaren)", () => {
+    const onOversikt = vi.fn();
+    const panel = () => /** @type {HTMLElement} */ (screen.getByRole("navigation", { name: "Mina grupper" }));
+    render(<Skal hem={{ onValj: () => {} }} oversikt={{ aktiv: false, onValj: onOversikt }} />);
+    const rad = within(panel()).getByRole("button", { name: "Översikt" });
+    // Först i panelen: före varje grupprad (chevronen överst är panelens egen kontroll).
+    const forstaGrupp = within(panel()).getByRole("button", { name: /Bolaget/ });
+    expect(rad.compareDocumentPosition(forstaGrupp) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(rad.querySelector('svg[class*="lucide-house"], svg[class*="lucide-home"]')).not.toBeNull();
+    fireEvent.click(rad);
+    expect(onOversikt).toHaveBeenCalledTimes(1);
+    cleanup();
+    render(<Skal oversikt={{ aktiv: false, onValj: onOversikt }} />);
+    expect(within(panel()).queryByRole("button", { name: "Översikt" })).toBeNull();
+    expect(panel().querySelector("[data-oversikt]")).toBeNull();
+  });
+
+  it("panelen infälld har raden som en ruta, och fel form på oversikt kastar", () => {
+    const onOversikt = vi.fn();
+    render(<OpsGruppanel grupper={lista} aktiv="g2" onValj={() => {}} infalld oversikt={{ onValj: onOversikt }} />);
+    const ruta = screen.getByRole("button", { name: "Översikt" });
+    expect(ruta.getAttribute("title")).toBe("Översikt");
+    fireEvent.click(ruta);
+    expect(onOversikt).toHaveBeenCalledTimes(1);
+    cleanup();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => render(<OpsGruppanel grupper={lista} aktiv="g2" onValj={() => {}} oversikt={/** @type {any} */ ({})} />)).toThrow(/oversikt ska vara \{ onValj, etikett\? \}/);
+    vi.restoreAllMocks();
   });
 
   it("fel form på hem kastar med ett svenskt fel", () => {
