@@ -115,7 +115,11 @@ describe("textfältens mikrofon med appens igenkänning (0.227.0)", () => {
     fireEvent.click(/** @type {HTMLElement} */ (mikrofon()));
     await waitFor(() => expect(g.starta).toHaveBeenCalledTimes(1));
     fireEvent.click(within(/** @type {HTMLElement} */ (yta())).getByRole("button", { name: "Klar, skriv in det du sagt" }));
-    const reserv = await waitFor(() => /** @type {HTMLElement} */ (yta()?.querySelector("[data-talk-reserv]")));
+    const reserv = await waitFor(() => {
+      const knapp = yta()?.querySelector("[data-talk-reserv]");
+      expect(knapp).toBeTruthy();
+      return /** @type {HTMLElement} */ (knapp);
+    });
     expect(yta()?.getAttribute("data-rostlage")).toBe("fel");
     fireEvent.click(reserv);
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1));

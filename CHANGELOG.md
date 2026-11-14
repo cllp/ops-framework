@@ -54,7 +54,23 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ### Prov
 
-PROVRADER
+- `verktyg-ord.test.jsx` (nytt): läser det användaren ser och hör (text, `aria-label`, `title`) i hubben
+  (tom grupp, grupp med kort och moduler som inte ritas, engelska), bottenraden och toppraden med
+  verktygsarket öppet, och tillbakaraden, med ett golv (minst tre texter och ordet Verktyg/Tools ska finnas).
+  Alla sex röda mot 0.226.0, gröna med ändringen.
+- `falt-appens-igenkanning.test.jsx` (nytt), med appens igenkänning fejkad som telefonens på iOS och en
+  iPhone som webbvy: fältet skriver in det sagda utan inspelning och utan servern (1), Spela in i stället
+  när inget hördes (1b), och providerns svenska fel. De tre röda mot 0.226.0, gröna med ändringen. Två är
+  vakter för det som inte ska ändras och gröna i båda: utan `igenkanning` spelar fältet in som förut (2),
+  och `tal={false}` ger ingen mikrofon (3).
+- `hemikon-gruppens-start.test.jsx` (nytt): huset anropar `hem.onValj` och inte `oversikt.onValj`, raden
+  Översikt står i växlaren, namnet på svenska, engelska och appens eget, och fel form kastar. Fyra röda
+  mot 0.226.0, gröna med ändringen. Två vakter gröna i båda: utan `hem` är allt som förut, och i
+  översiktsläget är huset Översikten också när `hem` ges.
+- `snabbmeny.test.jsx`: "appar har en pil mot knappen" är omskrivet till att verktygsmenyn inte ritar
+  någon pil och ingen vriden ruta, med golvet att kolumnen ritades. Rött mot 0.226.0, grönt med ändringen.
+- Sjutton provfiler läser de nya orden i stället för de gamla (bland annat `hubb`, `apparark`,
+  `appfilter`, `skal030`, `skal031`, `modulram`, `hjalp`, `beskrivenapp`).
 
 ## 0.226.0
 

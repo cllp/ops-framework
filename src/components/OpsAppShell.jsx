@@ -3367,6 +3367,8 @@ export const TEXT_SKAL = {
   flerAtgarder: { sv: "fler åtgärder", en: "more actions" },
   huvudmenyOverskott: { sv: "Fler verktyg", en: "More tools" },
   hubbNu: { sv: "nu", en: "current" },
+  // (0.227.0) Hemikonens namn när den går till gruppens start (`grupper.hem`).
+  gruppensStart: { sv: "Gruppens start", en: "Group home" },
 };
 
 export const ORD_OPSAPPSHELL = {
@@ -3389,8 +3391,6 @@ export const ORD_OPSAPPSHELL = {
   felRubrik: { sv: "Något gick fel", en: "Something went wrong" },
   felBeskrivning: { sv: "Sidan gick sönder. Ladda om för att försöka igen.", en: "The page broke. Reload to try again." },
   laddaOmEtikett: { sv: "Ladda om", en: "Reload" },
-  // (0.227.0) Hemikonens namn när den går till gruppens start (`grupper.hem`).
-  gruppensStart: { sv: "Gruppens start", en: "Group home" },
 };
 
 /**
