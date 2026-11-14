@@ -86,6 +86,7 @@ export const ORD_OPSKARTA = {
   rubrik: { sv: "Karta", en: "Map" },
   hamtar: { sv: "Hämtar kartan.", en: "Loading the map." },
   lasfel: { sv: "Kartan gick inte att hämta. Kontrollera nätet och försök igen.", en: "The map could not be loaded. Check the network and try again." },
+  ytfel: { sv: "Kartan gick inte att rita här. Ladda om sidan och försök igen.", en: "The map could not be drawn here. Reload the page and try again." },
   forsokIgen: { sv: "Försök igen", en: "Try again" },
   tom: { sv: "Kartan har inget att visa.", en: "The map has nothing to show." },
   ogiltig: { sv: "Kartfilen går inte att läsa.", en: "The map file could not be read." },

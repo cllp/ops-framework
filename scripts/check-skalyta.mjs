@@ -167,7 +167,12 @@ const fontData = fs.readFileSync(path.join(rot, "fonts", "glacial-indifference",
 const jakartaData = fs.readFileSync(path.join(rot, "scripts", "lib", "typsnitt", "plus-jakarta-sans", "plus-jakarta-sans-latin-wght.woff2")).toString("base64");
 const jakartaFace = `@font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:200 800;font-display:block;src:url(data:font/woff2;base64,${jakartaData}) format('woff2');}`;
 const cssMedMarke = cssRatt.replace(/url\(["']?[^)"']*glacial-indifference-400\.woff2["']?\)/g, `url(data:font/woff2;base64,${fontData})`);
-const css = cssMedMarke + "\n" + jakartaFace;
+// ⛔ MAPLIBRES EGEN CSS BÄDDAS IN, SOM I APPEN (0.229.1, cllp/lifehub.app#765). esbuild läser kartvyns CSS-import som tom (ovan), och då mätte avsnitt 52b
+// kartans yta UTAN regeln som gjorde den 0 px i appen: `maplibre-gl.css` ger `.maplibregl-map` `position: relative` utanför alla lager, och den vinner över
+// Tailwinds `absolute`. Vakten var grön genom felet. Filen läggs sist och utan lager, precis som Vite lägger kartvyns CSS-bit i appen. Saknas den är det ett fel.
+const maplibreCss = path.join(rot, "node_modules", "maplibre-gl", "dist", "maplibre-gl.css");
+if (!fs.existsSync(maplibreCss)) throw new Error(`check-skalyta: ${maplibreCss} saknas. Kartans yta hade mätts utan MapLibres egen CSS.`);
+const css = cssMedMarke + "\n" + jakartaFace + "\n" + fs.readFileSync(maplibreCss, "utf8");
 if (cssMedMarke === cssRatt && tokI < 0) throw new Error("check-skalyta: @font-face för Glacial Indifference hittades inte i den byggda CSS:en. Märket hade mätts i reservtypsnittet.");
 
 // ⛔ APPEN STARTAR FÖRST NÄR TYPSNITTEN ÄR LADDADE (#448). Både data-URL-filerna ovan laddas asynkront, och en komponent som MÄTER sin

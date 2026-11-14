@@ -9,6 +9,22 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.229.1
+
+### Rättat
+
+- ⛔ **Kartan i Bibliotekets detalj var en mörk ruta utan karta** (cllp/lifehub.app#765, CP 2026-11-14 i My v1.0.1257 på Mac i Chrome,
+  "Provkarta: Gamla stan"). Rutan hade fått höjd i 0.228.0, men ytan MapLibre ritar i var fortfarande 0 px hög. MapLibre sätter
+  klassen `maplibregl-map` på ytan, och `maplibre-gl.css` ger den `position: relative` utanför alla lager. Den regeln vinner över
+  Tailwinds `absolute` (som ligger i `@layer utilities`), så `absolute inset-0` blev `relative` med `inset-0`, alltså ingen höjd.
+  Inga plattor, ingen geometri och ingen tillskrivning syntes, och konsolen var tom. Mätt i en Vite-byggd sida med ramverkets
+  `OpsKarta`: ytan 544x0 i en ruta på 544x384 före, 544x384 efter, med geometri och tillskrivning ritade.
+  - `OpsKartaVy`: ytan är `h-full w-full` och ärver rutans höjd, som MapLibres CSS inte rör.
+  - Ny felrad `ytfel` ("Kartan gick inte att rita här. Ladda om sidan och försök igen."): är rutan hög och ytan platt säger kartan
+    det, i stället för att tyst rita ingenting (regel 5). Ordet står i `ORD_OPSKARTA`.
+  - `check-skalyta` bäddar in `maplibre-gl.css` som appen gör. Utan den var avsnitt 52b grönt genom felet: esbuild läser kartvyns
+    CSS-import som tom, så ytan mättes utan regeln som gjorde den platt. Rött utan rättelsen (ytan 348x0 och 761x0), grönt med.
+
 ## 0.229.0
 
 ### Brytande
