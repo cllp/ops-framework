@@ -140,8 +140,22 @@ export function createFirestoreSource(config) {
       return snap.exists() ? toEntry(snap) : null;
     },
 
+    /**
+     * ⛔ `franServern` (0.229.2, cllp/lifehub.app#840): ETT SVAR UR CACHEN ÄR INTE ETT SVAR FRÅN SERVERN.
+     *
+     * Offline ger `getDocs` det som råkar ligga i minnescachen, ofta ingenting, och inget fel. CP 2026-11-14 fick "Du är inte med i
+     * någon grupp än" när LifeHub vaknade efter vila: medlemskapen lästes ur en tom cache, och tomheten såg ut som ett svar. Med flaggan
+     * avvisas ett svar där `metadata.fromCache` är sant med `unavailable`, Firestores egen kod för "servern gick inte att nå", så att
+     * anroparen kan skilja "inga rader" från "kunde inte fråga".
+     *
+     * ⛔ FÖRVALET ÄR OFÖRÄNDRAT. Utan flaggan ges cachens svar som förut: en vy som hellre visar något än inget ska få göra det.
+     * Flaggan är för den läsning vars tomhet BETYDER något, som "har personen någon grupp".
+     */
     async list(collectionName, query) {
       const snap = await getDocs(build(collectionName, query));
+      if (query?.franServern && snap.metadata?.fromCache) {
+        throw Object.assign(new Error(`firestore: ${collectionName} gick bara att läsa ur cachen, och frågan krävde servern (franServern).`), { code: "unavailable" });
+      }
       return snap.docs.map(toEntry);
     },
 

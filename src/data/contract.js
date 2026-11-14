@@ -156,6 +156,9 @@
  * @property {string} [sortBy] Fältnamn.
  * @property {"asc" | "desc"} [direction]
  * @property {number} [limit]
+ * @property {boolean} [franServern] (0.229.2, cllp/lifehub.app#840) Svaret måste komma från servern. En adapter med en lokal cache
+ *   (Firestore) KASTAR med `code: "unavailable"` när svaret bara gick att få ur cachen, i stället för att ge cachens rader, ofta inga.
+ *   Adaptrar utan cache (minnet, http, Postgres) svarar alltid från sin källa och ignorerar flaggan. Utan flaggan är beteendet som förut.
  */
 
 /**

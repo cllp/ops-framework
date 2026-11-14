@@ -9,6 +9,17 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.229.2
+
+### Rättat
+
+- ⛔ **`list` kan kräva serverns svar: `{ franServern: true }`** (cllp/lifehub.app#840, CP 2026-11-14 i LifeHub på Mac efter vila:
+  "Du är inte med i någon grupp än" fast han är med i många). Offline ger Firestores `getDocs` det som ligger i minnescachen, ofta
+  ingenting, och inget fel. Appens grind läste den tomma listan som "inga grupper". Med flaggan avvisar Firestore-adaptern ett svar där
+  `metadata.fromCache` är sant med ett fel vars `code` är `unavailable`, så att anroparen kan skilja "inga rader" från "kunde inte
+  fråga" (regel 5). Minnet, http och Postgres har ingen cache och ignorerar flaggan. Utan flaggan är beteendet oförändrat.
+  Provet `fran-servern-840` är rött utan rättelsen (två av fem) och grönt med.
+
 ## 0.229.1
 
 ### Rättat
