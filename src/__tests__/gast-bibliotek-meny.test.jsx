@@ -163,7 +163,9 @@ describe("⛔ gästens fil har Kopiera länk och Kommentera i listan och i detal
     await waitFor(() => expect(document.querySelector("[data-bibliotek-filnamn]")?.textContent).toContain("a.txt"));
     expect(screen.queryByRole("link", { name: /a\.txt/ })).toBeNull();
     expect(hamtaAdress.mock.calls.every((anrop) => anrop.length === 1 && anrop[0] === "z1")).toBe(true);
-    expect(screen.queryByRole("link", { name: "Ladda ned" })).toBeNull();
+    // ⛔ (0.228.0, granskningen av PR 595) Ladda ned är en knapp: spärren mäts på knappen och på attributet, inte på en länk som inte kan finnas.
+    expect(screen.queryByRole("button", { name: "Ladda ned" })).toBeNull();
+    expect(document.querySelector("[data-bibliotek-ladda-ned]")).toBeNull();
     await user.click(await screen.findByRole("button", { name: "Åtgärder för Paket" }));
     expect(menyrader("Paket")).toEqual(["Kommentera"]);
   });

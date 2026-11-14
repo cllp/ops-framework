@@ -1105,6 +1105,14 @@ if (argv.includes("--bara-0127")) {
   process.exit(0);
 }
 
+// `--bara-karta`: bara avsnitt 52b, kartans höjd i Bibliotekets detalj (0.228.0). Hela körningen kör det också.
+if (argv.includes("--bara-karta")) {
+  await bibliotekKarta();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
 // `--bara-kalenderdelning`: bara avsnitt 58, Dela en egen kalender (0.154.0). Hela körningen kör det också.
 if (argv.includes("--bara-kalenderdelning")) {
   await kalenderdelning();
@@ -7544,6 +7552,48 @@ async function bibliotekVideo() {
   }
 }
 
+// ══ 52b. KARTAN I BIBLIOTEKETS DETALJ HAR EN HÖJD (0.228.0, cllp/lifehub.app#765) ═══════════════════════════════════════════════════════════════
+// CP 2026-11-14: "Jag kan inte se att jag får upp en karta." Mätt i appens mätbygge: kartans ruta var 0 px hög sedan 0.224.0. Den bar bara klassnamnet `ops-karta`, som ingen CSS
+// definierade, och den inre ytan är `absolute inset-0`. jsdom kör ingen CSS och såg det aldrig. Scenen `bibliotekkarta` (skalyta-entry.jsx) öppnar en GeoJSON-fil i detaljen
+// med `hamtaFil`, alltså samma väg som i appen. Krav, vid 390 och 1280 px: (a) kartans ruta (`[data-karta]`) finns, (b) den är minst 200 px hög och fyller sin kolumn i bredd,
+// (c) den inre ytan som MapLibre ritar i är lika stor som rutan, (d) Ladda ned står under kartan, och (e) sidan flödar inte över i sidled. Golv: en ruta mättes.
+async function bibliotekKarta() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `karta i biblioteket ${vp.width}`;
+    const { page, context } = await oppna("bibliotekkarta", vp);
+    try {
+      // `attached` och inte synlig: en ruta på 0 px räknar Playwright som osynlig, och då hade provet avbrutits i stället för att säga höjden.
+      await page.waitForSelector("[data-karta]", { state: "attached", timeout: 6000 });
+      await page.waitForTimeout(300);
+      const m = await page.evaluate(() => {
+        const r = /** @type {HTMLElement} */ (document.querySelector("[data-karta]"));
+        const rr = r.getBoundingClientRect();
+        const inre = /** @type {HTMLElement | null} */ (r.firstElementChild);
+        const ir = inre ? inre.getBoundingClientRect() : null;
+        const kol = /** @type {HTMLElement} */ (r.closest("[data-bibliotek-fil]") ?? r.parentElement);
+        const kr = kol.getBoundingClientRect();
+        const ladda = document.querySelector("[data-bibliotek-ladda-ned]");
+        const lr = ladda ? ladda.getBoundingClientRect() : null;
+        return {
+          rutor: document.querySelectorAll("[data-karta]").length, w: rr.width, h: rr.height, b: rr.bottom, kw: kr.width,
+          inre: ir ? { w: ir.width, h: ir.height } : null, ladda: lr ? { t: lr.top } : null, fel: r.getAttribute("data-karta-fel"),
+          over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        };
+      });
+      matt.push(`${namn}: rutan ${m.w.toFixed(0)}x${m.h.toFixed(0)} i en kolumn på ${m.kw.toFixed(0)}, inre ${m.inre ? `${m.inre.w.toFixed(0)}x${m.inre.h.toFixed(0)}` : "saknas"}, Ladda ned ${JSON.stringify(m.ladda)}, fel ${m.fel ?? "inget"}`);
+      krav(m.rutor === 1, `${namn} (a): ${m.rutor} kartrutor mättes, väntat 1 (golv).`);
+      krav(m.h >= 200 && Math.abs(m.w - m.kw) <= 1, `${namn} (b): kartans ruta är ${m.w.toFixed(0)}x${m.h.toFixed(0)} i en kolumn på ${m.kw.toFixed(0)}, väntat minst 200 px hög och full bredd.`);
+      krav(!!m.inre && Math.abs(m.inre.w - m.w) <= 1 && Math.abs(m.inre.h - m.h) <= 1, `${namn} (c): ytan MapLibre ritar i är ${m.inre ? `${m.inre.w.toFixed(0)}x${m.inre.h.toFixed(0)}` : "saknas"}, rutan ${m.w.toFixed(0)}x${m.h.toFixed(0)}, väntat lika stora.`);
+      krav(!!m.ladda && m.ladda.t >= m.b - 0.5, `${namn} (d): Ladda ned ${m.ladda ? `börjar ${m.ladda.t.toFixed(0)}` : "saknas"}, kartan slutar ${m.b.toFixed(0)}, väntat Ladda ned under kartan.`);
+      krav(m.over <= 0, `${namn} (e): sidan flödar över ${m.over} px.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `bibliotek-karta-${vp.width}.png`) });
+    } catch (e) {
+      krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+}
+
 // ══ 53. NY GRUPP MEDAN DEN SKAPAS: SPARA ÄR UPPTAGEN OCH STATUSRADEN SYNS BREDVID KNAPPARNA (0.129.0, cllp/lifehub.app#365) ═══════════
 // CP 2026-10-19: "Det tar tid att skapa grupp och ingen progress." Före 0.129.0 låstes fälten och en rad skrevs längst ned i formuläret, men panelens Spara stod orörd. jsdom
 // kör ingen CSS, så vad som går att mäta är hur väntan LIGGER: scenen `nygrupp` hålls av `window.__skapaHall` tills mätningen släpper den. Krav, vid 390 och 1280 px, medan anropet
@@ -9439,6 +9489,7 @@ await kalenderBandkontrast();
 await kalenderPreliminar();
 await nyHandelseTillagg();
 await bibliotekVideo();
+await bibliotekKarta();
 await gruppVantar();
 await kategoriFormular();
 await gastVyer();

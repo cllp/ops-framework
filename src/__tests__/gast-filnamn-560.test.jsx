@@ -80,7 +80,9 @@ describe("filnamnet i gästens detalj", () => {
       await oppna(post, { ...props, utanNedladdning: true });
       expect(lankarMedAdress().map((a) => a.outerHTML)).toEqual([]);
       expect(document.querySelector("[data-bibliotek-filnamn]")?.textContent).toContain(post.fil.namn);
-      expect(screen.queryByRole("link", { name: "Ladda ned" })).toBeNull();
+      // ⛔ (0.228.0, granskningen av PR 595) Ladda ned är en knapp, så spärren mäts på knappen och på attributet, som fångar båda formerna. Att fråga efter en länk mätte ingenting längre.
+      expect(screen.queryByRole("button", { name: "Ladda ned" })).toBeNull();
+      expect(document.querySelector("[data-bibliotek-ladda-ned]")).toBeNull();
     });
     // ⛔ (0.228.0, cllp/lifehub.app#765) Förut var filnamnet här en länk med den signerade adressen. Nu är det text också med nedladdning på, och Ladda ned är en knapp som sparar filen.
     it(`⛔ ${namn}: med nedladdning på är filnamnet text, Ladda ned en knapp, och ingen länk bär adressen`, async () => {

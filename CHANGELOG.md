@@ -13,6 +13,19 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ### Ändrat
 
+- ⛔ **Kartan var 0 px hög sedan 0.224.0, och nu har den en höjd** (cllp/lifehub.app#765). CP
+  2026-11-14: "Jag kan inte se att jag får upp en karta. Bara json från firebase storage."
+  Mätt i appens mätbygge: kartans ruta hade ingen höjd. `OpsKartaVy` gav rutan bara klassnamnet
+  `ops-karta`, som ingen CSS någonstans i ramverket definierade, och den inre ytan som MapLibre
+  ritar i är `absolute inset-0` utan en positionerad förälder. Kartan ritades alltså i en yta som
+  inte syntes. Det är troligen huvudorsaken till att CP inte såg någon karta, före typfrågan nedan.
+  - Rutan är nu `relative h-72 w-full overflow-hidden rounded-lg bg-sunken md:h-96`: 288 px på
+    telefon, 384 px från 768 px, samma tak, hörn och yta som textrutan och videon i detaljen.
+  - jsdom kör ingen CSS, och inget av kartans prov kunde se felet (regel 12). `check-skalyta` har ett
+    nytt avsnitt (52b, `--bara-karta`) som öppnar en GeoJSON-fil i Bibliotekets detalj i Chromium och
+    kräver att rutan är minst 200 px hög och full bredd, att MapLibres yta är lika stor, och att
+    Ladda ned står under, vid 390 och 1280 px.
+
 - ⛔ **En karta också när filen inte sades vara `application/geo+json`** (cllp/lifehub.app#765). CP
   2026-11-14: "Jag kan inte se att jag får upp en karta. Bara json från firebase storage." Kartan
   ritades bara för exakt `application/geo+json`.
@@ -23,8 +36,15 @@ anteckningar är en version ingen kan välja att hoppa över.
   - `mimeForFil(namn, typ)` (ett hem) bestämmer typen när en fil läggs in: Ny fil, `laddaUppFil`,
     `kopieraBilagaTillPlats`, en ny HTML-version och `ljudfilFel`. `.geojson` blir
     `application/geo+json` också när telefonen säger `application/json`, `application/octet-stream`
-    eller ingenting. Tom typ och `application/octet-stream` ger annars typen ur namnet, så en `.json`
-    eller `.md` från en telefon som säger octet-stream nekas inte längre.
+    eller ingenting.
+  - ⛔ **Breddningen gäller alla kända ändelser, inte bara `.json` och `.md`.** Tom typ och
+    `application/octet-stream` ger typen ur filnamnet (`mimeUrFilnamn`): html, htm, md, markdown,
+    wav, aif, aiff, flac, m4a, mp3, aac, ogg, oga, mp4, m4v, mov, json, geojson, docx, xlsx och pptx.
+    Alla de typerna står i `FILMIME`, så en sådan fil godtas nu med `octet-stream`, och den lagrade
+    typen är den ur filnamnet, inte `octet-stream`. Skydden läser den lagrade typen: en `.html` som
+    kommer in som `octet-stream` lagras som `text/html` med `attachment` och ritas bara i rutan.
+    En ändelse utanför listan (till exempel `.pdf` eller `.png` med `octet-stream`) får ingen typ ur
+    namnet och nekas som förut.
   - `GEOJSON_MIME` är strängen, i `FILMIME`, `mimeUrFilnamn`, `mimeForFil` och `arKartfil`.
 - ⛔ **Ingen lagringsadress med token går att trycka på i detaljen.** Filnamnet var
   `<a href={adress}>` (utom när gruppen stängt av nedladdning), och ett tryck öppnade rå JSON i en ny
@@ -40,6 +60,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ### Prov
 - `bibliotek-karta-json-765.test.jsx`: nio prov, alla röda mot 0.226.0 och gröna med ändringen.
+- Spärren "gruppen har stängt av nedladdning" (granskningen av PR 595): `gast-filnamn-560` (5 fall)
+  och `gast-bibliotek-meny` (1) frågade efter en *länk* Ladda ned, som inte längre kan finnas, och
+  var gröna utan spärren. De frågar nu efter knappen och `[data-bibliotek-ladda-ned]`.
+- Ladda ned utan `hamtaFil` (granskningen av PR 595), `bibliotek-ladda-ned-alla`: tre klickprov med
+  stubbad `fetch`. En zip-fil och ett HTML-dokument sparas med sitt namn som
+  `application/octet-stream`, och adressen öppnas när hämtningen faller.
 - Tjugo befintliga prov låste länken med lagringens adress (filnamnet eller Ladda ned som `<a href>`)
   och säger nu motsatsen: `gast-filnamn-560` (5), `bibliotek-ladda-ned-alla` (4), `bibliotek-karta`
   (2), `bibliotek-textfil` (3), `bibliotek-video` (1), `htmldokument-helfonster` (3) och
