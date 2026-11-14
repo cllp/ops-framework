@@ -11,6 +11,30 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.229.0
 
+### Brytande
+
+- ⛔ **`OpsProfil`: kontot har ett hem, och hubben ändrar det inte** (CP 2026-11-14, "Ja på alla frågor",
+  cllp/lifehub.identity#178, skisserna i https://claude.ai/artifact/9KBF7uMDUivfRgt2jAQeae). Appen måste följa med
+  vid ompinningen.
+  - **Borttaget:** `konto={{ sakerhetHref, raderaHref, nycklarHref }}` (den redigerbara formen, cllp/lifehub.app#786 och #813),
+    och med den arket "Redigera profil" och dess knapp, kortet Språk med rullistan, raden "Nycklar och kopplingar"
+    (som lovade API-nycklar som inte finns i Identity) och sektionen Konto med "Inloggning och säkerhet". Den gamla formen
+    kastar med vägen vidare i felet, i stället för att tyst rita hela formuläret.
+  - **Borttagna props:** `kontoRedigerbarText`, `kontoRubrik`, `kontoSakerhetEtikett`, `kontoNycklarEtikett`,
+    `kontoNycklarText`, `redigeraEtikett`, `avbrytEtikett`, och orden med samma namn i `ORD_OPSPROFIL`.
+  - **Nytt:** `kontoUrl` och `raderaKontoUrl` (båda https, båda krävs ihop: Apple 5.1.1(v) kräver en väg till raderingen
+    inifrån appen), `kontoKnappEtikett` ("Ditt Life Hub-konto ↗" / "Your Life Hub account ↗"), `kontoHanvisning`
+    ("Namn, bild, inloggning och kopplingar ändras i ditt Life Hub-konto på {vard}.", där `{vard}` är värdnamnet i
+    `kontoUrl`: ramverket känner aldrig Identitys adresser) och `hubbGrupperEtikett` ("I den här hubben").
+  - **Kvar i profilen:** kortet med bild, namn, e-post och rollmärket, bara för att läsa; språkväxlaren SV/EN
+    (`OpsSegmented`) till höger om namnet, som skriver genom samma `onSpara({ sprak })` som rullistan gjorde; knappen till
+    kontot med den tonade raden; märket "by Life Hub"; en tyst textlänk "Radera kontot" direkt till raderingen; och
+    grupperna under "I den här hubben".
+  - **Orört:** profilen utan `konto` (bolag-ops) och `konto={{ href }}` (skrivskyddad, tam).
+  - **I appen** (lifehub.app `ProfileView.jsx`): byt `konto={{ sakerhetHref: mittKontoProfilUrl(), raderaHref: raderaKontoUrl(),
+    nycklarHref: nycklarOchKopplingarUrl() }}` mot `kontoUrl={mittKontoProfilUrl()} raderaKontoUrl={raderaKontoUrl()}`, och ta
+    bort de borttagna ordens props om appen skickar dem.
+
 ### Tillagt
 
 - ⛔ **`OpsVantar`: väntan som rör sig.** CP 2026-11-14 om Programåtkomst: "Under programåtkomst så
@@ -26,6 +50,9 @@ anteckningar är en version ingen kan välja att hoppa över.
     `vilar` eller `syns`.
   - Med `prefers-reduced-motion` står raden still men syns (`motion-reduce:animate-none`).
   - Stängt API: inga klasser eller data-attribut in. Märket eller luften runt en väntan sitter på ett omslag.
+
+- **`OpsByLifeHub`: märket "by Life Hub".** CP 2026-11-14: "It´s always by Life Hub." En rad text, samma
+  ord på båda språken, utan länk. Ritas i profilens kontoläge, och kan sättas i hubbens om-ruta och inloggningen.
 
 ### Ändrat
 

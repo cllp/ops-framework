@@ -81,3 +81,50 @@ export async function vantraden(v) {
   }
   await context?.close();
 }
+
+/**
+ * Avsnitt 66 i check-skalyta: profilen med Life Hub-kontot (0.229.0, cllp/lifehub.identity#178), vid 390 och 1280 px.
+ * Växlaren SV/EN står till höger om namnet på samma rad, inom kortet, och sidan rullar inte i sidled. Kontoknappen och Radera
+ * kontot finns, och märket "by Life Hub" syns. Golv: växlaren har två lägen.
+ * @param {Verktyg} v
+ */
+export async function profilKonto(v) {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `profil-konto ${vp.width} px`;
+    /** @type {import("playwright").BrowserContext | null} */
+    let context = null;
+    try {
+      const o = await v.oppna("profil-konto", vp);
+      context = o.context;
+      const m = await o.page.evaluate(() => {
+        const vaxlare = document.querySelector("[data-profil-sprak]");
+        const kort = vaxlare?.closest("[data-profil-sprak]")?.parentElement?.parentElement;
+        const namnet = [...document.querySelectorAll("p")].find((p) => p.textContent === "Claes Philip Staiger");
+        const r = (/** @type {Element | null | undefined} */ e) => (e ? e.getBoundingClientRect() : null);
+        const vr = r(vaxlare);
+        const nr = r(namnet);
+        const kr = r(kort);
+        return {
+          lagen: vaxlare ? vaxlare.querySelectorAll('[role="tab"]').length : 0,
+          hoger: vr && nr ? vr.left >= nr.left : false,
+          // Samma rad: växlarens höjd överlappar namnraden (namnet och rollmärket kan bryta till två rader vid 390 px).
+          sammaRad: vr && nr ? vr.top < nr.bottom && vr.bottom > nr.top : false,
+          inom: vr && kr ? vr.right <= kr.right + 0.5 : false,
+          konto: !!document.querySelector('[data-profilkonto] a[href="https://konto.example/konto"]'),
+          radera: !!document.querySelector('[data-profilradera] a[href="https://konto.example/konto#radera-konto"]'),
+          marke: !!document.querySelector("[data-by-life-hub]"),
+          over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        };
+      });
+      v.krav(m.lagen === 2, `${namn}: växlaren har ${m.lagen} lägen, väntat 2 (SV och EN). Golv.`);
+      v.krav(m.hoger && m.sammaRad && m.inom, `${namn}: växlaren ska stå till höger om namnet, på samma rad och inom kortet (${JSON.stringify(m)}).`);
+      v.krav(m.konto && m.radera && m.marke, `${namn}: kontoknappen, Radera kontot eller märket saknas (${JSON.stringify(m)}).`);
+      v.krav(m.over <= 0, `${namn}: sidan rullar ${m.over} px i sidled.`);
+      v.matt.push(`${namn}: ${JSON.stringify(m)}`);
+      if (v.bildmapp) await o.page.screenshot({ path: `${v.bildmapp}/profil-konto-${vp.width}.png`, fullPage: true });
+    } catch (e) {
+      v.krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context?.close();
+  }
+}

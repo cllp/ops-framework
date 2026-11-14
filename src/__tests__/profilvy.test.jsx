@@ -951,26 +951,14 @@ describe("OpsProfil: falt, utanBild, det redigerbara kontot och telefonens exemp
     expect(screen.queryByRole("button", { name: "Visa inte bilden" })).toBeNull();
   });
 
-  it("⛔ det redigerbara kontot: fälten och Spara finns, och länkarna till inloggning och radering bär appens adresser", () => {
-    render(
-      <OpsProfil anvandare={ANV} onSpara={() => {}} falt={FALT} konto={{ sakerhetHref: "https://konto.example/profile?hubb=my", raderaHref: "https://konto.example/profile?hubb=my#radera-konto" }} />,
-    );
-    // Ändrat prov (regel 9, cllp/lifehub.app#813): fälten ligger i arket "Redigera profil" sedan kontoläget blev en kort sida.
-    expect(screen.getByRole("link", { name: "Inloggning och säkerhet" }).getAttribute("href")).toBe("https://konto.example/profile?hubb=my");
-    expect(screen.getByRole("link", { name: "Radera kontot" }).getAttribute("href")).toBe("https://konto.example/profile?hubb=my#radera-konto");
-    fireEvent.click(screen.getByRole("button", { name: "Redigera profil" }));
-    expect(screen.getByRole("textbox", { name: "Namn" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Spara" })).toBeTruthy();
-    expect(screen.getByText("Det du ändrar här gäller i alla dina hubbar.")).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Ändra i Mitt konto" })).toBeNull();
-  });
-
-  it("⛔ konto med både href och länkarna kastar, och ett redigerbart konto utan länkar eller utan onSpara kastar", () => {
+  it("⛔ konto med både href och kontoUrl kastar, och den gamla redigerbara konto-formen kastar med vägen vidare (0.229.0)", () => {
+    // Ändrat prov (regel 9, 0.229.0, cllp/lifehub.identity#178): den redigerbara konto-formen och arket är borta. Det nya läget
+    // provas i profil-lifehub-konto.test.jsx.
     const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      expect(() => render(<OpsProfil anvandare={ANV} onSpara={() => {}} konto={/** @type {any} */ ({ href: "/x", sakerhetHref: "/y" })} />)).toThrow(/går inte ihop/);
-      expect(() => render(<OpsProfil anvandare={ANV} onSpara={() => {}} konto={/** @type {any} */ ({})} />)).toThrow(/sakerhetHref eller raderaHref/);
-      expect(() => render(<OpsProfil anvandare={ANV} konto={{ sakerhetHref: "/y" }} />)).toThrow(/onSpara krävs/);
+      expect(() => render(<OpsProfil anvandare={ANV} onSpara={() => {}} konto={{ href: "https://x.example" }} kontoUrl="https://y.example" raderaKontoUrl="https://y.example/r" />)).toThrow(/går inte ihop/);
+      expect(() => render(<OpsProfil anvandare={ANV} onSpara={() => {}} konto={/** @type {any} */ ({ raderaHref: "https://y.example" })} />)).toThrow(/kontoUrl och raderaKontoUrl/);
+      expect(() => render(<OpsProfil anvandare={ANV} kontoUrl="https://y.example" raderaKontoUrl="https://y.example/r" />)).toThrow(/onSpara krävs/);
     } finally {
       tyst.mockRestore();
     }

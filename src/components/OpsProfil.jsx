@@ -12,10 +12,11 @@ import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsGruppmarkeValjare } from "./OpsGruppmarkeValjare.jsx";
 import { personmarkeProps } from "../lib/gruppikoner.js";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
-import { OpsModal } from "./OpsModal.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 import { OpsSectionLabel } from "./OpsSectionLabel.jsx";
+import { OpsSegmented } from "./OpsSegmented.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
+import { OpsByLifeHub } from "./OpsByLifeHub.jsx";
 import { OpsView, OpsViewHeader } from "./OpsView.jsx";
 import { KryssIkon } from "./icons.jsx";
 
@@ -99,14 +100,16 @@ import { KryssIkon } from "./icons.jsx";
  * Med `falt` ritas bara de fälten, och Spara skickar bara de av dem som ändrats (`andringen`). Utan `falt` skickas
  * hela raden, som förut. Ett konto som äger personen nekar `lankar` och `tema`, så en app som sparar dit listar fälten.
  *
- * ══ ⛔ KONTOLÄGET ÄR EN KORT SIDA OCH ETT ARK FÖR ATT REDIGERA (cllp/lifehub.app#813) ═
+ * ══ ⛔ KONTOT HAR ETT HEM, LIFE-HUB.APP (0.229.0, cllp/lifehub.identity#178) ══════════════════════════════════════════
  *
- * CP 2026-11-12 om profilen i lifehub.app: "Det ser rörigt ut. Massa saker som syns. Not clean." Kulörrutnätet, reglaget,
- * ikonsökningen, Presentation och Spara stod alla framme på en gång, fast man oftast bara vill se vem man är och vart man går.
- * I det redigerbara kontoläget (`konto.sakerhetHref`/`raderaHref`) visar sidan därför bara personen med "Redigera profil",
- * Språk (som sparas direkt), Nycklar och kopplingar när appen har en adress dit, appens sektioner, grupperna och Konto. Allt
- * som ändrar personen ligger i ett ark (`OpsModal`) med Spara och Avbryt. De andra lägena (utan `konto`, och `konto.href`)
- * ritas som förut: bolag-ops och tam använder dem, och ingen har bett om en ändring där.
+ * CP 2026-11-14, "Ja på alla frågor": kontot har ett hem, och hubben visar kontot utan att ändra det. Med `kontoUrl` och
+ * `raderaKontoUrl` är profilen kortet (bild, namn, e-post, roll), språkväxlaren SV/EN till höger om namnet, knappen
+ * "Ditt Life Hub-konto ↗" med en tonad rad under, en tyst länk "Radera kontot" och grupperna under "I den här hubben".
+ * Förut (cllp/lifehub.app#813) bar det läget ett ark "Redigera profil", en rullista för språk, en rad "Nycklar och kopplingar"
+ * (som lovade API-nycklar som inte finns i Identity) och en sektion Konto med "Inloggning och säkerhet". Allt det bor nu i kontot.
+ * ⛔ "Radera kontot" står kvar med flit: Apple 5.1.1(v) kräver en väg till raderingen inifrån appen.
+ * ⛔ Ramverket känner aldrig Identitys adresser. Appen skickar dem, och raden under knappen läser värdnamnet ur `kontoUrl`.
+ * De andra lägena (utan `konto`, och `konto.href`) ritas som förut: bolag-ops och tam använder dem.
  *
  * @param {object} props
  * @param {import("../lib/grupp.js").Anvandare} props.anvandare
@@ -186,25 +189,19 @@ import { KryssIkon } from "./icons.jsx";
  * @param {Record<string, string>} [props.rollNamn] Vad rollerna heter på raden.
  * @param {import("react").ReactNode} [props.children] Appens EGNA sektioner (t.ex. SessionStudios kreativa profil),
  *   ritade efter Länkar och före Spara/Logga ut. Ramverket bestämmer platsen, appen innehållet.
- * @param {{ href: string } | { sakerhetHref?: string, raderaHref?: string, nycklarHref?: string }} [props.konto] Personen ägs av ett konto
- *   utanför appen (LifeHubs Identity). Två former:
- *   `{ href }` (0.53.0, cllp/lifehub.app#32): personen ritas skrivskyddad med länken "Ändra i Mitt konto", inga fält och
- *   ingen Spara. `onSpara` anropas aldrig. Grupperna och appens egna sektioner står kvar.
- *   `{ sakerhetHref, raderaHref }` (cllp/lifehub.app#786): formuläret är redigerbart och sparar genom `onSpara`, och
- *   kontot får en sektion med länkarna "Inloggning och säkerhet" och "Radera kontot", dit det som inte hör till appen
- *   bor. Minst en av dem krävs. ⛔ `href` ihop med någon av dem kastar: två lägen, en vy kan inte vara båda.
- *   `nycklarHref` (cllp/lifehub.app#813, valfri, bara i den redigerbara formen): en rad "Nycklar och kopplingar" som leder dit
- *   appens anslutningar och nycklar bor. Utelämnad ritas ingen rad. Den ensam räcker inte som konto: säkerhet eller radering krävs.
+ * @param {{ href: string }} [props.konto] (0.53.0, cllp/lifehub.app#32) Personen ägs av ett konto utanför appen och ritas skrivskyddad
+ *   med länken "Ändra i Mitt konto", inga fält och ingen Spara. `onSpara` anropas aldrig. Grupperna och appens egna sektioner står kvar.
+ *   ⛔ BRYTANDE 0.229.0: den redigerbara formen `{ sakerhetHref, raderaHref, nycklarHref }` finns inte längre och kastar, med vägen
+ *   vidare i felet. Använd `kontoUrl` och `raderaKontoUrl`.
+ * @param {string} [props.kontoUrl] (0.229.0, cllp/lifehub.identity#178) Adressen till personens Life Hub-konto, en https-adress.
+ *   Given: profilen visar kontot och ändrar det inte (se filhuvudet). Kräver `raderaKontoUrl` och `onSpara` (språket sparas genom den).
+ * @param {string} [props.raderaKontoUrl] (0.229.0) Adressen direkt till raderingen av kontot, en https-adress. Krävs med `kontoUrl`.
+ * @param {string} [props.kontoKnappEtikett] Knappen till kontot. Förval "Ditt Life Hub-konto ↗".
+ * @param {string} [props.kontoHanvisning] Den tonade raden under knappen. `{vard}` byts mot värdnamnet i `kontoUrl`.
+ * @param {string} [props.hubbGrupperEtikett] Rubriken över grupperna i kontoläget. Förval "I den här hubben".
  * @param {string} [props.kontoText]
  * @param {string} [props.kontoLankEtikett]
- * @param {string} [props.kontoRedigerbarText] Meningen under personen i det redigerbara kontoläget.
- * @param {string} [props.kontoRubrik] Rubriken över kontots länkar.
- * @param {string} [props.kontoSakerhetEtikett]
  * @param {string} [props.kontoRaderaEtikett]
- * @param {string} [props.kontoNycklarEtikett] (cllp/lifehub.app#813) Raden till `konto.nycklarHref`.
- * @param {string} [props.kontoNycklarText] (cllp/lifehub.app#813) Meningen under den raden.
- * @param {string} [props.redigeraEtikett] (cllp/lifehub.app#813) Knappen som öppnar arket i kontoläget, och arkets rubrik.
- * @param {string} [props.avbrytEtikett] (cllp/lifehub.app#813) Arkets knapp som slänger utkastet och stänger.
  */
 function OpsProfilRitad({
   anvandare,
@@ -266,14 +263,12 @@ function OpsProfilRitad({
   konto,
   kontoText = ORD_OPSPROFIL.kontoText.sv,
   kontoLankEtikett = ORD_OPSPROFIL.kontoLankEtikett.sv,
-  kontoRedigerbarText = ORD_OPSPROFIL.kontoRedigerbarText.sv,
-  kontoRubrik = ORD_OPSPROFIL.kontoRubrik.sv,
-  kontoSakerhetEtikett = ORD_OPSPROFIL.kontoSakerhetEtikett.sv,
   kontoRaderaEtikett = ORD_OPSPROFIL.kontoRaderaEtikett.sv,
-  kontoNycklarEtikett = ORD_OPSPROFIL.kontoNycklarEtikett.sv,
-  kontoNycklarText = ORD_OPSPROFIL.kontoNycklarText.sv,
-  redigeraEtikett = ORD_OPSPROFIL.redigeraEtikett.sv,
-  avbrytEtikett = ORD_OPSPROFIL.avbrytEtikett.sv,
+  kontoUrl,
+  raderaKontoUrl,
+  kontoKnappEtikett = ORD_OPSPROFIL.kontoKnappEtikett.sv,
+  kontoHanvisning = ORD_OPSPROFIL.kontoHanvisning.sv,
+  hubbGrupperEtikett = ORD_OPSPROFIL.hubbGrupperEtikett.sv,
   children,
 }) {
   const markeId = useId();
@@ -301,19 +296,30 @@ function OpsProfilRitad({
   const [bildLaddar, setBildLaddar] = useState(false);
   const [bildFel, setBildFel] = useState("");
   const filValjare = useRef(/** @type {HTMLInputElement | null} */ (null));
-  // cllp/lifehub.app#813: arket i kontoläget, och ett nej på ett språkbyte (som sparas direkt där).
-  const [redigerar, setRedigerar] = useState(false);
-  // ⛔ VILKEN GÅNG ARKET ÄR ÖPPET (granskningen av feaab25): ett svar från en sparning i ett ark som stängts och öppnats igen får inte stänga det nya.
-  const arkRunda = useRef(0);
+  // Ett nej på ett språkbyte i kontoläget, där språket sparas direkt.
   const [sprakFel, setSprakFel] = useState("");
 
   const kontoLasning = Boolean(konto && "href" in konto && konto.href !== undefined);
-  const kontoLankar = konto && !kontoLasning ? /** @type {{ sakerhetHref?: string, raderaHref?: string, nycklarHref?: string }} */ (konto) : null;
-  if (konto && kontoLasning && ("sakerhetHref" in konto || "raderaHref" in konto)) {
-    throw new Error("OpsProfil: konto.href (skrivskyddad) och konto.sakerhetHref/raderaHref (redigerbar) går inte ihop. Skicka det ena.");
+  // ⛔ BRYTANDE 0.229.0: den redigerbara konto-formen är borta. Ett tyst ignorerat konto hade ritat hela formuläret, alltså motsatsen.
+  if (konto && ("sakerhetHref" in konto || "raderaHref" in konto || "nycklarHref" in konto)) {
+    throw new Error("OpsProfil: konto.sakerhetHref/raderaHref/nycklarHref finns inte sedan 0.229.0. Skicka kontoUrl och raderaKontoUrl: kontot ändras på sitt eget hem (cllp/lifehub.identity#178).");
   }
-  if (kontoLankar && !kontoLankar.sakerhetHref && !kontoLankar.raderaHref) {
-    throw new Error("OpsProfil: konto utan href behöver sakerhetHref eller raderaHref, adresserna dit det som inte hör till appen bor.");
+  if (konto && kontoUrl) throw new Error("OpsProfil: konto.href (skrivskyddad) och kontoUrl går inte ihop. Skicka det ena.");
+  /** @param {string | undefined} url @param {string} namn */
+  const httpsAdress = (url, namn) => {
+    let ok = false;
+    try {
+      ok = typeof url === "string" && new URL(url).protocol === "https:";
+    } catch {
+      ok = false;
+    }
+    if (!ok) throw new Error(`OpsProfil: ${namn} måste vara en https-adress, fick ${JSON.stringify(url)}.`);
+    return /** @type {string} */ (url);
+  };
+  if (kontoUrl !== undefined) {
+    httpsAdress(kontoUrl, "kontoUrl");
+    if (raderaKontoUrl === undefined) throw new Error("OpsProfil: kontoUrl kräver raderaKontoUrl. Apple 5.1.1(v): raderingen ska gå att nå inifrån appen.");
+    httpsAdress(raderaKontoUrl, "raderaKontoUrl");
   }
   if (!kontoLasning && typeof onSpara !== "function") {
     throw new Error("OpsProfil: onSpara krävs när profilen går att ändra. Bara kontolägets skrivskyddade form (konto.href) klarar sig utan.");
@@ -815,30 +821,13 @@ function OpsProfilRitad({
   ) : null;
 
   /*
-   * ══ ⛔ KONTOLÄGET, REDIGERBART: EN KORT SIDA OCH ETT ARK (cllp/lifehub.app#813) ═══════════════════════════════════════
+   * ══ ⛔ KONTOLÄGET: HUBBEN VISAR KONTOT OCH ÄNDRAR DET INTE (0.229.0, cllp/lifehub.identity#178) ══════════════════════════
    *
-   * CP 2026-11-12: "Det ser rörigt ut. Massa saker som syns. Not clean." Sidan visar bara vem du är och vart du går, och det som
-   * ändrar personen ligger i arket "Redigera profil". Tre beslut, med skälen:
-   *   - SPRÅKET SPARAS DIREKT. Det är ett enda val, och en Spara för det ensamt hade varit ett klick till för något som redan är
-   *     bestämt. Valet syns direkt (utkastet), och släpps ur utkastet efter svaret: efter ett ja står raden för det, efter ett nej
-   *     visar väljaren det som faktiskt är sparat, med felet bredvid, i stället för ett val som aldrig nådde kontot.
-   *   - AVBRYT, ESCAPE OCH KRYSSET SLÄNGER UTKASTET. Ett stängt ark med ett osparat utkast hade lämnat en ändring ingen ser,
-   *     och som nästa Spara skickar med.
-   *   - SPARA STÄNGER ARKET BARA EFTER ETT JA. Efter ett nej står arket kvar med felet och det som skrevs, så att det går att rätta.
-   * Radera kontot är en diskret textlänk under Konto, inte en knapp bredvid säkerheten: det man sällan gör och inte kan ångra
-   * ska inte stå lika framme som det man gör ofta.
+   * Språket är det enda som ändras här, och det sparas direkt: ett enda val, och en Spara för det ensamt hade varit ett klick till.
+   * Valet syns direkt (utkastet) och släpps ur utkastet efter svaret. Efter ett nej visar växlaren det som faktiskt är sparat,
+   * med felet under. Radera kontot är en tyst textlänk: det man sällan gör och inte kan ångra ska inte stå lika framme som kontot.
    */
-  if (kontoLankar) {
-    const stangArket = () => {
-      arkRunda.current += 1;
-      setUtkastet({});
-      setSparaFel("");
-      setRedigerar(false);
-    };
-    const oppnaArket = () => {
-      arkRunda.current += 1;
-      setRedigerar(true);
-    };
+  if (kontoUrl) {
     /** @param {string} v */
     const sparaSprak = async (v) => {
       setSprakFel("");
@@ -846,8 +835,6 @@ function OpsProfilRitad({
       try {
         await onSpara?.({ sprak: v });
       } catch (fel) {
-        // Ett nej släpper valet, så att väljaren visar det som faktiskt är sparat. Ett ja står kvar i utkastet tills raden kommit ikapp
-        // (effekten på `sparadNyckel` släpper det då), annars visar väljaren det gamla språket ett ögonblick efter bytet.
         setSprakFel(felTexten(fel));
         glom(["sprak"]);
       }
@@ -857,101 +844,57 @@ function OpsProfilRitad({
         <OpsViewHeader title={rubrik} />
 
         <OpsCard kant>
-          {identitet}
-          <div className="mt-3">
-            <OpsButton variant="secondary" size="sm" onClick={oppnaArket}>
-              {redigeraEtikett}
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">{identitet}</div>
+            {visas("sprak") ? (
+              <div className="shrink-0" data-profil-sprak="">
+                <OpsSegmented
+                  ariaLabel={sprakEtikett}
+                  options={SPRAK.map((x) => ({ value: x, label: x.toUpperCase() }))}
+                  value={valtSprak}
+                  onChange={(v) => void sparaSprak(v)}
+                />
+              </div>
+            ) : null}
+          </div>
+          {sprakFel ? (
+            <p role="alert" className="mt-2 text-etikett text-danger">
+              {sprakFel}
+            </p>
+          ) : null}
+          <div className="mt-4 flex flex-col items-start gap-1" data-profilkonto="">
+            <OpsButton variant="secondary" size="sm" href={kontoUrl}>
+              {kontoKnappEtikett}
             </OpsButton>
+            <p className="m-0 text-meta text-ink-muted">{kontoHanvisning.replace("{vard}", new URL(kontoUrl).host)}</p>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <OpsByLifeHub />
+            <span data-profilradera="">
+              <OpsButton variant="ghost" size="sm" href={raderaKontoUrl}>
+                {kontoRaderaEtikett}
+              </OpsButton>
+            </span>
           </div>
         </OpsCard>
 
-        {visas("sprak") ? (
-          <OpsCard kant>
-            <OpsField label={sprakEtikett}>
-              <OpsSelect options={SPRAK.map((s) => ({ value: s, label: sprakNamn[s] || s }))} value={valtSprak} onChange={sparaSprak} />
-            </OpsField>
-            {sprakFel ? (
-              <p role="alert" className="mt-2 text-etikett text-danger">
-                {sprakFel}
-              </p>
-            ) : null}
-          </OpsCard>
-        ) : null}
-
-        {kontoLankar.nycklarHref ? (
-          // En rad som är en länk, inte en rubrik med en knapp som säger samma sak en gång till.
-          <OpsCard kant flush>
-            <OpsList ariaLabel={kontoNycklarEtikett}>
-              <OpsListRow interactive href={kontoLankar.nycklarHref}>
-                <span className="min-w-0 flex-1">
-                  <span className="block font-medium text-ink">{kontoNycklarEtikett}</span>
-                  <span className="block text-etikett text-ink-secondary">{kontoNycklarText}</span>
-                </span>
-              </OpsListRow>
-            </OpsList>
-          </OpsCard>
-        ) : null}
-
         {children}
 
-        {grupplistan}
-
-        {kontoLankar.sakerhetHref ? (
-          <OpsCard kant>
-            <div className="mb-3">
-              <OpsSectionLabel>{kontoRubrik}</OpsSectionLabel>
-            </div>
-            <div className="flex flex-wrap gap-2" data-profilkonto="">
-              <OpsButton variant="secondary" size="sm" href={kontoLankar.sakerhetHref}>
-                {kontoSakerhetEtikett}
-              </OpsButton>
-            </div>
-          </OpsCard>
-        ) : null}
-        {kontoLankar.raderaHref ? (
-          <div data-profilradera="">
-            <OpsButton variant="ghost" size="sm" href={kontoLankar.raderaHref}>
-              {kontoRaderaEtikett}
-            </OpsButton>
-          </div>
-        ) : null}
-
-        <OpsModal
-          open={redigerar}
-          onOpenChange={(oppen) => (oppen ? oppnaArket() : stangArket())}
-          title={redigeraEtikett}
-          footer={
-            <>
-              {sparaFelRaden}
-              <OpsButton variant="ghost" onClick={stangArket}>
-                {avbrytEtikett}
-              </OpsButton>
-              <OpsButton
-                variant="primary"
-                onClick={async () => {
-                  const runda = arkRunda.current;
-                  if ((await spara()) && runda === arkRunda.current) setRedigerar(false);
-                }}
-                disabled={!andrat}
-                busy={sparar}
-                busyLabel={sparaVantarEtikett}
-              >
-                {sparaEtikett}
-              </OpsButton>
-            </>
-          }
-        >
-          <div className="flex flex-col gap-3">
-            {/* ⛔ Personen överst också i arket: på telefonen täcker arket sidan, och den som väljer en kulör ska se den. */}
-            <div>
-              {identitet}
-              <p className="mt-3 text-etikett text-ink-secondary">{kontoRedigerbarText}</p>
-              {bildOchMarke}
-            </div>
-            {uppgifterna}
-            {lankarna}
-          </div>
-        </OpsModal>
+        <OpsSectionLabel>{hubbGrupperEtikett}</OpsSectionLabel>
+        <OpsList ariaLabel={grupperEtikett}>
+          {grupper.length === 0 ? (
+            <OpsListRow>
+              <span className="text-ink-secondary">{ingaGrupperText}</span>
+            </OpsListRow>
+          ) : (
+            grupper.map(({ grupp, roll }) => (
+              <OpsListRow key={grupp.id}>
+                <span className="min-w-0 flex-1 truncate text-ink">{text(grupp.namn, sprak) || grupp.id}</span>
+                <OpsPill tone={roll === "agare" ? "info" : "neutral"}>{rollNamn[roll] || roll}</OpsPill>
+              </OpsListRow>
+            ))
+          )}
+        </OpsList>
       </OpsView>
     );
   }
@@ -1059,15 +1002,14 @@ export const ORD_OPSPROFIL = {
     en: "You change your name, picture and details in My account. They apply in all your hubs.",
   },
   kontoLankEtikett: { sv: "Ändra i Mitt konto", en: "Edit in My account" },
-  kontoRedigerbarText: { sv: "Det du ändrar här gäller i alla dina hubbar.", en: "What you change here applies in all your hubs." },
-  kontoRubrik: { sv: "Konto", en: "Account" },
-  kontoSakerhetEtikett: { sv: "Inloggning och säkerhet", en: "Sign-in and security" },
   kontoRaderaEtikett: { sv: "Radera kontot", en: "Delete account" },
-  // cllp/lifehub.app#813: kontolägets korta sida och arket.
-  kontoNycklarEtikett: { sv: "Nycklar och kopplingar", en: "Keys and connections" },
-  kontoNycklarText: { sv: "Anslutningar, AI-nycklar och API-nycklar.", en: "Connections, AI keys and API keys." },
-  redigeraEtikett: { sv: "Redigera profil", en: "Edit profile" },
-  avbrytEtikett: { sv: "Avbryt", en: "Cancel" },
+  // 0.229.0, cllp/lifehub.identity#178: kontot har ett hem, life-hub.app. `{vard}` är värdnamnet i appens `kontoUrl`.
+  kontoKnappEtikett: { sv: "Ditt Life Hub-konto ↗", en: "Your Life Hub account ↗" },
+  kontoHanvisning: {
+    sv: "Namn, bild, inloggning och kopplingar ändras i ditt Life Hub-konto på {vard}.",
+    en: "Name, picture, sign-in and connections are changed in your Life Hub account at {vard}.",
+  },
+  hubbGrupperEtikett: { sv: "I den här hubben", en: "In this hub" },
 };
 
 /**

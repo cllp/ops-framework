@@ -3366,6 +3366,22 @@ function Scen() {
   if (s === "chattinfo") return <ChattinfoScen />;
   if (s === "chattsidled") return <ChattSidledScen />;
   if (s === "chattsidled-gast") return <ChattSidledGastScen />;
+  // Profilen med Life Hub-kontot (0.229.0, avsnitt 66): kortet, växlaren SV/EN bredvid ett långt namn, kontoknappen och Radera.
+  if (s === "profil-konto") {
+    return (
+      <Full>
+        <Ops.OpsProfil
+          anvandare={{ id: "u1", namn: "Claes Philip Staiger", epost: "claes-philip@staiger.se", bild: "", telefon: "", stad: "", presentation: "", lankar: [], sprak: "sv", tema: "system" }}
+          roll="Ägare"
+          grupper={[{ grupp: { id: "g1", namn: "Claes Philip Staiger AB" }, roll: "agare" }]}
+          onSpara={async () => {}}
+          falt={["sprak"]}
+          kontoUrl="https://konto.example/konto"
+          raderaKontoUrl="https://konto.example/konto#radera-konto"
+        />
+      </Full>
+    );
+  }
   // Väntraden (0.229.0, avsnitt 65): en ensam `OpsVantar` i båda storlekarna, och en `OpsEmpty` som väntar.
   if (s === "vantar") {
     return (
