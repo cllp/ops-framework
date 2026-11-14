@@ -43,20 +43,20 @@ export const GENERELL_OMRADEN = Object.freeze([
       a(
         "idag-oversikt",
         "Vad är Idag och Översikt?",
-        `**Idag** svarar på vad som kräver dig nu. **Översikt** (eller hubben) visar gruppens appar och genvägar.
+        `**Idag** svarar på vad som kräver dig nu. **Översikt** (eller hubben) visar gruppens verktyg och genvägar.
 
 Det är två frågor. En sida som försöker svara på båda svarar sämre på den ena.`,
-        ["hem", "startsida", "hubb", "appar"],
+        ["hem", "startsida", "hubb", "verktyg", "appar"],
       ),
       a(
         "navigering",
         "Hur hittar jag runt?",
-        `Bottenraden på telefonen (och menyn på större skärm) tar dig till Idag, kalender, inkorg, appar och mer.
+        `Bottenraden på telefonen (och menyn på större skärm) tar dig till Idag, kalender, inkorg, verktyg och mer.
 
-**Appar** öppnar gruppens installerade appar. En app du inte installerat syns inte där, och har ingen hjälp heller.
+**Verktyg** öppnar gruppens installerade verktyg. Ett verktyg du inte installerat syns inte där, och har ingen hjälp heller.
 
 Plusknappen (**Ny**) skapar något: ett ärende, en anteckning, en inspelning eller det modulerna erbjuder.`,
-        ["meny", "botten", "plus", "ny"],
+        ["meny", "botten", "plus", "ny", "verktyg", "appar"],
       ),
     ]),
   }),
@@ -67,7 +67,7 @@ Plusknappen (**Ny**) skapar något: ett ärende, en anteckning, en inspelning el
       a(
         "kalender-vy",
         "Vad visar kalendern?",
-        `Kalendern samlar händelser från gruppen och från dig: möten, uppgifter med datum och det apparna lägger in.
+        `Kalendern samlar händelser från gruppen och från dig: möten, uppgifter med datum och det verktygen lägger in.
 
 Du kan byta mellan månad, vecka och dag. En dag utan poster är tom med flit, inte ett fel.`,
         ["månad", "vecka", "dag", "händelse"],
@@ -89,7 +89,7 @@ Du kan byta mellan månad, vecka och dag. En dag utan poster är tom med flit, i
       a(
         "inkorg",
         "Vad är inkorgen?",
-        `Inkorgen samlar det som väntar på dig: nya poster, saker att godkänna och det apparna skickar in.
+        `Inkorgen samlar det som väntar på dig: nya poster, saker att godkänna och det verktygen skickar in.
 
 När du tar hand om en post lämnar den inkorgen. Det betyder att den är omvandlad eller avklarad enligt sorten, inte alltid att hela arbetet är slut.
 
@@ -115,7 +115,7 @@ En post utan förfallodatum syns i inkorgen men blir inte en kalenderhändelse.`
       a(
         "grupper-byta",
         "Byta grupp",
-        `Gruppmärket högst upp (eller i menyn) byter aktiv grupp. Allt du ser: appar, inkorg, kalender och meddelanden, gäller den gruppen.
+        `Gruppmärket högst upp (eller i menyn) byter aktiv grupp. Allt du ser: verktyg, inkorg, kalender och meddelanden, gäller den gruppen.
 
 En grupp du lämnat eller inte är med i syns inte i listan.`,
         ["gruppväxlare", "aktiv", "medlemskap"],
@@ -131,7 +131,7 @@ Har du tidigare varit med och sedan avslutat medlemskapet kan en ny inbjudan ta 
       a(
         "roller",
         "Roller i gruppen",
-        `**Ägare** styr gruppen: ägaren gör allt en admin gör, och dessutom arkiverar gruppen, godkänner externa datakällor och bjuder in någon som ägare. **Admin** är en delegerad förvaltare som ändrar gruppens utseende och uppgifter, slår av och på gruppens appar, byter deras ordning, väljer vad som visas i huvudmenyn och ser inbjudningarna. **Medlem** använder det som finns.
+        `**Ägare** styr gruppen: ägaren gör allt en admin gör, och dessutom arkiverar gruppen, godkänner externa datakällor och bjuder in någon som ägare. **Admin** är en delegerad förvaltare som ändrar gruppens utseende och uppgifter, slår av och på gruppens verktyg, byter deras ordning, väljer vad som visas i huvudmenyn och ser inbjudningarna. **Medlem** använder det som finns.
 
 Vem som får läsa och skriva appens egen data bestämmer appen. Ramverket skyddar medlemskap, konfiguration och sina egna samlingar.`,
         ["behörighet", "ägare", "admin", "medlem"],
@@ -147,7 +147,7 @@ Vem som får läsa och skriva appens egen data bestämmer appen. Ramverket skydd
         "Var hittar jag inställningarna?",
         `**Inställningar** i menyn täcker språk, tema, notiser och gruppens gemensamma val.
 
-Varje installerad app har dessutom egna inställningar bakom kugghjulet i appens huvud. Där sätter du om appen syns i huvudet, kopplingar och appens egna fält.`,
+Varje installerat verktyg har dessutom egna inställningar bakom kugghjulet i verktygets huvud. Där sätter du om verktyget syns i huvudet, kopplingar och verktygets egna fält.`,
         ["kugghjul", "tema", "språk", "notiser"],
       ),
       a(

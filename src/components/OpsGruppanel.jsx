@@ -498,8 +498,13 @@ function GruppanelRemsa({ grupper, aktiv, onValj, sprak, listEtikett }) {
  * @param {Record<string, string>} [props.rollNamn]
  * @param {string} [props.medlemmarEtikett] Skärmläsarordet efter medlemsantalet.
  * @param {string} [props.flerAvatarerEtikett] Skärmläsartext efter "+N".
+ * @param {{ onValj: () => void, etikett?: string }} [props.oversikt] (0.227.0) Raden Översikt först i panelen, med samma ord, samma
+ *   hus och samma `onValj` som växlarens rad. ⛔ CP 2026-11-14 lät huset gå till gruppens start (`grupper.hem` i `OpsAppShell`), och
+ *   sa att vägen till Översikten går genom gruppväxlaren. Från `lg` ÄR panelen växlaren, och utan raden hade en dator saknat vägen.
+ *   Skalet skickar den bara när `grupper.hem` är given. Utelämnad är panelen exakt som förut.
  */
 export function OpsGruppanel({
+  oversikt,
   grupper,
   aktiv,
   onValj,
@@ -537,6 +542,10 @@ export function OpsGruppanel({
   if (typeof onValj !== "function") {
     throw new Error("OpsGruppanel: onValj krävs. En panel som inte kan välja är en lista som ser ut som en kontroll.");
   }
+  if (oversikt !== undefined && (!oversikt || typeof oversikt !== "object" || typeof oversikt.onValj !== "function")) {
+    throw new Error("OpsGruppanel: oversikt ska vara { onValj, etikett? }, eller utelämnas. En rad Översikt som inte gör något är en knapp som ljuger.");
+  }
+  const oversiktNamn = oversikt ? oversikt.etikett || forvalda(ORD_OPSOVERSIKT, sprak ?? "").etikett : "";
   // ⛔ STYRD ELLER OSTYRD, SAMMA MÖNSTER SOM `OpsPanel`s `open`.
   const styrd = typeof infalld === "boolean";
   const [egetInfalld, setEgetInfalld] = useState(false);
@@ -597,6 +606,24 @@ export function OpsGruppanel({
        * står direkt under sista kortet.
        */}
       <div className="flex flex-col gap-1.5">
+        {/* ⛔ 0.227.0: RADEN ÖVERSIKT FÖRST, när skalets hus går till gruppens start (se `oversikt` ovan). Infälld är den en ruta i
+            remsan, som grupperna, med namnet som skärmläsarnamn och tips. */}
+        {oversikt ? (
+          kollapsad ? (
+            <button
+              type="button"
+              data-oversikt=""
+              onClick={oversikt.onValj}
+              aria-label={oversiktNamn}
+              title={oversiktNamn}
+              className={cx(gruppRutaKlass(), "text-ink-secondary hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent")}
+            >
+              <HusIkon size={16} />
+            </button>
+          ) : (
+            <OversiktRad namn={oversiktNamn} vald={false} onValj={oversikt.onValj} />
+          )
+        ) : null}
         {kollapsad ? (
           <GruppanelRemsa grupper={grupper} aktiv={aktiv} onValj={onValj} sprak={sprak} listEtikett={listEtikett} />
         ) : (

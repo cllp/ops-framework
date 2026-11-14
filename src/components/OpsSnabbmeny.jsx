@@ -9,7 +9,7 @@ import { IKON_FOR } from "./ikonlexikon.js";
  * Två former, samma stängning:
  *   - `skapa`: högerjusterad kolumn ovanför knappen. Etiketten till vänster i ett litet mörkt märke, rund mörk ikonknapp
  *     till höger. Kolumnen läses uppifrån: första valet högst upp, sista närmast knappen.
- *   - `appar`: centrerad kolumn rakt ovanför knappen. Rund ikon med etiketten under, och en liten pil mot knappen.
+ *   - `appar`: centrerad kolumn rakt ovanför knappen. Rund ikon med etiketten under, fritt på dimman (ingen panel och ingen pil, 0.227.0).
  *
  * Bakgrunden dimmas och blurras. Stängs med tryck utanför, Escape och bakåt. Fokusfällan, Escape och dialogen är Radix.
  * Bakåt är en egen post i historiken: den tas bort när menyn stängs på annat sätt, så att nästa bakåt inte är en tom post.
@@ -192,11 +192,9 @@ export function OpsSnabbmeny({ oppen, onOppen, variant, etikett, poster, ankare,
                   <span className="max-w-28 truncate rounded-full bg-ink px-2 py-0.5 text-meta font-medium text-canvas" data-snabbmeny-etikett="">{p.etikett}</span>
                 </button>
               ))}
-              <span
-                data-snabbmeny-pil=""
-                aria-hidden="true"
-                className="absolute -bottom-1 left-1/2 size-2 -translate-x-1/2 rotate-45 bg-surface"
-              />
+              {/* ⛔ INGEN PIL MOT KNAPPEN (0.227.0). CP 2026-11-14, med en skärmbild av menyn ovanför fliken: "Fortfarande en liten
+                  ruta här i menyn?" Pilen (en vriden ruta i bg-surface) pekade från en panel mot fliken. Sedan 12200f6 står ikonerna
+                  fritt på dimman utan panel, och då var den en lös vit ruta under kolumnen. */}
             </div>
           )}
         </Dialog.Content>

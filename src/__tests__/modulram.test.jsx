@@ -230,7 +230,7 @@ describe("modulramen", () => {
     expect(etikett?.className).toContain("min-h-11");
     expect(etikett?.className).toContain("w-full");
     expect(etikett?.className).not.toContain("md:min-h-0");
-    fireEvent.click(screen.getByText("Appen är installerad i gruppen."));
+    fireEvent.click(screen.getByText("Verktyget är installerat i gruppen."));
     expect(r.onOrdning).toHaveBeenCalledWith(["bibliotek"]);
     expect(screen.getByRole("switch", { name: "På" })).not.toBeChecked();
   });
@@ -355,7 +355,7 @@ describe("modulramen", () => {
     expect(rad?.tagName).toBe("DIV");
     expect(rad?.querySelector("button, [aria-expanded]")).toBeNull();
     expect(screen.queryByRole("button", { name: /Ikon/ })).toBeNull();
-    expect(screen.getByText("Appens ikon.")).toBeTruthy();
+    expect(screen.getByText("Verktygets ikon.")).toBeTruthy();
   });
 
   it("flyttaForbi hoppar över appar utanför raden och står still i ändarna", () => {

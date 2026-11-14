@@ -67,7 +67,7 @@ import { MAX_SKAPARNAMN, laesSkapare, namnMedVia } from "../lib/skapare.js";
  * @param {ReadonlyArray<{ userId: string, namn?: string, typ?: string, status?: string }>} props.medlemmar Gruppens medlemskap. Fälten av typen person väljer ur de aktiva personerna (inte agenten).
  * @param {"sv"|"en"} [props.sprak] Förval är appens språk (`OpsSprakProvider`).
  * @param {string} [props.hubHref] Hubbens adress. Utelämnad: ingen tillbaka-rad.
- * @param {string} [props.hubEtikett] Förval "Appar".
+ * @param {string} [props.hubEtikett] Förval "Verktyg".
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {import("./OpsModulRam.jsx").ModulRam | null} [props.ram] Inställningsläget, som i `OpsBibliotek`. Utelämnad: vyn som förut, utan kugghjul.
  * @param {string} [props.activeHref] Krävs tillsammans med `ram` och `modul`. `?lage=installningar` visar inställningarna.
@@ -131,8 +131,8 @@ export function OpsBeskrivenApp({ beskrivning, kalla, jag, medlemmar, sprak: spr
 
 /** @type {import("../lib/ord.js").Ordbok} */
 export const ORD_OPSBESKRIVENAPP = {
-  ogiltigTitel: { sv: "Appen går inte att visa.", en: "The app cannot be shown." },
-  ogiltigText: { sv: "Beskrivningen av appen håller inte. Det här behöver rättas av den som byggde appen:", en: "The description of the app is not valid. The person who built the app needs to fix this:" },
+  ogiltigTitel: { sv: "Verktyget går inte att visa.", en: "The tool cannot be shown." },
+  ogiltigText: { sv: "Beskrivningen av verktyget håller inte. Det här behöver rättas av den som byggde verktyget:", en: "The description of the tool is not valid. The person who built the tool needs to fix this:" },
   sok: { sv: "Sök", en: "Search" },
   sokPlats: { sv: "Sök i raderna", en: "Search the rows" },
   ny: { sv: "Ny", en: "New" },

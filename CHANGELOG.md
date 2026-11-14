@@ -9,6 +9,81 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.227.0
+
+### Ändrat
+
+- ⛔ **"Appar" heter "Verktyg"** i allt användaren ser och hör. CP 2026-11-14: "Kör på Verktyg". Skälet:
+  "app" betydde tre saker (LIFE HUB-appen i telefonen, appar i App Store, och Bibliotek, Projekt och
+  Ekonomi i en grupp), och visionen säger redan "genom enkla verktyg". Meningen CP vill kunna säga: "En
+  grupp behöver ett nytt verktyg, inte en ny plattform."
+  - Bottenradens och toppradens flik (`FASTA_NAMN.hub`): "Verktyg" / "Tools".
+  - Hubben (`OpsHub`, `OpsGruppHubb`), tillbakaraden (`OpsHubTillbaka`, `modulTillbaka`, förvalet för
+    `hubEtikett`), verktygsarket (`ORD_OPSAPPARARK`), modulramen (`ORD_OPSMODULRAM`), listan i
+    inställningarna (`ORD_OPSMODULINSTALLNINGAR`), pinnens hjälptext (`ORD_VISA_I_HUVUDMENYN`), gruppens
+    formulär, kalenderns rad och dess Fler-meny, "Fler verktyg" i huvudet, Översikten, hjälpsidan och
+    hjälptexten (med "appar" kvar som sökord), och felen en beskriven app visar.
+  - Engelska: "Apps" blir "Tools", "app" blir "tool".
+  - ⛔ **Oförändrat:** identifierare, props, filnamn, `data-*`, lagringsnycklar
+    (`ops-kalender-dolda-appar:*`, så att ingens val försvinner) och publika namn (`OpsApparArk`,
+    `apparArk`, `moduler`). "Appen" om själva telefon- eller webbappen står kvar (till exempel "den här
+    versionen av appen", menyns rubrik `appRubrik` och TALK:s "Öppna appen i ett eget fönster").
+- ⛔ **Ingen pil i verktygsmenyn** (`OpsSnabbmeny variant="appar"`). CP 2026-11-14, med en skärmbild av
+  menyn ovanför fliken: "Fortfarande en liten ruta här i menyn?" Pilen (`data-snabbmeny-pil`, en vriden
+  ruta i `bg-surface`) pekade från en panel mot fliken, men sedan 12200f6 står ikonerna fritt på dimman
+  utan panel, och då var den en lös vit ruta.
+
+### Tillagt
+
+- ⛔ **Textfältens mikrofon med samma taligenkänning som TALK** (`OpsTranskriberingProvider igenkanning`).
+  CP 2026-11-14: "Kör steg 1 först." I mobilappens webbvy finns ingen `webkitSpeechRecognition`, så
+  fälten spelade in och servern skrev ut efteråt, medan TALK fick telefonens egen igenkänning från appen.
+  - Providern tar `igenkanning` (samma värde som TALK:s: ett `Igenkanning`-objekt eller `true`), och
+    `onTranscribe` blir valfri när `igenkanning` ges. Fel form kastar med ett svenskt fel.
+  - Ett fält med förvalt tal får providerns igenkänning, med `onTranscribe` som reserv. Med ett objekt kör
+    omgången på WebKit bara igenkänningen, som TALK på iPhone (`useTalk({ baraIgenkanning })`, ny): texten
+    syns medan man pratar och skrivs in i just det fältet vid Klar, utan inspelning. Hördes inget står
+    felet med **Spela in i stället** (nu också i fältets yta), som spelar in och lämnar ljudet till servern.
+  - Utan `igenkanning` är allt som förut, och fält med uttryckligt `tal` läser inte providern.
+- ⛔ **Hemikonen kan gå till gruppens start** (`grupper.hem: { onValj, etikett? }`). CP 2026-11-14: "Kör på
+  hemknappen. Jag tänker att gruppens Hem är viktig att ha också, det är där översikten för gruppen är.
+  Så hemikonen makes sense där." Given: huset anropar `hem.onValj` och heter `hem.etikett` eller
+  "Gruppens start" / "Group home" (`TEXT_SKAL.gruppensStart`), och växlaren har raden Översikt igen. Appen
+  utelämnar `hem` när personen redan står på gruppens start. I översiktsläget är huset Översikten som
+  förut. Utelämnad är allt som förut. Fel form kastar.
+  - **Också på dator.** Från `lg` är `OpsGruppanel` växlaren, och med `hem` står raden Översikt först i
+    panelen (ny valfri `OpsGruppanel oversikt: { onValj, etikett? }`, samma ord, hus och `onValj`, infälld
+    en ruta i remsan). Utan raden hade en dator saknat vägen till Översikten. Utan `hem` är panelen som förut.
+
+### Prov
+
+- `verktyg-ord.test.jsx` (nytt): läser det användaren ser och hör (text, `aria-label`, `title`) i hubben
+  (tom grupp, grupp med kort och moduler som inte ritas, engelska), bottenraden och toppraden med
+  verktygsarket öppet, och tillbakaraden, med ett golv (minst tre texter och ordet Verktyg/Tools ska finnas).
+  Alla sex röda mot 0.226.0, gröna med ändringen.
+- `falt-appens-igenkanning.test.jsx` (nytt), med appens igenkänning fejkad som telefonens på iOS och en
+  iPhone som webbvy: fältet skriver in det sagda utan inspelning och utan servern (1), Spela in i stället
+  när inget hördes (1b), och providerns svenska fel. De tre röda mot 0.226.0, gröna med ändringen. Två är
+  vakter för det som inte ska ändras och gröna i båda: utan `igenkanning` spelar fältet in som förut (2),
+  och `tal={false}` ger ingen mikrofon (3).
+- `hemikon-gruppens-start.test.jsx` (nytt): huset anropar `hem.onValj` och inte `oversikt.onValj`, raden
+  Översikt står i växlaren, namnet på svenska, engelska och appens eget, och fel form kastar. Fyra röda
+  mot 0.226.0, gröna med ändringen. Två vakter gröna i båda: utan `hem` är allt som förut, och i
+  översiktsläget är huset Översikten också när `hem` ges.
+  Två prov till för panelen: raden står först i panelen med `hem` och saknas utan, och infälld är den en
+  ruta och fel form på `oversikt` kastar. Båda röda mot grenens förra version (2434e26), gröna med raden.
+- `snabbmeny.test.jsx`: "appar har en pil mot knappen" är omskrivet till att verktygsmenyn inte ritar
+  någon pil och ingen vriden ruta, med golvet att kolumnen ritades. Rött mot 0.226.0, grönt med ändringen.
+- Sjutton provfiler läser de nya orden i stället för de gamla (bland annat `hubb`, `apparark`,
+  `appfilter`, `skal030`, `skal031`, `modulram`, `hjalp`, `beskrivenapp`).
+- ⛔ **Tre prov som sökte det gamla ordet och därför var gröna av sig själva** läser nu det nya: `agenter`
+  ("Verktyget är installerat i gruppen." ska saknas), `gast-grupp-vy` (gästsidan har inget skalord, nu också
+  Verktyg) och `hjalp`. Ett prov som säger att en text saknas blir grönt när texten byter namn.
+- **Webbläsarmätningarna söker de nya orden** (`check-skalyta.mjs`, `lib/skalyta0106.mjs`, `mat-apparark.mjs`).
+  CI-jobbet `scaffold` föll på grenens förra version: `check:skalyta` väntade på knappen "Visa sidorna under
+  Appar" (`check-skalyta.mjs:2129`), och sedan på rubriken "Gruppen har inga appar ännu". `npm run check`
+  kör inte skalytan, men CI gör det.
+
 ## 0.226.0
 
 ### Tillagt

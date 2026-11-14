@@ -147,7 +147,7 @@ describe("ingen väg att installera eller ta bort den", () => {
         <p>sidan</p>
       </OpsAppShell>,
     );
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Appar" }));
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Verktyg" }));
     fireEvent.click(screen.getByRole("button", { name: "Byt ordning" }));
     const dialog = screen.getByRole("dialog");
     fireEvent.keyDown(within(dialog).getByRole("option", { name: "Ekonomi" }), { key: "ArrowRight" });

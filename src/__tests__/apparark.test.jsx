@@ -117,7 +117,7 @@ describe("OpsAppShell apparArk", () => {
     const rad = screen.getByRole("navigation", { name: "Snabbnavigering" });
     const idag = within(rad).getByRole("link", { name: "Idag" });
     expect(idag.getAttribute("aria-current")).toBe("page");
-    const appar = within(rad).getByRole("button", { name: "Appar" });
+    const appar = within(rad).getByRole("button", { name: "Verktyg" });
     fireEvent.click(appar);
     expect(onNavigate).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeTruthy();
@@ -137,19 +137,19 @@ describe("OpsAppShell apparArk", () => {
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(within(rad).getByRole("link", { name: "Idag" }).getAttribute("aria-current")).toBe("page");
-    expect(within(rad).getByRole("button", { name: "Appar" }).getAttribute("aria-current")).toBeNull();
+    expect(within(rad).getByRole("button", { name: "Verktyg" }).getAttribute("aria-current")).toBeNull();
   });
 
-  it("Alla appar öppnar hubbsidan", () => {
+  it("Alla verktyg öppnar hubbsidan", () => {
     const { onNavigate, onOrdning } = skal();
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Appar" }));
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Verktyg" }));
     const dialog = screen.getByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("link", { name: "Alla appar" }));
+    fireEvent.click(within(dialog).getByRole("link", { name: "Alla verktyg" }));
     expect(onNavigate).toHaveBeenCalledWith("/hub", expect.anything());
   });
 
   function oppnaOrdning() {
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Appar" }));
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Verktyg" }));
     fireEvent.click(screen.getByRole("button", { name: "Byt ordning" }));
     return screen.getByRole("dialog");
   }
@@ -204,7 +204,7 @@ describe("OpsAppShell apparArk", () => {
     expect(onOrdning).not.toHaveBeenCalled();
     fireEvent.keyDown(dialog, { key: "Escape" });
     expect(onOrdning).not.toHaveBeenCalled();
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Appar" }));
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Verktyg" }));
     expect(idOrdning(screen.getByRole("dialog"))).toEqual(["ekonomi", "resor"]);
   });
 
@@ -228,7 +228,7 @@ describe("OpsAppShell apparArk", () => {
       expect(fel.className).toContain("text-danger");
       expect(idOrdning(screen.getByRole("dialog"))).toEqual(["ekonomi", "resor"]);
       fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
-      fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Appar" }));
+      fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Verktyg" }));
       expect(idOrdning(screen.getByRole("dialog"))).toEqual(["ekonomi", "resor"]);
     });
   }
@@ -266,7 +266,7 @@ describe("OpsAppShell apparArk", () => {
     vi.useFakeTimers();
     try {
       const { onNavigate } = skal();
-      fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Appar" }));
+      fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Verktyg" }));
       const ekonomi = within(screen.getByRole("dialog")).getByRole("link", { name: "Ekonomi" });
       fireEvent.pointerDown(ekonomi);
       act(() => { vi.advanceTimersByTime(500); });
@@ -278,7 +278,7 @@ describe("OpsAppShell apparArk", () => {
 
   it("skift-enter öppnar inställningsläget", () => {
     const { onNavigate } = skal();
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Appar" }));
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Verktyg" }));
     fireEvent.keyDown(within(screen.getByRole("dialog")).getByRole("link", { name: "Ekonomi" }), { key: "Enter", shiftKey: true });
     expect(onNavigate).toHaveBeenCalledWith("/ekonomi?lage=installningar", expect.anything());
   });
@@ -294,7 +294,7 @@ describe("OpsAppShell apparArk", () => {
         <p>sidan</p>
       </OpsAppShell>,
     );
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Appar" }));
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Verktyg" }));
     expect(screen.queryByRole("button", { name: "Byt ordning" })).toBeNull();
     unmount();
     const tyst = vi.spyOn(console, "error").mockImplementation(() => {});

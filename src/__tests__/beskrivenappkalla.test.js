@@ -93,7 +93,7 @@ describe("createBeskrivenAppKalla: läsa", () => {
     const svar = await kalla(source).las();
     expect(svar.rader.map((r) => r.id)).toEqual(["ok"]);
     expect(svar.trasiga.map((t) => t.id).sort()).toEqual(["extra-falt", "okand-lista", "utan-tider", "utan-varden"]);
-    expect(svar.trasiga.find((t) => t.id === "okand-lista")?.fel).toMatch(/listan "borta", som inte finns i appen\. Listor: saker, personer\./);
+    expect(svar.trasiga.find((t) => t.id === "okand-lista")?.fel).toMatch(/listan "borta", som inte finns i verktyget\. Listor: saker, personer\./);
   });
 
   it("en rad från en annan grupp som källan släpper igenom märks", async () => {
@@ -139,7 +139,7 @@ describe("createBeskrivenAppKalla: skriva", () => {
     const source = createMemorySource();
     const k = kalla(source);
     await expect(k.skapa({ lista: "saker", varden: { skick: "Ny" } })).rejects.toThrow(/varden\.namn: krävs\.\nvarden\.skick: "Ny" är inget av alternativen/);
-    await expect(k.skapa({ lista: "finns-inte", varden: { namn: "x" } })).rejects.toThrow(/lista: "finns-inte" finns inte i appen/);
+    await expect(k.skapa({ lista: "finns-inte", varden: { namn: "x" } })).rejects.toThrow(/lista: "finns-inte" finns inte i verktyget/);
     await expect(k.skapa({ lista: "saker", varden: { namn: "x", fusk: 1 } })).rejects.toThrow(/varden\.fusk: okänt fält/);
     expect((await source.list("appdata", {})).length).toBe(0);
   });
@@ -257,7 +257,7 @@ describe("createBeskrivningskalla", () => {
     expect(lista.beskrivningar.map((p) => p.id)).toEqual(["utlaning"]);
     expect(lista.trasiga.map((t) => t.id).sort()).toEqual(["6~cps-ab~nagot-annat", "6~cps-ab~skev"]);
     expect(lista.trasiga.find((t) => t.id === "6~cps-ab~skev")?.fel).toMatch(/format: måste vara talet 1/);
-    expect(lista.trasiga.find((t) => t.id === "6~cps-ab~nagot-annat")?.fel).toMatch(/stämmer inte med appens id "flyttad"/);
+    expect(lista.trasiga.find((t) => t.id === "6~cps-ab~nagot-annat")?.fel).toMatch(/stämmer inte med verktygets id "flyttad"/);
   });
 
   it("las av en trasig beskrivning är ett fel och inte en tom app", async () => {

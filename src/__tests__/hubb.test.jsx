@@ -333,7 +333,7 @@ describe("OpsGruppHubb: ritad", () => {
   it("en grupp med Ekonomi har ETT kort, och det leder till modulen", () => {
     const nav = vi.fn((_h, e) => e.preventDefault());
     render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} onNavigate={nav} info={{ ekonomi: "Skatten förfaller 12 oktober" }} />);
-    const lista = screen.getByRole("list", { name: "Appar i Claes Philip Staiger AB" });
+    const lista = screen.getByRole("list", { name: "Verktyg i Claes Philip Staiger AB" });
     const kort = within(lista).getAllByRole("link");
     expect(kort).toHaveLength(1);
     expect(kort[0].getAttribute("href")).toBe("/ekonomi");
@@ -346,9 +346,9 @@ describe("OpsGruppHubb: ritad", () => {
 
   it("⛔ en grupp utan moduler visar appar som kan läggas till, och vägen till valet bara när ägaren får den (0.87.0, lifehub.app#129)", () => {
     render(<OpsGruppHubb grupp={G([])} moduler={moduler()} />);
-    expect(screen.getByText("Gruppen har inga appar ännu")).toBeTruthy();
-    expect(screen.getByText(/Claes Philip Staiger AB har inga appar ännu. Ägaren väljer/)).toBeTruthy();
-    const lista = screen.getByRole("list", { name: "Appar som kan läggas till" });
+    expect(screen.getByText("Gruppen har inga verktyg ännu")).toBeTruthy();
+    expect(screen.getByText(/Claes Philip Staiger AB har inga verktyg ännu. Ägaren väljer/)).toBeTruthy();
+    const lista = screen.getByRole("list", { name: "Verktyg som kan läggas till" });
     expect(within(lista).getByText("Ekonomi")).toBeTruthy();
     expect(within(lista).getByText("Resor")).toBeTruthy();
     // Inkorg har hubb: null och blir inget kort. Den står inte i listan.
@@ -376,7 +376,7 @@ describe("OpsGruppHubb: ritad", () => {
     const klick = vi.fn();
     const { unmount } = render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} installera={{ onInstallera: klick }} />);
     expect(screen.getByRole("link", { name: /^Ekonomi/ })).toBeTruthy();
-    const lista = screen.getByRole("list", { name: "Appar som kan läggas till" });
+    const lista = screen.getByRole("list", { name: "Verktyg som kan läggas till" });
     expect(within(lista).getByText("Resor")).toBeTruthy();
     expect(within(lista).queryByText("Ekonomi")).toBeNull();
     expect(within(lista).queryByText("Inkorg")).toBeNull();
@@ -393,14 +393,14 @@ describe("OpsGruppHubb: ritad", () => {
   it("⛔ en modul som inte ritas får en rad som säger varför", () => {
     const { container } = render(<OpsGruppHubb grupp={G(["ekonomi", "bokning", "inkorg"])} moduler={moduler()} />);
     expect(screen.getAllByRole("link")).toHaveLength(1);
-    expect(container.querySelector('[data-saknad="inte-registrerad"]')?.textContent).toContain('Appen "bokning" visas inte: den finns inte här');
-    expect(container.querySelector('[data-saknad="inget-kort"]')?.textContent).toContain('Appen "inkorg" visas inte: den har inget kort');
+    expect(container.querySelector('[data-saknad="inte-registrerad"]')?.textContent).toContain('Verktyget "bokning" visas inte: det finns inte här');
+    expect(container.querySelector('[data-saknad="inget-kort"]')?.textContent).toContain('Verktyget "inkorg" visas inte: det har inget kort');
   });
 
   it("⛔ pekar gruppen bara på moduler som inte ritas står det, inte 'inga moduler'", () => {
     render(<OpsGruppHubb grupp={G(["bokning"])} moduler={moduler()} />);
-    expect(screen.queryByText("Inga appar i gruppen")).toBeNull();
-    expect(screen.getByText("Ingen av gruppens appar kan visas")).toBeTruthy();
+    expect(screen.queryByText("Inga verktyg i gruppen")).toBeNull();
+    expect(screen.getByText("Inget av gruppens verktyg kan visas")).toBeTruthy();
   });
 });
 
@@ -427,7 +427,7 @@ describe("OpsGruppHubb: en modul som bara är ett tillägg (0.124.0)", () => {
   it("⛔ erbjuds under Appar med Installera, och knappen installerar just den", () => {
     const klick = vi.fn();
     render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={alla()} installera={{ onInstallera: klick }} />);
-    const lista = screen.getByRole("list", { name: "Appar som kan läggas till" });
+    const lista = screen.getByRole("list", { name: "Verktyg som kan läggas till" });
     expect(within(lista).getByText("Datumomröstning")).toBeTruthy();
     // Raden säger var den syns, med tilläggets etikett och ytans namn ur samma källa som gruppens inställningar.
     expect(within(lista).getByText("Rösta på datum · Syns på: Händelser")).toBeTruthy();
@@ -440,7 +440,7 @@ describe("OpsGruppHubb: en modul som bara är ett tillägg (0.124.0)", () => {
 
   it("⛔ erbjuds också i en tom grupp, och på engelska med engelska ord", () => {
     render(<OpsGruppHubb grupp={G([])} moduler={alla()} installera={{ onInstallera: () => {} }} sprak="en" />);
-    const lista = screen.getByRole("list", { name: "Apps that can be added" });
+    const lista = screen.getByRole("list", { name: "Tools that can be added" });
     expect(within(lista).getByText("Date poll")).toBeTruthy();
     expect(within(lista).getByText("Vote on dates · Visible in: Events")).toBeTruthy();
   });
@@ -461,8 +461,8 @@ describe("OpsGruppHubb: en modul som bara är ett tillägg (0.124.0)", () => {
 
   it("⛔ en grupp vars enda app är ett tillägg är inte 'utan appar'", () => {
     render(<OpsGruppHubb grupp={G(["datumomrostning"])} moduler={alla()} />);
-    expect(screen.queryByText("Gruppen har inga appar ännu")).toBeNull();
-    expect(screen.queryByText("Ingen av gruppens appar kan visas")).toBeNull();
+    expect(screen.queryByText("Gruppen har inga verktyg ännu")).toBeNull();
+    expect(screen.queryByText("Inget av gruppens verktyg kan visas")).toBeNull();
     expect(screen.getByRole("region", { name: "Tillägg i gruppen" })).toBeTruthy();
   });
 
@@ -515,7 +515,7 @@ describe("OpsGruppHubb: kortet fälls ut med en chevron (0.83.0)", () => {
 
   it("⛔ medan ett kort är utfällt sträcks inte grannkorten till dess höjd (rutnätet blir items-start), och stängt igen står de lika höga", () => {
     render(<OpsGruppHubb grupp={G(["ekonomi", "resor"])} moduler={moduler()} />);
-    const lista = screen.getByRole("list", { name: "Appar i Claes Philip Staiger AB" });
+    const lista = screen.getByRole("list", { name: "Verktyg i Claes Philip Staiger AB" });
     expect(lista.className).not.toContain("items-start");
     const chevron = screen.getByRole("button", { name: "Visa delarna i Ekonomi" });
     fireEvent.click(chevron);
@@ -623,7 +623,7 @@ describe("OpsModulSida: modulens egen navigation", () => {
     expect(lankar.map((a) => a.getAttribute("href"))).toEqual(DELAR.map(([id]) => `/ekonomi/${id}`));
     expect(lankar.filter((a) => a.getAttribute("aria-current") === "page").map((a) => a.textContent)).toEqual(["Översikt"]);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Ekonomi");
-    expect(screen.getByRole("link", { name: "Tillbaka till Appar" }).getAttribute("href")).toBe("/hub");
+    expect(screen.getByRole("link", { name: "Tillbaka till Verktyg" }).getAttribute("href")).toBe("/hub");
     expect(screen.getByText("översikten")).toBeTruthy();
   });
 
@@ -651,12 +651,12 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
   it("⛔ ägaren ser valet, och det sparas i valordningen med ett okänt id kvar", async () => {
     const onSpara = vi.fn(async () => {});
     const { container } = render(<OpsGruppFormular formId="f" grupp={GRUPP} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), farAndra: true }} />);
-    const sektion = screen.getByRole("region", { name: "Appar" });
+    const sektion = screen.getByRole("region", { name: "Verktyg" });
     const knappar = within(sektion).getAllByRole("button");
     // ⛔ 0.60.0 (#251): namnet ur `aria-label`, eftersom raden "Syns på" nu står i knappen. Inkorg (utan kort) står med.
     expect(knappar.map((b) => b.getAttribute("aria-label"))).toEqual(["Ekonomi", "Resor", "Inkorg"]);
     expect(knappar.every((b) => b.getAttribute("aria-pressed") === "false")).toBe(true);
-    expect(container.querySelector('[data-modul-okand="gammal"]')?.textContent).toContain("gammal är installerad i gruppen men finns inte här");
+    expect(container.querySelector('[data-modul-okand="gammal"]')?.textContent).toContain("gammal är installerat i gruppen men finns inte här");
     fireEvent.click(knappar[1]);
     fireEvent.click(knappar[0]);
     expect(knappar[0].getAttribute("aria-pressed")).toBe("true");
@@ -677,7 +677,7 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
   it("⛔ en admin ser inget modulval och skickar aldrig fältet", async () => {
     const onSpara = vi.fn(async () => {});
     const { container } = render(<OpsGruppFormular grupp={GRUPP} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), farAndra: false }} />);
-    expect(screen.queryByRole("region", { name: "Appar" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Verktyg" })).toBeNull();
     fireEvent.submit(/** @type {HTMLFormElement} */ (container.querySelector("form")));
     await vi.waitFor(() => expect(onSpara).toHaveBeenCalled());
     expect(/** @type {any} */ (onSpara.mock.calls[0])[0].grupp).not.toHaveProperty("moduler");
@@ -685,7 +685,7 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
 
   it("⛔ när en ny grupp skapas finns inget modulval", () => {
     render(<OpsGruppFormular onSkapa={async () => ({ groupId: "x" })} moduler={{ valbara: valbaraModuler(moduler()), farAndra: true }} />);
-    expect(screen.queryByRole("region", { name: "Appar" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Verktyg" })).toBeNull();
   });
 
   /*
@@ -743,7 +743,7 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
 
   it("⛔ utan registrerade moduler säger valet det", () => {
     const { container } = render(<OpsGruppFormular grupp={{ ...GRUPP, moduler: [] }} onSpara={async () => {}} moduler={{ valbara: [], farAndra: true }} />);
-    expect(container.querySelector("[data-moduler-tomt]")?.textContent).toBe("Det finns inga appar att installera.");
+    expect(container.querySelector("[data-moduler-tomt]")?.textContent).toBe("Det finns inga verktyg att installera.");
   });
 });
 
@@ -764,7 +764,7 @@ describe("⛔ Appar har vyns tunna huvud med åtgärden (0.103.0, CP 2026-10-14)
     const { OpsVyAtgard } = await import("../components/OpsTillbaka.jsx");
     const skapa = vi.fn();
     render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} atgard={<OpsVyAtgard onClick={skapa}>Skapa app</OpsVyAtgard>} />);
-    const rubrik = screen.getByRole("heading", { name: "Appar" });
+    const rubrik = screen.getByRole("heading", { name: "Verktyg" });
     const huvud = rubrik.closest("[data-vyhuvud]");
     expect(huvud).toBeTruthy();
     const knapp = within(/** @type {HTMLElement} */ (huvud)).getByRole("button", { name: "Skapa app" });
@@ -775,7 +775,7 @@ describe("⛔ Appar har vyns tunna huvud med åtgärden (0.103.0, CP 2026-10-14)
   it("utan åtgärd står bara rubriken, och en åtgärd utan onClick kastar", async () => {
     const { OpsVyAtgard } = await import("../components/OpsTillbaka.jsx");
     render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} />);
-    const huvud = screen.getByRole("heading", { name: "Appar" }).closest("[data-vyhuvud]");
+    const huvud = screen.getByRole("heading", { name: "Verktyg" }).closest("[data-vyhuvud]");
     expect(within(/** @type {HTMLElement} */ (huvud)).queryAllByRole("button")).toHaveLength(0);
     expect(() => render(<OpsVyAtgard onClick={/** @type {any} */ (undefined)}>X</OpsVyAtgard>)).toThrow(/onClick krävs/);
   });

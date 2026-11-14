@@ -36,6 +36,12 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  *   (0.114.0) ⛔ PÅ WEBKIT (Safari, och alla webbläsare på iOS) kör TALK med valen (`onAgent`, inget låst mål) BARA igenkänningen och ingen
  *   inspelare: de slogs om mikrofonen (#253), och med bara en av dem finns inget att slåss om. Faller den visas "Spela in i stället".
  *   Utan `onAgent` och för ett låst mål gäller som förut att WebKit bara spelar in.
+ * @property {boolean} [baraIgenkanning] (0.227.0) Samma omgång som TALK med valen på WebKit, också utan `onAgent`: BARA igenkänningen, ingen
+ *   inspelare. ⛔ CP 2026-11-14: textfältens mikrofon ska vara samma upplevelse som TALK. I mobilappens webbvy finns ingen
+ *   `webkitSpeechRecognition`, och telefonens egen igenkänning (appens `Igenkanning`) lyssnar på iOS bara när ingen inspelare har
+ *   mikrofonen (`kanLyssna`). Utan den här kördes fältet som inspelning, och texten kom först när servern skrivit ut den. Ett textfält
+ *   under `OpsTranskriberingProvider` med appens igenkänning sätter den (`talForval` i `OpsField.jsx`). Med text lämnas den till `onTalk`
+ *   (en tom blob och `text`). Utan text står felet med "Spela in i stället", som i TALK.
  * @property {string} [skickarText] (0.97.0) Statusraden medan det inspelade lämnas till appen. Förval `TALK_SKICKAR_TEXT`
  *   ("Sparar…"). lifehub.app skickar "Agenten arbetar…". En tom sträng eller något annat än en sträng kastar.
  * @property {(text: string) => void | Promise<void>} [onAgent] (0.105.0) Agent-knappen. Med den lämnar Klar inte det sagda till `onTalk`:
@@ -118,7 +124,10 @@ function kanLyssnaI(kandidat, baraIgenkanning, rapportera, kastade) {
 /**
  * @param {TalkVal & { onKlick: () => void }} val `onKlick` är det ett vanligt tryck gör, Skapa.
  */
-export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samtalet, inspelare, igenkanning, skickarText, maxSekunder = MAX_SEKUNDER }) {
+export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samtalet, inspelare, igenkanning, baraIgenkanning = false, skickarText, maxSekunder = MAX_SEKUNDER }) {
+  if (typeof baraIgenkanning !== "boolean") {
+    throw new Error(`useTalk: baraIgenkanning ska vara true eller false, fick ${baraIgenkanning === null ? "null" : typeof baraIgenkanning}.`);
+  }
   if (onAgent !== undefined && typeof onAgent !== "function") {
     throw new Error(`useTalk: onAgent ska vara en funktion, fick ${onAgent === null ? "null" : typeof onAgent}. Agent-knappen lämnar det sagda dit, och utan en funktion hade trycket inte gjort något.`);
   }
@@ -130,6 +139,11 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
   kontrolleraSamtalet(samtalet, "useTalk");
   const onAgentRef = useRef(onAgent);
   onAgentRef.current = onAgent;
+  /** (0.227.0) Omgången får köra bara igenkänningen på WebKit utan `onAgent` (ett textfält med appens igenkänning). */
+  const baraIgkRef = useRef(baraIgenkanning);
+  baraIgkRef.current = baraIgenkanning;
+  /** Med valen (`onAgent`) eller med `baraIgenkanning` får omgången på WebKit köra bara igenkänningen. */
+  const baraTillaten = () => typeof onAgentRef.current === "function" || baraIgkRef.current;
   /** (0.226.0) Samtalet gäller bara där valen finns: utan `onAgent` ignoreras det. */
   const samtaletGiltigt = typeof onAgent === "function" && samtalet ? samtalet : undefined;
   const samtaletRef = useRef(samtaletGiltigt);
@@ -510,7 +524,8 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
         // ⛔ (0.218.0) `kanLyssna`: en igenkänning appen gett kan säga att den inte lyssnar i en viss sorts omgång. Se `kanLyssnaI`.
         // ⛔ EN FRÅGA PER KANDIDAT OCH OMGÅNG (granskningen av 0.218.0): förut frågades WebKit-kandidaten två gånger, för valet av väg och
         // för omgången. En igenkänning som svarade ja och sedan nej gav en ren igenkänningsomgång utan igenkänning, och ett kast rapporterades två gånger.
-        const webbKandidat = !laast && !reservStart && typeof onAgentRef.current === "function" && arWebKit() ? igk(true) : null;
+        // ⛔ (0.227.0) Också ett textfält med `baraIgenkanning`, utan valen: samma omgång som TALK, så att telefonens igenkänning lyssnar.
+        const webbKandidat = !laast && !reservStart && baraTillaten() && arWebKit() ? igk(true) : null;
         /** Kandidater som kastat i den här omgången: de frågas inte igen, och kastet rapporteras en gång. */
         const kastade = new Set();
         const fraga = (/** @type {import("../lib/talk.js").Igenkanning | null | undefined} */ g, /** @type {boolean} */ baraIgk) => {
@@ -835,7 +850,8 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
              * ge `onAgent` (då skulle en tom blob gå till `onTalk`). Inget ljud finns. Fältet säger det med "Spela in i stället", och
              * felet går till felrapporten med `ingen-text` och igenkänningens felkod (`no-speech` när det bara var tyst).
              */
-            if (bara && (!hord || typeof onAgentRef.current !== "function")) {
+            // ⛔ (0.227.0) Med `baraIgenkanning` går texten vidare till `lamna` också utan `onAgent`: fältet skriver in det sagda.
+            if (bara && (!hord || !baraTillaten())) {
               rapporteraIngenText(ljud.sekunder, 0);
               noteraSlut("tomt");
               senast.current = null;

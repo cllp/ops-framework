@@ -33,7 +33,7 @@ describe("A: fasta poster och moduler i Hub (#173)", () => {
     render(Skal());
     const rad = screen.getByRole("navigation", { name: "Huvudnavigering" });
     const lankar = within(rad).getAllByRole("link").map((a) => a.textContent);
-    expect(lankar).toEqual(["Idag", "Kalender", "Appar"]);
+    expect(lankar).toEqual(["Idag", "Kalender", "Verktyg"]);
   });
 
   it("namnen finns på engelska, och de är ramverkets (appen skickar bara href)", () => {
@@ -41,12 +41,12 @@ describe("A: fasta poster och moduler i Hub (#173)", () => {
     // ⛔ ÄNDRAT I 0.46.0 (bolag-ops#528): skalets egna etiketter följer språket också, så raden heter "Main navigation" på engelska.
     // Provet väntade sig förut det svenska namnet i en engelsk app, alltså precis den blandning ärendet handlar om.
     const rad = screen.getByRole("navigation", { name: "Main navigation" });
-    expect(within(rad).getAllByRole("link").map((a) => a.textContent)).toEqual(["Today", "Calendar", "Apps"]);
+    expect(within(rad).getAllByRole("link").map((a) => a.textContent)).toEqual(["Today", "Calendar", "Tools"]);
   });
 
   it("Hub har en chevron som öppnar modulerna, och en modul med undersidor har en egen chevron (0.30.1)", () => {
     render(Skal());
-    fireEvent.click(screen.getByRole("button", { name: "Visa sidorna under Appar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Visa sidorna under Verktyg" }));
     const dropdown = screen.getByRole("dialog");
     // Ekonomis barn är infällda tills dess egen chevron trycks: en rad med chevron, inte en lista som alltid syns.
     expect(within(dropdown).getAllByRole("link").map((a) => a.textContent)).toEqual(["Översikt", "Ekonomi"]);
@@ -61,7 +61,7 @@ describe("A: fasta poster och moduler i Hub (#173)", () => {
     render(Skal({ activeHref: "/inkomster" }));
     const rad = screen.getByRole("navigation", { name: "Huvudnavigering" });
     // Hub har undermeny, så länken ligger i ett `<span>` som bär flikens klasser.
-    expect(within(rad).getByRole("link", { name: "Appar" }).parentElement.className).toContain("border-ink");
+    expect(within(rad).getByRole("link", { name: "Verktyg" }).parentElement.className).toContain("border-ink");
     expect(within(rad).getByRole("link", { name: "Idag" }).className).not.toContain("border-ink");
   });
 
@@ -108,9 +108,9 @@ describe("A: fasta poster och moduler i Hub (#173)", () => {
     render(Skal({ skapa: { handelse: <p>formulär</p>, arende: <p>ärende</p> } }));
     const botten = screen.getByRole("navigation", { name: "Snabbnavigering" });
     const poster = within(botten).getAllByRole("link").map((a) => a.textContent);
-    expect(poster).toEqual(["Idag", "Kalender", "Appar"]);
+    expect(poster).toEqual(["Idag", "Kalender", "Verktyg"]);
     const alla = Array.from(botten.querySelectorAll("a, button")).map((e) => e.getAttribute("aria-label") || e.textContent);
-    expect(alla).toEqual(["Idag", "Kalender", "Skapa", "Appar", "Meny"]);
+    expect(alla).toEqual(["Idag", "Kalender", "Skapa", "Verktyg", "Meny"]);
 
     fireEvent.click(within(botten).getByRole("button", { name: "Skapa" }));
     const ark = screen.getByRole("dialog", { name: "Skapa" });
@@ -143,7 +143,7 @@ describe("A: fasta poster och moduler i Hub (#173)", () => {
   // och chevronen bredvid den är knappen. Provet hette "... ett med barn en utfällbar knapp" och läste kortet som knappens förälder.
   it("OpsHub: ett kort per modul, ett kort utan barn en länk och ett med barn en länk med en chevron bredvid, och det aktiva markerat (0.30.1, 0.83.0)", () => {
     render(<OpsHub moduler={moduler} activeHref="/inkomster" />);
-    const lista = screen.getByRole("list", { name: "Appar" });
+    const lista = screen.getByRole("list", { name: "Verktyg" });
     expect(within(lista).getAllByRole("listitem")).toHaveLength(2);
     // Den aktiva sidan är ett av barnen, så kortet börjar utfällt.
     const knapp = within(lista).getByRole("button", { name: "Visa delarna i Ekonomi" });
@@ -156,7 +156,7 @@ describe("A: fasta poster och moduler i Hub (#173)", () => {
 
   it("OpsHub: en tom lista visar text, aldrig en tom yta", () => {
     render(<OpsHub moduler={[]} />);
-    expect(screen.getByText("Inga appar än")).toBeTruthy();
+    expect(screen.getByText("Inga verktyg än")).toBeTruthy();
   });
 
   it("OpsHub: stängt API, ingen className och ingen style i parameterlistan", () => {

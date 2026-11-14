@@ -773,7 +773,7 @@ async function apparArkHylla() {
     await page.locator("[data-ops-bottenrad]").waitFor({ timeout: 4000 });
     const plusAntal = await page.locator("[data-ops-bottenrad] button[aria-label='Skapa']").count();
     krav(plusAntal === 1, `${namn}: ${plusAntal} plusknappar i bottenraden, väntat 1. Scenen saknar fasta eller skapa, och då finns ingen upphöjd knapp att mäta.`);
-    await page.locator("[data-ops-bottenrad]").getByRole("button", { name: "Appar" }).click();
+    await page.locator("[data-ops-bottenrad]").getByRole("button", { name: "Verktyg" }).click();
     await page.waitForSelector("[data-appar-ark]");
     const lage = await page.evaluate(() => {
       const ark = document.querySelector("[data-appar-ark]");
@@ -810,7 +810,7 @@ async function apparArkHylla() {
         overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       };
     });
-    krav(lage.saknas !== true, `${namn}: arket, raden eller pluset saknas efter att Appar öppnats (${JSON.stringify(lage)}).`);
+    krav(lage.saknas !== true, `${namn}: arket, raden eller pluset saknas efter att Verktyg öppnats (${JSON.stringify(lage)}).`);
     if (lage.saknas !== true) {
       matt.push(`${namn}: arkets underkant ${lage.arkBotten.toFixed(1)}, radens överkant ${lage.radTopp.toFixed(1)}, plusets överkant ${lage.plusTopp.toFixed(1)}, z rad ${lage.navZ} ark ${lage.arkZ}, träff ${lage.traff}`);
       krav(lage.arkBotten <= lage.radTopp + 1, `${namn}: arket slutar vid ${lage.arkBotten.toFixed(1)} och raden börjar vid ${lage.radTopp.toFixed(1)}. Hyllan ska sitta på raden, inte täcka den.`);
@@ -834,7 +834,7 @@ async function apparArkOrdning() {
   const { page, context } = await oppna("apparark", { width: 390, height: 844 });
   try {
     await page.locator("[data-ops-bottenrad]").waitFor({ timeout: 4000 });
-    await page.locator("[data-ops-bottenrad]").getByRole("button", { name: "Appar" }).click();
+    await page.locator("[data-ops-bottenrad]").getByRole("button", { name: "Verktyg" }).click();
     await page.waitForSelector("[data-appar-ark]");
     await page.getByRole("button", { name: "Byt ordning" }).click();
     const grepp = await page.locator("[data-ark-grepp]").count();
@@ -1463,7 +1463,7 @@ if (!utanFasta) {
     const namn = m.poster.map((p) => p.namn);
     matt.push(`bottenraden x: ${m.poster.map((p) => `${p.namn}@${p.x.toFixed(0)}+${p.w.toFixed(0)}`).join(" ")}`);
     matt.push(`bottenraden: ${namn.join(" | ")}; höjd ${m.hojd} px, ikon ${m.ikon} px, etikett ${m.etikett} px, huvudets plus ${m.huvudPlusVisas ? "syns" : "gömt"}`);
-    krav(JSON.stringify(namn) === JSON.stringify(["Idag", "Kalender", "Skapa", "Appar", "Meny"]), `bottenraden: ordningen är ${namn.join(", ")}, väntat Idag, Kalender, Skapa (stort plus), Appar, Meny.`);
+    krav(JSON.stringify(namn) === JSON.stringify(["Idag", "Kalender", "Skapa", "Verktyg", "Meny"]), `bottenraden: ordningen är ${namn.join(", ")}, väntat Idag, Kalender, Skapa (stort plus), Verktyg, Meny.`);
     const plus = m.poster.find((p) => p.namn === "Skapa");
     krav(!!plus && Math.abs(plus.w - 56) < 0.5 && Math.abs(plus.h - 56) < 0.5, `bottenraden: plusset är ${plus?.w}x${plus?.h} px, väntat 56x56.`);
     krav(!!plus && Math.abs(plus.mitt - m.bredd / 2) <= 2, `bottenraden: plusset ligger på x=${plus?.mitt.toFixed(1)}, väntat mitt i raden (${m.bredd / 2}).`);
@@ -2126,7 +2126,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   }
   if (vp.width > 800) {
     // Hub-rullgardinen i toppraden: Ekonomi är en rad med chevron, barnen infällda tills den trycks.
-    await page.getByRole("button", { name: "Visa sidorna under Appar" }).click();
+    await page.getByRole("button", { name: "Visa sidorna under Verktyg" }).click();
     const dd = page.locator('[role="dialog"]');
     await dd.waitFor();
     const rad = dd.getByRole("button", { name: /Ekonomi/ });
@@ -2157,9 +2157,9 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     matt.push(`Modulsidan ${namn}: ${barn.length} barnkort (${barn.join(" | ")})`);
     krav(barn.length === 6, `Modulsidan ${namn}: ${barn.length} barnkort, väntat 6.`);
     krav(barn[0]?.includes("1") && barn[0]?.includes("Ny faktura i går") && barn[1]?.includes("Inget nytt"), `Modulsidan ${namn}: barnkorten bär inte räknare och info ("${barn[0]}", "${barn[1]}").`);
-    const tillbaka = rad.getByRole("link", { name: "Tillbaka till Appar" });
+    const tillbaka = rad.getByRole("link", { name: "Tillbaka till Verktyg" });
     const harTillbaka = (await tillbaka.count()) === 1;
-    krav(harTillbaka, `Modulsidan ${namn}: länken "Tillbaka till Appar" hittades inte (0.31.2: en textlänk, inte "‹ Hub / Ekonomi").`);
+    krav(harTillbaka, `Modulsidan ${namn}: länken "Tillbaka till Verktyg" hittades inte (0.31.2: en textlänk, inte "‹ Hub / Ekonomi").`);
     if (!harTillbaka) { await context.close(); continue; }
     krav((await tillbaka.getAttribute("href")) === "/hub", `Modulsidan ${namn}: tillbaka-länken leder inte till /hub.`);
     krav((await page.locator("h1").count()) === 1 && (await page.locator("h1").textContent()) === "Ekonomi", `Modulsidan ${namn}: modulens namn saknas som rubrik under tillbaka-länken.`);
@@ -2199,7 +2199,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   {
     const { page, context } = await oppna("grupphubb", vp, standardtema, 1, "g3");
     try {
-      const lista = page.locator('main ul[aria-label="Appar i Claes Philip Staiger AB"]');
+      const lista = page.locator('main ul[aria-label="Verktyg i Claes Philip Staiger AB"]');
       // ⛔ 0.83.0: ett kort med delar är en länk med en chevron bredvid (`[data-kortlank]` i en `div`), inte en länk direkt i `li`.
       const kort = lista.locator(":scope > li > a, :scope > li [data-kortlank]");
       const antal = await kort.count();
@@ -2217,7 +2217,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
       krav((await over(page)) <= 0, `Hubben per grupp ${namn} (a): sidan flödar ${await over(page)} px i sidled.`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `grupphubb-ekonomi-${vp.width}.png`) });
       if (vp.width > 800) {
-        await page.getByRole("button", { name: "Visa sidorna under Appar" }).click();
+        await page.getByRole("button", { name: "Visa sidorna under Verktyg" }).click();
         const dd = page.locator('[role="dialog"]');
         await dd.waitFor();
         const rader = await dd.evaluate((el) => ({
@@ -2238,10 +2238,10 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     const { page, context } = await oppna("grupphubb", vp, standardtema, 1, "g2");
     try {
       const main = page.locator("main");
-      const rubrik = main.getByText("Gruppen har inga appar ännu", { exact: true });
-      const rad = main.getByText(/Testgruppen har inga appar ännu/);
-      const valbara = main.getByRole("list", { name: "Appar som kan läggas till" });
-      krav((await rubrik.count()) === 1 && (await rubrik.isVisible()), `Hubben per grupp ${namn} (b): rubriken "Gruppen har inga appar ännu" syns inte i gruppen utan moduler.`);
+      const rubrik = main.getByText("Gruppen har inga verktyg ännu", { exact: true });
+      const rad = main.getByText(/Testgruppen har inga verktyg ännu/);
+      const valbara = main.getByRole("list", { name: "Verktyg som kan läggas till" });
+      krav((await rubrik.count()) === 1 && (await rubrik.isVisible()), `Hubben per grupp ${namn} (b): rubriken "Gruppen har inga verktyg ännu" syns inte i gruppen utan moduler.`);
       krav((await rad.count()) === 1 && (await rad.isVisible()), `Hubben per grupp ${namn} (b): raden med gruppens namn syns inte.`);
       const namnIListan = await valbara.locator("li").allTextContents();
       krav(namnIListan.includes("Ekonomi"), `Hubben per grupp ${namn} (b): listan är ${JSON.stringify(namnIListan)}, väntat Ekonomi bland apparna som kan läggas till.`);
@@ -2310,7 +2310,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
         krav(m.radHojd < m.enHojd + 28, `Modulens insida ${namn} ${href}: raden är ${m.radHojd.toFixed(0)} px, en länk ${m.enHojd.toFixed(0)} px. Väntat en rad.`);
         krav(m.hoger <= m.body + 1 && m.vanster >= -1, `Modulens insida ${namn} ${href}: radens ruta är ${m.vanster.toFixed(1)}-${m.hoger.toFixed(1)}, bodyn är ${m.body} px.`);
         if (vp.width < 800) krav(m.rullar, `Modulens insida ${namn} ${href}: fjorton delar ska rulla på 390 px (scrollWidth mot clientWidth, rullar ${m.rullar}).`);
-        const tillbaka = page.getByRole("link", { name: "Tillbaka till Appar" });
+        const tillbaka = page.getByRole("link", { name: "Tillbaka till Verktyg" });
         krav((await tillbaka.count()) === 1 && (await tillbaka.getAttribute("href")) === "/hub", `Modulens insida ${namn} ${href}: tillbaka-länken till /hub saknas.`);
         krav((await page.locator("h1").count()) === 1 && (await page.locator("h1").textContent()) === "Ekonomi", `Modulens insida ${namn} ${href}: rubriken "Ekonomi" saknas.`);
         krav((await page.locator("[data-moduldel-innehall]").count()) === 1, `Modulens insida ${namn} ${href}: delens innehåll ritades inte.`);
@@ -2753,7 +2753,7 @@ for (const bredd of [900, 1280, 1600]) {
       const cr = chev ? chev.getBoundingClientRect() : null;
       return { boxL: br.left, boxR: br.right, ordL: ord.left, ordR: ord.right, chevL: cr ? cr.left : null, chevR: cr ? cr.right : null };
     };
-    return { idag: mat("Idag"), kalender: mat("Kalender"), hub: mat("Appar") };
+    return { idag: mat("Idag"), kalender: mat("Kalender"), hub: mat("Verktyg") };
   });
   const ok = !!t.idag && !!t.kalender && !!t.hub && t.hub.chevL !== null;
   krav(ok, `flikarna ${bredd} px: Idag, Kalender eller Hub med chevron hittades inte.`);
@@ -3339,7 +3339,7 @@ const MENYYTOR = [
   // Före 0.218.0 mätte raden ovan arket vid 390 px under huvudets namn, med huvudets krav; nu mäts varje yta mot sitt eget beslut, lika exakt.
   { id: "menyarket", namn: "Menyarket (bottenradens Meny)", scen: "full", bredd: [390], oppna: (p) => p.getByRole("button", { name: "Meny" }).last().click(), rader: '[role="dialog"] a[href], [role="dialog"] button[class*="rounded-base"][class*="min-h-11"]', valt: null, font: 16, padX: 12, padY: 10, minRader: 3, dialog: true },
   { id: "skapa-dropdown", namn: "Skapa-menyn (plus)", scen: "skapa", bredd: [1280], oppna: (p) => p.getByRole("button", { name: "Skapa", exact: true }).last().click(), rader: '[role="dialog"] button[class*="min-h-11"]', valt: null, font: 14, vikt: 500, padX: 16, padY: 10, minRader: 1, dialog: true },
-  { id: "hub-dropdown", namn: "Hub-rullgardinen", scen: "full", bredd: [1280], oppna: (p) => p.getByRole("button", { name: "Visa sidorna under Appar" }).click(), rader: '[role="dialog"] a[href]', valt: null, font: 12, padX: 12, padY: 10, minRader: 2, dialog: true },
+  { id: "hub-dropdown", namn: "Hub-rullgardinen", scen: "full", bredd: [1280], oppna: (p) => p.getByRole("button", { name: "Visa sidorna under Verktyg" }).click(), rader: '[role="dialog"] a[href]', valt: null, font: 12, padX: 12, padY: 10, minRader: 2, dialog: true },
   { id: "skapa-i", namn: "Skapa i, dialogen", scen: "skapa", aktiv: "g1", oppna: async (p) => { await p.getByRole("button", { name: "Skapa", exact: true }).last().click(); await p.getByRole("button", { name: "Ny händelse" }).click(); await p.getByRole("button", { name: /^Skapas i:/ }).click(); }, rader: '[role="dialog"][aria-label="Skapa i"] section button, [role="dialog"] section button', valt: null, font: 14, padX: 12, padY: 12, minRader: 2, dialog: true },
 ];
 let ytorMatta = 0;
@@ -8150,7 +8150,7 @@ async function gastGrupp() {
         krav(m.flikar.every((f) => f.h >= 44 && f.b >= 44), `${namn} sida (d): en ${telefon ? "plats i bottenraden" : "flik"} är under 44 x 44 px (${m.flikar.map((f) => `${f.b.toFixed(0)}x${f.h.toFixed(0)}`).join("/")}).`);
         krav(telefon ? m.tablist === 0 && m.bottenrad === 1 && m.radknappar === 0 : m.tablist === 1 && m.bottenrad === 0, `${namn} sida (d): ${m.tablist} flikrader och ${m.bottenrad} bottenrader med ${m.radknappar} knappar, väntat ${telefon ? "ingen flikrad och en bottenrad utan plus och utan Meny" : "en flikrad och ingen bottenrad"}.`);
         krav(m.h1 === 1 && !m.overflow, `${namn} sida (d): ${m.h1} h1 (väntat 1), sidled ${m.overflow}.`);
-        krav(m.lankar.length === 0 && !/Inställningar|Ekonomi|Appar|Hubb|Agent/.test(m.sidtext), `${namn} sida (d): sidan har en väg ut eller ett ord ur appens skal (${JSON.stringify(m.lankar)}).`);
+        krav(m.lankar.length === 0 && !/Inställningar|Ekonomi|Appar|Verktyg|Hubb|Agent/.test(m.sidtext), `${namn} sida (d): sidan har en väg ut eller ett ord ur appens skal (${JSON.stringify(m.lankar)}).`);
         // (d) ORDMÄRKET. 0.190.0 krävde minst 120 x 28 för att märket inte skulle bli obefintligt. 0.192.0 gör huvudet kompakt (CP: chatten ska bara vara chatt): märket är 24 px högt (0.215.1 gör det 32 px högt, CP 2026-11-11: "Logotypen är liten..."), hela märket syns, och det är mindre än det förra 40 px-huvudet. Golv: en synlig, laddad bild.
         const mk = await page.evaluate(() => {
           const ruta = document.querySelector("[data-gast-marke]");

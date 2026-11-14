@@ -204,7 +204,7 @@ describe("validateBeskrivning: det som avvisas", () => {
   it("beskrivning krävs men får vara tom, högst 500 tecken", () => {
     const b = /** @type {any} */ (utlaning());
     delete b.beskrivning;
-    expect(fel(b)[0]).toBe('beskrivning: krävs. Skriv "" om appen inte behöver någon beskrivning.');
+    expect(fel(b)[0]).toBe('beskrivning: krävs. Skriv "" om verktyget inte behöver någon beskrivning.');
     b.beskrivning = "";
     expect(validateBeskrivning(b).ok).toBe(true);
     b.beskrivning = "x".repeat(MAX_APPBESKRIVNING + 1);
@@ -416,7 +416,7 @@ describe("validateRad", () => {
   });
 
   it("listan måste finnas och värdena måste vara ett objekt", () => {
-    expect(validateRad(B, "andra", {})).toEqual({ ok: false, fel: ['lista: "andra" finns inte i appen. Listor: saker.'], faltfel: {} });
+    expect(validateRad(B, "andra", {})).toEqual({ ok: false, fel: ['lista: "andra" finns inte i verktyget. Listor: saker.'], faltfel: {} });
     for (const v of [null, undefined, [], "text", 4]) {
       const r = validateRad(B, "saker", v);
       expect(r.ok).toBe(false);

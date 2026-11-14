@@ -38,13 +38,13 @@ import { OpsModulRam } from "./OpsModulRam.jsx";
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {"sv"|"en"} [props.sprak]
  * @param {string} [props.navEtikett] Skärmläsarnamnet på delarnas rad. Förval "{Modul}: delar".
- * @param {string} [props.hubEtikett] Förval "Appar" (0.50.0; tidigare "Hub").
+ * @param {string} [props.hubEtikett] Förval "Verktyg" (0.227.0; "Appar" sedan 0.50.0, tidigare "Hub").
  * @param {import("./OpsModulRam.jsx").ModulRam | null} [props.ram] (0.89.0) Inställningsläget. Utelämnad: ramen som förut, utan kugghjul.
  * @param {string} [props.hjalpBas="/hjalp"] (0.92.1) Vidare till `OpsModulRam`.
  * @param {import("react").ReactNode} [props.atgard] (0.160.0) Modulens egen åtgärd i huvudet, före frågetecknet och kugghjulet, till exempel "Nytt projekt".
  * @param {import("react").ReactNode} props.children Den öppna delens vy.
  */
-export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sprakProp, navEtikett, hubEtikett = "Appar", ram = null, hjalpBas = "/hjalp", atgard = null, children }) {
+export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sprakProp, navEtikett, hubEtikett = "Verktyg", ram = null, hjalpBas = "/hjalp", atgard = null, children }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;

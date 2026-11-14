@@ -139,7 +139,7 @@ import { useSkapaPanelStatus } from "./skapaPanelStatus.js";
  * @property {string} [bildForStor]
  * @property {string} [bildHintRedigera] Vad som gäller för bilden när gruppen finns.
  * @property {string} [sparaFelTitel] Rubriken när ändringarna inte kunde sparas.
- * @property {string} [modulerRubrik] "Appar" (0.50.0; "Moduler" sedan 0.37.0).
+ * @property {string} [modulerRubrik] "Verktyg" (0.227.0; "Appar" sedan 0.50.0, "Moduler" sedan 0.37.0).
  * @property {string} [modulerHint]
  * @property {string} [modulerTomt] Texten när appen inte registrerat någon modul med ett kort.
  * @property {string} [modulOkand] Raden för en modul gruppen har men appen inte registrerat. `{id}` byts mot id:t.
@@ -213,10 +213,10 @@ const STANDARD = {
     bildForStor: "Bilden är för stor. Högst 2 MB.",
     bildHintRedigera: "PNG, WebP eller JPEG, högst 2 MB. Bilden ersätter ikonen och initialerna.",
     sparaFelTitel: "Ändringarna kunde inte sparas",
-    modulerRubrik: "Appar",
-    modulerHint: "En app med egen yta blir ett kort under Appar, i den ordning du installerar dem. En app utan egen yta syns där den gör tillägg. Kalendern och inkorgen har gruppen alltid. Chatten är en app, med kort. Ikonen i huvudet, kopplingarna och appens egna inställningar öppnas i appen.",
-    modulerTomt: "Det finns inga appar att installera.",
-    modulOkand: "{id} är installerad i gruppen men finns inte här. Den visas inte under Appar.",
+    modulerRubrik: "Verktyg",
+    modulerHint: "Ett verktyg med egen yta blir ett kort under Verktyg, i den ordning du installerar dem. Ett verktyg utan egen yta syns där det gör tillägg. Kalendern och inkorgen har gruppen alltid. Chatten är ett verktyg, med kort. Ikonen i huvudet, kopplingarna och verktygets egna inställningar öppnas i verktyget.",
+    modulerTomt: "Det finns inga verktyg att installera.",
+    modulOkand: "{id} är installerat i gruppen men finns inte här. Det visas inte under Verktyg.",
     synsPa: "Syns på",
     synsPaEgenYta: "Egen yta",
     modulInstallningar: "Inställningar",
@@ -284,10 +284,10 @@ const STANDARD = {
     bildForStor: "The image is too large. 2 MB at most.",
     bildHintRedigera: "PNG, WebP or JPEG, 2 MB at most. The image replaces the icon and initials.",
     sparaFelTitel: "The changes could not be saved",
-    modulerRubrik: "Apps",
-    modulerHint: "An app with its own page becomes a card under Apps, in the order you install them. An app without one shows up where it adds to other pages. The group always has its calendar and inbox. Chat is an app, with a card. The header icon, the connections and the app's own settings open in the app.",
-    modulerTomt: "There are no apps to install.",
-    modulOkand: "{id} is installed in the group but does not exist here. It is not shown under Apps.",
+    modulerRubrik: "Tools",
+    modulerHint: "A tool with its own page becomes a card under Tools, in the order you install them. A tool without one shows up where it adds to other pages. The group always has its calendar and inbox. Chat is a tool, with a card. The header icon, the connections and the tool's own settings open in the tool.",
+    modulerTomt: "There are no tools to install.",
+    modulOkand: "{id} is installed in the group but does not exist here. It is not shown under Tools.",
     synsPa: "Visible in",
     synsPaEgenYta: "Own page",
     modulInstallningar: "Settings",

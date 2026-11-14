@@ -729,7 +729,7 @@ describe("OpsBibliotek", () => {
   it("Tillbaka leder till hubben som i Ekonomi, och rubriken är modulens namn", () => {
     const onNavigate = vi.fn((_href, e) => e.preventDefault());
     render(<Harness onNavigate={onNavigate} />);
-    const tillbaka = screen.getByRole("link", { name: "Tillbaka till Appar" });
+    const tillbaka = screen.getByRole("link", { name: "Tillbaka till Verktyg" });
     expect(tillbaka).toHaveAttribute("href", "/hub");
     expect(tillbaka).toHaveTextContent("Tillbaka");
     fireEvent.click(tillbaka);
@@ -740,7 +740,7 @@ describe("OpsBibliotek", () => {
   it("i detaljen finns bara detaljens Tillbaka, inte en andra till hubben, och den är panelens knapp med chevron", () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
-    expect(screen.queryByRole("link", { name: "Tillbaka till Appar" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Tillbaka till Verktyg" })).toBeNull();
     const tillbaka = screen.getByRole("button", { name: "Tillbaka" });
     // Spökknappen (`OpsButton`) har ingen chevron och centreras i vyns kolumn. Panelen har chevron 20 px, vänsterställd.
     expect(tillbaka.querySelector("svg")).not.toBeNull();

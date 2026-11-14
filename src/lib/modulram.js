@@ -83,13 +83,13 @@ export const FLIKIKON = "flex shrink-0 items-center [&_svg]:size-4";
  * @param {object} arg
  * @param {string} arg.namn Modulens namn, redan på rätt språk.
  * @param {string} arg.hubHref
- * @param {string} [arg.hubEtikett] Förval "Appar".
+ * @param {string} [arg.hubEtikett] Förval "Verktyg".
  * @param {(href: string, event: any) => void} [arg.onNavigate]
  * @param {string} [arg.sprak] "en" ger engelska ord, allt annat svenska.
  * @param {string} [arg.modulId] (0.88.1) Modulens id. Står den i huvudmenyn ritas ingen länk tillbaka (`OpsHuvudmenyProvider`).
  * @param {import("react").ReactNode} [arg.ikon] (0.102.0) Modulens ikon i huvudet, ett React-element.
  */
-export function modulTillbaka({ namn, hubHref, hubEtikett = "Appar", onNavigate, sprak = "sv", modulId, ikon }) {
+export function modulTillbaka({ namn, hubHref, hubEtikett = "Verktyg", onNavigate, sprak = "sv", modulId, ikon }) {
   return {
     ...(modulId ? { modul: modulId } : {}),
     // (0.102.0) Modulens ikon i huvudet, som i Meddelanden. Utan den står namnet ensamt.

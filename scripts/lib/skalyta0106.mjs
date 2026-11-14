@@ -71,7 +71,7 @@ export async function karnan(v) {
       v.krav(m.valbara.length >= 1 && !m.valbara.includes("meddelanden") && !m.valbara.includes("inkorg"), `${namn}: listan att installera är ${JSON.stringify(m.valbara)}, väntat Kontakter och ingen kärnmodul.`);
       await bild(v, page, `karna-hubb-${vp.width}.png`);
       if (vp.width < 768) {
-        await page.locator("[data-ops-bottenrad]").getByRole("button", { name: "Appar" }).click();
+        await page.locator("[data-ops-bottenrad]").getByRole("button", { name: "Verktyg" }).click();
         await page.waitForSelector("[data-appar-ark]");
         const ark = await page.evaluate(() => [...document.querySelectorAll("[data-appar-ark] [data-ark-id]")].map((el) => el.getAttribute("data-ark-id")));
         v.matt.push(`${namn}: arket ${JSON.stringify(ark)}`);

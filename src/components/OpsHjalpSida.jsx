@@ -72,8 +72,8 @@ export function OpsHjalpSida({
   grupp = null,
   hash = "",
   title = "Hjälp",
-  description = "Hur appen fungerar. Sök bland grunderna och de appar som är installerade i gruppen.",
-  sokHint = "Till exempel kalender, grupp, inkorg eller en apps namn.",
+  description = "Hur appen fungerar. Sök bland grunderna och de verktyg som är installerade i gruppen.",
+  sokHint = "Till exempel kalender, grupp, inkorg eller ett verktygs namn.",
   barnEfter = null,
 }) {
   const [fraga, setFraga] = useState("");
@@ -175,8 +175,8 @@ export function OpsHjalpSida({
       {barnEfter}
 
       {!sokt && sektioner.length === 1 && sektioner[0]?.id === GRUND_ID ? (
-        <OpsBanner tone="info" title="Inga appar i hjälpen ännu">
-          Installera en app i gruppen för att se dess hjälp här. Grundfunktionerna ovan gäller alltid.
+        <OpsBanner tone="info" title="Inga verktyg i hjälpen ännu">
+          Installera ett verktyg i gruppen för att se dess hjälp här. Grundfunktionerna ovan gäller alltid.
         </OpsBanner>
       ) : null}
     </OpsView>

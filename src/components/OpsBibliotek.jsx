@@ -385,7 +385,7 @@ const repoplatsForm = (plats) => typeof plats === "string" && (arPlatsBibliotek(
  * @param {(url: string) => Promise<{ titel?: string, artist?: string, kalla?: string, bild?: string }>} [props.onLankInfo] (0.128.0, cllp/lifehub.app#378) Hämtar titel, artist och omslag för en musiklänk (Spotify, YouTube, Apple Music eller SoundCloud), normalt en callable som anropar `lankInfoUrOembed` på nodsidan. När en sådan adress klistras in i Ny länk (eller lämnas med fokus) anropas den EN gång per adress, och rubriken fylls i som "titel, artist" om den är tom eller fortfarande den som förra uppslaget fyllde i. Rubriken går att ändra. `bild` sparas på posten (en https-adress). `kalla` i svaret ignoreras: ramverket härleder källan ur adressen (`lankKalla`), så att den inte finns på två ställen. Faller anropet, eller ger det varken titel eller artist, står rubrikfältet tomt och orsaken i en rad under adressen: aldrig tyst. Utan den görs inget uppslag, och en vanlig länk är som förut.
  * @param {string} [props.modulId] (0.88.1) Modulens id i appen, förval "bibliotek". Står den i huvudmenyn har listan ingen tillbaka-rad.
  * @param {string} [props.hubHref] (0.83.0) Hubbens adress: tillbaka-radens mål, som `OpsModulSida`. Krävs, utom med `inbaddad` (0.121.0).
- * @param {string} [props.hubEtikett] Förval "Appar".
+ * @param {string} [props.hubEtikett] Förval "Verktyg".
  * @param {(href: string, event: any) => void} [props.onNavigate] Tillbaka-länkens klick, som `OpsModulSida`.
  * @param {import("./OpsModulRam.jsx").ModulRam | null} [props.ram] (0.89.0) Inställningsläget. Utelämnad: listan som förut, utan kugghjul.
  * @param {string} [props.activeHref] (0.89.0) Krävs tillsammans med `ram` och `modul`. `?lage=installningar` visar inställningarna.

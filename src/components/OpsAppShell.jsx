@@ -682,6 +682,10 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *   ingen bottenrad, inga flikar, inget plus, ingen mikrofon, inga `actions` och ingen gruppanel. `etikett` förval ur `ORD_OPSOVERSIKT`.
  *   ⛔ (0.113.0) `hemgrupp`: id på en grupp i `lista`. Given: översikten har gruppens bottenrad, och ett tryck i den väljer
  *   hemgruppen (`onValj(hemgrupp)`) innan `onNavigate`. Ett id som inte finns i listan räknas som utelämnat.
+ * @property {{ onValj: () => void, etikett?: string }} [hem] (0.227.0) Gruppens start. Given: hemikonen i huvudet går dit (`hem.onValj`) och
+ *   inte till Översikten, och raden Översikt står i växlaren när `oversikt` finns. `etikett` förval "Gruppens start" / "Group home".
+ *   ⛔ APPEN UTELÄMNAR DEN NÄR PERSONEN REDAN STÅR PÅ GRUPPENS START. Ramverket vet inte var starten är, bara appen gör det.
+ *   Utelämnad är allt som förut: hemikonen är vägen till Översikten. Se `HemKnapp`.
  */
 
 /**
@@ -704,6 +708,12 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *
  * Ingen ny prop: knappen läser `grupper.oversikt`, och namnet kommer ur `oversikt.etikett` eller `ORD_OPSOVERSIKT`, samma ord som
  * raden i växlaren. Utan `grupper.oversikt` ritas den inte, och skalet är exakt som förut. 44 px träffyta på alla bredder.
+ *
+ * ⛔ HÄNDELSEN 0.227.0: CP 2026-11-14, "Kör på hemknappen. Jag tänker att gruppens Hem är viktig att ha också, det är där översikten för
+ * gruppen är. Så hemikonen makes sense där." Med `grupper.hem` går huset till den aktuella gruppens start (`hem.onValj`, namnet
+ * `hem.etikett` eller "Gruppens start"), och vägen till Översikten och den egna gruppen går genom växlaren: raden Översikt ritas då
+ * alltid där, eftersom huset inte längre leder dit. Appen utelämnar `hem` när personen redan står på gruppens start, och då ritas
+ * huset som förut. Utan `hem` ändras ingenting.
  *
  * @param {{ etikett: string, onValj: () => void, markerad?: boolean }} props
  */
@@ -1194,6 +1204,18 @@ function OpsAppShellRitad({
   // Samma skäl som `maxTopNavSmal`s kast nedan, och som punkt 5 i arbetsreglerna:
   // en tyst nedsläppsväg är värre än ett fel.
   const harFasta = fasta !== undefined;
+  // ⛔ (0.227.0) `grupper.hem` prövas alltid när den ges: en hemikon utan funktion hade varit en knapp som inte gör något.
+  if (grupper?.hem !== undefined) {
+    const h = /** @type {any} */ (grupper.hem);
+    if (!h || typeof h !== "object" || Array.isArray(h) || typeof h.onValj !== "function") {
+      throw new Error("OpsAppShell: grupper.hem ska vara { onValj, etikett? }, där onValj öppnar gruppens start. Utelämna den när personen redan står där.");
+    }
+    if (h.etikett !== undefined && (typeof h.etikett !== "string" || h.etikett.trim() === "")) {
+      throw new Error("OpsAppShell: grupper.hem.etikett ska vara en sträng med text, eller utelämnas. Förvalet är \"Gruppens start\".");
+    }
+    const okanda = Object.keys(h).filter((k) => k !== "onValj" && k !== "etikett");
+    if (okanda.length > 0) throw new Error(`OpsAppShell: grupper.hem har okända nycklar: ${okanda.join(", ")}. Tillåtna: onValj, etikett.`);
+  }
   if (typeof snabbmenyer !== "boolean") {
     throw new Error("OpsAppShell: snabbmenyer måste vara true eller false. Utelämnad är false, och då är pluset och Appar som förut.");
   }
@@ -1990,7 +2012,8 @@ function OpsAppShellRitad({
   // ⛔ 0.138.0: MED HEMIKON I HUVUDET TAR TELEFONEN EN ÅTGÄRD MINDRE, se `ATGARDER_SMAL_HEM`.
   // 0.144.0: hemikonen ritas nu också i översikten, men budgeten gäller åtgärderna och de ritas inte där (`iOversikt ? null : atgarderIHuvud`),
   // så villkoret är oförändrat med flit: översiktsläget får samma fördelning mellan huvud och Meny som förut.
-  const harHemikon = Boolean(grupper?.oversikt) && !grupper?.oversikt?.aktiv;
+  // (0.227.0) Också med `grupper.hem` ensam: då står huset där och går till gruppens start.
+  const harHemikon = (Boolean(grupper?.oversikt) || Boolean(grupper?.hem)) && !grupper?.oversikt?.aktiv;
   const atgSmal = harHemikon ? ATGARDER_SMAL_HEM : ATGARDER_SMAL;
   const flyttbara = atgardsLista.filter((a, i) => i >= atgSmal && a.type === OpsIconLink && !stannarIHuvudet(a));
   /** @type {import("../lib/nav.js").NavPost[]} */
@@ -2371,6 +2394,12 @@ function OpsAppShellRitad({
   // Samma ord som raden i växlaren (`OpsGruppvaxlare` slår upp med `grupper.sprak ?? ""`), så att knappen och raden aldrig heter olika.
   const oversiktEtikett = grupper?.oversikt ? grupper.oversikt.etikett || forvalda(ORD_OPSOVERSIKT, grupper.sprak ?? "").etikett : "";
   /*
+   * ⛔ 0.227.0: HUSET GÅR TILL GRUPPENS START NÄR APPEN GER `grupper.hem` (CP 2026-11-14, se `HemKnapp`). Bara inne i en grupp: i
+   * översikten är huset platsen man står på, som förut. Raden Översikt i växlaren ritas då alltid, eftersom huset inte leder dit.
+   */
+  const gruppHem = grupper?.hem && !iOversikt ? grupper.hem : null;
+  const gruppHemEtikett = gruppHem ? gruppHem.etikett || ordet(TEXT_SKAL, "gruppensStart", grupper?.sprak ?? "") : "";
+  /*
    * ⛔ 0.113.0: ÖVERSIKTEN HAR GRUPPENS BOTTENRAD, OCH DEN ÄR HEMGRUPPENS (CP 2026-10-16, cllp/lifehub.app#319). Appen anger
    * `oversikt.hemgrupp` (i LifeHub Mitt projekt, första gruppen i växlaren). Då ritas bottenraden som i en grupp, och ett tryck
    * i den väljer hemgruppen (`grupper.onValj`) innan den navigerar. Utan `hemgrupp` är översikten som i 0.112.0, utan bottenrad.
@@ -2684,7 +2713,11 @@ function OpsAppShellRitad({
             {/* ⛔ 0.138.0: HEMIKONEN, se `HemKnapp`. Under `lg` är märket borta och hemikonen står först, före gruppväxlaren. Från
                 `lg` står den EFTER märket och inte före: märkesrutans vänsterkant ska ligga på panelens (`check-skalyta` 12, SS `AppHeader.jsx:174`).
                 ⛔ 0.144.0: RITAS OCKSÅ I ÖVERSIKTEN, markerad (CP 2026-10-25: huset ska stå kvar och lysa när man är hemma). */}
-            {grupper?.oversikt ? <HemKnapp etikett={oversiktEtikett} onValj={grupper.oversikt.onValj} markerad={iOversikt} /> : null}
+            {gruppHem ? (
+              <HemKnapp etikett={gruppHemEtikett} onValj={gruppHem.onValj} />
+            ) : grupper?.oversikt ? (
+              <HemKnapp etikett={oversiktEtikett} onValj={grupper.oversikt.onValj} markerad={iOversikt} />
+            ) : null}
             {/* ⛔ 0.52.0: HUBBMENYN VID MÄRKET, SAMMA BRYTPUNKT SOM GRUPPANELEN (`lg`). Under `lg` ligger hubbarna i gruppväxlarens ark
                 i stället, på samma knapp (CP 2026-10-04: mobilen har bara en plats). Två vägar på samma skärmbredd hade varit två
                 sanningar om var man byter. Utan `grupper` finns inget ark, och då står menyn kvar på alla bredder. */}
@@ -2722,9 +2755,10 @@ function OpsAppShellRitad({
               <GenvagRam nyckel="grupp" ikon={grupper.etikett ?? "Byt grupp"} tips={false} className={iOversikt ? "min-w-0" : "min-w-0 lg:hidden"}>
                 {/* ⛔ 0.139.0: RADEN ÖVERSIKT RITAS BARA NÄR HEMIKONEN INTE GÖR DET. I en grupp (`grupper.oversikt` given och inte `aktiv`) är hemikonen i
                     huvudet vägen till Översikten (0.138.0), och en rad i växlaren ovanför hemgruppens egen var en andra väg till samma plats. I översikten är
-                    växlarens knapp hemikonen och `oversikt` behövs för dess namn, så där skickas den in som förut. */}
+                    växlarens knapp hemikonen och `oversikt` behövs för dess namn, så där skickas den in som förut.
+                    ⛔ 0.227.0: MED `grupper.hem` GÅR HUSET TILL GRUPPENS START, och då är raden vägen till Översikten: den ritas alltid. */}
                 <OpsGruppvaxlare
-                  oversikt={iOversikt ? grupper.oversikt : undefined}
+                  oversikt={iOversikt || gruppHem ? grupper.oversikt : undefined}
                   grupper={grupper.lista}
                   aktiv={grupper.aktiv}
                   onValj={grupper.onValj}
@@ -3071,6 +3105,8 @@ function OpsAppShellRitad({
         {grupper && !iOversikt ? (
           <div className="hidden shrink-0 lg:sticky lg:z-(--z-sticky-header) lg:top-[calc(var(--safe-top)+var(--topbar-height))] lg:block lg:h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px)] lg:pl-4 lg:pt-5">
             <OpsGruppanel
+              // ⛔ 0.227.0: med `grupper.hem` går huset till gruppens start, och från `lg` är panelen växlaren: raden Översikt står då här.
+              {...(gruppHem && grupper.oversikt ? { oversikt: { onValj: grupper.oversikt.onValj, etikett: oversiktEtikett } } : {})}
               grupper={grupper.lista}
               aktiv={grupper.aktiv}
               onValj={grupper.onValj}
@@ -3331,8 +3367,10 @@ export const TEXT_SKAL = {
   blockerarHint: { sv: "Syns bara för dig. Gruppen ser att du är upptagen, inte vad du gör.", en: "Only visible to you. The group sees that you are busy, not what you are doing." },
   flerDestinationer: { sv: "fler destinationer", en: "more destinations" },
   flerAtgarder: { sv: "fler åtgärder", en: "more actions" },
-  huvudmenyOverskott: { sv: "Fler appar", en: "More apps" },
+  huvudmenyOverskott: { sv: "Fler verktyg", en: "More tools" },
   hubbNu: { sv: "nu", en: "current" },
+  // (0.227.0) Hemikonens namn när den går till gruppens start (`grupper.hem`).
+  gruppensStart: { sv: "Gruppens start", en: "Group home" },
 };
 
 export const ORD_OPSAPPSHELL = {

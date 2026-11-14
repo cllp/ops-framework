@@ -129,7 +129,7 @@ const telefon = await oppna(390, 844, false);
 const botten = telefon.page.locator("nav[aria-label='Snabbnavigering']");
 krav(await botten.isVisible(), "telefon: bottenraden syns");
 krav(!(await telefon.page.locator("nav[aria-label='Huvudnavigering']").isVisible()), "telefon: huvudraden är dold");
-await botten.getByRole("button", { name: "Appar" }).click();
+await botten.getByRole("button", { name: "Verktyg" }).click();
 await telefon.page.waitForSelector("[data-appar-ark]");
 const mat390 = await telefon.page.evaluate(() => {
   const ark = document.querySelector("[data-appar-ark]");
@@ -154,9 +154,9 @@ const mat390 = await telefon.page.evaluate(() => {
 });
 console.log("390", mat390);
 krav(mat390.arkBotten <= mat390.navTopp + 1, `telefon: arket slutar vid ${Math.round(mat390.arkBotten)} och bottenraden börjar vid ${Math.round(mat390.navTopp)}`);
-krav(mat390.traffarKnapp, "telefon: fliken Appar träffas medan arket är öppet");
+krav(mat390.traffarKnapp, "telefon: fliken Verktyg träffas medan arket är öppet");
 krav(mat390.kolumner === 4, `telefon: rutnätet har 4 kolumner, mätt ${mat390.kolumner}`);
-krav(mat390.rutor >= 7, `telefon: minst sju rutor (sex appar och Alla appar), mätt ${mat390.rutor}`);
+krav(mat390.rutor >= 7, `telefon: minst sju rutor (sex verktyg och Alla verktyg), mätt ${mat390.rutor}`);
 krav(mat390.overflow <= 1, `telefon: sidan är inte bredare än fönstret, överskott ${mat390.overflow}`);
 krav(mat390.roll === "dialog", "telefon: arket har rollen dialog");
 const bild390 = path.join(bilder, "appar-ark-390.png");
@@ -164,17 +164,17 @@ await telefon.page.screenshot({ path: bild390 });
 console.log("bild", bild390, fs.existsSync(bild390) ? fs.statSync(bild390).size : "saknas");
 // getByRole ser inte fliken: modalen sätter aria-hidden på allt utanför dialogen.
 // CSS-klicket är ett riktigt tryck, utan force, och bevisar att pekarhändelsen når fram.
-await telefon.page.locator("[data-ops-bottenrad] button").filter({ hasText: "Appar" }).click();
+await telefon.page.locator("[data-ops-bottenrad] button").filter({ hasText: "Verktyg" }).click();
 await telefon.page.waitForSelector("[data-appar-ark]", { state: "detached" });
 const idagNu = await telefon.page.locator("nav[aria-label='Snabbnavigering']").getByRole("link", { name: "Idag" }).getAttribute("aria-current");
-krav(idagNu === "page", `telefon: ett nytt tryck på Appar stänger arket och Idag är vald igen, mätt ${idagNu}`);
+krav(idagNu === "page", `telefon: ett nytt tryck på Verktyg stänger arket och Idag är vald igen, mätt ${idagNu}`);
 await telefon.context.close();
 
 const dator = await oppna(1280, 900, false);
 const huvud = dator.page.locator("nav[aria-label='Huvudnavigering']");
 krav(await huvud.isVisible(), "skrivbord: huvudraden syns");
 krav(!(await dator.page.locator("nav[aria-label='Snabbnavigering']").isVisible()), "skrivbord: bottenraden är dold");
-await huvud.getByRole("button", { name: "Appar" }).click();
+await huvud.getByRole("button", { name: "Verktyg" }).click();
 await dator.page.waitForSelector("[data-appar-ark]");
 const mat1280 = await dator.page.evaluate(() => {
   const ark = document.querySelector("[data-appar-ark]");
@@ -194,13 +194,13 @@ krav(mat1280.arkTopp >= mat1280.headerBotten - 1, `skrivbord: panelen börjar un
 krav(mat1280.arkBotten < mat1280.hojd - 40, `skrivbord: panelen ligger inte mot skärmens underkant (${Math.round(mat1280.arkBotten)} av ${mat1280.hojd})`);
 krav(mat1280.overflow <= 1, `skrivbord: sidan är inte bredare än fönstret, överskott ${mat1280.overflow}`);
 await dator.page.screenshot({ path: path.join(bilder, "appar-ark-1280.png") });
-await dator.page.locator("header button").filter({ hasText: "Appar" }).click();
+await dator.page.locator("header button").filter({ hasText: "Verktyg" }).click();
 await dator.page.waitForSelector("[data-appar-ark]", { state: "detached" });
-console.log("OK  skrivbord: ett nytt tryck på Appar i huvudet stänger panelen");
+console.log("OK  skrivbord: ett nytt tryck på Verktyg i huvudet stänger panelen");
 await dator.context.close();
 
 const stilla = await oppna(390, 844, true);
-await stilla.page.locator("nav[aria-label='Snabbnavigering']").getByRole("button", { name: "Appar" }).click();
+await stilla.page.locator("nav[aria-label='Snabbnavigering']").getByRole("button", { name: "Verktyg" }).click();
 await stilla.page.waitForSelector("[data-appar-ark]");
 const rorelse = await stilla.page.locator("[data-appar-ark]").getAttribute("data-rorelse");
 krav(rorelse === "reducerad", `reducerad rörelse märks på arket, mätt ${rorelse}`);
