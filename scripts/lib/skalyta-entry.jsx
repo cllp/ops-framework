@@ -12,7 +12,12 @@
 import { createRoot } from "react-dom/client";
 import { useEffect, useState } from "react";
 import * as Ops from "OPS_DIST";
+import { getWorkerUrl, setWorkerUrl } from "maplibre-gl";
 import { Bell, Calendar, CalendarDays, CheckSquare, FileText, Inbox, LayoutGrid, Search, Settings, Sparkles, Wallet } from "lucide-react";
+
+// ⛔ KARTANS WORKER I EN IIFE (0.228.0, #765). Kartvyn sätter workerns adress med `new URL(..., import.meta.url)`, och `import.meta` är tomt i den här bunten, så vyn hade fallit
+// vid laddning och bara felraden ritats. En tom worker räcker: vakten mäter rutans storlek, inte brickorna (sidan har inget nät). Kartvyn sätter ingen adress när en redan finns.
+if (!getWorkerUrl()) setWorkerUrl(URL.createObjectURL(new Blob([""], { type: "text/javascript" })));
 
 const { OpsModulTyper } = Ops;
 // 0.131.0: gästernas två vyer. Saknas de i dist (äldre bygge) ritas en markör, och provet blir rött på rätt sak i stället för att sidan kastar.
@@ -2346,6 +2351,42 @@ function BibliotekYta({ oppnaDetalj = false }) {
  * 0.127.0 (cllp/lifehub.app#358): en video i detaljen. Adressen är en data-URL utan innehåll: webbläsaren kan inte spela den och ritar sina kontroller ändå,
  * och det som mäts är hur videon och länken under den ligger i kolumnen, inte uppspelningen.
  */
+/**
+ * Biblioteket med en GeoJSON-fil öppen i detaljen (0.228.0, cllp/lifehub.app#765). `hamtaFil` ger filens byte, så detaljen går samma väg som i appen:
+ * `KartaForhandsvisning`, `OpsKarta` och kartvyn.
+ */
+function BibliotekKartaYta() {
+  const Bib = Ops.OpsBibliotek;
+  const bygg = Ops.byggPost;
+  if (!Bib || !bygg) return <p data-saknas="OpsBibliotek">OpsBibliotek saknas</p>;
+  const tid = Date.UTC(2026, 10, 14, 10, 0);
+  const skapare = { uid: "uid-1", namn: "Kim", typ: "manniska", kalla: "bibliotek" };
+  const geo = JSON.stringify({ type: "FeatureCollection", features: [{ type: "Feature", properties: { name: "Dahab" }, geometry: { type: "Point", coordinates: [34.5, 28.5] } }] });
+  let fil;
+  try {
+    fil = { ...bygg({ groupId: "cps-ab", typ: "fil", rubrik: "Resan", fil: { sokvag: "grupper/cps-ab/bibliotek/k1/resan.geojson", namn: "resan.geojson", mime: "application/geo+json", byte: geo.length }, skapadAv: skapare, skapad: tid, andrad: tid }), id: "k1" };
+  } catch (e) {
+    return <p data-saknas="karta">{e instanceof Error ? e.message : "karta saknas"}</p>;
+  }
+  const [vald, setVald] = useState(fil);
+  return (
+    <Bib
+      poster={[fil]}
+      jag={{ uid: "uid-1", roll: "medlem" }}
+      vald={vald}
+      skapar={null}
+      onOppna={(p) => setVald(p)}
+      onStang={() => setVald(null)}
+      onSkapa={() => {}}
+      onSpara={() => {}}
+      filUrl={() => "https://lagring.example/resan.geojson"}
+      hamtaFil={async () => new Blob([geo], { type: "application/geo+json" })}
+      hubHref="/hub"
+      onNavigate={(_href, e) => e.preventDefault()}
+    />
+  );
+}
+
 function BibliotekVideoYta({ oppnaDetalj = true }) {
   const Bib = Ops.OpsBibliotek;
   const bygg = Ops.byggPost;
@@ -3340,6 +3381,7 @@ function Scen() {
     return <Full><BibliotekLjudYta oppnaDetalj={s === "bibliotekljuddetalj"} /></Full>;
   }
   if (s === "bibliotekvideo") return <Full><BibliotekVideoYta /></Full>;
+  if (s === "bibliotekkarta") return <Full><BibliotekKartaYta /></Full>;
   if (s === "bibliotekhtmlversioner") return <Full><BibliotekHtmlVersionerYta /></Full>;
   if (s === "bibliotekkommentarer") return <Full><BibliotekKommentarerYta /></Full>;
   if (s === "bibliotekhtmlvy") return <BibliotekHtmlVyYta />;

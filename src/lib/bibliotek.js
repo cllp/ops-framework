@@ -25,6 +25,7 @@ import { SKAPARFALT_SERVER, byggSkapare, viaFel } from "./skapare.js";
 import { formatDagOchKlockslag } from "./format.js";
 import { lankKalla } from "./lankkalla.js";
 import { ordet } from "./ord.js";
+import { lasGeojson } from "./karta.js";
 
 /**
  * Anteckning, länk, fil och lista. En fil är en post, och MIME avgör hur den visas.
@@ -417,6 +418,9 @@ export function gruppForPlats(plats) {
  * Format en fil får ha. Bild, ljud och dokument. En sort per fält hade varit
  * en andra typ, och CP valde en typ.
  */
+/** GeoJSON-filens MIME (0.222.0, #763). Ett hem för strängen (0.228.0): `FILMIME`, `mimeUrFilnamn`, `mimeForFil` och `arKartfil` läser den. */
+export const GEOJSON_MIME = "application/geo+json";
+
 export const FILMIME = /** @type {const} */ ([
   "image/jpeg",
   "image/png",
@@ -448,10 +452,12 @@ export const FILMIME = /** @type {const} */ ([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  // ⛔ JSON OCH GEOJSON (0.222.0, cllp/lifehub.app#763, CP 2026-11-11: kartdata till Travel Agent). De laddas ned och visas inte i appen; en kartvy är ett eget
-  // ärende (#570). Samma tak som text och PDF. En webbläsare kör aldrig JSON, så ingen tvingad nedladdning som för HTML. Listan är regelns och Storage-regelns.
+  // ⛔ JSON OCH GEOJSON (0.222.0, cllp/lifehub.app#763, CP 2026-11-11: kartdata till Travel Agent). Samma tak som text och PDF. En webbläsare kör aldrig JSON, så ingen tvingad
+  // nedladdning som för HTML. Listan är regelns och Storage-regelns.
+  // ⛔ DE VISAS I APPEN (0.224.0 och 0.228.0, cllp/lifehub.app#765). Raden här sade förut att de bara laddas ned, och det slutade vara sant när kartan kom: en GeoJSON-fil ritas som karta
+  // (`KartaForhandsvisning`), och en annan JSON-fil som text. Vilket avgör `arKartfil`, och typen vid uppladdning `mimeForFil`.
   "application/json",
-  "application/geo+json",
+  GEOJSON_MIME,
 ]);
 
 /**
@@ -937,7 +943,54 @@ export function mimeUrFilnamn(namn) {
   const m = /\.([a-z0-9]+)$/i.exec(str(namn));
   const andelse = m ? m[1].toLowerCase() : "";
   // (0.133.0) m4a, mp3, aac och ogg: Safari och Android ger ofta tom typ för dem, och utan namnet blev en vald ljudfil "Formatet (tom) går inte att lägga in".
-  return ({ html: "text/html", htm: "text/html", md: "text/markdown", markdown: "text/markdown", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", json: "application/json", geojson: "application/geo+json", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation" })[andelse] ?? "";
+  return ({ html: "text/html", htm: "text/html", md: "text/markdown", markdown: "text/markdown", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", json: "application/json", geojson: GEOJSON_MIME, docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation" })[andelse] ?? "";
+}
+
+/**
+ * Filens MIME när den läggs in (0.228.0, cllp/lifehub.app#765). ⛔ ETT HEM (regel 2): varje ställe där en fils typ bestäms vid uppladdning går hit, så att Ny fil, källans
+ * `laddaUppFil`, en ny HTML-version och ljudfilen inte kan svara olika om samma fil.
+ *
+ * ══ ⛔ VARFÖR ═══════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * CP 2026-11-14: "Jag kan inte se att jag får upp en karta. Bara json från firebase storage." Fram till 0.226.0 lästes ändelsen bara när webbläsaren inte sade någon typ (`type || mimeUrFilnamn`).
+ * En telefon som säger `application/json` om en `.geojson` gav en vanlig JSON-fil utan karta, och en som säger `application/octet-stream` fick filen nekad, fast `.geojson` står i `FILMIME`.
+ *
+ * - `.geojson` blir `application/geo+json` när typen är tom, `application/json` eller `application/octet-stream`. Ändelsen säger mer än typen gör då.
+ * - Tom typ och `application/octet-stream` (webbläsarens "vet inte") ger typen ur namnet (`mimeUrFilnamn`). Är ändelsen okänd står typen kvar, och `filInmatningsfel` säger att formatet inte tas emot, som förut.
+ * - Annars gäller typen webbläsaren säger, normaliserad (`normaliseraMime`). En `.json` med `application/json` är alltså JSON: om den är en karta avgörs när den visas (`arKartfil`), inte här.
+ *
+ * @param {unknown} namn Filens namn.
+ * @param {unknown} typ Typen webbläsaren eller anroparen säger, eller ingenting.
+ * @returns {string}
+ */
+export function mimeForFil(namn, typ) {
+  const angiven = normaliseraMime(typ);
+  const urNamn = mimeUrFilnamn(namn);
+  const okand = angiven === "" || angiven === "application/octet-stream";
+  if (urNamn === GEOJSON_MIME && (okand || angiven === "application/json")) return GEOJSON_MIME;
+  if (okand) return urNamn || angiven;
+  return angiven;
+}
+
+/**
+ * Om en filpost ritas som karta (0.228.0, cllp/lifehub.app#765). ⛔ ETT HEM (regel 2): detaljen i Biblioteket och på ett ärende eller en händelse frågar här, ingen annanstans.
+ *
+ * - `true` för `application/geo+json` och för ändelsen `.geojson`, oavsett vad filen sades vara när den lades in (en fil från före 0.228.0 kan bära `application/json`).
+ * - För `application/json` avgör innehållet: `true` när `lasGeojson` godtar texten, `false` när den inte gör det. Utan `text` är svaret `null`, "läs innehållet först". En `.json` som inte är GeoJSON visas som text.
+ * - `false` för allt annat.
+ *
+ * Svaret ges vid läsning, så ingen post i produktionen behöver skrivas om.
+ *
+ * @param {{ fil?: { namn?: unknown, mime?: unknown } } | null | undefined} post
+ * @param {string} [text] Filens innehåll, när det är läst.
+ * @returns {boolean | null}
+ */
+export function arKartfil(post, text) {
+  const mime = normaliseraMime(post?.fil?.mime);
+  if (mime === GEOJSON_MIME || mimeUrFilnamn(post?.fil?.namn) === GEOJSON_MIME) return true;
+  if (mime !== "application/json") return false;
+  if (typeof text !== "string") return null;
+  return lasGeojson(text).ok;
 }
 
 /**
@@ -954,7 +1007,7 @@ export const LJUDFIL_ACCEPT = "audio/*,.m4a,.mp3,.wav,.aac,.ogg,.flac";
  */
 export function ljudfilFel(fil) {
   const namn = str(fil?.name);
-  const mime = str(fil?.type) || mimeUrFilnamn(namn);
+  const mime = mimeForFil(namn, fil?.type);
   if (filSort(mime) !== "ljud") return "Det där är inte en ljudfil. Välj en ljudfil: m4a, mp3, wav, aac, ogg eller flac.";
   return filInmatningsfel({ namn, mime, byte: /** @type {number} */ (fil?.size) });
 }

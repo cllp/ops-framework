@@ -192,7 +192,7 @@ describe("Rutan", () => {
     expect(print).toHaveBeenCalledTimes(1);
   });
 
-  it("detaljen i Biblioteket ritar HTML i rutan med hamtaFil, och länken under är en nedladdning", async () => {
+  it("detaljen i Biblioteket ritar HTML i rutan med hamtaFil, och Ladda ned under är en knapp", async () => {
     const post = html("rapport.html");
     const hamtaFil = vi.fn(async () => new Blob(["<h1>Årets siffror</h1>"], { type: "text/html" }));
     render(<OpsBibliotek poster={[post]} jag={JAG} vald={post} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" filUrl={() => "https://lagring.example/fil"} hamtaFil={hamtaFil} />);
@@ -200,16 +200,17 @@ describe("Rutan", () => {
     expect(hamtaFil).toHaveBeenCalledWith(post.fil.sokvag);
     expect(document.querySelector("iframe")?.getAttribute("srcdoc")).toContain("Årets siffror");
     expect(document.querySelector("iframe")?.getAttribute("sandbox")).toBe("allow-scripts allow-modals");
-    const lank = screen.getByRole("link", { name: /rapport\.html/ });
-    expect(lank).toHaveAttribute("href", "https://lagring.example/fil");
-    expect(lank).toHaveAttribute("download", "rapport.html");
+    // (0.228.0, cllp/lifehub.app#765) Under rutan står filnamnet som text och Ladda ned som knapp, ingen länk till lagringen.
+    expect(screen.queryByRole("link", { name: /rapport\.html/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Ladda ned" })).toBeTruthy();
     expect(document.body.textContent).toContain("Skriven av Kim");
   });
 
   it("utan hamtaFil ritas ingen ruta: bara nedladdningen", async () => {
     const post = html("rapport.html");
     render(<OpsBibliotek poster={[post]} jag={JAG} vald={post} onOppna={() => {}} onStang={() => {}} onSpara={() => {}} hubHref="/hub" filUrl={() => "https://lagring.example/fil"} />);
-    await screen.findByRole("link", { name: /rapport\.html/ });
+    await screen.findByRole("button", { name: "Ladda ned" });
+    expect(screen.queryByRole("link", { name: /rapport\.html/ })).toBeNull();
     expect(document.querySelector("iframe")).toBeNull();
   });
 

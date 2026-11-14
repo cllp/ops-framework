@@ -90,8 +90,9 @@ describe("textfilen i detaljen", () => {
     const text = await screen.findByLabelText("Innehållet i anteckning.txt");
     expect(text.textContent).toBe("Hej, för vår skull.\nRad två.");
     expect(hamtaFil).toHaveBeenCalledWith("grupper/cps-ab/bibliotek/p/anteckning.txt");
-    // Länken står kvar under texten.
-    expect(screen.getByRole("link", { name: /anteckning\.txt/ })).toHaveAttribute("href", "https://lagring.example/fil");
+    // (0.228.0, cllp/lifehub.app#765) Under texten står filnamnet som text och Ladda ned som knapp, ingen länk till lagringen.
+    expect(screen.queryByRole("link", { name: /anteckning\.txt/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Ladda ned" })).toBeTruthy();
   });
 
   it("en fil sparad som ANSI visas rätt", async () => {
@@ -123,7 +124,7 @@ describe("textfilen i detaljen", () => {
     expect(await screen.findByText("The file is empty.")).toBeTruthy();
   });
 
-  it("⛔ en tom fil säger det, och ett fel säger varför med länken kvar", async () => {
+  it("⛔ en tom fil säger det, och ett fel säger varför med Ladda ned kvar", async () => {
     const { unmount } = visa(fil("tom.txt", "text/plain"), async () => blobAv([]));
     expect(await screen.findByText("Filen är tom.")).toBeTruthy();
     unmount();
@@ -133,7 +134,7 @@ describe("textfilen i detaljen", () => {
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("Texten gick inte att visa.");
     expect(alert.textContent).toContain("behörighet");
-    expect(screen.getByRole("link", { name: /fel\.txt/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ladda ned" })).toBeTruthy();
   });
 
   it("⛔ en ny hamtaFil-funktion vid varje rendering hämtar inte om texten", async () => {
@@ -148,9 +149,10 @@ describe("textfilen i detaljen", () => {
     expect(hamta).toHaveBeenCalledTimes(1);
   });
 
-  it("utan hamtaFil visas bara länken, som förut", async () => {
+  it("utan hamtaFil visas bara filnamnet och Ladda ned (0.228.0, cllp/lifehub.app#765)", async () => {
     visa(fil("utan.txt", "text/plain"), undefined);
-    expect(await screen.findByRole("link", { name: /utan\.txt/ })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Ladda ned" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /utan\.txt/ })).toBeNull();
     expect(document.querySelector("[data-bibliotek-text]")).toBeNull();
   });
 

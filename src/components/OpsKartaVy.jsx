@@ -120,8 +120,12 @@ export function OpsKartaVy({ samling, texter }) {
   }, []);
 
   if (fel === "farger") return <p role="alert" data-karta-fel="farger" className="m-0 text-etikett text-danger">{texter.farger}</p>;
+  // ⛔ RUTAN HAR EN EGEN HÖJD (0.228.0, cllp/lifehub.app#765, CP 2026-11-14: "Jag kan inte se att jag får upp en karta."). Från 0.223.0 bar den bara klassnamnet `ops-karta`, som ingen CSS
+  // någonstans definierade, och den inre ytan är `absolute inset-0`. Rutan blev 0 px hög, och MapLibre ritade i en yta som inte syntes. jsdom mäter ingen CSS, så inget prov såg det:
+  // `check-skalyta` mäter höjden (avsnittet om kartan i Bibliotekets detalj). Storleken följer Bibliotekets andra förhandsvisningar: full bredd, `rounded-lg`, `bg-sunken`,
+  // och samma tak som textrutan och videon (`max-h-96`, 384 px) från 768 px (`md:h-96`), lägre på telefon (`h-72`, 288 px) så att Ladda ned syns under. `relative` ger den inre ytan och felraden något att stå i.
   return (
-    <div className="ops-karta" role="region" aria-label={texter.rubrik} data-karta="" data-karta-fel={fel || undefined}>
+    <div className="relative h-72 w-full min-w-0 overflow-hidden rounded-lg bg-sunken md:h-96" role="region" aria-label={texter.rubrik} data-karta="" data-karta-fel={fel || undefined}>
       <div ref={ruta} className="absolute inset-0" />
       {fel === "lasfel" ? <p role="alert" className="absolute inset-x-0 bottom-0 m-0 bg-karta-papper px-3 py-2 text-etikett text-karta-text">{texter.lasfel}</p> : null}
     </div>

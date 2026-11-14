@@ -3,7 +3,7 @@ import { OpsButton } from "./OpsButton.jsx";
 import { OpsDisclosure } from "./OpsDisclosure.jsx";
 import { OpsHtmlDokument } from "./OpsHtmlDokument.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
-import { arHtmlMime, filInmatningsfel, mimeUrFilnamn } from "../lib/bibliotek.js";
+import { arHtmlMime, filInmatningsfel, mimeForFil } from "../lib/bibliotek.js";
 import { ordet } from "../lib/ord.js";
 import { skaparensNamn } from "../lib/skapare.js";
 import { formatDateTime } from "../lib/format.js";
@@ -151,7 +151,7 @@ export function BibliotekHtmlVersioner({ post, kanAndra, lista, hamtaVersion, at
     e.target.value = "";
     const gor = ref.current.nyVersion;
     if (!vald || !gor) return Promise.resolve();
-    const mime = vald.type || mimeUrFilnamn(vald.name);
+    const mime = mimeForFil(vald.name, vald.type);
     if (!arHtmlMime(mime)) {
       setBesked("");
       setFel({ konflikt: false, text: o("valjHtml") });
