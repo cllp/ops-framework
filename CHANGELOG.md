@@ -76,6 +76,13 @@ anteckningar är en version ingen kan välja att hoppa över.
   någon pil och ingen vriden ruta, med golvet att kolumnen ritades. Rött mot 0.226.0, grönt med ändringen.
 - Sjutton provfiler läser de nya orden i stället för de gamla (bland annat `hubb`, `apparark`,
   `appfilter`, `skal030`, `skal031`, `modulram`, `hjalp`, `beskrivenapp`).
+- ⛔ **Tre prov som sökte det gamla ordet och därför var gröna av sig själva** läser nu det nya: `agenter`
+  ("Verktyget är installerat i gruppen." ska saknas), `gast-grupp-vy` (gästsidan har inget skalord, nu också
+  Verktyg) och `hjalp`. Ett prov som säger att en text saknas blir grönt när texten byter namn.
+- **Webbläsarmätningarna söker de nya orden** (`check-skalyta.mjs`, `lib/skalyta0106.mjs`, `mat-apparark.mjs`).
+  CI-jobbet `scaffold` föll på grenens förra version: `check:skalyta` väntade på knappen "Visa sidorna under
+  Appar" (`check-skalyta.mjs:2129`), och sedan på rubriken "Gruppen har inga appar ännu". `npm run check`
+  kör inte skalytan, men CI gör det.
 
 ## 0.226.0
 

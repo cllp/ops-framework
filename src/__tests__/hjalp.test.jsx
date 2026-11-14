@@ -300,7 +300,7 @@ describe("frågetecknet i modulramen och vyn", () => {
     for (const falt of ["namn", "farg", "ikon", "beskrivning"]) expect(ADMINGRUPPFALT).toContain(falt);
     expect(svar).toMatch(/Admin[^.]*ändrar gruppens utseende och uppgifter, slår av och på gruppens verktyg, byter deras ordning, väljer vad som visas i huvudmenyn/);
     expect(svar).not.toMatch(/bara ägaren installerar/);
-    expect(svar).not.toMatch(/men inte installerar appar/);
+    expect(svar).not.toMatch(/men inte installerar (appar|verktyg)/);
     // "Bjuder in någon som ägare" är servern: `bjudIn` kastar för en admin (src/__tests__/inbjudan.test.js, "en admin får INTE bjuda in
     // till rollen agare"). Medlemskap skrivs aldrig av en klient, så texten påstår varken att roller "ändras" eller att ägarskap
     // "överlåts": ingen funktion i ramverket gör det, och en hjälptext får inte lova mer än koden gör.

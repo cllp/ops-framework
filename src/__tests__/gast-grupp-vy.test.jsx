@@ -288,7 +288,7 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
       await klicka(screen.getByRole("tab", { name: f }));
       await waitFor(() => expect(document.querySelector("[data-gast-grupp]")).not.toBeNull());
       for (const a of document.querySelectorAll("a[href]")) expect(a.getAttribute("href"), `${f}: länk ut`).toMatch(/^(https?:|#|blob:|data:)/);
-      expect(document.body.textContent).not.toMatch(/Inställningar|Ekonomi|Appar|Hubb|Agent/);
+      expect(document.body.textContent).not.toMatch(/Inställningar|Ekonomi|Appar|Verktyg|Hubb|Agent/);
     }
   });
 

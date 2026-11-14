@@ -2238,10 +2238,10 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     const { page, context } = await oppna("grupphubb", vp, standardtema, 1, "g2");
     try {
       const main = page.locator("main");
-      const rubrik = main.getByText("Gruppen har inga appar ännu", { exact: true });
-      const rad = main.getByText(/Testgruppen har inga appar ännu/);
+      const rubrik = main.getByText("Gruppen har inga verktyg ännu", { exact: true });
+      const rad = main.getByText(/Testgruppen har inga verktyg ännu/);
       const valbara = main.getByRole("list", { name: "Verktyg som kan läggas till" });
-      krav((await rubrik.count()) === 1 && (await rubrik.isVisible()), `Hubben per grupp ${namn} (b): rubriken "Gruppen har inga appar ännu" syns inte i gruppen utan moduler.`);
+      krav((await rubrik.count()) === 1 && (await rubrik.isVisible()), `Hubben per grupp ${namn} (b): rubriken "Gruppen har inga verktyg ännu" syns inte i gruppen utan moduler.`);
       krav((await rad.count()) === 1 && (await rad.isVisible()), `Hubben per grupp ${namn} (b): raden med gruppens namn syns inte.`);
       const namnIListan = await valbara.locator("li").allTextContents();
       krav(namnIListan.includes("Ekonomi"), `Hubben per grupp ${namn} (b): listan är ${JSON.stringify(namnIListan)}, väntat Ekonomi bland apparna som kan läggas till.`);

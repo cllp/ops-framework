@@ -180,7 +180,7 @@ describe("OpsAgenter", () => {
     expect(screen.queryByText("Kopplingar")).toBeNull();
     expect(screen.queryByText("Egna inställningar")).toBeNull();
     expect(screen.queryByText("Valvets nycklar")).toBeNull();
-    expect(screen.queryByText("Appen är installerad i gruppen.")).toBeNull();
+    expect(screen.queryByText("Verktyget är installerat i gruppen.")).toBeNull();
     expect(screen.queryByRole("switch", { name: /Visa i huvudmenyn/ })).toBeNull();
     expect(screen.queryByText(/sparas inte en gång till/)).toBeNull();
     expect(document.body.textContent).not.toContain("super-secret");
