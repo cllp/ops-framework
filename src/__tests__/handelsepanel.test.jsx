@@ -175,7 +175,7 @@ describe("OpsHandelsePanel: innehållet i SS ordning, bara det händelsen har", 
     const tillbaka = vi.fn();
     const user = userEvent.setup();
     const { rerender } = render(<OpsHandelsePanel handelse={null} laddar onTillbaka={tillbaka} />);
-    expect(screen.getByText("Hämtar händelsen", { selector: "p" })).toBeInTheDocument();
+    expect(screen.getByText("Hämtar händelsen", { selector: "[data-ops-vantar] span" })).toBeInTheDocument();
     expect(screen.queryByText("Händelsen finns inte")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Tillbaka" }));
     rerender(<OpsHandelsePanel handelse={null} onTillbaka={tillbaka} />);

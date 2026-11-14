@@ -101,6 +101,8 @@ export { OpsTable } from "./components/OpsTable.jsx";
 export { OpsStat } from "./components/OpsStat.jsx";
 export { OpsEmpty } from "./components/OpsEmpty.jsx";
 export { OpsSpinner } from "./components/OpsSpinner.jsx";
+export { OpsVantar } from "./components/OpsVantar.jsx";
+export { OpsByLifeHub } from "./components/OpsByLifeHub.jsx";
 export { OpsDataView } from "./components/OpsDataView.jsx";
 
 // ── Märkning ───────────────────────────────────────────────────────────────

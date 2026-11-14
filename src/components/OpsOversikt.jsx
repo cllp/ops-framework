@@ -4,8 +4,8 @@ import { OpsCard } from "./OpsCard.jsx";
 import { OpsPanelHeader } from "./OpsPanel.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
-import { OpsSpinner } from "./OpsSpinner.jsx";
 import { text } from "../lib/sprak.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Översikt: gruppens startsida, ett kort per widget.
@@ -66,7 +66,7 @@ export function OpsOversikt({ register, fraga, ordning, rubrik = "Översikt", to
     <OpsView>
       <OpsViewHeader title={rubrik} />
       {fel ? <OpsBanner tone="danger" title="Översikten kunde inte byggas">{fel.message}</OpsBanner> : null}
-      {!fel && laddar ? <OpsSpinner label="Hämtar översikten" /> : null}
+      {!fel && laddar ? <OpsVantar text="Hämtar översikten" /> : null}
       {!fel && !laddar && rader.length === 0 ? <OpsEmpty title={tomText} action={tomAtgard} /> : null}
       {!fel && !laddar && rader.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -127,7 +127,7 @@ export function GithubDokumentVisning({ post, lasare }) {
   );
   if (!svar) {
     return (
-      <div data-github-dokument="hamtar" role="status" aria-busy="true" className="flex min-w-0 flex-col gap-2">
+      <div data-github-dokument="hamtar" className="flex min-w-0 flex-col gap-2">
         <GithubDokumentVantar />
         {oppna}
       </div>

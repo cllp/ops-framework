@@ -25,6 +25,7 @@ import {
 import { cx } from "../lib/cx.js";
 import { HoppaBakatIkon, HoppaFramatIkon, PausaIkon, SpelaIkon } from "./icons.jsx";
 import { OpsSpinner } from "./OpsSpinner.jsx";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * En ljudspelare för allt ljud: Bibliotekets inspelningar, chattens bilagor och en fil appen redan har en adress till.
@@ -176,8 +177,7 @@ export function OpsLjudspelare(props) {
   if (hamtar) {
     return (
       <div data-ljudspelare="hamtar" className="flex min-h-11 w-full min-w-0 items-center gap-2 text-meta text-ink-secondary">
-        <OpsSpinner size="sm" decorative />
-        <p role="status" className="m-0">Hämtar ljudet.</p>
+        <OpsVantar storlek="sm" text="Hämtar ljudet." />
       </div>
     );
   }

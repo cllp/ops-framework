@@ -5,8 +5,8 @@ import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
-import { OpsSpinner } from "./OpsSpinner.jsx";
 import { OpsPill } from "./OpsPill.jsx";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Sök: ett fält, och modulernas träffar.
@@ -77,7 +77,7 @@ export function OpsSok({
 
       {!fraga ? <OpsEmpty title={borjaText} /> : null}
       {fraga && fel ? <OpsBanner tone="danger" title="Sökningen gick inte att genomföra">{fel.message}</OpsBanner> : null}
-      {fraga && !fel && laddar ? <OpsSpinner label="Söker" /> : null}
+      {fraga && !fel && laddar ? <OpsVantar text="Söker" /> : null}
       {fraga && !fel && !laddar && rader.length === 0 ? <OpsEmpty title={ingaTraffarText(fraga)} /> : null}
 
       {/*

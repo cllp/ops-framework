@@ -7,6 +7,7 @@ import { HTML_UTSKRIFTSMEDDELANDE } from "../lib/htmldokument.js";
 import { byggSrcdoc } from "../lib/htmlruta.js";
 import { ordet } from "../lib/ord.js";
 import { skaparensNamn } from "../lib/skapare.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 // ⛔ EN EGEN MODUL (0.159.0), INTE EN DEL AV `OpsHtmlDokument.jsx`: bara en sida som ritar ett dokument i hela fönstret behöver den, och den ska inte ligga i den delen av en apps paket som laddas före första vyn.
 // Rutan (`HtmlRuta`), hämtningen (`useHamtatHtml`) och orden (`ORD_HTMLDOKUMENT`) är DESAMMA som detaljens och delas därifrån: sandlådan sätts på ett ställe.
@@ -81,7 +82,7 @@ export function OpsHtmlVy({ hamta, sokvag, namn, skapadAv, onStang, stangEtikett
         <p data-html-vy-skydd="" className="m-0 basis-full text-meta text-ink-muted">{o("skydd")}</p>
       </header>
       {lage.lage === "hamtar" ? (
-        <p role="status" data-html-vy-lage="hamtar" className="m-0 px-4 py-4 text-etikett text-ink-muted">{o("hamtar")}</p>
+        <div data-html-vy-lage="hamtar" className="m-0 px-4 py-4 text-etikett text-ink-muted"><OpsVantar text={o("hamtar")} /></div>
       ) : lage.lage === "fel" ? (
         <p role="alert" data-html-vy-lage="fel" className="m-0 px-4 py-4 text-etikett text-danger">{`${o("fel")} ${lage.fel}`}</p>
       ) : !visas ? (

@@ -1,8 +1,8 @@
 import { Suspense, lazy } from "react";
 import { LatGrans } from "./LatGrans.jsx";
-import { OpsSpinner } from "./OpsSpinner.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { ordet } from "../lib/ord.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Läsläget för en fil i gruppens GitHub-repo, inläst när det behövs (0.186.0, cllp/lifehub.app#653).
@@ -26,9 +26,8 @@ export const ORD_GITHUBDOKUMENT_LAT = {
 export function GithubDokumentVantar() {
   const sprak = useOpsSprak();
   return (
-    <span data-github-dokument-vantar="" className="inline-flex items-center gap-2 text-etikett text-ink-muted">
-      <OpsSpinner size="sm" decorative />
-      {ordet(ORD_GITHUBDOKUMENT_LAT, "hamtar", sprak)}
+    <span data-github-dokument-vantar="" className="inline-flex items-center">
+      <OpsVantar storlek="sm" text={ordet(ORD_GITHUBDOKUMENT_LAT, "hamtar", sprak)} />
     </span>
   );
 }
@@ -42,7 +41,7 @@ export function GithubDokumentVisningLat(props) {
     <LatGrans fel={<p role="alert" data-github-lasfel="" className="m-0 text-etikett text-danger wrap-anywhere">{ordet(ORD_GITHUBDOKUMENT_LAT, "lasfel", sprak)}</p>}>
       <Suspense
         fallback={
-          <div data-github-dokument="hamtar" role="status" aria-busy="true" className="flex min-w-0 flex-col gap-2">
+          <div data-github-dokument="hamtar" className="flex min-w-0 flex-col gap-2">
             <GithubDokumentVantar />
           </div>
         }

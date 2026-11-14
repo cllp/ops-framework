@@ -2,7 +2,7 @@ import { useState } from "react";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsTextarea } from "./OpsField.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
-import { OpsSpinner } from "./OpsSpinner.jsx";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Promptruta: en fråga in, ett svar ut.
@@ -152,9 +152,9 @@ export function OpsPrompt({
         <OpsButton onClick={ask} disabled={waiting || text.trim().length === 0}>
           {sendLabel}
         </OpsButton>
-        {/* ⛔ Snurran står BREDVID knappen och inte i den. En knapp som byter
-            innehåll till en snurra ändrar bredd, och raden under hoppar. */}
-        {waiting ? <OpsSpinner size="sm" tone="muted" label={waitingLabel} /> : null}
+        {/* ⛔ Väntan står BREDVID knappen och inte i den. En knapp som byter
+            innehåll till en väntrad ändrar bredd, och raden under hoppar. */}
+        {waiting ? <OpsVantar storlek="sm" text={waitingLabel} /> : null}
       </div>
 
       {answerError ? (

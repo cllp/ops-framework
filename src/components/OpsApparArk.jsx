@@ -8,6 +8,7 @@ import { text } from "../lib/sprak.js";
 import { ChevronHogerIkon, ChevronVansterIkon, HubIkon } from "./icons.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { medKarna } from "../lib/karna.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * App-arket (0.89.0).
@@ -351,7 +352,7 @@ export function OpsApparArk({ oppen, onOppen, moduler, grupp, farAndra, onOrdnin
           <div className="min-h-0 flex-1 overflow-auto px-3 pb-4">
             {/* ⛔ Felet med ramverkets felfärg och etikettstorlek, som TALK:s och fältens fel (0.104.0). Förut stod det ostylat. */}
             {fel ? <p role="alert" data-appar-ark-fel="" className="m-0 pb-2 text-etikett text-danger">{fel}</p> : null}
-            {!grupp ? <p role="status">{t("hamtar")}</p> : null}
+            {!grupp ? <OpsVantar text={t("hamtar")} /> : null}
             {grupp && visade.length === 0 ? <p data-appar-ark-tom="">{t("inga")}</p> : null}
             <ul
               aria-label={ordnar ? t("ordning") : t("lista")}

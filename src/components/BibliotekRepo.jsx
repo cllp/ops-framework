@@ -3,7 +3,6 @@ import { ChevronRight, File, Folder } from "lucide-react";
 import { GithubDokumentVisningLat } from "./GithubDokumentVisningLat.jsx";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsButton } from "./OpsButton.jsx";
-import { OpsSpinner } from "./OpsSpinner.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { sizeText } from "../lib/file.js";
@@ -11,6 +10,7 @@ import { formatDagOchKlockslag } from "../lib/format.js";
 import { githubDokument } from "../lib/githubdokument.js";
 import { ordet } from "../lib/ord.js";
 import { ORD_BIBLIOTEK_REPO_LAT } from "./BibliotekRepoLat.jsx";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Lägena för "I repot" (0.205.0, cllp/lifehub.app#653 skiva 3). Samma ord som läsaren av en fil (`GITHUB_LAGEN`) där de betyder samma sak: `last`, `saknas` (mappen finns inte), `obehorig` (GitHub-kopplingen når den inte) och `fel`. Ett annat läge, eller ett avvisat löfte, ritas som `fel`.
@@ -322,9 +322,8 @@ function Mapp({ sokvag, niva, trad }) {
   const indrag = INDRAG[Math.min(niva, REPO_INDRAG_MAX)];
   if (!svar) {
     return (
-      <div role="status" aria-busy="true" data-bibliotek-repo-lage="hamtar" data-bibliotek-repo-mapp={sokvag} className={cx("inline-flex items-center gap-2 text-etikett text-ink-muted", indrag)}>
-        <OpsSpinner size="sm" decorative />
-        {ordet(ORD_BIBLIOTEK_REPO_LAT, "hamtar", trad.sprak)}
+      <div data-bibliotek-repo-lage="hamtar" data-bibliotek-repo-mapp={sokvag} className={cx("inline-flex items-center", indrag)}>
+        <OpsVantar storlek="sm" text={ordet(ORD_BIBLIOTEK_REPO_LAT, "hamtar", trad.sprak)} />
       </div>
     );
   }

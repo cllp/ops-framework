@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { OpsGastFelrad } from "./OpsGastFelrad.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { ordet } from "../lib/ord.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * PDF-vyn, inläst när en PDF ska visas (0.193.0, cllp/ops-framework#530).
@@ -43,7 +44,7 @@ export function OpsPdfVisningLat(props) {
       </div>
     );
   }
-  if (!vy) return <p role="status" data-pdf-lage="hamtar" className={props.helfonster ? "m-0 px-4 py-4 text-etikett text-ink-muted" : "m-0 text-etikett text-ink-muted"}>{ordet(ORD_PDFVISNING_LAT, "hamtar", sprak)}</p>;
+  if (!vy) return <div data-pdf-lage="hamtar" className={props.helfonster ? "m-0 px-4 py-4 text-etikett text-ink-muted" : "m-0 text-etikett text-ink-muted"}><OpsVantar text={ordet(ORD_PDFVISNING_LAT, "hamtar", sprak)} /></div>;
   const { Komponent } = vy;
   return <Komponent {...props} />;
 }

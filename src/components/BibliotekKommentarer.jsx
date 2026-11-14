@@ -4,6 +4,7 @@ import { MAX_MEDDELANDE } from "../lib/samtal.js";
 import { ordet } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsTextarea } from "./OpsField.jsx";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Orden i tråden på en post (0.191.0, cllp/lifehub.app#663), på svenska och engelska.
@@ -112,7 +113,7 @@ export function BibliotekKommentarer({ post: postProp, kalla, fokus = false, spr
       {fel ? (
         <p role="alert" data-bibliotek-kommentarer-fel="" className="m-0 text-etikett text-danger">{o("fel")}</p>
       ) : rader === null ? (
-        <p role="status" data-bibliotek-kommentarer-laddar="" className="m-0 text-etikett text-ink-muted">{o("laddar")}</p>
+        <div data-bibliotek-kommentarer-laddar="" className="m-0 text-etikett text-ink-muted"><OpsVantar text={o("laddar")} /></div>
       ) : rader.length === 0 ? (
         <p data-bibliotek-kommentarer-tom="" className="m-0 text-etikett text-ink-muted">{o("inga")}</p>
       ) : (

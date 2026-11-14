@@ -9,6 +9,98 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.229.0
+
+### Brytande
+
+- ⛔ **`OpsProfil`: kontot har ett hem, och hubben ändrar det inte** (CP 2026-11-14, "Ja på alla frågor",
+  cllp/lifehub.identity#178, skisserna i https://claude.ai/artifact/9KBF7uMDUivfRgt2jAQeae). Appen måste följa med
+  vid ompinningen.
+  - **Borttaget:** `konto={{ sakerhetHref, raderaHref, nycklarHref }}` (den redigerbara formen, cllp/lifehub.app#786 och #813),
+    och med den arket "Redigera profil" och dess knapp, kortet Språk med rullistan, raden "Nycklar och kopplingar"
+    (som lovade API-nycklar som inte finns i Identity) och sektionen Konto med "Inloggning och säkerhet". Den gamla formen
+    kastar med vägen vidare i felet, i stället för att tyst rita hela formuläret.
+  - **Borttagna props:** `kontoRedigerbarText`, `kontoRubrik`, `kontoSakerhetEtikett`, `kontoNycklarEtikett`,
+    `kontoNycklarText`, `redigeraEtikett`, `avbrytEtikett`, och orden med samma namn i `ORD_OPSPROFIL`.
+  - **Nytt:** `kontoUrl` och `raderaKontoUrl` (båda https, båda krävs ihop: Apple 5.1.1(v) kräver en väg till raderingen
+    inifrån appen), `kontoKnappEtikett` ("Ditt Life Hub-konto ↗" / "Your Life Hub account ↗"), `kontoHanvisning`
+    ("Namn, bild, inloggning och kopplingar ändras i ditt Life Hub-konto på {vard}.", där `{vard}` är värdnamnet i
+    `kontoUrl`: ramverket känner aldrig Identitys adresser) och `hubbGrupperEtikett` ("I den här hubben").
+  - **Kvar i profilen:** kortet med bild, namn, e-post och rollmärket, bara för att läsa; språkväxlaren SV/EN
+    (`OpsSegmented`) till höger om namnet, som skriver genom samma `onSpara({ sprak })` som rullistan gjorde; knappen till
+    kontot med den tonade raden; märket "by Life Hub"; en tyst textlänk "Radera kontot" direkt till raderingen; och
+    grupperna under "I den här hubben".
+  - **Orört:** profilen utan `konto` (bolag-ops) och `konto={{ href }}` (skrivskyddad, tam).
+  - **I appen** (lifehub.app `ProfileView.jsx`): byt `konto={{ sakerhetHref: mittKontoProfilUrl(), raderaHref: raderaKontoUrl(),
+    nycklarHref: nycklarOchKopplingarUrl() }}` mot `kontoUrl={mittKontoProfilUrl()} raderaKontoUrl={raderaKontoUrl()}`, och ta
+    bort de borttagna ordens props om appen skickar dem.
+
+### Tillagt
+
+- ⛔ **`OpsVantar`: väntan som rör sig.** CP 2026-11-14 om Programåtkomst: "Under programåtkomst så
+  finns en text 'läser nycklarna'. Det är bra, men det är liksom ingen progress och man ser inte
+  informationen så lätt att nåt faktiskt händer ... Detta gäller överallt där man väntar." Och
+  senare: "progressbars som rör sig överallt där vi behöver vänta".
+  - `OpsVantar({ text, storlek })`: en tunn obestämd rad (`animate-vantar`, tokenet `--animate-vantar`
+    och nyckelrutorna `ops-vantar` i `tokens.css`) i neutral färg (`bg-ink-muted` på `bg-sunken`),
+    med texten ovanför (`md`, förval) eller en kort rad bredvid texten (`sm`, för en plats i en rad).
+  - `role="status"`, `aria-live="polite"` och `aria-busy`. Raden är `aria-hidden`; texten är beskedet.
+  - Tonas in först efter `FORDROJNING_MS` (300 ms), så att en hämtning som är klar på 100 ms inte
+    blinkar förbi. Elementet och texten finns i DOM:en från början; `data-ops-vantar` säger
+    `vilar` eller `syns`.
+  - Med `prefers-reduced-motion` står raden still men syns (`motion-reduce:animate-none`).
+  - Stängt API: inga klasser eller data-attribut in. Märket eller luften runt en väntan sitter på ett omslag.
+
+- **`OpsByLifeHub`: märket "by Life Hub".** CP 2026-11-14: "It´s always by Life Hub." En rad text, samma
+  ord på båda språken, utan länk. Ritas i profilens kontoläge, och kan sättas i hubbens om-ruta och inloggningen.
+
+### Ändrat
+
+- **Alla ramverkets väntelägen är `OpsVantar`.** Inventerat: 34 väntelägen i 31 filer, 27 av dem en
+  stillastående textrad i en `role="status"` (eller en yta med `aria-busy` och snurra) och 7 en annonserande `OpsSpinner`.
+  Nu `OpsVantar` i: `BibliotekAnteckningsbild`, `BibliotekAnteckningsbildLat`,
+  `BibliotekHtmlVersioner` (2), `BibliotekKommentarer`, `BibliotekRepo`, `BibliotekRepoLat`,
+  `GithubDokumentVisning`/`GithubDokumentVisningLat` (`GithubDokumentVantar`), `KartaForhandsvisning`,
+  `OpsApparArk`, `OpsBibliotek` (3), `OpsEmpty` (`busy`), `OpsHtmlDokument`, `OpsHtmlDokumentLat`,
+  `OpsHtmlVy`, `OpsKarta`, `OpsLjudspelare`, `OpsMarkdown`, `OpsMeddelanden` (arkivet), `OpsModulHandelser`,
+  `OpsModulInstallningar`, `OpsModulKataloger`, `OpsModulRam`, `OpsNotiser`, `OpsOversikt`,
+  `OpsPdfVisning`, `OpsPdfVisningLat`, `OpsPrompt`, `OpsSok`, `TextForhandsvisning` och
+  `installningsSektioner`. Texterna är oförändrade. Data-attributen (`data-pdf-lage="hamtar"` med
+  flera) sitter kvar på ett omslag.
+  - `OpsEmpty busy`: ytan behåller sin streckade form, men `role="status"` och `aria-busy` bärs nu av
+    `OpsVantar` inuti och inte av ytan, så att väntan läses upp en gång. Det tomma läget är som förut.
+- **Inte ändrat, med flit:** `OpsLaddaSkelett` (appskalets skelett pulserar redan över hela ytan; ett
+  dokumenterat undantag i vakten), knapparnas egen väntan (`OpsButton busy`, vaktad av `check-vantar`),
+  och svepraden i `OpsSvepRad` (en åtgärd på raden, med snurra, inte en hämtning).
+
+### Vakter
+
+- **`check-vantelage`** (i `npm run check`): röd för en `role="status"` i `src/components` med en
+  väntetext (Läser, Hämtar, Laddar, Sparar, Väntar, Skickar, Kontrollerar och de engelska), med en
+  uppslagsnyckel som säger väntan (`o("hamtar")`, `bildHamtas`), med `aria-busy` eller med ett
+  `data-*`-värde `hamtar`/`laddar`, och för en annonserande `OpsSpinner`. Golv: 150 filer, 60
+  statusytor, 30 `OpsVantar`. Undantag med skäl, ett dött undantag är rött. Mätt röd mot main före
+  ändringen (34 brott, golvfel för 0 `OpsVantar`) och grön efter. Bevisad åt båda hållen i
+  `src/__tests__/vakt-vantelage.test.jsx`.
+- **`check-skalyta`, avsnitt 65** (`--bara-vantar`): vid 390 px har varje väntrad animationen
+  `ops-vantar`, spåret och biten är bredare än 0, biten flyttar sig mellan två mätningar med 200 ms
+  emellan, och med reducerad rörelse är animationen `none` medan raden fortfarande syns. jsdom mäter
+  ingen CSS (regel 12). `check-css-build` kräver att `.animate-vantar` och
+  `.motion-reduce:animate-none` genereras.
+
+### För appen, vid ompinningen
+
+- Byt appens egna stillastående väntetexter mot `OpsVantar`:
+  `import { OpsVantar } from "@staiger/ops-framework";` och sedan
+  `{laser ? <OpsVantar text="Läser nycklarna" /> : null}` i stället för
+  `<p role="status">Läser nycklarna</p>`. I en rad, bredvid en knapp eller i en lista: `storlek="sm"`.
+- Behöver väntan ett data-attribut eller luft, sätt dem på ett omslag:
+  `<div data-x="hamtar" className="py-4"><OpsVantar text="..." /></div>`.
+- Har ytan redan `role="status"` och visar väntan som text, ta bort rollen från ytan: `OpsVantar` bär
+  sin egen, och två statusytor läses upp två gånger.
+
+---
+
 ## 0.228.0
 
 ### Ändrat

@@ -3,6 +3,7 @@ import { Delrubrik, delrubrik, useInstallningspanel } from "./OpsInstallningar.j
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { useId } from "react";
 import { medKarna } from "../lib/karna.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Listan över gruppens appar, med en väg in i varje apps egna inställningar (0.88.0, omgjord 0.89.0).
@@ -67,7 +68,7 @@ export function OpsModulInstallningar({ moduler, grupp, agare, hrefFor, onNaviga
   return (
     <div data-modulinstallningar="" className="flex flex-col gap-4">
       {fel ? <p role="alert">{fel}</p> : null}
-      {laddar ? <p role="status">{t("hamtar")}</p> : null}
+      {laddar ? <OpsVantar text={t("hamtar")} /> : null}
       {!grupp ? null : installerade.length === 0 ? (
         <p data-modulinstallningar-tom="">{t("inga")}</p>
       ) : (

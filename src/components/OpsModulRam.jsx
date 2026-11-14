@@ -16,6 +16,7 @@ import { OpsSwitch } from "./OpsToggle.jsx";
 import { OpsView } from "./OpsView.jsx";
 import { modulTillbaka } from "../lib/modulram.js";
 import { arKarna, medKarna } from "../lib/karna.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Modulens ram: visning eller inställningar (0.89.0).
@@ -530,7 +531,7 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
   return (
     <div data-modul-lage="installningar" className="flex flex-col gap-6">
       {litetFel ? <p role="alert" data-installning-fel="" className="m-0 text-etikett text-danger">{litetFel}</p> : null}
-      {!grupp ? <p role="status">{t("hamtar")}</p> : null}
+      {!grupp ? <OpsVantar text={t("hamtar")} /> : null}
       <section aria-labelledby={allmantId} className="flex flex-col gap-2">
         <Avsnittsrubrik id={allmantId}>{t("allmant")}</Avsnittsrubrik>
         {dold ? <p role="status" data-modul-dold="" className="m-0 text-etikett text-ink-muted">{text(dold, sprak)}</p> : null}

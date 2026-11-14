@@ -5,6 +5,7 @@ import { AnteckningsRuta } from "./BibliotekAnteckningsbildLat.jsx";
 import { bilagaTillBlob, readAttachment } from "../lib/file.js";
 import { medBildInsatt, sakertBildnamn } from "../lib/markdown.js";
 import { ordet } from "../lib/ord.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /*
  * Anteckningens textfält med "Lägg till bild" och inklistring av en bild (cllp/lifehub.app#696, skiva 1).
@@ -266,7 +267,7 @@ export function AnteckningsText({ text, setText, post, onLaggBild, sprak, onPaga
           />
         </div>
       ) : null}
-      {pagar > 0 ? <p role="status" data-anteckningsbild="laddar" className="m-0 text-meta text-ink-secondary">{o("laddarUpp")}</p> : null}
+      {pagar > 0 ? <div data-anteckningsbild="laddar" className="m-0 text-meta text-ink-secondary"><OpsVantar storlek="sm" text={o("laddarUpp")} /></div> : null}
       {fel ? <p role="alert" data-anteckningsbild="fel" className="m-0 text-etikett text-danger wrap-anywhere">{fel}</p> : null}
       {notis ? <p role="status" data-anteckningsbild="spara-forst" className="m-0 text-meta text-ink-secondary">{notis}</p> : null}
     </AnteckningsRuta>

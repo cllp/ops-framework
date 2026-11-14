@@ -2,8 +2,8 @@ import { useKallor } from "../data/useKallor.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
-import { OpsSpinner } from "./OpsSpinner.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Notispanelen: modulernas poster för en grupp, med läsmärke per person.
@@ -60,7 +60,7 @@ export function OpsNotiser({ register, fraga, lasta = [], onLast, onOppna, ariaL
   const { rader, laddar, fel } = useKallor(register, "notiser", fraga);
 
   if (fel) return <OpsBanner tone="danger" title="Notiserna kunde inte hämtas">{fel.message}</OpsBanner>;
-  if (laddar) return <OpsSpinner label="Hämtar notiser" />;
+  if (laddar) return <OpsVantar text="Hämtar notiser" />;
   if (rader.length === 0) return <OpsEmpty title={tomText} />;
 
   const lasteSet = new Set(lasta);

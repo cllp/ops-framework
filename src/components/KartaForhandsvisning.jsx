@@ -5,6 +5,7 @@ import { useOpsSprak } from "./OpsSprak.jsx";
 import { blobBytes } from "../lib/blobbytes.js";
 import { OpsKarta } from "./OpsKarta.jsx";
 import { TextForhandsvisning } from "./TextForhandsvisning.jsx";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * En GeoJSON-fil i Biblioteket visas som karta i detaljen (0.224.0, cllp/lifehub.app#765 skiva 1).
@@ -66,7 +67,7 @@ export function KartaForhandsvisning({ hamta, sokvag, post, namn = "" }) {
   }, [sokvag, kanske]);
   if (lage.lage === "text") return <TextForhandsvisning hamta={() => Promise.resolve(lage.blob)} sokvag={sokvag} namn={namn} />;
   // En `.json` som kanske inte är en karta säger inte "Hämtar kartan.".
-  if (lage.lage === "hamtar") return <p role="status" data-bibliotek-karta="hamtar" className="m-0 text-etikett text-ink-muted">{o(kanske === null ? "hamtarFil" : "hamtar")}</p>;
+  if (lage.lage === "hamtar") return <div data-bibliotek-karta="hamtar" className="m-0 text-etikett text-ink-muted"><OpsVantar text={o(kanske === null ? "hamtarFil" : "hamtar")} /></div>;
   if (lage.lage === "stor") return <p role="status" data-bibliotek-karta="stor" className="m-0 text-etikett text-ink-muted">{o("stor")}</p>;
   if (lage.lage === "fel") {
     return (

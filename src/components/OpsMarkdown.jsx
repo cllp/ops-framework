@@ -4,6 +4,7 @@ import { cx } from "../lib/cx.js";
 import { splitMarkdown } from "../lib/markdown.js";
 import { ordet } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Markdown som riktiga element.
@@ -111,7 +112,14 @@ function MarkdownBild({ alt, namn, bildAdress, onBildFel, sprak }) {
   if (typeof bildAdress !== "function") return rad("visas-inte", o("bildVisasInte"));
   if (lage.lage === "fel") return <span role="alert">{rad("fel", o("bildFel"))}</span>;
   if (lage.lage === "ladda-om") return <span role="alert">{rad("ladda-om", o("bildLaddaOm"))}</span>;
-  if (lage.lage === "hamtar") return <span role="status">{rad("hamtar", o("bildHamtas"))}</span>;
+  if (lage.lage === "hamtar") {
+    return (
+      <span data-ops-markdown-bild="hamtar" className="flex items-center gap-2 text-meta text-ink-muted">
+        <BildIkon size={16} aria-hidden="true" className="shrink-0" />
+        <OpsVantar storlek="sm" text={alt ? `${o("bildMedAlt").replace("{alt}", alt)} ${o("bildHamtas")}` : o("bildHamtas")} />
+      </span>
+    );
+  }
   return (
     <img
       data-ops-markdown-bild="klar"

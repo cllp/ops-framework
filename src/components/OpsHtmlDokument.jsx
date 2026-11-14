@@ -11,6 +11,7 @@ import { useHtmlZoom } from "./htmlZoom.jsx";
 import { DokumentKnapp, Dokumentrad } from "./Dokumentrad.jsx";
 import { ordet } from "../lib/ord.js";
 import { skaparensNamn } from "../lib/skapare.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Ett HTML-dokument ritat i en avspärrad ruta (0.156.0, cllp/ops-framework#472).
@@ -90,7 +91,7 @@ export function OpsHtmlDokumentHamtat({ hamta, sokvag, namn, skapadAv, fonster }
   const sprak = useOpsSprak();
   const o = (/** @type {keyof typeof ORD_HTMLDOKUMENT} */ k) => ordet(ORD_HTMLDOKUMENT, k, sprak);
   const lage = useHamtatHtml(hamta, sokvag);
-  if (lage.lage === "hamtar") return <p role="status" data-html-dokument-lage="hamtar" className="m-0 text-etikett text-ink-muted">{o("hamtar")}</p>;
+  if (lage.lage === "hamtar") return <div data-html-dokument-lage="hamtar" className="m-0 text-etikett text-ink-muted"><OpsVantar text={o("hamtar")} /></div>;
   if (lage.lage === "fel") {
     return (
       <p role="alert" data-html-dokument-lage="fel" className="m-0 text-etikett text-danger">

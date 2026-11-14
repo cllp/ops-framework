@@ -142,7 +142,7 @@ describe("Ny länk: rubriken fylls i ur titel och artist", () => {
     const user = await nyLank();
     await user.click(screen.getByRole("textbox", { name: "Adress" }));
     await user.paste(SPOTIFY);
-    expect(await screen.findByText("Hämtar titel och artist.")).toHaveAttribute("role", "status");
+    expect((await screen.findByText("Hämtar titel och artist.")).closest('[role="status"]')).toHaveAttribute("aria-busy", "true");
     klar({ titel: "T", artist: "A" });
     await waitFor(() => expect(screen.queryByText("Hämtar titel och artist.")).toBeNull());
     expect(screen.getByRole("textbox", { name: "Rubrik" })).toHaveValue("T, A");

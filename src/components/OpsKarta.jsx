@@ -3,6 +3,7 @@ import { OpsGastFelrad } from "./OpsGastFelrad.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { forvalda } from "../lib/ord.js";
 import { lasGeojson } from "../lib/karta.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * En karta för en GeoJSON-fil (0.223.0, cllp/ops-framework#570).
@@ -51,7 +52,7 @@ function KartaLat({ samling, texter }) {
     };
   }, [forsok]);
   if (fel) return <OpsGastFelrad data="karta-fel" text={texter.lasfel} forsokIgen={texter.forsokIgen} onForsokIgen={() => setForsok((n) => n + 1)} />;
-  if (!vy) return <p role="status" data-karta-lage="hamtar" className="m-0 text-etikett text-ink-muted">{texter.hamtar}</p>;
+  if (!vy) return <div data-karta-lage="hamtar" className="m-0 text-etikett text-ink-muted"><OpsVantar text={texter.hamtar} /></div>;
   const { Komponent } = vy;
   return <Komponent samling={samling} texter={texter} />;
 }

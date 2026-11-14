@@ -2,9 +2,9 @@ import { Suspense, lazy } from "react";
 import { IKON_FOR } from "./ikonlexikon.js";
 import { LatGrans } from "./LatGrans.jsx";
 import { OpsDisclosure } from "./OpsDisclosure.jsx";
-import { OpsSpinner } from "./OpsSpinner.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { ordet } from "../lib/ord.js";
+import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
  * Orden som delen behöver innan sin modul är hämtad (0.205.0). Resten står i `ORD_BIBLIOTEK_REPO` (`BibliotekRepo.jsx`), som hämtas med delen och inte väger i startfilerna.
@@ -54,9 +54,8 @@ export function BibliotekRepoLat(props) {
         <LatGrans fel={<p role="alert" data-bibliotek-repo-lasfel="" className="m-0 text-etikett text-danger wrap-anywhere">{ordet(ORD_BIBLIOTEK_REPO_LAT, "lasfel", sprak)}</p>}>
           <Suspense
             fallback={
-              <div role="status" aria-busy="true" data-bibliotek-repo-lage="hamtar" className="inline-flex items-center gap-2 text-etikett text-ink-muted">
-                <OpsSpinner size="sm" decorative />
-                {ordet(ORD_BIBLIOTEK_REPO_LAT, "hamtar", sprak)}
+              <div data-bibliotek-repo-lage="hamtar" className="inline-flex items-center">
+                <OpsVantar storlek="sm" text={ordet(ORD_BIBLIOTEK_REPO_LAT, "hamtar", sprak)} />
               </div>
             }
           >
