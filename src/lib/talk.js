@@ -83,6 +83,9 @@ export const ORD_TALK = {
   valArende: { sv: "Ärende", en: "Case" },
   valAgent: { sv: "Agent", en: "Agent" },
   valAnteckning: { sv: "Anteckning", en: "Note" },
+  nagotAnnat: { sv: "Något annat", en: "Something else" },
+  fortsattMed: { sv: "Fortsätt med {namn}", en: "Continue with {namn}" },
+  tillSamtalet: { sv: "Till {namn}", en: "To {namn}" },
   anteckningSparad: { sv: "Anteckningen är sparad", en: "The note is saved" },
   oppnaAnteckningen: { sv: "Öppna anteckningen", en: "Open the note" },
   kopiera: { sv: "Kopiera", en: "Copy" },
@@ -107,6 +110,7 @@ export const ORD_TALK = {
   felAngra: { sv: "Det gick inte att ångra.", en: "It could not be undone." },
   felVidare: { sv: "Det du sa gick inte att lämna vidare.", en: "What you said could not be passed on." },
   felAgent: { sv: "Det du sa nådde inte agenten.", en: "What you said did not reach the agent." },
+  felSamtalet: { sv: "Det du sa kom inte fram till samtalet.", en: "What you said did not reach the conversation." },
   felIgenkanning: { sv: "Talet kunde inte skrivas ut medan du pratade. Spela in i stället, så skrivs det ut efteråt.", en: "Your speech could not be written out while you spoke. Record instead, and it is written out afterwards." },
   felAnteckning: { sv: "Anteckningen gick inte att spara.", en: "The note could not be saved." },
   felKopiera: { sv: "Texten gick inte att kopiera till urklipp.", en: "The text could not be copied to the clipboard." },
@@ -125,9 +129,46 @@ export const ORD_TALK = {
   textFel: { sv: "Texten kan inte visas just nu. Det du säger spelas in ändå och sparas som ljud.", en: "The text can't be shown right now. What you say is still recorded and saved as audio." },
 };
 
-/** Ett ord ur `ORD_TALK` på ett språk. @param {keyof typeof ORD_TALK} nyckel @param {string} sprak */
-export function talkOrd(nyckel, sprak) {
-  return ordet(ORD_TALK, nyckel, sprak);
+/**
+ * Ett ord ur `ORD_TALK` på ett språk. (0.226.0) `{namn}` i ordet byts mot `varden.namn` när det ges (`fortsattMed`, `tillSamtalet`).
+ * @param {keyof typeof ORD_TALK} nyckel @param {string} sprak @param {{ namn?: string }} [varden]
+ */
+export function talkOrd(nyckel, sprak, varden) {
+  const ord = ordet(ORD_TALK, nyckel, sprak);
+  return varden && typeof varden.namn === "string" ? ord.replace("{namn}", varden.namn) : ord;
+}
+
+/**
+ * Samtalet som står öppet i appen (0.226.0, cllp/ops-framework#592), som TALK kan lämna det sagda till.
+ * @typedef {object} Talksamtal
+ * @property {string} namn Vem eller vad samtalet är med, som det står i fältet: "Till {namn}" och "Fortsätt med {namn}".
+ * @property {boolean} direkt `true`: tråden står öppen, och Klar lämnar det sagda hit utan meny. `false`: appen minns ett nyligt samtal, och
+ *   valet "Fortsätt med {namn}" står först i menyn.
+ * @property {string} [etikett] Raden medan man pratar i direktläget. Förval "Till {namn}".
+ * @property {(text: string) => void | Promise<void>} onText Mottagaren av det sagda.
+ */
+
+/**
+ * Kastar när `samtalet` är satt men inte har formen `Talksamtal`. EN kontroll för kroken och skalet (0.226.0): skalet prövar den vid
+ * uppstart, eftersom kroken bara får samtalet för appens mål, och ett fel som syns först när någon pratat är för sent.
+ * @param {unknown} varde
+ * @param {string} vem Namnet i felet, till exempel "useTalk".
+ */
+export function kontrolleraSamtalet(varde, vem) {
+  if (varde === undefined) return;
+  const s = /** @type {Record<string, unknown> | null} */ (varde && typeof varde === "object" ? varde : null);
+  /** @type {string[]} */
+  const fel = [];
+  if (!s) fel.push(`samtalet ska vara ett objekt, fick ${varde === null ? "null" : typeof varde}`);
+  else {
+    if (typeof s.namn !== "string" || !s.namn.trim()) fel.push("namn ska vara en sträng som inte är tom");
+    if (typeof s.direkt !== "boolean") fel.push(`direkt ska vara true eller false, fick ${s.direkt === null ? "null" : typeof s.direkt}`);
+    if (s.etikett !== undefined && (typeof s.etikett !== "string" || !s.etikett.trim())) fel.push("etikett ska vara en sträng som inte är tom när den ges");
+    if (typeof s.onText !== "function") fel.push(`onText ska vara en funktion, fick ${s.onText === null ? "null" : typeof s.onText}`);
+  }
+  if (fel.length) {
+    throw new Error(`${vem}: ${fel.join(", ")}. Samtalet tar emot det sagda, och ett samtal utan namn eller mottagare hade varken gått att känna igen eller gjort något.`);
+  }
 }
 
 /**
@@ -361,7 +402,7 @@ export const MAX_SEKUNDER = 120;
  */
 
 /**
- * @typedef {{ typ: "ner" } | { typ: "direkt" } | { typ: "langtryck" } | { typ: "upp" } | { typ: "skicka" } | { typ: "igen" } | { typ: "avbryt" } | { typ: "klar" } | { typ: "dolj" } | { typ: "fel", text: string } | { typ: "tak" } | { typ: "hort" } | { typ: "agent" } | { typ: "agentFel", text: string } | { typ: "anteckning" } | { typ: "anteckningFel", text: string } | { typ: "lamnat" }} Talkhandelse
+ * @typedef {{ typ: "ner" } | { typ: "direkt" } | { typ: "langtryck" } | { typ: "upp" } | { typ: "skicka" } | { typ: "igen" } | { typ: "avbryt" } | { typ: "klar" } | { typ: "dolj" } | { typ: "fel", text: string } | { typ: "tak" } | { typ: "hort" } | { typ: "agent" } | { typ: "agentFel", text: string } | { typ: "anteckning" } | { typ: "anteckningFel", text: string } | { typ: "samtalet" } | { typ: "samtaletFel", text: string } | { typ: "lamnat" }} Talkhandelse
  */
 
 /**
@@ -382,10 +423,10 @@ export const MAX_SEKUNDER = 120;
  *
  * @param {{ lage: Talklage, fel?: string }} nu
  * @param {Talkhandelse} h
- * @returns {{ lage: Talklage, fel?: string, gor: null | "klick" | "starta" | "skicka" | "igen" | "kasta" | "agent" | "anteckning" }}
+ * @returns {{ lage: Talklage, fel?: string, gor: null | "klick" | "starta" | "skicka" | "igen" | "kasta" | "agent" | "anteckning" | "samtalet" }}
  */
 export function talkNasta(nu, h) {
-  /** @param {Talklage} lage @param {null | "klick" | "starta" | "skicka" | "igen" | "kasta" | "agent" | "anteckning"} [gor] @param {string} [fel] */
+  /** @param {Talklage} lage @param {null | "klick" | "starta" | "skicka" | "igen" | "kasta" | "agent" | "anteckning" | "samtalet"} [gor] @param {string} [fel] */
   const bli = (lage, gor = null, fel = undefined) => ({ lage, gor, ...(fel ? { fel } : {}) });
   switch (nu.lage) {
     case "vila":
@@ -415,12 +456,14 @@ export function talkNasta(nu, h) {
       if (h.typ === "hort") return bli("hort");
       // Agenten tog emot det sagda och appen tog över (chatten öppnades): fältet har inget mer att visa.
       if (h.typ === "lamnat") return bli("vila", "kasta");
-      if (h.typ === "agentFel" || h.typ === "anteckningFel") return bli("hort", null, h.text);
+      if (h.typ === "agentFel" || h.typ === "anteckningFel" || h.typ === "samtaletFel") return bli("hort", null, h.text);
       if (h.typ === "fel") return bli("fel", null, h.text);
       return bli("skickar");
     case "hort":
       if (h.typ === "agent") return bli("skickar", "agent");
       if (h.typ === "anteckning") return bli("skickar", "anteckning");
+      // (0.226.0, cllp/ops-framework#592) Det öppna samtalet: samma väg som Agent, till appens `samtalet.onText`.
+      if (h.typ === "samtalet") return bli("skickar", "samtalet");
       if (h.typ === "lamnat" || h.typ === "avbryt") return bli("vila", "kasta");
       if (h.typ === "direkt") return bli("lyssnar", "starta");
       if (h.typ === "ner") return bli("trycker");

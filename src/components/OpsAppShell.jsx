@@ -15,7 +15,7 @@ import { Counter } from "./counter.jsx";
 import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, HusIkon, KryssIkon, MeddelandeIkon, MenuIcon, MikrofonIkon, PlusIkon, GruppIkon } from "./icons.jsx";
 import { OpsTalk, useTalk } from "./OpsTalk.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
-import { kontrolleraSkickarText, talkForifyllt, talkKnappNamn } from "../lib/talk.js";
+import { kontrolleraSamtalet, kontrolleraSkickarText, talkForifyllt, talkKnappNamn } from "../lib/talk.js";
 import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
 import { huvudknappKlass, huvudPlusKlass, huvudTalkKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { rapporteraFel, registreraFelmottagare } from "../lib/felrapport.js";
@@ -1117,6 +1117,9 @@ function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
  *   ljudet går till `onTalk`. Ljud utan text går dessutom till felrapporten (`rapporteraFel`, steg `ingen-text`) med det som skiljer orsakerna åt.
  *   När ett moduls mål är valt (Biblioteket) gäller modulens
  *   `spara` och inga val. ⛔ 0.105.0 tog bort `svaraText`, `onFortsatt` och `fortsattEtikett`, och skalet kastar om de skickas.
+ *   (0.226.0, cllp/ops-framework#592) `talk.samtalet` (`{ namn, direkt, etikett?, onText }`, se `TalkVal.samtalet`) är samtalet som står
+ *   öppet eller som personen nyss lämnade. Med `direkt` går det sagda dit vid Klar utan meny, med raden "Till {namn}" och Något annat medan
+ *   man pratar. Utan `direkt` står "Fortsätt med {namn}" först i menyn. Gäller bara med `talk.onAgent` och appens mål.
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i bottenradens skapa-ark (bara med `fasta`).
  * @param {string} [props.nyHandelseEtikett] Ramverkets rad för `skapa.handelse`.
  * @param {string} [props.nyttArendeEtikett] Ramverkets rad för `skapa.arende`.
@@ -1211,6 +1214,8 @@ function OpsAppShellRitad({
     ]).filter(([k]) => /** @type {any} */ (talk)[k] !== undefined);
     if (borta.length) throw new Error(`OpsAppShell: talk.${borta.map(([k]) => k).join(" och talk.")} finns inte sedan 0.105.0. ${borta.map(([, v]) => v).join(" ")}`);
   }
+  // ⛔ (0.226.0, cllp/ops-framework#592) Samtalet prövas också vid uppstart: kroken får det bara för appens mål.
+  if (talk) kontrolleraSamtalet(talk.samtalet, "OpsAppShell (talk.samtalet)");
   // ⛔ MOTTAGARNA PRÖVAS VID UPPSTART. Valen ritas först när någon pratat klart, och ett fel som syns först då är för sent.
   for (const k of /** @type {const} */ (["onMeddelande", "onAgent", "onAnteckning", "tillText"])) {
     if (talk && talk[k] !== undefined && typeof talk[k] !== "function") {
@@ -2096,6 +2101,8 @@ function OpsAppShellRitad({
     // ⛔ (0.114.0, cllp/ops-framework#402) Anteckning och utskriften hör till valen och gäller därför bara appens mål, som Agent.
     onAnteckning: !laastTillModul && typeof talk?.onAnteckning === "function" ? talk.onAnteckning : undefined,
     tillText: !laastTillModul && typeof talk?.tillText === "function" ? talk.tillText : undefined,
+    // ⛔ (0.226.0, cllp/ops-framework#592) Samtalet hör till valen, som Agent: ett fält låst till en moduls mål lämnar aldrig dit.
+    samtalet: laastTillModul ? undefined : talk?.samtalet,
     inspelare: talk?.inspelare,
     igenkanning: talk?.igenkanning,
     // ⛔ "Agenten arbetar…" när inspelningen går till Biblioteket hade varit osant: där är det modulens `spara` som arbetar.
@@ -3221,6 +3228,7 @@ function OpsAppShellRitad({
           vidare={laastTillModul ? undefined : talkVidare}
           onAgent={talkStyr.medAgent ? talkStyr.agent : undefined}
           onAnteckning={talkStyr.medAnteckning ? talkStyr.anteckning : undefined}
+          samtalet={talkStyr.samtalet}
           textVantar={talkStyr.textVantar}
           utskriftFel={talkStyr.utskriftFel}
           onSkrivUt={talkStyr.skrivUt}

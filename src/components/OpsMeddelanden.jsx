@@ -905,9 +905,14 @@ export function texterPa(sprak, texter) {
  *   ritas inga förslag, varken under roten eller under ett svar.
  * @param {string} [props.nyttUtkast] (0.105.0) Texten som står i skrivfältet när läget "nytt" öppnas, till exempel det man sade i TALK och
  *   valde Meddelande för. Ingenting skickas: personen väljer mottagare och trycker Skicka.
+ * @param {{ samtal: string, text: string, nyckel: string | number }} [props.skrivfaltTillagg] (0.226.0, cllp/ops-framework#592) Text som
+ *   läggs till i skrivfältet i samtalet med id `samtal`, när det står valt (`OpsSamtal`, `tillagg`). Till exempel det man sade i TALK i en
+ *   tråd med människor. ⛔ INGENTING SKICKAS: personen läser och trycker Skicka själv. Ett felhört ord i en grupp går inte att ta tillbaka.
+ *   `nyckel` skiljer ett tillägg från nästa: samma nyckel läggs in en gång, också när samtalet öppnas igen.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, projektnamn, medlemmar, valt, nytt, valtAgent, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, franBiblioteket, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast, meddelandeHref, flerOmnamnbara }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, projektnamn, medlemmar, valt, nytt, valtAgent, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga, franBiblioteket, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast, meddelandeHref, flerOmnamnbara, skrivfaltTillagg }) {
   kravRam(ram, "OpsMeddelanden");
+  kontrolleraTillagg(skrivfaltTillagg, "OpsMeddelanden: skrivfaltTillagg", true);
   if (onForslag !== undefined && typeof onForslag !== "function") throw new Error(`OpsMeddelanden: onForslag ska vara en funktion, fick ${typeof onForslag}.`);
   if (nyttUtkast !== undefined && typeof nyttUtkast !== "string") throw new Error(`OpsMeddelanden: nyttUtkast ska vara en sträng, fick ${typeof nyttUtkast}.`);
   if (ram && (typeof activeHref !== "string" || activeHref === "" || !modul || typeof tillbaka?.hubHref !== "string")) {
@@ -945,6 +950,12 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, projektnamn, me
   const nyAgent = nyttAmneLage ? agentVal ?? agenter[0] ?? null : null;
   // Det man skrev i läget "nytt" innan man valt någon följer med in i tråden.
   const utkast = useRef(/** @type {{ id: string, text: string } | null} */ (null));
+  /**
+   * ⛔ ETT TILLÄGG LÄGGS IN EN GÅNG PER SAMTAL (0.226.0, cllp/ops-framework#592). `OpsSamtal` monteras om för varje samtal (`key`), och
+   * utan minnet här hade samma tillägg lagts in igen när personen gick till ett annat samtal och tillbaka, kanske efter att det redan skickats.
+   * Samtalets id och tilläggets nyckel som lagts in. Skrivs i en effekt efter att samtalet lagt in texten, aldrig under ritningen.
+   */
+  const lagdaTillagg = useRef(/** @type {Map<string, string | number>} */ (new Map()));
   const [filter, setFilter] = useState(/** @type {"alla" | "olasta"} */ ("alla"));
   const [sok, setSok] = useState("");
   const tangentbord = useTangentbord();
@@ -1083,6 +1094,20 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, projektnamn, me
   // ⛔ TRÅDAR BARA NÄR KÄLLAN HAR DEM (BÖR 2): en app som inte skickat `tradar` får varken knapp, märke eller trådvy.
   const medTradar = harTradar(kalla);
   const tradId = medTradar && vald?.samtal.slag === "grupp" ? (valtTrad !== undefined ? valtTrad : egenTrad) : null;
+  /**
+   * ⛔ TILLÄGGET GÅR BARA TILL SAMTALET DET GÄLLER, OCH BARA NÄR DET STÅR ÖPPET (0.226.0, cllp/ops-framework#592). Ett annat samtals id
+   * gör ingenting: texten hör till en tråd, och i en annan tråd hade den gått till fel människor. I en tråd under gruppchatten väntar det
+   * tills gruppchattens skrivfält står.
+   */
+  const samtaletRitas = Boolean(vald) && !tradId && !(vald?.ej && groupId);
+  const tillaggForVald =
+    skrivfaltTillagg && samtaletRitas && vald && skrivfaltTillagg.samtal === vald.samtal.id && lagdaTillagg.current.get(vald.samtal.id) !== skrivfaltTillagg.nyckel
+      ? { text: skrivfaltTillagg.text, nyckel: skrivfaltTillagg.nyckel }
+      : undefined;
+  // Samtalet har lagt in texten i sin egen effekt, som körs före den här: nu minns inkorgen att det är gjort.
+  useEffect(() => {
+    if (tillaggForVald && vald) lagdaTillagg.current.set(vald.samtal.id, tillaggForVald.nyckel);
+  });
   /*
    * ⛔ MÄRKENA LIGGER KVAR NÄR TRÅDEN ÖPPNAS OCH STÄNGS (BÖR 4). Chatten monteras om när man går tillbaka från en tråd, och utan
    * ett minne utanför den hade varje återkomst läst alla rötter igen. Minnet är per samtal; ett svar eller en omdöpning i tråden
@@ -1446,6 +1471,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, projektnamn, me
             onLast={lasOm}
             onSkickat={(m) => laggIn(vald.samtal, m)}
             utkast={utkast.current?.id === vald.samtal.id ? utkast.current.text : undefined}
+            tillagg={tillaggForVald}
             sprak={sprak}
             texter={t}
             onBifoga={onBifoga}
@@ -2593,6 +2619,25 @@ function agentDeltagare(samtal, uid, medlemmar) {
 }
 
 /**
+ * Kastar när ett tillägg till skrivfältet (0.226.0, cllp/ops-framework#592) inte har sin form. `medSamtal`: `OpsMeddelanden` kräver
+ * samtalets id, `OpsSamtal` gör det inte (den är samtalet).
+ * @param {unknown} varde @param {string} vem @param {boolean} medSamtal
+ */
+function kontrolleraTillagg(varde, vem, medSamtal) {
+  if (varde === undefined) return;
+  const v = /** @type {Record<string, unknown> | null} */ (varde && typeof varde === "object" ? varde : null);
+  /** @type {string[]} */
+  const fel = [];
+  if (!v) fel.push(`ska vara ett objekt, fick ${varde === null ? "null" : typeof varde}`);
+  else {
+    if (medSamtal && (typeof v.samtal !== "string" || !v.samtal)) fel.push("samtal ska vara samtalets id");
+    if (typeof v.text !== "string" || !v.text.trim()) fel.push("text ska vara en sträng som inte är tom");
+    if (!((typeof v.nyckel === "string" && v.nyckel !== "") || (typeof v.nyckel === "number" && Number.isFinite(v.nyckel)))) fel.push("nyckel ska vara en sträng eller ett tal");
+  }
+  if (fel.length) throw new Error(`${vem} ${fel.join(", ")}. Ett tillägg utan text eller nyckel hade antingen inte syntes eller lagts in flera gånger.`);
+}
+
+/**
  * Ett samtal: huvudet, meddelandena och skrivfältet. Samma vy för gruppchatten, ett privat samtal och ett agentsamtal.
  *
  * ⛔ LÄSMÄRKET FLYTTAS NÄR SAMTALET ÄR ÖPPET OCH NÅGOT NYTT FINNS, och bara framåt. Den som har samtalet öppet har sett
@@ -2645,8 +2690,12 @@ function agentDeltagare(samtal, uid, medlemmar) {
  * @param {boolean} [props.ny] (0.106.0) Ämnet är inte skrivet än (`nyttAmne`). Ingenting läses, och första Skicka skapar samtalet och
  *   meddelandet med `skickaIAmne`. Kräver `amne`.
  * @param {(samtal: import("../lib/samtal.js").Samtal, meddelande: any) => void} [props.onSkapat] (0.106.0) Anropas när ett nytt ämne skapats.
+ * @param {{ text: string, nyckel: string | number }} [props.tillagg] (0.226.0, cllp/ops-framework#592) Text som läggs till i skrivfältet,
+ *   med ett mellanslag när fältet inte är tomt, och fältet får fokus. Läggs in när `nyckel` ändras och första gången den finns: samma nyckel
+ *   två gånger lägger in texten en gång. ⛔ INGENTING SKICKAS: personen trycker Skicka själv.
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastTill: lastTillProp, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, franBiblioteket, mejl, onVisaAgent, onForslag, meddelandeHref, flerOmnamnbara, amne: amneProp, ny = false, onSkapat }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastTill: lastTillProp, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, igenkanning, onBifoga: onBifogaProp, franBiblioteket, mejl, onVisaAgent, onForslag, meddelandeHref, flerOmnamnbara, amne: amneProp, ny = false, onSkapat, tillagg }) {
+  kontrolleraTillagg(tillagg, "OpsSamtal: tillagg", false);
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -2664,6 +2713,19 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
   const [skickaFel, setSkickaFel] = useState(/** @type {Error | null} */ (null));
   const [text, setText] = useState(utkast ?? "");
   const [skickar, setSkickar] = useState(false);
+  /** (0.226.0) Nyckeln på det tillägg som senast lagts in, och fokusnyckeln som flyttar fokus till skrivfältet när det sker. */
+  const lagtTillagg = useRef(/** @type {string | number | null} */ (null));
+  const [tillaggFokus, setTillaggFokus] = useState("");
+  const tillaggNyckel = tillagg?.nyckel;
+  useEffect(() => {
+    if (!tillagg || lagtTillagg.current === tillagg.nyckel) return;
+    lagtTillagg.current = tillagg.nyckel;
+    const ny = tillagg.text.trim();
+    setText((forut) => (!forut ? ny : /\s$/.test(forut) ? `${forut}${ny}` : `${forut} ${ny}`));
+    setTillaggFokus(`tillagg:${String(tillagg.nyckel)}`);
+    // Bara en ny nyckel lägger in något. Texten läses ur samma tillägg.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tillaggNyckel]);
   const markt = useRef(lastTillProp ?? 0);
   const lyssnar = useRef(false);
   const medTradar = Boolean(onOppnaTrad) && samtal.slag === "grupp" && harTradar(kalla);
@@ -3061,7 +3123,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
         sprak={sprak}
         fokus={utkast !== undefined}
         omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor, flerOmnamnbara)}
-        fokusNyckel={svarPa?.id}
+        fokusNyckel={[svarPa?.id, tillaggFokus].filter(Boolean).join("|") || undefined}
         onEscape={svarPa ? () => setSvarPa(null) : undefined}
         platstext={samtal.slag === "grupp" ? t.skrivGrupp : samtal.slag === "projekt" ? t.skrivProjekt : samtal.slag === "agent" ? t.skrivAgent : t.skriv}
         onTranscribe={onTranscribe}

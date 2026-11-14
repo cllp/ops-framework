@@ -9,6 +9,46 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.226.0
+
+### Tillagt
+
+- ⛔ **TALK i ett pågående samtal: ingen meny i en öppen tråd, och Fortsätt efter att man lämnat den**
+  (cllp/ops-framework#592). CP 2026-11-14 08.37: "Om jag trycker på TALK igen kommer samma meny upp.
+  Jag funderar på om man ska komma ihåg att jag har ett pågående samtal, så att det finns en
+  Fortsätt-knapp. Så jag kan använda TALK med agenten om och om." Beslutet samma morgon: "Jag går på
+  Fables rekommendation."
+  - `talk.samtalet` (`useTalk({ samtalet })`): `{ namn, direkt, etikett?, onText }`. Gäller bara med
+    `onAgent`, och en felformad `samtalet` kastar vid uppstart (`kontrolleraSamtalet`).
+  - `direkt: true` (tråden står öppen): medan man pratar säger fältet vart det går ("Till {namn}",
+    eller appens `etikett`) med knappen **Något annat**. Klar lämnar texten till `onText` utan meny,
+    samma väg som ett tryck på valet: utan text väntar det på utskriften. Fältet säger `skickarText`
+    medan löftet arbetar och stängs när det löser sig. Avvisas det står menyn med felet och texten.
+  - **Något annat** ger menyn för den omgången. Nästa omgång börjar i direktläget igen.
+  - `direkt: false` (appen minns ett nyligt samtal), och menyn efter Något annat: **Fortsätt med
+    {namn}** står först, över hela raden och i accentfärgen, med fokus. Ingenting skickas utan ett tryck.
+  - Nya ord i `ORD_TALK`: `nagotAnnat`, `fortsattMed`, `tillSamtalet` och `felSamtalet`. `talkOrd` tar
+    `{ namn }` för `{namn}` i ordet.
+- **Text till skrivfältet i ett öppet samtal** (`OpsMeddelanden skrivfaltTillagg={{ samtal, text,
+  nyckel }}`, `OpsSamtal tillagg={{ text, nyckel }}`). Punkt 3 i samma beslut: i en tråd med människor
+  läggs talet i trådens skrivfält, och man trycker Skicka själv. Ingenting skickas. Texten läggs till
+  med ett mellanslag, fältet får fokus, samma nyckel läggs in en gång (också när samtalet öppnas
+  igen), och ett annat samtals id gör ingenting.
+
+### Prov
+- `talk-samtalet.test.jsx`: elva prov genom skalet. Nio är röda mot 0.225.0 (raden saknas, menyn
+  ritas, `onText` anropas aldrig, fel form kastar inte) och gröna med ändringen. Två är vakter för att
+  inget ändras utan samtalet eller utan `onAgent`, och är gröna i båda. Vakten "menyn ritades aldrig"
+  läser ändringsposterna och är röd när menyn ritas ens en gång i läget hört.
+- `meddelanden-tillagg.test.jsx`: fyra prov. Tre är röda mot 0.225.0. Det fjärde (ett annat samtals
+  id gör ingenting) är grönt i båda.
+
+### Appen
+- Ompinningen i lifehub.app ska ge `talk.samtalet`: i en öppen agenttråd `direkt: true`, och inom 30
+  minuter efter senaste talet till agenten `direkt: false`. Tidsgränsen är appens, ramverket vet den
+  inte. I en tråd med människor sätter `onText` appens `skrivfaltTillagg`. Utan `talk.samtalet` är
+  TALK som i 0.225.0.
+
 ## 0.225.0
 
 ### Ändrat
