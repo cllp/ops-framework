@@ -9,6 +9,16 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.229.3
+
+**Säkerhet: `ops-framework/sentry` skickar aldrig SDK:ns förval.** Granskningen av lifehub.app PR 845 (Sentry i My och SessionStudio) såg att `Sentry.init` bara fick dsn, miljö och version. Brödsmulorna (konsolrader, navigeringar och anrop med hela adressen) och sidans adress hade då följt med varje fel, också en inloggningskod i `?lh_kod=`. Nu får `init` sina alternativ ur `lib/sentryRensning.js`:
+- varje adress går utan fråga och ankare,
+- inga konsolbrödsmulor skickas,
+- `request` bär varken cookies, huvuden eller frågesträng,
+- `sendDefaultPii: false` är satt uttryckligen.
+
+Prov: `sentry-rensning-845` (5). Det är rött utan ändringen, eftersom modulen inte fanns och `init` fick SDK:ns förval. Adresser inne i felets text och användarnamn med lösenord i en adress rensas också (granskningen av PR 600). `extra` (appens `sammanhang`) rensas inte: det är appens ansvar.
+
 ## 0.229.2
 
 ### Rättat

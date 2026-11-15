@@ -14,6 +14,7 @@ const init = vi.fn();
 const captureException = vi.fn();
 const setUser = vi.fn();
 
+import { rensaBrodsmula, rensaHandelse } from "../lib/sentryRensning.js";
 vi.mock("@sentry/browser", () => ({ init, captureException, setUser }));
 
 describe("sentryMottagare", () => {
@@ -34,7 +35,8 @@ describe("sentryMottagare", () => {
     const mottagare = sentryMottagare({ dsn: "https://x", miljo: "produktion", version: "0.26.0" });
     const fel = new Error("kaboom");
     mottagare.fanga(fel, { id: "AB12CD" });
-    expect(init).toHaveBeenCalledWith({ dsn: "https://x", environment: "produktion", release: "0.26.0" });
+    // ⛔ Aldrig SDK:ns förval (lifehub.app PR 845): rensningen och sendDefaultPii av följer med till init (`lib/sentryRensning.js`).
+    expect(init).toHaveBeenCalledWith({ dsn: "https://x", environment: "produktion", release: "0.26.0", sendDefaultPii: false, beforeSend: rensaHandelse, beforeBreadcrumb: rensaBrodsmula });
     expect(captureException).toHaveBeenCalledWith(fel, { extra: { id: "AB12CD" } });
   });
 
