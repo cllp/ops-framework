@@ -39,6 +39,7 @@
 
 /* eslint-disable import/no-unresolved -- se filhuvudet: SDK:n är appens val, inte ramverkets. */
 import * as Sentry from "@sentry/browser";
+import { sentryInitAlternativ } from "./lib/sentryRensning.js";
 
 /**
  * @param {{ dsn: string, miljo: string, version?: string }} konfig
@@ -60,7 +61,8 @@ export function sentryMottagare(konfig) {
   let initierad = false;
   function sakerstallInit() {
     if (initierad) return;
-    Sentry.init({ dsn, environment: miljo, release: version });
+    // ⛔ ALDRIG MED SDK:NS FÖRVAL (lifehub.app PR 845): adresser utan fråga, inga konsolbrödsmulor, se `lib/sentryRensning.js`.
+    Sentry.init(sentryInitAlternativ({ dsn, miljo, version }));
     initierad = true;
   }
 
