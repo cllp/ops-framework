@@ -61,7 +61,16 @@ function vidTryck(e) {
  */
 export function skyddaOvanforPanel(event) {
   const ursprung = event.detail?.originalEvent;
-  if (arOvanforPanel(event.target) || (ursprung !== undefined && TRYCK_OVANFOR.has(ursprung))) event.preventDefault();
+  if (arOvanforPanel(event.target) || (ursprung !== undefined && TRYCK_OVANFOR.has(ursprung)) || talkYtanOppen()) event.preventDefault();
+}
+
+/**
+ * ⛔ MEDAN TALK:S YTA ÄR ÖPPEN STÄNGER INGET TRYCK PANELEN (granskningen av 0.231.0, fynd A). Escape skyddades redan: ytan är det högsta
+ * lagret. Men ett tryck på slöjan medan man pratade stängde panelen under, och fältet man pratade in i försvann (`felFaltetBorta`). Panelen
+ * stängs med Tillbaka eller slöjan när ytan är stängd, som förut. Ytan bär `data-ops-talk` (`OpsTalk`) bara medan den är öppen.
+ */
+function talkYtanOppen() {
+  return typeof document !== "undefined" && document.querySelector("[data-ops-talk]") !== null;
 }
 
 /** @type {Set<() => void>} */

@@ -147,6 +147,24 @@ describe("panellagret", () => {
     annat.remove();
   });
 
+  it("⛔ medan TALK:s yta är öppen stänger inget tryck panelen, inte heller på slöjan (granskningen av 0.231.0, fynd A)", () => {
+    const slöja = document.createElement("div");
+    document.body.append(slöja);
+    const h = (/** @type {Element} */ t) => ({ target: t, hindrad: false, preventDefault() { this.hindrad = true; } });
+    const fore = h(slöja);
+    skyddaOvanforPanel(fore);
+    const yta = document.createElement("div");
+    yta.setAttribute("data-ops-talk", "");
+    document.body.append(yta);
+    const under = h(slöja);
+    skyddaOvanforPanel(under);
+    yta.remove();
+    const efter = h(slöja);
+    skyddaOvanforPanel(efter);
+    expect([fore.hindrad, under.hindrad, efter.hindrad]).toEqual([false, true, false]);
+    slöja.remove();
+  });
+
   it("⛔ trycket avgörs när det kom: ett mål som lämnat sidan innan Radix frågar (knappen ritades om av klicket) stänger ändå inte panelen", () => {
     // Mätt i check-skalyta avsnitt 67 vid 390 px: Radix skjuter upp "tryck utanför" till klicket, och då har mikrofonens ikon bytts ut.
     const slapp = registreraPanel();
