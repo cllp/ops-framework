@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rensaBrodsmula, rensaHandelse, sentryInitAlternativ, utanFraga } from "../lib/sentryRensning.js";
+import { rensaBrodsmula, rensaHandelse, rensaText, sentryInitAlternativ, utanFraga } from "../lib/sentryRensning.js";
 
 /**
  * Granskningen av lifehub.app PR 845: Sentry med SDK:ns förval hade skickat adresser med inloggningskoder och konsolrader.
@@ -41,5 +41,16 @@ describe("vad Sentry får se", () => {
     expect(a).toMatchObject({ dsn: "https://k@o.ingest.sentry.io/1", environment: "my", release: "1.0.1", sendDefaultPii: false });
     expect(a.beforeSend).toBe(rensaHandelse);
     expect(a.beforeBreadcrumb).toBe(rensaBrodsmula);
+  });
+  it("adresser inne i felets text och användarnamn med lösenord i en adress rensas (granskningen av PR 600)", () => {
+    expect(utanFraga("https://namn:losen@host.se/x?a=1")).toBe("https://host.se/x");
+    expect(rensaText("Failed to fetch https://my.life-hub.app/api?lh_kod=hemlig, försök igen")).toBe("Failed to fetch https://my.life-hub.app/api försök igen");
+    const ut = rensaHandelse({
+      message: "se https://x.se/a#lh_kod=hemlig",
+      exception: { values: [{ type: "TypeError", value: "Failed to fetch https://u:p@x.se/b?lh_kod=hemlig" }] },
+      breadcrumbs: [{ category: "ui.click", message: "öppnade https://x.se/c?lh_kod=hemlig" }],
+    });
+    expect(JSON.stringify(ut)).not.toMatch(/hemlig|u:p@/);
+    expect(ut.exception.values[0]).toEqual({ type: "TypeError", value: "Failed to fetch https://x.se/b" });
   });
 });

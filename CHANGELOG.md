@@ -17,7 +17,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 - `request` bär varken cookies, huvuden eller frågesträng,
 - `sendDefaultPii: false` är satt uttryckligen.
 
-Prov: `sentry-rensning-845` (4). Det är rött utan ändringen, eftersom modulen inte fanns och `init` fick SDK:ns förval.
+Prov: `sentry-rensning-845` (5). Det är rött utan ändringen, eftersom modulen inte fanns och `init` fick SDK:ns förval. Adresser inne i felets text och användarnamn med lösenord i en adress rensas också (granskningen av PR 600). `extra` (appens `sammanhang`) rensas inte: det är appens ansvar.
 
 ## 0.229.2
 
