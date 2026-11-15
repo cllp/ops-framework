@@ -355,17 +355,17 @@ describe("OpsKommentarer med bilagor", () => {
 });
 
 describe("OpsTextarea bifogaPlats", () => {
-  it("platsen står i fältets ruta, bredvid mikrofonen när den finns, och saknas för ett inaktivt eller ett skrivskyddat fält", () => {
+  it("platsen står i fältets ruta (längst ut, ingen mikrofon sedan 0.230.0), och saknas för ett inaktivt eller ett skrivskyddat fält", () => {
     const { unmount } = render(
       <OpsField label="Skriv">
-        <OpsTextarea value="" onChange={() => {}} bifogaPlats={() => {}} tal={{ onTranscribe: async () => "x" }} />
+        <OpsTextarea value="" onChange={() => {}} bifogaPlats={() => {}} />
       </OpsField>,
     );
     const plats = document.querySelector("[data-bifoga-plats]");
     expect(plats).not.toBeNull();
-    expect(plats?.className).toContain("end-15");
-    expect(plats?.parentElement?.querySelector("[data-mikrofon]")).not.toBeNull();
-    expect(plats?.parentElement?.querySelector("textarea")?.className).toContain("pe-28");
+    expect(plats?.className).toContain("end-3");
+    expect(plats?.parentElement?.querySelector("[data-mikrofon]")).toBeNull();
+    expect(plats?.parentElement?.querySelector("textarea")?.className).toContain("pe-14");
     unmount();
     render(
       <OpsField label="Skriv">

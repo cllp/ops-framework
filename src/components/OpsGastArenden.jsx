@@ -61,9 +61,9 @@ export const ORD_OPSGASTARENDEN = {
 /**
  * Ett ärende med sina kommentarer, en skrivruta och Markera klar. Eget tillstånd per ärende: en kommentar som skrivs i ett ärende lämnas inte kvar i ett annat.
  *
- * @param {{ post: Gastarende, onKommentera: (id: string, text: string) => Promise<unknown>, onKlar: (id: string) => Promise<unknown>, sprak: string, t: Record<string, string>, igenkanning: boolean }} props
+ * @param {{ post: Gastarende, onKommentera: (id: string, text: string) => Promise<unknown>, onKlar: (id: string) => Promise<unknown>, sprak: string, t: Record<string, string> }} props
  */
-function Arendekort({ post, onKommentera, onKlar, sprak, t, igenkanning }) {
+function Arendekort({ post, onKommentera, onKlar, sprak, t }) {
   // ⛔ FÄLTETS NAMN ÄR "Skriv en kommentar", inte chattens "Skriv ett meddelande": en gäst som läser upp skärmen ska höra vad fältet gör.
   const texter = useMemo(() => texterPa(sprak, { skriv: t.skrivPlats }), [sprak, t.skrivPlats]);
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
@@ -145,7 +145,7 @@ function Arendekort({ post, onKommentera, onKlar, sprak, t, igenkanning }) {
       </section>
 
       <div data-gast-arende-skriv="" className="flex min-w-0 flex-col gap-1">
-        <Skrivfalt text={skrivText} setText={setSkrivText} skickar={skickar} onSkicka={skicka} texter={texter} sprak={sprak} maxTecken={GASTSKRIV_MAX_TECKEN} igenkanning={igenkanning} />
+        <Skrivfalt text={skrivText} setText={setSkrivText} skickar={skickar} onSkicka={skicka} texter={texter} maxTecken={GASTSKRIV_MAX_TECKEN} />
         {skrivFel ? <p role="alert" data-gast-arende-skrivfel="" className="m-0 text-etikett text-danger">{skrivFel}</p> : null}
         <p className="m-0 text-meta text-ink-muted">{t.skrivNot}</p>
       </div>
@@ -206,9 +206,8 @@ function Arendekort({ post, onKommentera, onKlar, sprak, t, igenkanning }) {
  * @param {() => void} [props.onForsokIgen] (0.192.0, cllp/lifehub.app#675) Hämtar igen efter ett fel. Med den står en Försök igen under felet.
  * @param {string} [props.sprak]
  * @param {Partial<Record<keyof typeof ORD_OPSGASTARENDEN, string>>} [props.ord]
- * @param {boolean} [props.igenkanning] (0.190.0) Webbläsarens taligenkänning i kommentarsfältet, som i gästens chatt. Förval `true`, där webbläsaren har den.
  */
-export function OpsGastArenden({ poster, avkortad = false, onKommentera, onKlar, laddar = false, fel = null, onForsokIgen, sprak = "sv", ord, igenkanning = true }) {
+export function OpsGastArenden({ poster, avkortad = false, onKommentera, onKlar, laddar = false, fel = null, onForsokIgen, sprak = "sv", ord }) {
   if (!Array.isArray(poster)) {
     throw new Error("OpsGastArenden: poster måste vara en lista, tom när gästen inte har några. Utan den går det inte att skilja 'inga ärenden' från 'inte hämtade'.");
   }
@@ -226,7 +225,7 @@ export function OpsGastArenden({ poster, avkortad = false, onKommentera, onKlar,
       ) : poster.length === 0 ? (
         <OpsEmpty title={t.tom} />
       ) : (
-        poster.map((p) => <Arendekort key={p.id} post={p} onKommentera={onKommentera} onKlar={onKlar} sprak={sprak} t={t} igenkanning={igenkanning} />)
+        poster.map((p) => <Arendekort key={p.id} post={p} onKommentera={onKommentera} onKlar={onKlar} sprak={sprak} t={t} />)
       )}
       {avkortad ? <p role="status" data-gast-arenden-avkortad="" className="m-0 text-meta text-ink-muted">{t.avkortad}</p> : null}
     </section>

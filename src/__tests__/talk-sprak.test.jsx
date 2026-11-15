@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { useState } from "react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsInspelning } from "../components/OpsTalk.jsx";
 import { OpsSprakProvider } from "../components/OpsSprak.jsx";
-import { OpsField, OpsTextarea } from "../components/OpsField.jsx";
 import { TALK_INGET_LJUD, kanSpelaInIgen, webblasarensInspelare } from "../lib/talk.js";
 
 /*
@@ -61,27 +59,6 @@ describe("TALK:s yta följer språket", () => {
     expect(screen.getByRole("button", { name: "Försök igen" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Avbryt" })).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toBe("Det inspelade kunde inte sparas.");
-  });
-
-  it("⛔ textfältets yta på engelska: hela ytan, inte bara fältets egna ord", async () => {
-    const insp = { starta: vi.fn(async () => {}), stoppa: vi.fn(async () => ({ blob: new Blob(["x"]), mimeType: "audio/webm", sekunder: 1 })), kasta: vi.fn(), niva: () => 0.5 };
-    function F() {
-      const [v, setV] = useState("");
-      return (
-        <OpsSprakProvider sprak="en">
-          <OpsField label="Describe">
-            <OpsTextarea value={v} onChange={setV} tal={{ onTranscribe: async () => "x", inspelare: insp }} />
-          </OpsField>
-        </OpsSprakProvider>
-      );
-    }
-    render(<F />);
-    fireEvent.click(screen.getByRole("button", { name: "Dictate" }));
-    await waitFor(() => expect(insp.starta).toHaveBeenCalled());
-    const yta = /** @type {HTMLElement} */ (document.querySelector("[data-rostyta]"));
-    const klar = within(yta).getByRole("button", { name: "Done, insert what you said" });
-    expect(klar.textContent).toBe("Done");
-    expect(within(yta).getByRole("button", { name: "Cancel" })).toBeTruthy();
   });
 });
 

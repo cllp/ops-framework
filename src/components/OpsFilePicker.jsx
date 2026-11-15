@@ -5,7 +5,7 @@ import { isImage as arBildtyp, attachmentSize, filensNamn, readAttachment } from
 import { forvalda, ordet } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { FilIkon, GemIkon } from "./icons.jsx";
-import { Faltknapp } from "./OpsRostinmatning.jsx";
+import { Faltknapp } from "./Faltknapp.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 
 /**

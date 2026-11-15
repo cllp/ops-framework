@@ -588,12 +588,9 @@ const FALSK_IGENKANNING = `window.webkitSpeechRecognition = class { start() {} s
 /**
  * (8) TAL I ALLA TEXTFÄLT (skiva 8). Ett formulär med ett fält på en rad och ett på flera rader, båda med lång text, och lösenord,
  * e-post, sök och nummer. Vid 390 och 1280 px:
- *   (a) text och långtext har var sin ljudvåg, utan att appen bett om den, med träffyta minst 44 x 44 och samma ikon som chatten
- *       (`LjudvagIkon`, lucide-ikonen "audio-lines");
- *   (b) ljudvågen ligger inte över texten: fältets textyta slutar före knappens vänsterkant;
- *   (c) lösenord, e-post, sök och nummer har ingen ljudvåg.
- * Golv: sex fält. ⛔ #264 (CP 2026-10-16): vid 390 körs sidan som iPhone, där WebKit saknar igenkänning; mikrofonen finns ändå,
- * eftersom sidan har en utskrift (`OpsTranskriberingProvider`) och fältet då spelar in och låter servern skriva ut.
+ *   (a) 0.230.0 (#602): INGET fält har en ljudvåg (`data-mikrofon`). TALK är den enda röstknappen, och talet går till fältet där markören står.
+ *       Före 0.230.0 mättes här att text och långtext hade en ljudvåg med träffyta minst 44 x 44, och att lösenord, e-post, sök och nummer inte hade.
+ * Golv: sex fält.
  * @param {Verktyg} v
  */
 export async function talIAllaFalt(v) {
@@ -623,12 +620,7 @@ export async function talIAllaFalt(v) {
       );
       v.matt.push(`${namn}: ${JSON.stringify(m)}`);
       v.krav(m.length >= 6, `${namn}: ${m.length} fält, väntat minst 6. Golv.`);
-      for (const f of m.filter((x) => x.slag === "text" || x.slag === "langtext")) {
-        v.krav(f.knappar === 1 && f.ikon && Boolean(f.traff && f.traff.w >= 44 && f.traff.h >= 44), `${namn}: (a) ${f.slag} har ${f.knappar} ljudvågor, ikon ${f.ikon}, träffyta ${JSON.stringify(f.traff)}.`);
-        v.krav(f.knappVanster !== null && f.textSlut <= f.knappVanster && f.inneIFaltet === true, `${namn}: (b) i ${f.slag} slutar texten vid ${f.textSlut} och knappen börjar vid ${f.knappVanster} (inne i fältet ${f.inneIFaltet}).`);
-      }
-      const utan = m.filter((x) => ["password", "email", "search", "number"].includes(String(x.slag)));
-      v.krav(utan.length === 4 && utan.every((x) => x.knappar === 0), `${namn}: (c) ljudvåg i ${JSON.stringify(utan.filter((x) => x.knappar > 0).map((x) => x.slag))}.`);
+      v.krav(m.every((x) => x.knappar === 0), `${namn}: (a) ljudvåg i ${JSON.stringify(m.filter((x) => x.knappar > 0).map((x) => x.slag))}, väntat inget fält med en.`);
       await bild(v, page, `tal-falt-${vp.width}.png`);
     }, { init: FALSK_IGENKANNING, ...(vp.width < 768 ? { kontext: IPHONE } : {}) });
   }

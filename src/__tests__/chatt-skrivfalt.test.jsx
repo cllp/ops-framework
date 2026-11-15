@@ -5,34 +5,16 @@ import { createMemorySource } from "../data/adapters.js";
 import { createSamtalskalla } from "../data/samtalskalla.js";
 
 /**
- * Etapp 8 av chattens nattskiva: skrivfältet efter CP:s förebild, med röstinmatning. Bilagorna väntar på modulen i PR 277.
+ * Etapp 8 av chattens nattskiva: skrivfältet efter CP:s förebild, med TALK till fältet (0.230.0). Bilagorna väntar på modulen i PR 277.
  *
- * ⛔ HÄR MÄTS BETEENDE: platstexten följer samtalet, ljudvågen finns bara med `onTranscribe`, rösten skickas som ett meddelande (0.103.0,
- * förut gick den in i fältet utan att skickas), en misslyckad transkribering säger det och behåller ljudet för ett nytt försök, stopp
+ * ⛔ HÄR MÄTS BETEENDE: platstexten följer samtalet, ingen ljudvåg i skrivfältet (0.230.0, #602: TALK skriver in det sagda, se talk-till-falt), stopp
  * finns bara när något pågår, och plus finns inte utan bilagemodulen. Utseendet och 44 px mäts i check-skalyta 29g (8).
  */
-
-const yta = () => /** @type {HTMLElement} */ (document.querySelector("[data-rostyta]"));
 
 const MEDLEMMAR = [
   { userId: "anna", namn: "Anna Ek", typ: "person", status: "aktiv" },
   { userId: "ops", namn: "Ops-agenten", typ: "agent", status: "aktiv" },
 ];
-
-/** En inspelare utan mikrofon: starta, stoppa med ett ljud, kasta. */
-function provinspelare() {
-  const blob = new Blob(["ljud"], { type: "audio/webm" });
-  return {
-    blob,
-    kastad: 0,
-    starta: vi.fn(async () => {}),
-    stoppa: vi.fn(async () => ({ blob, mimeType: "audio/webm", sekunder: 2 })),
-    kasta: vi.fn(function () {
-      this.kastad += 1;
-    }),
-    niva: () => 0.5,
-  };
-}
 
 async function underlag(/** @type {{ status?: boolean }} */ val = {}) {
   const kalla = createMemorySource({});
@@ -55,7 +37,7 @@ describe("skrivfältet", () => {
     rerender(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} />);
     await waitFor(() => expect(ruta().getAttribute("placeholder")).toBe("Fråga agenten"));
   });
-  it("⛔ utan onTranscribe ingen ljudvåg, utan bilagemodulen inget plus, och inget stopp när inget pågår", async () => {
+  it("⛔ ingen ljudvåg i skrivfältet (0.230.0, #602: TALK är den enda röstknappen), utan bilagemodulen inget plus, och inget stopp när inget pågår", async () => {
     const { s, a } = await underlag();
     render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} />);
     await within(await screen.findByRole("log")).findByText("Hej");
@@ -63,103 +45,6 @@ describe("skrivfältet", () => {
     expect(screen.queryByRole("button", { name: "Bifoga" })).toBeNull();
     expect(document.querySelector("[data-stopp]")).toBeNull();
     expect(screen.getByRole("button", { name: "Skicka" })).toBeTruthy();
-  });
-  // ⛔ ÄNDRAT 0.103.0. Här stod "ett andra tryck skriver ut, och texten hamnar i fältet utan att skickas". CP 2026-10-14: tal i
-  // meddelanden ska fungera som TALK och "inte gå en omväg via textfältet". Klar i TALK:s yta skickar nu det utskrivna direkt.
-  it("⛔ rösten: ljudvågen öppnar TALK:s yta, Klar skriver ut, och det utskrivna skickas utan att gå via fältet", async () => {
-    const { kalla, s, a } = await underlag();
-    const insp = provinspelare();
-    const onTranscribe = vi.fn(async () => "påminn mig på fredag");
-    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} onTranscribe={onTranscribe} inspelare={insp} />);
-    await within(await screen.findByRole("log")).findByText("Hej");
-    fireEvent.change(ruta(), { target: { value: "Kan du" } });
-    fireEvent.change(ruta(), { target: { value: "" } });
-    fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
-    await waitFor(() => expect(insp.starta).toHaveBeenCalled());
-    expect(yta().getAttribute("data-rostlage")).toBe("spelar");
-    expect(within(yta()).getByRole("button", { name: "Avbryt" })).toBeTruthy();
-    fireEvent.click(within(yta()).getByRole("button", { name: "Klar, skicka det du sagt" }));
-    await waitFor(() => expect(yta()).toBeNull());
-    expect(onTranscribe).toHaveBeenCalledWith(insp.blob);
-    const alla = await kalla.list(`samtal/${a.id}/meddelanden`);
-    expect(alla.map((/** @type {any} */ m) => m.text).sort()).toEqual(["Hej", "påminn mig på fredag"]);
-    expect(ruta().value).toBe("");
-    expect(screen.getByRole("button", { name: "Prata in" })).toBeTruthy();
-  });
-  it("⛔ webbläsarens taligenkänning används aldrig i skrivfältet: talet går bara till appens egen transkribering (granskningen av PR 358)", async () => {
-    const { s, a } = await underlag();
-    const insp = provinspelare();
-    const onTranscribe = vi.fn(async () => "från appen");
-    class SR {
-      constructor() {
-        /** @type {any} */ this.onresult = null;
-        /** @type {any} */ this.onend = null;
-        SR.senast = this;
-      }
-      start() {}
-      stop() {
-        queueMicrotask(() => this.onend?.());
-      }
-      abort() {}
-    }
-    /** @type {any} */ SR.senast = null;
-    vi.stubGlobal("webkitSpeechRecognition", SR);
-    try {
-      render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} onTranscribe={onTranscribe} inspelare={insp} />);
-      await within(await screen.findByRole("log")).findByText("Hej");
-      fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
-      fireEvent.click(await screen.findByRole("button", { name: "Klar, skicka det du sagt" }));
-      await waitFor(() => expect(yta()).toBeNull());
-      // ⛔ ÄNDRAT 0.103.0: det utskrivna skickas i stället för att hamna i fältet. Det provet vaktar (ingen igenkänning) är oförändrat.
-      expect((await s.meddelanden(a.id)).map((/** @type {any} */ m) => m.text)).toContain("från appen");
-      expect(onTranscribe).toHaveBeenCalledTimes(1);
-      expect(SR.senast).toBeNull();
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-  // ⛔ ÄNDRAT 0.103.0: felet står i TALK:s yta i fältets plats, och det andra försöket skickas i stället för att läggas i fältet.
-  it("⛔ en misslyckad transkribering säger det, behåller ljudet, och Försök igen skickar samma ljud", async () => {
-    const { s, a } = await underlag();
-    const insp = provinspelare();
-    const onTranscribe = vi.fn().mockRejectedValueOnce(new Error("Tjänsten svarade 503.")).mockResolvedValueOnce("andra försöket");
-    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} onTranscribe={onTranscribe} inspelare={insp} />);
-    await within(await screen.findByRole("log")).findByText("Hej");
-    fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
-    await waitFor(() => expect(insp.starta).toHaveBeenCalled());
-    fireEvent.click(await screen.findByRole("button", { name: "Klar, skicka det du sagt" }));
-    const fel = await screen.findByRole("alert");
-    expect(fel.textContent).toContain("Det inspelade kunde inte skrivas ut.");
-    expect(fel.textContent).toContain("Tjänsten svarade 503.");
-    fireEvent.click(within(yta()).getByRole("button", { name: "Försök igen" }));
-    await waitFor(() => expect(yta()).toBeNull());
-    expect(onTranscribe).toHaveBeenNthCalledWith(2, insp.blob);
-    expect((await s.meddelanden(a.id)).map((/** @type {any} */ m) => m.text)).toContain("andra försöket");
-    expect(screen.queryByRole("alert")).toBeNull();
-  });
-  // ⛔ ÄNDRAT 0.103.0: "Kasta ljudet" och stoppknappen under inspelningen är TALK:s kryss (Avbryt) i ytan.
-  it("⛔ krysset är det enda som tar bort ljudet, och krysset under inspelningen avbryter utan transkribering", async () => {
-    const { s, a } = await underlag();
-    const insp = provinspelare();
-    const onTranscribe = vi.fn().mockRejectedValue(new Error("nej"));
-    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} onTranscribe={onTranscribe} inspelare={insp} />);
-    await within(await screen.findByRole("log")).findByText("Hej");
-    fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
-    await waitFor(() => expect(insp.starta).toHaveBeenCalled());
-    fireEvent.click(within(yta()).getByRole("button", { name: "Avbryt" }));
-    await waitFor(() => expect(insp.kasta).toHaveBeenCalled());
-    expect(onTranscribe).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
-    await waitFor(() => expect(insp.starta).toHaveBeenCalledTimes(2));
-    fireEvent.click(await screen.findByRole("button", { name: "Klar, skicka det du sagt" }));
-    await screen.findByRole("alert");
-    // Ljudet finns kvar så länge felet står: Försök igen är kvar tills krysset trycks.
-    expect(within(yta()).getByRole("button", { name: "Försök igen" })).toBeTruthy();
-    fireEvent.click(within(yta()).getByRole("button", { name: "Avbryt" }));
-    expect(screen.queryByRole("alert")).toBeNull();
-    expect(yta()).toBeNull();
-    expect(ruta().value).toBe("");
-    expect(onTranscribe).toHaveBeenCalledTimes(1);
   });
   it("⛔ stopp för agenten bara när den arbetar och appen gett onStoppaAgent", async () => {
     const { kalla, s, a } = await underlag({ status: true });
@@ -171,46 +56,6 @@ describe("skrivfältet", () => {
     rerender(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} onStoppaAgent={onStoppaAgent} />);
     fireEvent.click(await screen.findByRole("button", { name: "Stoppa agenten" }));
     expect(onStoppaAgent).toHaveBeenCalledWith(a.id);
-  });
-  /*
-   * ⛔ SKRIVFÄLTETS VÄG TILL MIKROFONEN (0.75.2, cllp/lifehub.identity#30). 0.75.1 mätte `talkFeltext` och `mikrofonenTillatenAvSidan`
-   * var för sig, men inte vägen från skrivfältets ljudvåg till texten personen läser. En mikrofon som sidans Permissions-Policy
-   * spärrar ger samma `NotAllowedError` som ett nej från personen; skrivfältet ska då säga att sidan spärrar, inte peka på
-   * webbläsarens inställningar. Utan API (äldre webbläsare) står den gamla texten kvar, eftersom den då är den enda som kan stämma.
-   */
-  for (const [namn, nyckel] of /** @type {const} */ ([["permissionsPolicy", "permissionsPolicy"], ["featurePolicy", "featurePolicy"]])) {
-    it(`⛔ en mikrofon som sidan spärrar (${namn}) säger det i skrivfältet`, async () => {
-      const { s, a } = await underlag();
-      const insp = provinspelare();
-      insp.starta = vi.fn(async () => Promise.reject(Object.assign(new Error("Permission denied"), { name: "NotAllowedError" })));
-      const doc = /** @type {any} */ (document);
-      const fore = Object.getOwnPropertyDescriptor(doc, nyckel);
-      Object.defineProperty(doc, nyckel, { configurable: true, value: { allowsFeature: (/** @type {string} */ f) => f !== "microphone" } });
-      try {
-        render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} onTranscribe={vi.fn()} inspelare={insp} />);
-        await within(await screen.findByRole("log")).findByText("Hej");
-        fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
-        const fel = await screen.findByRole("alert");
-        expect(fel.textContent).toContain("Mikrofonen är spärrad av sidan som visar appen");
-        expect(fel.textContent).not.toContain("webbläsarens inställningar");
-      } finally {
-        if (fore) Object.defineProperty(doc, nyckel, fore);
-        else delete doc[nyckel];
-      }
-    });
-  }
-  it("⛔ utan policy-API står texten om webbläsarens inställningar kvar", async () => {
-    const { s, a } = await underlag();
-    const insp = provinspelare();
-    insp.starta = vi.fn(async () => Promise.reject(Object.assign(new Error("Permission denied"), { name: "NotAllowedError" })));
-    const doc = /** @type {any} */ (document);
-    expect(doc.permissionsPolicy ?? doc.featurePolicy).toBeUndefined(); // golv: jsdom har inget API, annars mäter provet fel sak
-    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} onTranscribe={vi.fn()} inspelare={insp} />);
-    await within(await screen.findByRole("log")).findByText("Hej");
-    fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
-    const fel = await screen.findByRole("alert");
-    expect(fel.textContent).toContain("Mikrofonen är inte tillåten. Ge sidan tillgång till mikrofonen i webbläsarens inställningar.");
-    expect(fel.textContent).not.toContain("spärrad av sidan");
   });
 });
 

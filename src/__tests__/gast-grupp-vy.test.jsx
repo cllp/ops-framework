@@ -107,20 +107,17 @@ describe("OpsGastChatt", () => {
     expect(falt).toHaveValue("Igen");
   });
 
-  it("⛔ gästen får mikrofon där webbläsaren har taligenkänning, i chatten och i ett ärende, och ingen där den saknas (0.190.0, CP 2026-11-05)", async () => {
+  it("⛔ gästen har ingen mikrofon (0.230.0, #602: TALK är den enda röstknappen och en gästsida har ingen), inte heller där webbläsaren har taligenkänning", async () => {
     const { OpsGastArenden } = await import("../components/OpsGastArenden.jsx");
     const ARENDE = [{ id: "a1", rubrik: "Hämta nycklar", status: "ny", kommentarer: [] }];
-    const { unmount } = render(<OpsGastChatt meddelanden={[]} onSkriv={vi.fn()} />);
-    expect(document.querySelector("[data-mikrofon]")).toBeNull();
-    unmount();
-    // Webbläsarens igenkänning finns (Chrome: `webkitSpeechRecognition`). Ingen serverutskrift behövs.
     vi.stubGlobal("webkitSpeechRecognition", function SR() {});
     try {
       const chatt = render(<OpsGastChatt meddelanden={[]} onSkriv={vi.fn()} />);
-      expect(document.querySelectorAll("[data-mikrofon]")).toHaveLength(1);
+      expect(document.querySelector("[data-mikrofon]")).toBeNull();
+      expect(screen.getByRole("button", { name: "Skicka" })).toBeTruthy();
       chatt.unmount();
       render(<OpsGastArenden poster={ARENDE} onKommentera={vi.fn()} onKlar={vi.fn()} />);
-      expect(document.querySelectorAll("[data-mikrofon]")).toHaveLength(1);
+      expect(document.querySelector("[data-mikrofon]")).toBeNull();
     } finally {
       vi.unstubAllGlobals();
     }
