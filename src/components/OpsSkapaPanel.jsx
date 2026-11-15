@@ -3,6 +3,7 @@ import { cx } from "../lib/cx.js";
 import { ChevronNedIkon } from "./icons.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsSkapaRubrik } from "./OpsSkapaRubrik.jsx";
+import { usePanelRegistrering } from "../lib/panellager.js";
 import { SkapaPanelArKlarKontext, SkapaPanelKlarKontext, SkapaPanelStatusKontext } from "./skapaPanelStatus.js";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 
@@ -26,8 +27,15 @@ import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
  *
  * ⛔ UNDER `md` ÄR PANELEN HELSKÄRM (`fixed inset-0`) med en EGEN rubrikrad (Tillbaka och titel), en kropp som rullar och en
  * knapprad som ligger kvar längst ned inom `--safe-bottom`. Höjden följer `visualViewport`, så när tangentbordet öppnas krymper
- * panelen med det och knappraden och det aktiva fältet ligger ovanför tangentbordet, inte under det. Bottenraden täcks: skapa är
+ * panelen med det och knappraden och det aktiva fältet ligger ovanför tangentbordet, inte under det. Bottenraden täcktes: skapa är
  * ett läge man är i, och en bottenrad som ligger över knappraden är precis det som gjorde arket inträngt (CP 2026-09-29 15:01).
+ *
+ * ⛔ ÄNDRAT 0.231.0: PANELEN SLUTAR OVANFÖR BOTTENRADEN (cllp/ops-framework#602). CP 2026-11-15: "TAlk finns ju inte när man skall skriva text
+ * i ärenden mm." Sedan 0.230.0 är TALK den enda röstknappen och skriver i fältet där markören står, och den knappen stod i bottenraden under
+ * panelen. Skissen CP godkände ("Snyggt kör på skissen"): panelen slutar ovanför raden (`--panel-botten`, med mikrofonens lyft), knappraden
+ * ligger över den och syns hel, och raden syns med TALK i mitten. Det som stycket ovan skyddade står kvar: raden ligger aldrig ÖVER
+ * knappraden, och de andra flikarna är dämpade och `inert` medan panelen är öppen (`usePanelRegistrering`, `OpsBottomNav`), så att ingen lämnar
+ * ett halvskrivet ärende av misstag. Den säkra ytan nedtill bär raden; utan rad lägger knappraden den på sin egen `padding-bottom`, som förut.
  *
  * ⛔ KNAPPRADEN ÄR SKALETS, FORMULÄRET ÄR APPENS. `Spara` är en `type="submit" form={formId}`: appens formulär ger sitt
  * `<form>` `id={formId}` (skalet skickar `formId` till formuläret). Ritas ingen `Spara` (`sparaEtikett` utelämnad) är det
@@ -70,6 +78,8 @@ export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtik
   const [status, setStatus] = useState(/** @type {import("./skapaPanelStatus.js").SkapaStatus} */ (null));
   const [klar, setKlar] = useState(false);
   const [hojd, setHojd] = useState(/** @type {number | null} */ (null));
+  // ⛔ 0.231.0: MEDAN PANELEN ÄR MONTERAD ÄR DEN ÖPPEN, och bottenraden dämpar sina flikar (se filhuvudet).
+  usePanelRegistrering(true);
 
   // ⛔ Höjden ur `visualViewport`: `dvh` följer inte iOS-tangentbordet, `visualViewport.height` gör det.
   useEffect(() => {
@@ -97,7 +107,7 @@ export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtik
         style={hojd ? /** @type {any} */ ({ "--skapa-hojd": `${hojd}px` }) : undefined}
         className={cx(
           // Under md: helskärm. Från md: en sida i kolumnen som är minst lika hög som fönstret, så knappraden vilar nere.
-          "flex flex-col bg-canvas max-md:fixed max-md:inset-x-0 max-md:top-0 max-md:z-(--z-modal) max-md:h-(--skapa-hojd,100dvh)",
+          "flex flex-col bg-canvas max-md:fixed max-md:inset-x-0 max-md:top-0 max-md:z-(--z-modal) max-md:h-[calc(var(--skapa-hojd,100dvh)-var(--panel-botten))]",
           "md:min-h-[calc(100dvh-var(--safe-top)-var(--topbar-height))]",
         )}
       >
@@ -138,7 +148,7 @@ export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtik
         {klar ? null : (
         <div
           data-skapa-knappar=""
-          className="sticky bottom-0 shrink-0 border-t border-line bg-canvas pb-(--safe-bottom)"
+          className="sticky bottom-0 shrink-0 border-t border-line bg-canvas pb-[max(0px,calc(var(--safe-bottom)-var(--panel-botten)))]"
         >
           <div className={cx("mx-auto flex w-full items-center justify-end gap-2 px-4 py-3", kolumn === "smal" ? "max-w-2xl" : "max-w-4xl")}>
             {/* ⛔ YTAN FINNS HELA TIDEN, TOM NÄR INGET VÄNTAR: en `role="status"` som skapas samtidigt som texten läses inte alltid upp. */}

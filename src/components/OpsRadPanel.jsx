@@ -1,8 +1,8 @@
-import * as Dialog from "@radix-ui/react-dialog";
 import { useMemo } from "react";
 import { definierade, forvalda } from "../lib/ord.js";
 import { kallaForRad, losKnapprad, radkallaEtikett } from "../lib/radkallor.js";
 import { OpsHandelsePanel, ORD_OPSHANDELSEPANEL } from "./OpsHandelsePanel.jsx";
+import { PanelDialog } from "./PanelDialog.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 
 /**
@@ -19,9 +19,8 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * med sitt urval, sin månad och sina filter, och Tillbaka (eller Escape) lämnar den som den var. Fokus går till panelen, inte till dialogens första knapp.
  * ⛔ Att en rad också ska gå att länka till (`?rad=<id>` som en omladdning öppnar) kräver att appen kan slå upp raden på id, och det är ett eget beslut (se PR-texten).
  *
- * ⛔ PÅ TELEFONEN BÖRJAR PANELEN UNDER STATUSFÄLTET (`max-md:pt-(--safe-top)`, som `OpsSkapaPanel`). CP 2026-11-13, skärmbild från appen i TestFlight: "I native fastnar jag
- * på ärende eller händelse detalj. Menyn att komma tillbaka är för högt upp för att nå." Panelen är `fixed inset-0` under `md`, och utan den säkra zonen låg Tillbaka
- * bakom klockan, där ett tryck når statusfältet och inte knappen. Samma sak längst ned (`--safe-bottom`) för knappraden.
+ * ⛔ DIALOGEN ÄR `PanelDialog` (0.231.0, cllp/ops-framework#602), samma som `OpsExternPanel`: kanterna (under statusfältet på telefonen, CP 2026-11-13, och
+ * ovanför bottenraden så att TALK syns, CP 2026-11-15) och att ett tryck på TALK inte stänger panelen bor där, med sina händelser.
  *
  * ⛔ PANELEN LÄSER RADEN, DEN ÄNDRAR DEN INTE. Det raden bär visas; det en källa kan göra åt den är en knapp som källan själv levererar.
  *
@@ -63,34 +62,23 @@ function OpsRadPanelRitad({
   const etikett = ritad ? radkallaEtikett(ritad.kalla.manifest, ritad.rad, "OpsRadPanel") : "";
   const handelse = ritad ? (form === "idag" ? idagradTillHandelse(ritad.rad, etikett, franModulEtikett, statusWords) : kalenderradTillHandelse(ritad.rad, etikett, franModulEtikett, statusWords)) : null;
   return (
-    <Dialog.Root open={ritad !== null} onOpenChange={(o) => (o ? undefined : onStang())}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-(--z-overlay) bg-scrim" />
-        <Dialog.Content
-          data-radpanel=""
-          aria-describedby={undefined}
-          onOpenAutoFocus={(e) => e.preventDefault()}
-          className="fixed inset-0 z-(--z-modal) overflow-y-auto bg-canvas outline-none max-md:pt-(--safe-top) max-md:pb-(--safe-bottom) md:inset-auto md:top-6 md:left-1/2 md:max-h-[calc(100dvh-3rem)] md:w-[min(48rem,calc(100vw-3rem))] md:-translate-x-1/2 md:rounded-base md:border md:border-line"
-        >
-          <Dialog.Title className="sr-only">{handelse ? handelse.titel : ""}</Dialog.Title>
-          {handelse && knapprad ? (
-            <OpsHandelsePanel
-              handelse={handelse}
-              onTillbaka={onStang}
-              sprak={sprak}
-              statusWords={statusWords}
-              knapprad={knapprad}
-              knappradEtikett={knappradEtikett}
-              delaEtikett={delaEtikett}
-              delaSkalForord={delaSkalForord}
-              delaIstalletForord={delaIstalletForord}
-              delaStandardSkal={delaStandardSkal}
-              atgardFelEtikett={atgardFelEtikett}
-            />
-          ) : null}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <PanelDialog oppen={ritad !== null} onStang={onStang} titel={handelse ? handelse.titel : ""} markor={{ "data-radpanel": "" }}>
+      {handelse && knapprad ? (
+        <OpsHandelsePanel
+          handelse={handelse}
+          onTillbaka={onStang}
+          sprak={sprak}
+          statusWords={statusWords}
+          knapprad={knapprad}
+          knappradEtikett={knappradEtikett}
+          delaEtikett={delaEtikett}
+          delaSkalForord={delaSkalForord}
+          delaIstalletForord={delaIstalletForord}
+          delaStandardSkal={delaStandardSkal}
+          atgardFelEtikett={atgardFelEtikett}
+        />
+      ) : null}
+    </PanelDialog>
   );
 }
 

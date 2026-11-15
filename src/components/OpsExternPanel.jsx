@@ -1,4 +1,4 @@
-import * as Dialog from "@radix-ui/react-dialog";
+import { PanelDialog } from "./PanelDialog.jsx";
 import { OpsHandelsePanel } from "./OpsHandelsePanel.jsx";
 
 /**
@@ -29,31 +29,20 @@ import { OpsHandelsePanel } from "./OpsHandelsePanel.jsx";
 export function OpsExternPanel({ post, onStang, sprak, kopieraTill, onKopiera, knapprad }) {
   const handelse = post ? externTillHandelse(post) : null;
   return (
-    <Dialog.Root open={post !== null} onOpenChange={(o) => (o ? undefined : onStang())}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-(--z-overlay) bg-scrim" />
-        <Dialog.Content
-          data-externpanel=""
-          aria-describedby={undefined}
-          onOpenAutoFocus={(e) => e.preventDefault()}
-          className="fixed inset-0 z-(--z-modal) overflow-y-auto bg-canvas outline-none max-md:pt-(--safe-top) max-md:pb-(--safe-bottom) md:inset-auto md:top-6 md:left-1/2 md:max-h-[calc(100dvh-3rem)] md:w-[min(48rem,calc(100vw-3rem))] md:-translate-x-1/2 md:rounded-base md:border md:border-line"
-        >
-          <Dialog.Title className="sr-only">{handelse ? handelse.titel : ""}</Dialog.Title>
-          {handelse && post ? (
-            <OpsHandelsePanel
-              handelse={handelse}
-              onTillbaka={onStang}
-              sprak={sprak}
-              // ⛔ BARA DET EN LÄSPANEL HAR. Se filhuvudet: ingen redigering, ingen flytt, ingen delning.
-              kopieraTill={kopieraTill}
-              onKopiera={onKopiera}
-              kopierad={post.extern ? post.extern.kopierad : undefined}
-              knapprad={knapprad}
-            />
-          ) : null}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <PanelDialog oppen={post !== null} onStang={onStang} titel={handelse ? handelse.titel : ""} markor={{ "data-externpanel": "" }}>
+      {handelse && post ? (
+        <OpsHandelsePanel
+          handelse={handelse}
+          onTillbaka={onStang}
+          sprak={sprak}
+          // ⛔ BARA DET EN LÄSPANEL HAR. Se filhuvudet: ingen redigering, ingen flytt, ingen delning.
+          kopieraTill={kopieraTill}
+          onKopiera={onKopiera}
+          kopierad={post.extern ? post.extern.kopierad : undefined}
+          knapprad={knapprad}
+        />
+      ) : null}
+    </PanelDialog>
   );
 }
 
