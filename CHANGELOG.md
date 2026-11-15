@@ -32,7 +32,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ### Prov
 
-`talk-paneler` (nytt, 10) och `check-skalyta` avsnitt 67 (`--bara-talkpaneler`, nytt): skapa-panelen och ärendet i detalj vid 390 och 1280 px, med `elementFromPoint` på TALK-knappen, panelens knappar och flikarna, att trycket inte stänger panelen, att raden säger "Till fältet Beskrivning", att Klar skriver in det sagda där markören stod och att Klar tar fokus och Enter ovanpå panelens fokusfälla. Avsnitt 15 (skapa-panelen) mätte att panelen var helskärm och att knappraden vilade mot fönstrets underkant vid 390 px; det mäter nu att den slutar ovanför bottenraden. Röda mot 0.230.0 och gröna med ändringen, se PR-texten.
+`talk-paneler` (nytt, 10) och `check-skalyta` avsnitt 67 (`--bara-talkpaneler`, nytt): skapa-panelen och ärendet i detalj vid 390 och 1280 px, med `elementFromPoint` på TALK-knappen, panelens knappar och flikarna, att trycket inte stänger panelen, att raden säger "Till fältet Beskrivning", att Klar skriver in det sagda där markören stod och att Klar tar fokus och Enter ovanpå panelens fokusfälla. Avsnitt 15 (skapa-panelen), 22 (ny grupp) och 53 (ny grupp medan den skapas) mätte att knappraden vilade mot fönstrets underkant vid 390 px, och 15 att panelen var helskärm; de mäter nu panelens underkant ovanför bottenraden, ur en gemensam mätning (`panelUnderkant`). Röda mot 0.230.0 och gröna med ändringen, se PR-texten.
 
 ## 0.230.0
 
