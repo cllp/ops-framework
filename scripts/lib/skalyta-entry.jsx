@@ -1005,6 +1005,85 @@ function TextfaltTalScen() {
 }
 
 /*
+ * 0.231.0 (cllp/ops-framework#602): TALK ovanpå panelerna, avsnitt 67. CP 2026-11-15: "TAlk finns ju inte när man skall skriva text i ärenden mm."
+ * Två scener med skalet och TALK, en falsk inspelare och en igenkänning som skriver en mening ord för ord (som `TextfaltTalScen`):
+ *   - `talk-skapapanel`: Ny händelse i skalets `OpsSkapaPanel`, öppnad med `useOppnaSkapa()`, med Rubrik, Beskrivning och Ansvarig. Det inskrivna i
+ *     Beskrivning står i `window.__panelfalt`.
+ *   - `talk-radpanel`: Idag med ett ärende från en källa i `radkallor`, som öppnas i `OpsRadPanel` (en modal Radix-dialog).
+ * Det som lämnats till appen står i `window.__panelTalk`, och skalets navigering i `window.__gick` (ska vara tomt: flikarna är dämpade och inert).
+ */
+const PANEL_MENING = "kolla kabeln innan torsdag";
+function panelTalk() {
+  window.__panelTalk = window.__panelTalk || [];
+  return {
+    onTalk: () => void window.__panelTalk.push("onTalk"),
+    onAgent: (/** @type {string} */ t) => void window.__panelTalk.push(`agent:${t}`),
+    onMeddelande: () => void window.__panelTalk.push("meddelande"),
+    inspelare: { starta: async () => {}, stoppa: async () => ({ blob: new Blob(["ljud"], { type: "audio/webm" }), mimeType: "audio/webm", sekunder: 3 }), kasta: () => {}, niva: () => 0.45 },
+    igenkanning: {
+      starta: (/** @type {any} */ { onText }) => {
+        const ord = PANEL_MENING.split(" ");
+        ord.forEach((_, i) => setTimeout(() => onText(ord.slice(0, i + 1).join(" ")), 40 * (i + 1)));
+      },
+      stoppa: async () => PANEL_MENING,
+      kasta: () => {},
+    },
+  };
+}
+function PanelForm(/** @type {any} */ p) {
+  const [rubrik, setRubrik] = useState("Ljudkoll inför spelningen");
+  const [text, setText] = useState("Mixern i rum B brummar");
+  const [vem, setVem] = useState("Anna");
+  window.__panelfalt = text;
+  return (
+    <form id={p.formId} data-panelformular="" className="flex flex-col gap-3" onSubmit={(e) => e.preventDefault()}>
+      <OpsField label="Rubrik">
+        <OpsInput value={rubrik} onChange={setRubrik} />
+      </OpsField>
+      <OpsField label="Beskrivning">
+        <Ops.OpsTextarea value={text} onChange={setText} rows={4} />
+      </OpsField>
+      <OpsField label="Ansvarig">
+        <OpsInput value={vem} onChange={setVem} />
+      </OpsField>
+    </form>
+  );
+}
+function OppnaPanelForm() {
+  const oppna = Ops.useOppnaSkapa();
+  useEffect(() => {
+    oppna("handelse");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return <p className="text-brod">Idag</p>;
+}
+function TalkSkapapanelScen() {
+  return (
+    <Full talk={panelTalk()} onNavigate={gaTill} skapa={{ lage: "g3", sparaEtikett: "Skapa", handelse: { form: PanelForm } }}>
+      <OppnaPanelForm />
+    </Full>
+  );
+}
+const PANEL_KALLOR = {
+  arende: {
+    etikett: "Ärenden",
+    atgarder: () => [{ id: "oppna", etikett: "Öppna ärendet", href: "#arendet" }],
+    dela: () => ({ skal: "Ärenden delas inte härifrån ännu." }),
+  },
+};
+const PANEL_RADER = [{ id: "arende:ljudkoll", title: "Ljudkoll inför spelningen", when: "I dag", kind: "Ärende", details: "Mixern i rum B brummar när basen går in." }];
+function TalkRadpanelScen() {
+  const { OpsView } = Ops;
+  return (
+    <Full talk={panelTalk()} onNavigate={gaTill}>
+      <OpsView>
+        <OpsEventList events={PANEL_RADER} radkallor={PANEL_KALLOR} ariaLabel="Idag" />
+      </OpsView>
+    </Full>
+  );
+}
+
+/*
  * 0.37.0 (#179 F2): Hantera kalendrar. Gruppens kalendrar (Styrelsen förvald, Resor, en arkiverad) och mina (Privat,
  * Träning), med sparningar som skriver tillbaka i scenens tillstånd och i `window.__sparat`, som en app med en källa.
  * Saknas `OpsKalendrar` i den byggda versionen (0.36.0) ritas en markör, och avsnitt 31 blir rött på det.
@@ -3249,6 +3328,8 @@ function Scen() {
   }
   if (s === "talk") return <TalkScen />;
   if (s === "textfalt-tal") return <TextfaltTalScen />;
+  if (s === "talk-skapapanel") return <TalkSkapapanelScen />;
+  if (s === "talk-radpanel") return <TalkRadpanelScen />;
   if (s === "talk-val") return <TalkValScen />;
   if (s === "chatt-forslag") return <ChattForslagScen />;
   if (s === "kalendrar") return <KalendrarScen />;
