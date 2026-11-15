@@ -74,7 +74,7 @@ describe("hemikonen med grupper.hem (0.227.0)", () => {
     expect(hemknapp().getAttribute("aria-label")).toBe("Group home");
   });
 
-  it("⛔ utan hem är det som förut: huset är Översikten och växlaren har ingen rad Översikt", () => {
+  it("⛔ utan hem är huset Översikten, och växlaren har ändå raden Översikt (0.229.4, CP: \"men inte alltid\")", () => {
     const onOversikt = vi.fn();
     render(<Skal oversikt={{ aktiv: false, onValj: onOversikt }} />);
     const hus = within(huvud()).getByRole("button", { name: "Översikt" });
@@ -83,7 +83,8 @@ describe("hemikonen med grupper.hem (0.227.0)", () => {
     expect(onOversikt).toHaveBeenCalledTimes(1);
     const ark = oppnaVaxlaren();
     expect(within(ark).getByRole("button", { name: /Bolaget/ })).toBeTruthy();
-    expect(within(ark).queryByRole("button", { name: "Översikt" })).toBeNull();
+    fireEvent.click(within(ark).getByRole("button", { name: "Översikt" }));
+    expect(onOversikt).toHaveBeenCalledTimes(2);
   });
 
   it("i översikten är huset Översikten och markerat, också när appen ger hem", () => {
@@ -111,8 +112,8 @@ describe("hemikonen med grupper.hem (0.227.0)", () => {
     expect(onOversikt).toHaveBeenCalledTimes(1);
     cleanup();
     render(<Skal oversikt={{ aktiv: false, onValj: onOversikt }} />);
-    expect(within(panel()).queryByRole("button", { name: "Översikt" })).toBeNull();
-    expect(panel().querySelector("[data-oversikt]")).toBeNull();
+    // 0.229.4: också utan hem står raden i panelen, samma som i växlaren.
+    expect(within(panel()).getByRole("button", { name: "Översikt" })).toBeTruthy();
   });
 
   it("panelen infälld har raden som en ruta, och fel form på oversikt kastar", () => {

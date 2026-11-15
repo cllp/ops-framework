@@ -2756,9 +2756,12 @@ function OpsAppShellRitad({
                 {/* ⛔ 0.139.0: RADEN ÖVERSIKT RITAS BARA NÄR HEMIKONEN INTE GÖR DET. I en grupp (`grupper.oversikt` given och inte `aktiv`) är hemikonen i
                     huvudet vägen till Översikten (0.138.0), och en rad i växlaren ovanför hemgruppens egen var en andra väg till samma plats. I översikten är
                     växlarens knapp hemikonen och `oversikt` behövs för dess namn, så där skickas den in som förut.
-                    ⛔ 0.227.0: MED `grupper.hem` GÅR HUSET TILL GRUPPENS START, och då är raden vägen till Översikten: den ritas alltid. */}
+                    ⛔ 0.227.0: MED `grupper.hem` GÅR HUSET TILL GRUPPENS START, och då är raden vägen till Översikten: den ritas alltid.
+                    ⛔ 0.229.4: RADEN STÅR NU ALLTID NÄR `grupper.oversikt` FINNS. CP 2026-11-15, med två skärmbilder av Byt grupp: "I vissa lägen kommer
+                    ikonen Overview upp ... men inte alltid." Appen ger `hem` bara utanför gruppens start, så raden kom och gick med sidan man stod på.
+                    En rad som syns ibland läses som slump. Två vägar till Översikten (huset och raden) kostar mindre än en växlare som byter form. */}
                 <OpsGruppvaxlare
-                  oversikt={iOversikt || gruppHem ? grupper.oversikt : undefined}
+                  oversikt={grupper.oversikt}
                   grupper={grupper.lista}
                   aktiv={grupper.aktiv}
                   onValj={grupper.onValj}
@@ -3105,8 +3108,8 @@ function OpsAppShellRitad({
         {grupper && !iOversikt ? (
           <div className="hidden shrink-0 lg:sticky lg:z-(--z-sticky-header) lg:top-[calc(var(--safe-top)+var(--topbar-height))] lg:block lg:h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px)] lg:pl-4 lg:pt-5">
             <OpsGruppanel
-              // ⛔ 0.227.0: med `grupper.hem` går huset till gruppens start, och från `lg` är panelen växlaren: raden Översikt står då här.
-              {...(gruppHem && grupper.oversikt ? { oversikt: { onValj: grupper.oversikt.onValj, etikett: oversiktEtikett } } : {})}
+              // ⛔ 0.227.0: från `lg` är panelen växlaren, och raden Översikt står här. 0.229.4: alltid när `grupper.oversikt` finns, samma som växlaren.
+              {...(grupper.oversikt ? { oversikt: { onValj: grupper.oversikt.onValj, etikett: oversiktEtikett } } : {})}
               grupper={grupper.lista}
               aktiv={grupper.aktiv}
               onValj={grupper.onValj}
