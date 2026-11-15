@@ -80,15 +80,14 @@ describe("Hemikonen i en grupp (0.138.0)", () => {
     expect(onValj).not.toHaveBeenCalled();
   });
 
-  it("⛔ växlarens ark har INGEN rad Översikt när hemikonen finns (0.139.0): en väg till Översikten, inte två", () => {
+  it("⛔ växlarens ark har raden Översikt också när hemikonen finns (0.229.4, ersätter 0.139.0): raden kom och gick med sidan", () => {
+    // CP 2026-11-15: "I vissa lägen kommer ikonen Overview upp vid grupp-byte vyn ovanför grupperna, men inte alltid."
     render(<Skal />);
     expect(hemknappar()).toHaveLength(1);
     fireEvent.click(within(huvud()).getByRole("button", { name: /^Byt grupp, nu:/ }));
     const ark = screen.getByRole("dialog");
-    // Grupperna är kvar, hemgruppens egen rad också, men ingen rad Översikt ovanför dem.
     expect(within(ark).getByRole("button", { name: /Bolaget/ })).toBeTruthy();
-    expect(within(ark).queryByRole("button", { name: "Översikt" })).toBeNull();
-    expect(ark.querySelector("[data-oversikt]")).toBeNull();
+    expect(within(ark).getByRole("button", { name: "Översikt" })).toBeTruthy();
   });
 
   it("⛔ hemikonen gör det raden Översikt gjorde, och den finns kvar i huvudet medan arket är öppet", () => {

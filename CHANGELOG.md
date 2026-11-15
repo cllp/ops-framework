@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.229.4
+
+**Raden Översikt står alltid i gruppväxlaren och i panelen när `grupper.oversikt` finns.** CP 2026-11-15, med två skärmbilder av Byt grupp: "I vissa lägen kommer ikonen Overview upp vid grupp-byte vyn ovanför grupperna, men inte alltid." Raden visades bara med `grupper.hem`, och appen ger `hem` bara när man inte står på gruppens start. Raden kom och gick alltså med sidan. Nu står den alltid, så det finns två vägar till Översikten: huset och raden. Prov: `hemikon-gruppens-start`, två rader omskrivna. Röda utan ändringen.
+
+**Språkbytet i profilen visar att det pågår.** CP samma dag: "Det tar tid att växla språk i apparna, helt ok men det behöver en progress, den nya snygga." Medan språket sparas står `OpsVantar` ("Byter språk…" / "Changing language…", ordet `sprakByterEtikett`) under växlaren. Prov: `profil-sprakbyte`, rött utan ändringen.
+
 ## 0.229.3
 
 **Säkerhet: `ops-framework/sentry` skickar aldrig SDK:ns förval.** Granskningen av lifehub.app PR 845 (Sentry i My och SessionStudio) såg att `Sentry.init` bara fick dsn, miljö och version. Brödsmulorna (konsolrader, navigeringar och anrop med hela adressen) och sidans adress hade då följt med varje fel, också en inloggningskod i `?lh_kod=`. Nu får `init` sina alternativ ur `lib/sentryRensning.js`:

@@ -15,6 +15,7 @@ import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 import { OpsSectionLabel } from "./OpsSectionLabel.jsx";
 import { OpsSegmented } from "./OpsSegmented.jsx";
+import { OpsVantar } from "./OpsVantar.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { OpsByLifeHub } from "./OpsByLifeHub.jsx";
 import { OpsView, OpsViewHeader } from "./OpsView.jsx";
@@ -143,6 +144,7 @@ import { KryssIkon } from "./icons.jsx";
  * @param {string} [props.grupperEtikett]
  * @param {string} [props.sparaEtikett]
  * @param {string} [props.sparaVantarEtikett] Verbet medan Spara väntar.
+ * @param {string} [props.sprakByterEtikett] (0.229.4) Texten i OpsVantar medan språket sparas i kontoläget.
  * @param {string | ((fel: unknown) => string | undefined)} [props.sparaFelText] (cllp/lifehub.app#786) Texten när `onSpara` avslås,
  *   eller en funktion som får felet och ger texten (appen känner sina felkoder: ett tak per minut, ett fält i fel form). Tom eller
  *   utelämnad: `sparaFelForval`. Texten står med `role="alert"` bredvid Spara, och utkastet står kvar.
@@ -221,6 +223,7 @@ function OpsProfilRitad({
   grupperEtikett = ORD_OPSPROFIL.grupperEtikett.sv,
   sparaEtikett = ORD_OPSPROFIL.sparaEtikett.sv,
   sparaVantarEtikett = ORD_OPSPROFIL.sparaVantarEtikett.sv,
+  sprakByterEtikett = ORD_OPSPROFIL.sprakByterEtikett.sv,
   sparaFelText,
   sparaFelForval = ORD_OPSPROFIL.sparaFelForval.sv,
   ingaGrupperText = ORD_OPSPROFIL.ingaGrupperText.sv,
@@ -298,6 +301,7 @@ function OpsProfilRitad({
   const filValjare = useRef(/** @type {HTMLInputElement | null} */ (null));
   // Ett nej på ett språkbyte i kontoläget, där språket sparas direkt.
   const [sprakFel, setSprakFel] = useState("");
+  const [sprakByter, setSprakByter] = useState(false);
 
   const kontoLasning = Boolean(konto && "href" in konto && konto.href !== undefined);
   // ⛔ BRYTANDE 0.229.0: den redigerbara konto-formen är borta. Ett tyst ignorerat konto hade ritat hela formuläret, alltså motsatsen.
@@ -831,12 +835,15 @@ function OpsProfilRitad({
     /** @param {string} v */
     const sparaSprak = async (v) => {
       setSprakFel("");
+      setSprakByter(true);
       setUtkastet((u) => ({ ...u, sprak: v }));
       try {
         await onSpara?.({ sprak: v });
       } catch (fel) {
         setSprakFel(felTexten(fel));
         glom(["sprak"]);
+      } finally {
+        setSprakByter(false);
       }
     };
     return (
@@ -857,6 +864,11 @@ function OpsProfilRitad({
               </div>
             ) : null}
           </div>
+          {sprakByter ? (
+            <div className="mt-2" data-profil-sprakbyte="">
+              <OpsVantar storlek="sm" text={sprakByterEtikett} />
+            </div>
+          ) : null}
           {sprakFel ? (
             <p role="alert" className="mt-2 text-etikett text-danger">
               {sprakFel}
@@ -960,6 +972,8 @@ export const ORD_OPSPROFIL = {
   grupperEtikett: { sv: "Mina grupper", en: "My groups" },
   sparaEtikett: { sv: "Spara", en: "Save" },
   sparaVantarEtikett: { sv: "Sparar…", en: "Saving…" },
+  // 0.229.4, CP 2026-11-15: "Det tar tid att växla språk i apparna, helt ok men det behöver en progress, den nya snygga."
+  sprakByterEtikett: { sv: "Byter språk…", en: "Changing language…" },
   sparaFelForval: { sv: "Profilen kunde inte sparas. Försök igen.", en: "Your profile could not be saved. Try again." },
   ingaGrupperText: { sv: "Du är inte med i någon grupp än.", en: "You are not in any group yet." },
   profilbildEtikett: { sv: "Profilbild", en: "Profile picture" },
