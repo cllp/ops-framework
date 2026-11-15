@@ -61,7 +61,7 @@ const EGEN = "__gast_egen__";
  *
  * `OpsMeddelanden` är 4 300 rader med en samtalskälla, skrivfält, trådar, reaktioner och fästa meddelanden, och ingenting av det går att slå av för en gäst. Den rena ritaren av raderna
  * (dagsavdelare, bubblor, tid) är en egen funktion i samma fil och tar raderna som props; den delas här (regel 2), så att en gästs chatt ser ut som medlemmens utan en andra bubbla att hålla i takt.
- * Skrivfältet är chattens (`Skrivfalt`, delat) utan bilagor, omnämnanden och agent. Mikrofonen är webbläsarens taligenkänning (0.190.0, `igenkanning`), aldrig serverns utskrift.
+ * Skrivfältet är chattens (`Skrivfalt`, delat) utan bilagor, omnämnanden och agent. Ingen mikrofon (0.230.0): TALK är den enda röstknappen, och gästens sida har ingen.
  * Reaktioner och bilagornas innehåll byggs inte. En bilaga SÄGS (`bilaga`) i stället för att tiga; meningen under skrivfältet är borta (0.190.0, QA fynd 8).
  *
  * ⛔ TRÅDAR (0.191.0, cllp/lifehub.app#663): ett meddelande med svar bär knappen "N svar" (tjänstens `svar`). Den öppnar tråden i samma yta: roten, svaren och ett skrivfält som svarar i tråden
@@ -93,8 +93,6 @@ const EGEN = "__gast_egen__";
  * @param {() => void} [props.onForsokIgen] (0.192.0, cllp/lifehub.app#675) Hämtar igen efter ett fel. Med den står en Försök igen under felet.
  * @param {string} [props.sprak]
  * @param {Partial<Record<keyof typeof ORD_OPSGASTCHATT, string>>} [props.ord]
- * @param {import("../lib/talk.js").Igenkanning | boolean} [props.igenkanning] (0.190.0, CP 2026-11-05: gästen får mikrofon) Webbläsarens taligenkänning i skrivfältet, samma som
- *   medlemmarnas. Förval `true`: ljudvågen står där webbläsaren har igenkänningen och saknas annars. Ingen serverutskrift för gäster. `false` stänger av den.
  * @param {(trad: string) => Promise<{ rot: any, meddelanden: any[], fler?: boolean }>} [props.onLasTrad] (0.191.0) Läser tråden ur ett meddelande (tjänstens `chatt({ trad })`). Utan den: ingen trådknapp.
  * @param {(trad: string, text: string) => Promise<unknown>} [props.onSkrivITrad] (0.191.0) Svarar i tråden (tjänstens `skrivChatt({ trad, text })`). Utan den: tråden går att läsa men inte svara i.
  * @param {(postId: string) => void} [props.onOppnaPost] (0.191.0) Öppnar posten ett kort pekar på, i gästens bibliotek.
@@ -104,7 +102,7 @@ const EGEN = "__gast_egen__";
  * @param {import("./OpsMeddelanden.jsx").MeddelandeHref} [props.meddelandeHref] (lifehub.app#712) Adressen till ett meddelande i gästens chatt, för Kopiera länk i menyn. Ritas bara när den skickas in; utan den finns Kopiera (texten) ändå. Gästens chatt har inget `samtalId`; i en tråd följer `tradId` med.
  * @param {string} [props.gruppnamn] (0.195.0) Gruppens namn, till skrivfältets platstext ("Meddelande till {grupp}"). Utan den står skrivfältets egen platstext.
  */
-export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, laddar = false, fel = null, onForsokIgen, sprak = "sv", ord, igenkanning = true, fyll = false, onLasTrad, onSkrivITrad, onOppnaPost, gruppnamn, meddelandeHref }) {
+export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, laddar = false, fel = null, onForsokIgen, sprak = "sv", ord, fyll = false, onLasTrad, onSkrivITrad, onOppnaPost, gruppnamn, meddelandeHref }) {
   if (!Array.isArray(meddelanden)) {
     throw new Error("OpsGastChatt: meddelanden måste vara en lista, tom när chatten är tom. Utan den går det inte att skilja 'inga meddelanden' från 'inte hämtad'.");
   }
@@ -260,11 +258,9 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
         t={t}
         texter={texter}
         locale={locale}
-        sprak={sprak}
         postkort={postkort}
         onStang={() => setTrad(null)}
         onSkriv={onSkrivITrad ? (text) => skrivITrad(trad.id, text) : undefined}
-        igenkanning={igenkanning}
         fyll={fyll}
         meddelandeHref={meddelandeHref}
       />
@@ -343,7 +339,7 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
       {onSkriv ? (
         <div data-gast-chatt-skriv="" className={cx("flex min-w-0 flex-col", fyll && "mt-auto")}>
           {svarPa ? <SvararPaRad m={/** @type {any} */ (svarPa)} namn={svarPa.av === EGEN ? texter.du : svarPa.av} onAvbryt={() => setSvarPa(null)} texter={texter} ram={false} /> : null}
-          <Skrivfalt text={skrivText} setText={setSkrivText} skickar={skickar} onSkicka={skicka} texter={texter} sprak={sprak} maxTecken={GASTSKRIV_MAX_TECKEN} igenkanning={igenkanning} ram={false} platstext={gruppnamn ? t.platstext.replace("{grupp}", gruppnamn) : undefined} fokusNyckel={svarPa?.id} onEscape={svarPa ? () => setSvarPa(null) : undefined} />
+          <Skrivfalt text={skrivText} setText={setSkrivText} skickar={skickar} onSkicka={skicka} texter={texter} maxTecken={GASTSKRIV_MAX_TECKEN} ram={false} platstext={gruppnamn ? t.platstext.replace("{grupp}", gruppnamn) : undefined} fokusNyckel={svarPa?.id} onEscape={svarPa ? () => setSvarPa(null) : undefined} />
         </div>
       ) : null}
       {skrivFel ? <p role="alert" data-gast-chatt-skrivfel="" className="m-0 text-etikett text-danger">{skrivFel}</p> : null}
@@ -354,9 +350,9 @@ export function OpsGastChatt({ meddelanden, fler = false, onAldre, onSkriv, ladd
 
 /**
  * En tråd i gästens chatt (0.191.0): roten, svaren och skrivfältet. Samma bubblor som chatten (`Meddelanderader`).
- * @param {{ trad: { id: string, rot: any, meddelanden: any[], fel: boolean, laddar: boolean }, t: Record<string, string>, texter: any, locale: string, sprak: string, postkort: any, onStang: () => void, onSkriv?: (text: string) => Promise<unknown>, igenkanning: any, fyll: boolean, meddelandeHref?: import("./OpsMeddelanden.jsx").MeddelandeHref }} props
+ * @param {{ trad: { id: string, rot: any, meddelanden: any[], fel: boolean, laddar: boolean }, t: Record<string, string>, texter: any, locale: string, postkort: any, onStang: () => void, onSkriv?: (text: string) => Promise<unknown>, fyll: boolean, meddelandeHref?: import("./OpsMeddelanden.jsx").MeddelandeHref }} props
  */
-function GastTrad({ trad, t, texter, locale, sprak, postkort, onStang, onSkriv, igenkanning, fyll, meddelandeHref }) {
+function GastTrad({ trad, t, texter, locale, postkort, onStang, onSkriv, fyll, meddelandeHref }) {
   const [skrivText, setSkrivText] = useState("");
   const [skickar, setSkickar] = useState(false);
   const [skrivFel, setSkrivFel] = useState("");
@@ -397,7 +393,7 @@ function GastTrad({ trad, t, texter, locale, sprak, postkort, onStang, onSkriv, 
       )}
       {onSkriv && trad.rot ? (
         <div data-gast-chatt-tradskriv="" className={cx("flex min-w-0 flex-col", fyll && "mt-auto")}>
-          <Skrivfalt text={skrivText} setText={setSkrivText} skickar={skickar} onSkicka={skicka} texter={texter} sprak={sprak} maxTecken={GASTSKRIV_MAX_TECKEN} igenkanning={igenkanning} ram={false} platstext={t.platstextTrad} />
+          <Skrivfalt text={skrivText} setText={setSkrivText} skickar={skickar} onSkicka={skicka} texter={texter} maxTecken={GASTSKRIV_MAX_TECKEN} ram={false} platstext={t.platstextTrad} />
         </div>
       ) : null}
       {skrivFel ? <p role="alert" data-gast-chatt-tradskrivfel="" className="m-0 text-etikett text-danger">{skrivFel}</p> : null}

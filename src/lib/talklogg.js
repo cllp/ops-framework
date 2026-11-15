@@ -99,8 +99,8 @@ export function skapaOmgangslogg({ nu = () => Date.now() } = {}) {
  */
 
 /**
- * ⛔ FÖRRA OMGÅNGEN ÄR EN SIDAS SAK, INTE EN KROKS (0.155.0). Skalets TALK (`useTalk` i `OpsAppShell`) och chattens skrivfält
- * (`useRostinmatning` → `useTalk`) är två instanser med var sin igenkänning och inspelare. Efter att agenten svarat är det en ANNAN
+ * ⛔ FÖRRA OMGÅNGEN ÄR EN SIDAS SAK, INTE EN KROKS (0.155.0). Skalets TALK (`useTalk` i `OpsAppShell`) och (före 0.230.0) chattens skrivfält
+ * (`useRostinmatning` → `useTalk`) var två instanser med var sin igenkänning och inspelare. Efter att agenten svarat är det en ANNAN
  * instans än den som just spelade in som tar nästa omgång, och en logg per instans hade aldrig kunnat visa övergången från den ena
  * mekanismen till den andra. Därför bor förra omgången här, i modulen, och varje instans läser och skriver samma post.
  *

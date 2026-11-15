@@ -9,6 +9,26 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.230.0
+
+**TALK är den enda röstknappen, och talet går till fältet där markören står.** CP 2026-11-15, med en skärmbild från meddelandevyn i SessionStudio: rutan sa "Den här webbläsaren kan inte spela in ljud." Sentry JAVASCRIPT-REACT-2Y (cllp/ops-framework#602). Det var inte TALK-knappen utan chattens mikrofon i skrivfältet: den körde `useTalk` med `baraIgenkanning: false` i appens webbvy, där `MediaRecorder` saknas, och föll. Omgången innan, på samma enhet, hade TALK-knappen fått telefonens egen igenkänning och fungerat. Rotorsaken var att 0.227.0 gav textfälten samma igenkänning som TALK men inte chattens skrivfält, så på samma skärm fanns två röstknappar och bara den ena fungerade (regel 2). CP: "EN sak. tal i textfält, de behöver kanske ersättas nu av TALK generellt." Beslutet samma dag: kör.
+
+### Nytt
+
+- **TALK till fältet där markören står.** Står markören i ett textfält (`OpsInput` av typen text, `OpsTextarea` och chattens skrivfält) när man trycker på TALK, och appen gett `talk.onAgent`, går talet dit utan meny. Raden medan man pratar säger "Till fältet {namn}" / "To the field {namn}" (fältets synliga etikett, annars `ariaLabel`, annars `placeholder`), **Något annat** ger menyn som förut, och ingenting skickas av sig självt: Klar skriver in texten där markören stod, genom fältets egen `onChange` (`maxLength` respekteras). Fältet fångas vid trycket (`pointerdown` i fångstfasen, före fokusbytet), för båda TALK-knapparna i skalet och för `useTalk().knapp`, och gäller bara den omgång trycket startar: en tangentbordsaktivering ger inget fält. Fältet går före appens `talk.samtalet` (det man står i vinner). Är fältet borta (avmonterat) eller skrivskyddat när Klar trycks, eller rymmer det inte det sagda, kastas ett fel med svensk text och menyn står kvar med texten, samma väg som när appens `onText` avvisas. Inget kapas tyst. Typerna `password`, `email`, `number`, `search`, `tel` och `url` registreras aldrig (listan `UTAN_TAL` bor nu på ett ställe, `src/lib/talkfalt.js`). Nya ord i `ORD_TALK`: `tillFaltet`, `tillFaltetUtanNamn`, `felFaltetBorta`, `felFaltetFullt`.
+
+### Borttaget (ändrar ett beslut av CP)
+
+- **Ljudvågen i `OpsInput` och `OpsTextarea`** (`tal`-propen, `TalFalt`, `talForval`) och **mikrofonen i chattens skrivfält.** CP:s beslut 2026-10-14 ("tal i alla textfält") ersätts av TALK. `OpsTranskriberingProvider` och `ORD_OPSTEXTAREA_TAL` är borta ur exporterna, liksom `OpsRostinmatning.jsx` (`Faltknapp`, som `OpsFilePicker` använder för gemknappen, ligger nu i `Faltknapp.jsx`).
+- **Propsen `onTranscribe`, `inspelare` och `igenkanning`** på `OpsMeddelanden`, `OpsSamtal` och `OpsTrad`, och `igenkanning` på `OpsGastChatt` och `OpsGastArenden`. ⛔ **Följd att veta:** en gästs sida har ingen TALK, så gästens skrivfält (CP 2026-11-05, "gästen får mikrofon") har ingen röst längre. Det är en följd av beslutet och inte ett val i den här versionen.
+- **Chattens röst-texter:** `prataIn`, `talKlar`, `talSkickar`, `talSkickaFel`, `talTextFel`, `skriverUt`, `transkriptionFel`, `talIngenUtskrift`, `talIngetHordes`, `annatSkickas` och `ingenText`, och `onSkicka({ text })` i skrivfältet (den enda som skickade det sagda).
+- **`tal`-propen:** `tal={true}` eller ett objekt kastar nu ett tydligt fel (`OpsInput`, `OpsTextarea`), så att en app som bad om ljudvågen får veta att den är borta. `tal={false}` accepteras tyst i den här versionen (appen har fyra sådana). ⛔ **`tal` försvinner helt i nästa större version**: ta bort det i appen.
+- Röstinspelning i Biblioteket (att spara själva ljudet) berörs inte, och `useTalk` och `OpsInspelning` är som förut.
+
+### Prov
+
+`talk-till-falt` (nytt) och `talkfalt-skrivin` (flyttat ur `textfalt-tal`). Proven för de borttagna knapparna är borttagna eller ändrade (`tal-i-alla-falt`, `textfalt-tal`, `falt-appens-igenkanning` och chattens röstprov). Det nya är rött mot 0.229.4 och grönt med ändringen, se PR-texten.
+
 ## 0.229.4
 
 **Raden Översikt står alltid i gruppväxlaren och i panelen när `grupper.oversikt` finns.** CP 2026-11-15, med två skärmbilder av Byt grupp: "I vissa lägen kommer ikonen Overview upp vid grupp-byte vyn ovanför grupperna, men inte alltid." Raden visades bara med `grupper.hem`, och appen ger `hem` bara när man inte står på gruppens start. Raden kom och gick alltså med sidan. Nu står den alltid, så det finns två vägar till Översikten: huset och raden. Prov: `hemikon-gruppens-start`, två rader omskrivna. Röda utan ändringen.

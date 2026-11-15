@@ -957,14 +957,17 @@ function ChattForslagScen() {
  * 0.104.0: tal i ett vanligt textfält, avsnitt 45. CP 2026-10-14, med en skärmbild av Skapa app i lifehub.app: "Jag vill gärna ha
  * TALK funktionen även här på skapa app." Ett `OpsTextarea` med `tal` i en `OpsField`, med så mycket text att raderna når fältets
  * högra kant, så att ett överlapp med mikrofonen syns. En inspelare utan mikrofon och en igenkänning som skriver en mening ord för ord.
- * Det inskrivna värdet står i `window.__textfalt`. Saknas `tal` i den byggda versionen ritas fältet utan mikrofon, och avsnittet blir
- * rött på det.
+ * Det inskrivna värdet står i `window.__textfalt`. ⛔ 0.230.0 (#602): fältet har ingen mikrofon längre. Scenen är skalet med TALK och
+ * fältet, och avsnitt 45 mäter att TALK skriver in i fältet där markören står.
  */
 const TEXTFALT_MENING = "och en lista över läxor per barn";
 function TextfaltTalScen() {
+  // ⛔ 0.230.0 (#602): fältet har ingen egen röstknapp. TALK i skalet skriver in i det fält där markören står, så scenen är skalet med
+  // TALK och fältet. Det som lämnats någon annanstans står i `window.__textfaltTalk` (ska vara tomt: ingenting går ut av sig självt).
   const { OpsView } = Ops;
   const [v, setV] = useState("En app där familjen ser veckans aktiviteter, vem som hämtar och lämnar, och vad som behöver handlas till helgen.");
   window.__textfalt = v;
+  window.__textfaltTalk = window.__textfaltTalk || [];
   const inspelare = {
     starta: async () => {},
     stoppa: async () => ({ blob: new Blob(["ljud"], { type: "audio/webm" }), mimeType: "audio/webm", sekunder: 3 }),
@@ -980,12 +983,20 @@ function TextfaltTalScen() {
     kasta: () => {},
   };
   return (
-    <Full>
+    <Full
+      talk={{
+        onTalk: () => void window.__textfaltTalk.push("onTalk"),
+        onAgent: (/** @type {string} */ t) => void window.__textfaltTalk.push(`agent:${t}`),
+        onMeddelande: () => void window.__textfaltTalk.push("meddelande"),
+        inspelare,
+        igenkanning,
+      }}
+    >
       <OpsView>
-        <div className="flex max-w-2xl flex-col gap-4">
+        <div className="flex max-w-2xl flex-col gap-4" data-textfalt-tal>
           <p className="m-0 text-rubrik text-ink">Skapa app</p>
-          <OpsField label="Beskriv appen du vill ha" hint="Skriv eller prata in vad appen ska göra.">
-            <Ops.OpsTextarea value={v} onChange={setV} rows={5} maxLength={2000} tal={{ igenkanning, onTranscribe: async () => TEXTFALT_MENING, inspelare }} />
+          <OpsField label="Beskriv appen du vill ha" hint="Skriv vad appen ska göra.">
+            <Ops.OpsTextarea value={v} onChange={setV} rows={5} maxLength={2000} />
           </OpsField>
         </div>
       </OpsView>
@@ -2896,11 +2907,11 @@ function InkorgScen() {
 }
 
 /*
- * 0.106.0 (#386 skiva 8): tal i alla textfält, som förval. Ett formulär som en egen app: text, långtext, och de typer som aldrig får
+ * 0.106.0 (#386 skiva 8): tal i alla textfält, som förval. ⛔ 0.230.0: ljudvågen är borta, TALK är den enda röstknappen (#602). Scenen finns kvar för att mäta att inget fält har en. Ett formulär som en egen app: text, långtext, och de typer som aldrig får
  * tal. Sidan har en fejkad `webkitSpeechRecognition` (avsnittets init-skript), så att förvalet syns som i Chrome och Safari. Avsnitt 47 (8).
  */
 function TalAllaScen() {
-  const { OpsView, OpsField, OpsInput, OpsTextarea, OpsTranskriberingProvider } = Ops;
+  const { OpsView, OpsField, OpsInput, OpsTextarea } = Ops;
   const [v, setV] = useState({ namn: "Styrelsemöte med banken om lånet till den nya lokalen i Visby", besk: "Vi går igenom offerten, amorteringen och vad som händer om räntan stiger igen under hösten.", los: "hemligt", epost: "anna@exempel.se", sok: "moms", tal: "12" });
   const satt = (k) => (x) => setV((u) => ({ ...u, [k]: x }));
   return (
@@ -2908,14 +2919,12 @@ function TalAllaScen() {
       <OpsView>
         <div className="flex max-w-2xl flex-col gap-4">
           <p className="m-0 text-rubrik text-ink">Nytt möte</p>
-          <OpsTranskriberingProvider onTranscribe={async () => "utskrivet"}>
           <div data-tal-falt="text"><OpsField label="Rubrik"><OpsInput value={v.namn} onChange={satt("namn")} /></OpsField></div>
           <div data-tal-falt="langtext"><OpsField label="Beskrivning"><OpsTextarea value={v.besk} onChange={satt("besk")} rows={3} /></OpsField></div>
           <div data-tal-falt="password"><OpsField label="Lösenord"><OpsInput type="password" value={v.los} onChange={satt("los")} /></OpsField></div>
           <div data-tal-falt="email"><OpsField label="E-post"><OpsInput type="email" value={v.epost} onChange={satt("epost")} /></OpsField></div>
           <div data-tal-falt="search"><OpsField label="Sök"><OpsInput type="search" value={v.sok} onChange={satt("sok")} /></OpsField></div>
           <div data-tal-falt="number"><OpsField label="Antal"><OpsInput type="number" value={v.tal} onChange={satt("tal")} /></OpsField></div>
-          </OpsTranskriberingProvider>
         </div>
       </OpsView>
     </Full>

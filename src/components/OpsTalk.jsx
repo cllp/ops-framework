@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_SKICKAR_TEXT, TALK_INGET_LJUD, TALK_INGET_TAL, barTystnad, TALK_TEXTFEL, ORD_TALK, igenkanningensSprak, kanBeOmMikrofon, kanSpelaInIgen, kontrolleraSamtalet, kontrolleraSkickarText, talkFeltext, talkKvitto, talkMiljo, talkNasta, talkOrd, talkTextPa, talkUnderlag, webblasarensIgenkanning, arWebKit, webblasarensInspelare, skapaIgenkanningsniva, talkAnteckningsLank } from "../lib/talk.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
+import { lyssnaPaTryck, tagFangst } from "../lib/talkfalt.js";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { forraOmgangen, noteraOmgangsslut } from "../lib/talklogg.js";
@@ -40,7 +41,7 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  *   inspelare. ⛔ CP 2026-11-14: textfältens mikrofon ska vara samma upplevelse som TALK. I mobilappens webbvy finns ingen
  *   `webkitSpeechRecognition`, och telefonens egen igenkänning (appens `Igenkanning`) lyssnar på iOS bara när ingen inspelare har
  *   mikrofonen (`kanLyssna`). Utan den här kördes fältet som inspelning, och texten kom först när servern skrivit ut den. Ett textfält
- *   under `OpsTranskriberingProvider` med appens igenkänning sätter den (`talForval` i `OpsField.jsx`). Med text lämnas den till `onTalk`
+ *   sattes av textfältens egen röstknapp (`OpsTranskriberingProvider`, borta sedan 0.230.0). Ingen i ramverket sätter den längre, men kroken tar den kvar. Med text lämnas den till `onTalk`
  *   (en tom blob och `text`). Utan text står felet med "Spela in i stället", som i TALK.
  * @property {string} [skickarText] (0.97.0) Statusraden medan det inspelade lämnas till appen. Förval `TALK_SKICKAR_TEXT`
  *   ("Sparar…"). lifehub.app skickar "Agenten arbetar…". En tom sträng eller något annat än en sträng kastar.
@@ -137,6 +138,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
     }
   }
   kontrolleraSamtalet(samtalet, "useTalk");
+  const sprak = useOpsSprak();
   const onAgentRef = useRef(onAgent);
   onAgentRef.current = onAgent;
   /** (0.227.0) Omgången får köra bara igenkänningen på WebKit utan `onAgent` (ett textfält med appens igenkänning). */
@@ -144,16 +146,32 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
   baraIgkRef.current = baraIgenkanning;
   /** Med valen (`onAgent`) eller med `baraIgenkanning` får omgången på WebKit köra bara igenkänningen. */
   const baraTillaten = () => typeof onAgentRef.current === "function" || baraIgkRef.current;
-  /** (0.226.0) Samtalet gäller bara där valen finns: utan `onAgent` ignoreras det. */
-  const samtaletGiltigt = typeof onAgent === "function" && samtalet ? samtalet : undefined;
-  const samtaletRef = useRef(samtaletGiltigt);
-  samtaletRef.current = samtaletGiltigt;
   /**
    * ⛔ DIREKTLÄGET ÄR AV FÖR DEN HÄR OMGÅNGEN (0.226.0, cllp/ops-framework#592): personen tryckte Något annat, samtalet tog inte emot det
    * sagda, eller utskriften föll. Då ger Klar menyn. Nollas när nästa omgång startar, så att varje omgång börjar med `samtalet.direkt`.
    * Direktläget i sig läses ur appens `samtalet` vid varje ritning, så att en tråd som stängs medan man pratar inte skickar dit.
    */
   const [direktAv, setDirektAv] = useState(false);
+  /**
+   * ⛔ FÄLTET DÄR MARKÖREN STOD NÄR TALK TRYCKTES (0.230.0, cllp/ops-framework#602). CP 2026-11-15: en röstknapp, och den är TALK. Står
+   * markören i ett textfält som `OpsInput` eller `OpsTextarea` registrerat (`src/lib/talkfalt.js`) går det sagda dit, utan meny. Fångsten
+   * görs vid trycket, före fokusbytet (`lyssnaPaTryck`), och omgången tar den när den startar. Gäller bara med valen (`onAgent`) och inte
+   * för ett låst mål, som samtalet. Fältet går FÖRE appens `samtalet`: det man står i vinner. Något annat (`direktAv`) tar bort fältet för
+   * omgången, och menyn står som förut, med appens samtal om det finns.
+   */
+  const [falt, setFalt] = useState(/** @type {{ namn: string, skriv: (text: string) => void } | null} */ (null));
+  useEffect(() => lyssnaPaTryck(), []);
+  /** (0.226.0) Samtalet gäller bara där valen finns: utan `onAgent` ignoreras det. */
+  const samtaletGiltigt = (() => {
+    if (typeof onAgent !== "function") return undefined;
+    if (falt && !direktAv) {
+      const rad = falt.namn ? talkOrd("tillFaltet", sprak, { namn: falt.namn }) : talkOrd("tillFaltetUtanNamn", sprak);
+      return { namn: falt.namn || rad, direkt: true, etikett: rad, onText: falt.skriv };
+    }
+    return samtalet || undefined;
+  })();
+  const samtaletRef = useRef(samtaletGiltigt);
+  samtaletRef.current = samtaletGiltigt;
   const onAnteckningRef = useRef(onAnteckning);
   onAnteckningRef.current = onAnteckning;
   const tillTextRef = useRef(tillText);
@@ -215,7 +233,6 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
     if (!inspRef.current) inspRef.current = webblasarensInspelare();
     return inspRef.current;
   };
-  const sprak = useOpsSprak();
   const sprakRef = useRef(sprak);
   sprakRef.current = sprak;
   /** Igenkänningen, skapad första gången den behövs. `null` när webbläsaren saknar den eller appen stängt av den. */
@@ -521,6 +538,10 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
         const reservStart = reservNasta.current;
         laastStart.current = false;
         reservNasta.current = false;
+        // ⛔ (0.230.0, #602) Fältet där markören stod vid trycket, bara för den här omgången. Fångsten förbrukas av varje start (en gammal får aldrig
+        // leva vidare till nästa), och "Spela in i stället" är samma omgång som den som föll: där ligger fältet kvar.
+        const fangst = tagFangst();
+        if (!reservStart) setFalt(!laast && typeof onAgentRef.current === "function" ? fangst : null);
         // ⛔ (0.218.0) `kanLyssna`: en igenkänning appen gett kan säga att den inte lyssnar i en viss sorts omgång. Se `kanLyssnaI`.
         // ⛔ EN FRÅGA PER KANDIDAT OCH OMGÅNG (granskningen av 0.218.0): förut frågades WebKit-kandidaten två gånger, för valet av väg och
         // för omgången. En igenkänning som svarade ja och sedan nej gav en ren igenkänningsomgång utan igenkänning, och ett kast rapporterades två gånger.
@@ -1776,8 +1797,8 @@ export function OpsInspelning(props) {
           med sin text läses inte alltid upp. Den bär både ett val vars mottagare kastade och en Agent som inte nådde fram (`fel`, och då
           är Agent Försök igen). Den står i `skickar` och `hort`, alltså redan medan Agent arbetar, så att det är SAMMA element som får
           felet. Medan man pratar finns den inte: där har igenkänningen sin egen felrad (`textFel`). Tom och dold tills något gick fel.
-          ⛔ BARA MED `onAgent`, alltså där valen finns: `hort` nås bara med den. Chattens mikrofon (`OpsRostinmatning`) ritar samma
-          `OpsInspelning` utan val, och där var en tom felrad i `skickar` den första `alert` man hittade, före chattens egen. */}
+          ⛔ BARA MED `onAgent`, alltså där valen finns: `hort` nås bara med den. Chattens mikrofon (`OpsRostinmatning`, borta sedan 0.230.0) ritade
+          samma `OpsInspelning` utan val, och där var en tom felrad i `skickar` den första `alert` man hittade, före chattens egen. */}
       {(hort || lage === "skickar") && typeof onAgent === "function" ? (
         <p role="alert" data-talk-valfel={valFel ? "" : undefined} className={valFel ? "m-0 text-etikett text-danger" : "sr-only"}>
           {valFel ? talkTextPa(valFel, sprak) : null}
