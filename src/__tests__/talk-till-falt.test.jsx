@@ -127,6 +127,23 @@ describe("TALK till fältet där markören står", () => {
     expect(inp.value).toBe("En första raden andra raden rubrik");
   });
 
+  it("⛔ en etikett som inte är text ger fältets ariaLabel, aldrig [object Object] (granskningen av 0.230.0)", async () => {
+    function JsxFalt() {
+      const [v, setV] = useState("");
+      return (
+        <OpsField label={<span>Rubrik i fetstil</span>}>
+          <OpsTextarea value={v} onChange={setV} ariaLabel="Anteckningen" />
+        </OpsField>
+      );
+    }
+    render(<Tradet talk={skapaTalk()} barn={<JsxFalt />} />);
+    stall(/** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Anteckningen")), 0);
+    await tryck(huvudMikrofon());
+    const rad = /** @type {HTMLElement} */ (document.querySelector("[data-talk-samtalet]")).textContent ?? "";
+    expect(rad).toContain("Till fältet Anteckningen");
+    expect(rad).not.toContain("object");
+  });
+
   it("raden och namnet följer språket", async () => {
     render(<Tradet sprak="en" talk={skapaTalk()} barn={<Falt etikett="Description" />} />);
     stall(/** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Description")), 0);

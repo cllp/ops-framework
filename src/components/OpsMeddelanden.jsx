@@ -1775,7 +1775,6 @@ function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, gruppMarke, onO
         setText={setText}
         skickar={oppnar}
         texter={t}
-       
         onSkicka={() => {
           if (!mottagare) setFel({ falt: "till", text: t.valjMottagare });
         }}
@@ -3010,7 +3009,6 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
         skickar={skickar}
         onSkicka={skicka}
         texter={t}
-       
         fokus={utkast !== undefined}
         omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor, flerOmnamnbara)}
         fokusNyckel={[svarPa?.id, tillaggFokus].filter(Boolean).join("|") || undefined}
@@ -3833,7 +3831,6 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         skickar={skickar}
         onSkicka={skicka}
         texter={t}
-       
         fokus
         omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor, flerOmnamnbara)}
         platstext={t.skrivTrad}

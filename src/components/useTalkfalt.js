@@ -25,7 +25,9 @@ export function useTalkfalt(ref, f) {
     if (!el || !kan) return undefined;
     return registreraTalkfalt(el, {
       slag: lage.current.slag,
-      namn: () => String(lage.current.etikett || lage.current.ariaLabel || lage.current.placeholder || "").trim(),
+      // ⛔ BARA TEXT (granskningen av 0.230.0). En etikett i JSX hade blivit "Till fältet [object Object]". Är den inte text gäller
+      // nästa källa: ariaLabel, sedan placeholder.
+      namn: () => [lage.current.etikett, lage.current.ariaLabel, lage.current.placeholder].find((v) => typeof v === "string" && v.trim() !== "")?.trim() ?? "",
       las: () => {
         const n = lage.current;
         return { varde: n.value ?? "", onChange: /** @type {(v: string) => void} */ (n.onChange), maxLength: n.maxLength, disabled: n.disabled, readOnly: Boolean(n.readOnly) };
