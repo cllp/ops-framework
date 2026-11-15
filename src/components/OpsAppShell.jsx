@@ -48,6 +48,7 @@ import { flytandeSkapaPa } from "../lib/flytandeSkapa.js";
 import { OpsSnabbmenyLat } from "./OpsSnabbmenyLat.jsx";
 import { apparSnabbPoster, skapaSnabbPoster } from "../lib/snabbmeny.js";
 import { arkRader } from "../lib/apparark.js";
+import { OVANFOR_PANEL, useRotmarke } from "../lib/panellager.js";
 
 /**
  * ⛔ EN VÄG IN I INSPELNINGEN UTAN ATT HÅLLA (#276): raden i Skapa och huvudets mikrofonknapp lämnar SAMMA form till
@@ -2097,6 +2098,9 @@ function OpsAppShellRitad({
     }
     setSkapaBottenOppen(true);
   };
+  // ⛔ 0.231.0 (cllp/ops-framework#602): SKALETS HUVUD FINNS, så en modal panel börjar under det på datorn och TALK-knappen i huvudet syns
+  // (`--sloja-topp` i tokens.css). Ett märke på <html>: panelen ritas i en portal i <body> och ärver inget ur skalets element.
+  useRotmarke("data-ops-med-huvud");
   // ⛔ Kroken körs alltid (krokarnas regel), men utan `talk` når ingen den: plusset får ingen `talk` och raden ritas inte.
   const [valtInspelning, setValtInspelning] = useState(/** @type {string | null} */ (null));
   // Ett valt id gäller appens mål (valet i fältet) eller ett modulmål (modulens rad). Utan val är det appens första mål, aldrig en modul.
@@ -2925,14 +2929,24 @@ function OpsAppShellRitad({
                 lyssnar (`talkKnappNamn`). Utan `talk` ritas ingen knapp: en mikrofon utan mottagare hade tappat det man sade. */}
             {talk && !iOversikt ? (
               <OpsTooltip content={talkKnappNamn(talkStyr.lage, sprak)} side="bottom">
+                {/* ⛔ 0.231.0: KNAPPEN STÅR OVANFÖR EN ÖPPEN PANEL (cllp/ops-framework#602, CP 2026-11-15 "Snyggt kör på skissen"). En modal panel
+                    (`PanelDialog`) börjar under huvudet, och tre saker låter knappen fungera medan den är öppen: `OVANFOR_PANEL` (ett tryck här stänger
+                    inte panelen), `pointer-events-auto` (Radix sätter `none` på <body> medan en modal är öppen) och `aria-live="off"` (Radix döljer allt
+                    utanför en modal med `aria-hidden` UTOM element med `aria-live`; `off` är en knapps förval och ändrar inget annat). Fältet där
+                    markören står i panelen fångas vid `pointerdown`, före fokusbytet, som förut. Mätt i check-skalyta avsnitt 67. */}
                 <button
                   type="button"
                   data-talk-huvud={talkStyr.lage}
+                  {...{ [OVANFOR_PANEL]: "" }}
+                  aria-live="off"
                   aria-label={talkKnappNamn(talkStyr.lage, sprak)}
                   onClick={() => oppnaSkapa(TALK_FORM)}
-                  className={huvudTalkKlass({
-                    aktiv: talkStyr.lage === "haller" || talkStyr.lage === "lyssnar" || talkStyr.lage === "skickar" || talkStyr.lage === "hort" || talkStyr.lage === "sparat",
-                  })}
+                  className={cx(
+                    huvudTalkKlass({
+                      aktiv: talkStyr.lage === "haller" || talkStyr.lage === "lyssnar" || talkStyr.lage === "skickar" || talkStyr.lage === "hort" || talkStyr.lage === "sparat",
+                    }),
+                    "pointer-events-auto",
+                  )}
                 >
                   <MikrofonIkon size={24} />
                 </button>

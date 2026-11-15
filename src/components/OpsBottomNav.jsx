@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { definierade, forvalda } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -12,6 +12,7 @@ import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, menySekt
 import { useSkapaGenvag } from "./OpsSkapaGenvag.jsx";
 import { LANGTRYCK_KLASS, useLangtryck } from "./useLangtryck.js";
 import { useTangentbordUppe } from "../lib/tangentbord.js";
+import { OVANFOR_PANEL, usePanelOppen, useRotmarke } from "../lib/panellager.js";
 
 /**
  * Bottennavigering för smal skärm (under `md`). Renderas av `OpsAppShell` men
@@ -115,6 +116,10 @@ function OpsBottomNavRitad({
   validateNav(nav, "OpsBottomNav");
   if (meny) validateMeny(meny, "OpsBottomNav");
   const tangentbordUppe = useTangentbordUppe();
+  // ⛔ 0.231.0 (cllp/ops-framework#602): MEDAN EN PANEL ÄR ÖPPEN ÄR FLIKARNA DÄMPADE OCH `inert`, OCH BARA TALK GÅR ATT TRYCKA PÅ. Se `Dampad`.
+  const panelOppen = usePanelOppen();
+  // Panelerna slutar ovanför raden (`--panel-botten` i tokens.css), och det talet finns bara medan raden finns.
+  useRotmarke("data-ops-med-bottenrad");
   const [oppen, setOppen] = useState(false);
   // ⛔ #166: SAMMA UNDERVY-VÄXLING SOM `OpsAppShell`s header-popover, se dess
   // filhuvud. Sheeten är den SMALA skärmens yta för samma meny, och den ska
@@ -189,42 +194,59 @@ function OpsBottomNavRitad({
     // `pb-(--safe-bottom)`: utan säker yta hamnar knapparna under hemindikatorn
     // på en iPhone, och det syns bara på riktig hårdvara.
     // `data-ops-bottenrad`: `useFullHeight` mäter radens övre kant här (0.32.1), och ett attribut är stabilare än ett aria-namn appen kan byta.
+    // ⛔ 0.231.0: `OVANFOR_PANEL` OCH `pointer-events-auto` (cllp/ops-framework#602). Raden står kvar ovanför en öppen panel, och en modal
+    // Radix-panel sätter `pointer-events: none` på <body> och stänger sig på ett tryck utanför sig. Attributet säger till panelen att ett tryck här
+    // inte är ett tryck utanför (`skyddaOvanforPanel`), och `auto` gör att trycket når raden alls. Det dämpade i raden är `inert` (se `Dampad`).
     <nav
       aria-label={navLabel}
       data-ops-bottenrad=""
+      {...{ [OVANFOR_PANEL]: "" }}
+      data-panel-oppen={panelOppen ? "" : undefined}
       data-tangentbord={tangentbordUppe ? "uppe" : undefined}
       className={cx(
-        "fixed inset-x-0 bottom-0 border-t border-line bg-surface pb-(--safe-bottom) md:hidden",
+        "pointer-events-auto fixed inset-x-0 bottom-0 border-t border-line bg-surface pb-(--safe-bottom) md:hidden",
         ark?.snabbmeny && ark.oppen ? "z-(--z-modal)" : "z-(--z-chrome)",
         tangentbordUppe && "hidden",
       )}
     >
+      {/* ⛔ 0.231.0: KANTEN MELLAN PANELEN OCH RADEN. Panelen slutar `--bottom-nav-overhang` ovanför raden så att mikrofonen sticker upp över
+          något som ligger under den, och inte under panelen (en panel ligger på `--z-modal`, raden på `--z-chrome`). Kanten fyller den remsan i
+          panelens färg, i radens lager, så att panelen och raden möts utan glipa. Ett tryck på den hör till raden och stänger ingen panel. */}
+      {panelOppen ? <div data-panelkant="" aria-hidden="true" className="absolute inset-x-0 bottom-full h-(--bottom-nav-overhang) bg-canvas" /> : null}
       <div className="mx-auto flex h-(--bottom-nav-h) max-w-md items-stretch">
-        {inRow.slice(0, brytpunkt).map((entry) => (
-          <BottomPost
-            key={entry.href}
-            entry={entry}
-            activeHref={activeHref}
-            ark={ark}
-            onClick={(/** @type {any} */ e) => klick(entry.href, e)}
-            badgeText={badgeText}
-          />
-        ))}
+        <Dampad pa={panelOppen}>
+          {inRow.slice(0, brytpunkt).map((entry) => (
+            <BottomPost
+              key={entry.href}
+              entry={entry}
+              activeHref={activeHref}
+              ark={ark}
+              onClick={(/** @type {any} */ e) => klick(entry.href, e)}
+              badgeText={badgeText}
+            />
+          ))}
+        </Dampad>
 
-        {primaryAction ? <Huvudatgard atgard={primaryAction} langtryckText={langtryckText} /> : null}
+        {primaryAction ? (
+          // ⛔ BARA MIKROFONEN STÅR KVAR (0.231.0). Utan `talk` är mittknappen plusset, och den är en väg ut ur panelen som de andra.
+          primaryAction.talk ? <Huvudatgard atgard={primaryAction} langtryckText={langtryckText} /> : <Dampad pa={panelOppen}><Huvudatgard atgard={primaryAction} langtryckText={langtryckText} /></Dampad>
+        ) : null}
 
-        {inRow.slice(brytpunkt).map((entry) => (
-          <BottomPost
-            key={entry.href}
-            entry={entry}
-            activeHref={activeHref}
-            ark={ark}
-            onClick={(/** @type {any} */ e) => klick(entry.href, e)}
-            badgeText={badgeText}
-          />
-        ))}
+        <Dampad pa={panelOppen}>
+          {inRow.slice(brytpunkt).map((entry) => (
+            <BottomPost
+              key={entry.href}
+              entry={entry}
+              activeHref={activeHref}
+              ark={ark}
+              onClick={(/** @type {any} */ e) => klick(entry.href, e)}
+              badgeText={badgeText}
+            />
+          ))}
+        </Dampad>
 
         {utanMeny ? null : (
+        <Dampad pa={panelOppen}>
         <Dialog.Root open={oppen} onOpenChange={stangArket}>
           <Dialog.Trigger asChild>
             <button type="button" className={platsKlass(false)}>
@@ -288,6 +310,7 @@ function OpsBottomNavRitad({
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
+        </Dampad>
         )}
       </div>
     </nav>
@@ -373,6 +396,10 @@ function Huvudatgard({ atgard, langtryckText }) {
         type="button"
         {...handelser}
         data-talk-knapp={talk ? talk.lage : undefined}
+        // ⛔ 0.231.0: `aria-live="off"` HÅLLER MIKROFONEN SYNLIG FÖR SKÄRMLÄSAREN OVANPÅ EN MODAL PANEL. Radix döljer allt utanför en modal dialog med
+        // `aria-hidden` (paketet `aria-hidden`, `hideOthers`), utom element med `aria-live`, som det lämnar orörda. `off` är förvalet för en knapp och
+        // ändrar ingenting för den som lyssnar; det enda det gör är att mikrofonen inte göms medan den går att trycka på. Mätt i check-skalyta avsnitt 67.
+        aria-live={talk ? "off" : undefined}
         aria-label={haller ? TALK_ORD : skapaGenomLangtryck ? `${atgard.label}. ${langtryckText}` : atgard.label}
         aria-haspopup={lang.aktiv ? "dialog" : undefined}
         aria-keyshortcuts={lang.kortkommando}
@@ -400,6 +427,33 @@ function Huvudatgard({ atgard, langtryckText }) {
           (atgard.icon ?? <PlusIkon size={26} />)
         )}
       </button>
+    </div>
+  );
+}
+
+/**
+ * En del av raden som är dämpad och `inert` medan en panel är öppen (0.231.0, cllp/ops-framework#602).
+ *
+ * CP 2026-11-15, skissen han godkände ("Snyggt kör på skissen"): panelen slutar ovanför bottenraden så att TALK syns, och "övriga flikar är
+ * dämpade så att ingen lämnar ett halvskrivet ärende av misstag". `inert` gör tre saker på en gång: ett tryck når inte fliken, Tab hoppar över
+ * den och skärmläsaren ser den inte. En dämpad flik som ändå gick att trycka på hade varit en fälla, och en som bara var ofokuserbar hade
+ * fortfarande lett ut ur panelen på ett tryck.
+ *
+ * ⛔ `display: contents`: omslaget ger ingen egen ruta, så flikarna är fortfarande radens flexposter. `inert` följer DOM:en och inte rutorna, och
+ * dämpningen sitter därför på barnen (`[&>*]`). React 18 känner inte `inert` som ett booleskt attribut, så det sätts på elementet (som `OpsSvepRad`).
+ * @param {{ pa: boolean, children: import("react").ReactNode }} props
+ */
+function Dampad({ pa, children }) {
+  const ref = useRef(/** @type {HTMLDivElement | null} */ (null));
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (pa) el.setAttribute("inert", "");
+    else el.removeAttribute("inert");
+  }, [pa]);
+  return (
+    <div ref={ref} data-dampad={pa ? "" : undefined} className={cx("contents", pa && "[&>*]:opacity-40")}>
+      {children}
     </div>
   );
 }

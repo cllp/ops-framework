@@ -1,7 +1,9 @@
+import * as Dialog from "@radix-ui/react-dialog";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_SKICKAR_TEXT, TALK_INGET_LJUD, TALK_INGET_TAL, barTystnad, TALK_TEXTFEL, ORD_TALK, igenkanningensSprak, kanBeOmMikrofon, kanSpelaInIgen, kontrolleraSamtalet, kontrolleraSkickarText, talkFeltext, talkKvitto, talkMiljo, talkNasta, talkOrd, talkTextPa, talkUnderlag, webblasarensIgenkanning, arWebKit, webblasarensInspelare, skapaIgenkanningsniva, talkAnteckningsLank } from "../lib/talk.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { lyssnaPaTryck, tagFangst } from "../lib/talkfalt.js";
+import { OVANFOR_PANEL } from "../lib/panellager.js";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { forraOmgangen, noteraOmgangsslut } from "../lib/talklogg.js";
@@ -1974,6 +1976,25 @@ export function OpsInspelning(props) {
  * ⛔ KLAR STANNAR SYNLIG. Den nedfällda pillen gömde den enda knappen som sparar, och då var krysset kvar som
  * avslutning. Fältet fälls inte längre ned.
  *
+ * ══ ⛔ EN EGEN RADIX-DIALOG, INTE MODAL, I EN PORTAL (0.231.0, cllp/ops-framework#602) ═══════════════════════════════════════
+ *
+ * CP 2026-11-15: "TAlk finns ju inte när man skall skriva text i ärenden mm." Ytan ska synas och gå att använda ovanpå en öppen panel, också när
+ * panelen är en modal Radix-dialog (`OpsRadPanel`). Förut var ytan en `div` i skalet med `role="dialog"`, och ovanpå en modal hade den tre fel
+ * på en gång: Radix fokusfälla drog tillbaka fokus till panelen när Klar fick det (`.focus()` i `OpsInspelning` slog aldrig igenom, och Tab
+ * nådde inte ytan), Radix döljer allt utanför en modal med `aria-hidden` (skalets element med ytan i), och ett tryck på ytan räknades som ett
+ * tryck utanför panelen och stängde den.
+ *
+ * Den rena vägen är att ytan själv är ett Radix-lager, med samma `@radix-ui/react-dialog` som panelerna:
+ *   - EN EGEN FOKUSRAM (`FocusScope`). Radix håller en stapel av dem, och den som öppnas sist gäller: panelens fokusfälla vilar medan ytan är
+ *     öppen och vaknar när den stängs. Klar, Avbryt och Något annat tar fokus och tangentbord, och fokusflyttarna i `OpsInspelning` fungerar.
+ *   - ETT EGET LAGER (`DismissableLayer`). Ett lager som öppnas efter en modal får `pointer-events: auto` av Radix, så ytan går att trycka på.
+ *   - EN PORTAL I <body>, utanför skalets element. En portal som skapas efter panelen döljs inte av panelens `aria-hidden`, och `aria-live="off"`
+ *     håller den synlig också när ytan öppnades före panelen (Radix lämnar element med `aria-live` orörda; `off` ändrar ingenting annat).
+ *   - `OVANFOR_PANEL`: panelen stängs inte av ett tryck på ytan (`skyddaOvanforPanel` i panelens `onInteractOutside`).
+ * Inte modal: under ytan går panelen och sidan att använda som förut, och inget tryck utanför stänger ytan (`stangsBaraAvSinaKnappar`).
+ * ⛔ Två saker följer med lagret och är medvetna: Escape gör ingenting medan ytan är öppen (förut gjorde den ingenting med ytan; ovanpå en panel
+ * hade den stängt panelen under det man pratade in i), och Tab stannar inom ytan medan den är öppen, som i varje Radix-dialog.
+ *
  * @param {{
  *   lage: import("../lib/talk.js").Talklage,
  *   fel?: string,
@@ -2016,52 +2037,66 @@ export function OpsInspelning(props) {
 export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, samtalet, textVantar, utskriftFel, onSkrivUt, kanSpelaIStallet, onSpelaIStallet, onLank, vy }) {
   if (lage === "vila" || lage === "trycker") return null;
   return (
-    <div
-      role="dialog"
-      aria-label="TALK"
-      data-ops-talk=""
-      data-lage={lage}
-      // ⛔ SAMMA KANT SOM ARKEN, PLUS LUFT (granskningen av PR 366, BÖR 3). Här stod `env(...)+5.5rem`, en gissning av bottenradens
-      // höjd som varken följde tokenen eller räknade med skalets spelrad, så fältet låg delvis över dem.
-      className="fixed inset-x-3 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px)+0.75rem)] z-(--z-dropdown) mx-auto max-w-md md:bottom-[calc(1.5rem+var(--spelrad-h,0px))]"
-    >
-      <div className="rounded-3xl border border-line-strong bg-raised p-4 shadow-lg">
-        <OpsInspelning
-          lage={lage}
-          fel={fel}
-          niva={niva}
-          sekunder={sekunder}
-          tak={tak}
-          framsteg={framsteg}
-          kanIgen={kanIgen}
-          text={text}
-          textFel={textFel}
-          medText={medText}
-          skickarText={skickarText}
-          kvitto={kvitto}
-          onAngra={onAngra}
-          onKlar={onSkicka}
-          onAvbryt={onAvbryt}
-          onIgen={onIgen}
-          onTillatMikrofon={onTillatMikrofon}
-          onInstallningar={onInstallningar}
-          marke={marke}
-          mal={mal}
-          valt={valt}
-          onValj={onValj}
-          vidare={vidare}
-          onAgent={onAgent}
-          onAnteckning={onAnteckning}
-          samtalet={samtalet}
-          textVantar={textVantar}
-          utskriftFel={utskriftFel}
-          onSkrivUt={onSkrivUt}
-          kanSpelaIStallet={kanSpelaIStallet}
-          onSpelaIStallet={onSpelaIStallet}
-          onLank={onLank}
-          vy={vy}
-        />
-      </div>
-    </div>
+    <Dialog.Root open modal={false} onOpenChange={stangsBaraAvSinaKnappar}>
+      <Dialog.Portal>
+        <Dialog.Content
+          aria-describedby={undefined}
+          data-ops-talk=""
+          data-lage={lage}
+          {...{ [OVANFOR_PANEL]: "" }}
+          aria-live="off"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          // ⛔ SAMMA KANT SOM ARKEN, PLUS LUFT (granskningen av PR 366, BÖR 3). Här stod `env(...)+5.5rem`, en gissning av bottenradens
+          // höjd som varken följde tokenen eller räknade med skalets spelrad, så fältet låg delvis över dem.
+          className="fixed inset-x-3 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px)+0.75rem)] z-(--z-dropdown) mx-auto max-w-md outline-none md:bottom-[calc(1.5rem+var(--spelrad-h,0px))]"
+        >
+          <Dialog.Title className="sr-only">TALK</Dialog.Title>
+          <div className="rounded-3xl border border-line-strong bg-raised p-4 shadow-lg">
+            <OpsInspelning
+              lage={lage}
+              fel={fel}
+              niva={niva}
+              sekunder={sekunder}
+              tak={tak}
+              framsteg={framsteg}
+              kanIgen={kanIgen}
+              text={text}
+              textFel={textFel}
+              medText={medText}
+              skickarText={skickarText}
+              kvitto={kvitto}
+              onAngra={onAngra}
+              onKlar={onSkicka}
+              onAvbryt={onAvbryt}
+              onIgen={onIgen}
+              onTillatMikrofon={onTillatMikrofon}
+              onInstallningar={onInstallningar}
+              marke={marke}
+              mal={mal}
+              valt={valt}
+              onValj={onValj}
+              vidare={vidare}
+              onAgent={onAgent}
+              onAnteckning={onAnteckning}
+              samtalet={samtalet}
+              textVantar={textVantar}
+              utskriftFel={utskriftFel}
+              onSkrivUt={onSkrivUt}
+              kanSpelaIStallet={kanSpelaIStallet}
+              onSpelaIStallet={onSpelaIStallet}
+              onLank={onLank}
+              vy={vy}
+            />
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
+
+/**
+ * TALK:s yta stängs bara av sina egna knappar (Klar, Avbryt, Stäng och valen), som före 0.231.0. Radix ber om att stänga en dialog på Escape,
+ * på ett tryck utanför och när fokus lämnar den, och inget av det stängde ytan förut: man pratar och trycker samtidigt i panelen under.
+ */
+function stangsBaraAvSinaKnappar() {}
