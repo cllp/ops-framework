@@ -134,6 +134,7 @@ const RADIE = "rounded-base";
  * @property {string} id Stabilt id, `OpsIdentity seed`.
  * @property {string} namn
  * @property {string} [bild]
+ * @property {string} [epost] (0.234.0, cllp/lifehub.app#861) Initialerna tas ur adressen när namnet saknas, som i medlemslistan.
  */
 
 /**
@@ -329,7 +330,7 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, listEtikett, tomText, r
                   // ännu, och en span som bara visar bilden ljuger då inte om
                   // vad den gör.
                   <span key={a.id} className="inline-flex rounded-full">
-                    <OpsIdentity name={a.namn} seed={a.id} imageUrl={a.bild || undefined} size="xs" />
+                    <OpsIdentity name={a.namn || a.epost || ""} seed={a.id} imageUrl={a.bild || undefined} size="xs" />
                   </span>
                 ))}
                 {resten > 0 ? (

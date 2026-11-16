@@ -572,11 +572,12 @@ describe("medlemskapets namn och bild (#138, beslut A)", () => {
     expect(m.bild).toBe("https://exempel/bild.png");
   });
 
-  it("skriver ut tomma strängar när de saknas, i stället för att utelämna fälten", () => {
+  // ⛔ ÄNDRAT I 0.234.0 (cllp/lifehub.app#861). Provet sade förut att namnet skrivs som tom sträng. Det var den tomma strängen som
+  // ritades som "Namn saknas", och CP 2026-11-16: "Det får ALDRIG stå namn saknas." Nu utelämnas namnet, bilden är tom sträng som förut.
+  it("utelämnar ett tomt namn, och skriver ut en tom bild", () => {
     const m = byggMedlemskap(MEDLEM());
-    expect(m.namn).toBe("");
+    expect(Object.keys(m)).not.toContain("namn");
     expect(m.bild).toBe("");
-    expect(Object.keys(m)).toContain("namn");
     expect(Object.keys(m)).toContain("bild");
   });
 

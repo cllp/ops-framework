@@ -39,9 +39,9 @@ import { usePersonnamn } from "./usePersonnamn.js";
  * @param {object} props
  * @param {{ medlemskap: import("../lib/grupp.js").Medlemskap, namn?: string, epost?: string }[]} props.medlemmar
  *   ⛔ `namn` och `epost` är VALFRIA och behövs inte längre: medlemskapet bär
- *   själv `namn` och `bild` sedan #138. Fälten står kvar för den som redan har
- *   uppgifterna i handen, och e-posten ritas bara för den som läser sin egen
- *   rad. Se noten om e-posten nedan.
+ *   själv `namn` och `bild` sedan #138, och `epost` sedan 0.234.0
+ *   (cllp/lifehub.app#861). Fälten står kvar för den som redan har uppgifterna
+ *   i handen. Se noten om e-posten nedan.
  * @param {{ id: string, epost: string, roll: string }[]} [props.inbjudningar] Väntande, för att den som bjöd in ska se att det hänt.
  * @param {string} props.migUid
  * @param {boolean} [props.kanAndra]
@@ -183,16 +183,19 @@ export function OpsMedlemmar({
              * andra. Medlemskapet bär namnet denormaliserat, och det är den
              * enda källan som är läsbar för hela gruppen.
              *
-             * ⛔ E-POSTEN RITAS INTE. Den lämnar aldrig `users`, och att
-             * anroparen kan råka ha sin egen i handen gör den inte till något
-             * listan ska visa.
+             * ⛔ E-POSTEN RITAS NÄR NAMNET SAKNAS (0.234.0, cllp/lifehub.app#861).
+             * Här stod förut att e-posten aldrig ritas, eftersom den aldrig
+             * lämnade `users`. CP 2026-11-16, efter att en ny medlem stått som
+             * "Namn saknas" för alla i gruppen: "Det får ALDRIG stå namn saknas.
+             * Det måste alltid finnas en fallback på eposten." Medlemskapet bär
+             * nu adressen, och den visas i stället för "Namn saknas", aldrig
+             * bredvid ett namn som finns.
              *
              * ⛔ UID:T VISAS ALDRIG (#218, CP 2026-10-01: "Bra om användarnamnet
-             * inte är Guid"). Sista utvägen är den inloggades eget namn, annars
-             * "Namn saknas", märkt med `data-namn-saknas`: "den här raden
-             * skrevs innan namnet fanns".
+             * inte är Guid"). Sista utvägen, när varken namn eller adress finns,
+             * är "Namn saknas", märkt med `data-namn-saknas`.
              */
-            const { text: visningsnamn, saknas } = personnamn(medlemskap.namn || namn || medlemsEpost, medlemskap.userId);
+            const { text: visningsnamn, saknas } = personnamn(medlemskap.namn || namn, medlemskap.userId, medlemskap.epost || medlemsEpost);
             /*
              * ⛔ EN AGENT HAR INGEN ROLL ATT ÄNDRA OCH INGEN TA BORT (lifehub.app#47). Den stängs av av ägaren
              * (`createAgentService`), och ett borttaget medlemskap hade kommit tillbaka med nästa engångssteg.

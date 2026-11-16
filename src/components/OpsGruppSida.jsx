@@ -79,7 +79,7 @@ export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [
   const ROLLORDNING = { agare: 0, admin: 1, medlem: 2 };
   const medlemsrader = online
     ? medlemmar
-        .map((m) => ({ m, visat: personnamn(m.namn, m.id).text, ar: online.has(m.id) }))
+        .map((m) => ({ m, visat: personnamn(m.namn, m.id, m.epost).text, ar: online.has(m.id) }))
         .sort((a, b) => Number(b.ar) - Number(a.ar) || (ROLLORDNING[a.m.roll] ?? 2) - (ROLLORDNING[b.m.roll] ?? 2) || a.visat.localeCompare(b.visat, "sv"))
         .map((x) => x.m)
     : medlemmar;
@@ -146,8 +146,8 @@ export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [
         ) : (
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {medlemsrader.map((m) => {
-              // ⛔ ALDRIG ETT ID SOM NAMN (#218): medlemskapets namn, den inloggades eget, annars "Namn saknas".
-              const { text: visat, saknas } = personnamn(m.namn, m.id);
+              // ⛔ ALDRIG ETT ID SOM NAMN (#218): medlemskapets namn, den inloggades eget, annars adressen (0.234.0, lifehub.app#861), annars "Namn saknas".
+              const { text: visat, saknas } = personnamn(m.namn, m.id, m.epost);
               const rad = (
                 <>
                   {online ? (

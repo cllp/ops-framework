@@ -410,13 +410,15 @@ describe("namnet och bilden följer med in i medlemskapet (#138, beslut A)", () 
     expect(read.mock.calls.filter((c) => c[0] === "users").length).toBe(1);
   });
 
-  it("tål att profilen inte finns, och skriver tomt i stället för att kasta", async () => {
+  // ⛔ ÄNDRAT I 0.234.0 (cllp/lifehub.app#861): utan namn utelämnas fältet i stället för `""`, och adressen följer med.
+  it("tål att profilen inte finns, och skriver inget tomt namn i stället för att kasta", async () => {
     const { kalla, tjanst } = bygg({
       invitations: [{ id: "i1", epost: "ny@example.com", groupId: GRUPP, roll: "medlem", status: "vantar", skapadAv: { uid: AGARE, namn: "A", typ: "manniska", kalla: "prov" } }],
     });
     await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@example.com", epostVerifierad: true });
     const m = await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP));
-    expect(m.namn).toBe("");
+    expect("namn" in m).toBe(false);
+    expect(m.epost).toBe("ny@example.com");
   });
 });
 

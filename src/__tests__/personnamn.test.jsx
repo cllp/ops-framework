@@ -216,7 +216,8 @@ describe("⛔ skrivvägarna ger medlemskapet ett namn när ett fanns (#218)", ()
     const svar = await uppdateraProfil({ kalla, uid: CP, andring: { namn: "Claes Philip" } });
     expect(svar.medlemskapUppdaterade).toBe(1);
     expect((await kalla.read("memberships", utan.id))?.namn).toBe("Claes Philip");
-    expect((await kalla.read("memberships", annans.id))?.namn).toBe("");
+    // ⛔ 0.234.0 (cllp/lifehub.app#861): ett namn som saknas utelämnas, det skrivs inte som "". Raden rördes inte, som förut.
+    expect((await kalla.read("memberships", annans.id))?.namn).toBeUndefined();
   });
 });
 
@@ -245,7 +246,8 @@ describe("bakfyllMedlemsnamn", () => {
     const svar = await bakfyllMedlemsnamn({ kalla });
     expect(svar).toMatchObject({ skarpt: false, lasta: 6, saknar: 4, attFylla: 2, fyllda: 0, utanProfilnamn: 1, utanAnvandare: 1, fel: [] });
     expect(svar.kvar.map((k) => `${k.userId}:${k.skal}`).sort()).toEqual(["u-utan-namn:utan-profilnamn", "u-utan-rad:utan-anvandare"]);
-    expect((await kalla.read("memberships", medlemskapsId(CP, "g1")))?.namn).toBe("");
+    // ⛔ 0.234.0 (cllp/lifehub.app#861): ett tomt namn utelämnas i stället för "". Torrkörningen skrev ingenting, som förut.
+    expect((await kalla.read("memberships", medlemskapsId(CP, "g1")))?.namn).toBeUndefined();
   });
 
   it("⛔ skarpt fyller de som går, rör inte ett ifyllt namn, och en andra körning har inget kvar att fylla", async () => {

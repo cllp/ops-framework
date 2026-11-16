@@ -88,6 +88,7 @@ import { OpsVantar } from "./OpsVantar.jsx";
  * @property {string} userId
  * @property {string} [namn]
  * @property {string} [bild]
+ * @property {string} [epost] Medlemskapets adress (0.234.0, cllp/lifehub.app#861). Visas när namnet saknas.
  * @property {string} [typ]
  * @property {string} [status]
  */
@@ -951,10 +952,10 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, projektnamn, me
     for (const r of medlemmar ?? []) if (r?.userId) m.set(r.userId, r);
     return m;
   }, [medlemmar]);
-  // ⛔ ALDRIG ETT ID SOM NAMN (#218): medlemskapets namn, den inloggades eget namn, annars "Namn saknas".
+  // ⛔ ALDRIG ETT ID SOM NAMN (#218): medlemskapets namn, den inloggades eget namn, annars medlemskapets adress (0.234.0, lifehub.app#861), annars "Namn saknas".
   const personnamn = usePersonnamn();
   // En gäst (`av` är ett `g_`-id) är ingen medlem och saknar namn i medlemslistan: i översikten står "Gäst", och i själva chatten gästens eget namn (`Meddelanderader`, ur meddelandet).
-  const namnFor = (/** @type {string} */ id) => (arGastId(id) ? t.gast : personnamn(namn.get(id)?.namn, id).text);
+  const namnFor = (/** @type {string} */ id) => (arGastId(id) ? t.gast : personnamn(namn.get(id)?.namn, id, namn.get(id)?.epost).text);
 
   /*
    * ⛔ GRUPPCHATTEN FINNS ALLTID I LISTAN, ÖVERST (0.68.0). CP 2026-10-06, i en grupp med en medlem: "Hur skriver jag ett

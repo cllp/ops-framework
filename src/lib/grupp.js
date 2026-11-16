@@ -168,8 +168,11 @@ export const MAX_PRESENTATION = 500;
  * @property {"agare"|"admin"|"medlem"} roll
  * @property {"person"|"agent"} typ
  * @property {"aktiv"|"avslutad"|"avstangd"} status `avstangd` bara för en agent.
- * @property {string} namn Denormaliserat ur `users`, se noten vid MEDLEMSKAPSFALT.
+ * @property {string} [namn] Denormaliserat ur `users`, se noten vid MEDLEMSKAPSFALT. ⛔ Utelämnat när namnet saknas, aldrig
+ *   en tom sträng (0.234.0, cllp/lifehub.app#861). Se noten i `byggMedlemskap`.
  * @property {string} bild Denormaliserat ur `users`, eller tom sträng.
+ * @property {string} [epost] Personens adress, gemener (0.234.0, cllp/lifehub.app#861). Visas när namnet saknas. Utelämnad när
+ *   adressen inte är känd, och alltid för en agent.
  */
 
 /**
@@ -292,16 +295,30 @@ export const GRUPPFALT = ["id", ...AGARGRUPPFALT, "skapadAv"];
  * iteration var "alla inloggade läser alla profiler", och då bär `users`
  * e-postadresser åt vem som helst som är inloggad någonstans.
  *
- * ⛔ DÄRFÖR LÄMNAR E-POSTEN ALDRIG `users`. Medlemslistan visar namn och bild
- * ur `memberships`, som ändå bara skrivs av serversidan. Kriteriets ANDA är
- * uppfylld av konstruktion i stället för av en regel som inte finns.
+ * ⛔ DÄRFÖR LÄMNADE E-POSTEN ALDRIG `users` FRAM TILL 0.234.0. Medlemslistan visade
+ * namn och bild ur `memberships`, som ändå bara skrivs av serversidan.
+ *
+ * ⛔ HÄNDELSEN SOM ÄNDRADE DET (0.234.0, cllp/lifehub.app#861). CP 2026-11-16:
+ * "När Collan hade loggat in stod hans namn som Namn Saknas innan han gick ut
+ * och sparade om sin profil." Hans medlemskap skrevs utan namn, och för alla
+ * andra i gruppen fanns då ingenting att visa. CP samma kväll: "Det får ALDRIG
+ * stå namn saknas. Det måste alltid finnas en fallback på eposten." Därför bär
+ * medlemskapet `epost`, och `personnamn` visar den när namnet saknas.
+ *
+ * ⛔ VAD DET KOSTAR, SAGT RAKT UT: adressen blir läsbar för varje aktiv medlem
+ * i en gemensam grupp, eftersom en medlem läser gruppens alla medlemskap
+ * (0.32.0, #180). Före 0.234.0 såg en vanlig medlem bara namn och bild; ägare
+ * och admin såg adresser bara på väntande inbjudningar. Det är fortfarande
+ * innanför #138:s klarkriterium ("ingen läser en annans e-post utan att vara
+ * medlem i en gemensam grupp"), och `users` är lika stängd som förut: ingen
+ * utanför gruppen läser adressen.
  *
  * ⛔ ATT DE KAN BLI INAKTUELLA ÄR REDAN MODELLENS BETEENDE. `sakerstallAnvandare`
  * rör inte namnet efter första inloggningen, så ett namn som släpar efter
  * Google är ingen ny avvikelse. Priset är litet och synligt, till skillnad mot
  * ett nätverksanrop per vy (väg B) eller en läsbar e-post (väg C).
  */
-export const MEDLEMSKAPSFALT = ["id", "userId", "groupId", "roll", "typ", "status", "namn", "bild"];
+export const MEDLEMSKAPSFALT = ["id", "userId", "groupId", "roll", "typ", "status", "namn", "bild", "epost"];
 export const INBJUDNINGSFALT = ["id", "epost", "groupId", "roll", "status", "skapadAv", "tokenHash", "giltigTill", "skickad", "antalSkickade"];
 
 /**
@@ -826,6 +843,28 @@ export function byggMedlemskap(d) {
     throw new Error(`memberships: statusen avstangd för "${id}" finns bara för en agent. En person stängs inte av, den avslutas.`);
   }
 
+  /*
+   * ⛔ ETT TOMT NAMN SKRIVS ALDRIG, FÄLTET UTELÄMNAS (0.234.0, cllp/lifehub.app#861).
+   *
+   * HÄNDELSEN: CP 2026-11-16, "När Collan hade loggat in stod hans namn som Namn Saknas innan han gick ut och sparade om sin
+   * profil." Identity hade lämnat en token utan namn till hubben, och medlemskapet skrevs med `namn: ""`. Samma kväll såg
+   * granskningen att `uppdateraProfil` skrev om ALLA medlemskap med `namn: ""` när en ändring bar en tom sträng. CP: "Det får
+   * ALDRIG stå namn saknas. Det måste alltid finnas en fallback på eposten."
+   *
+   * ⛔ VARFÖR UTELÄMNAT OCH INTE ETT NAMN HÄRLETT UR ADRESSEN. Ett härlett namn ("Anna Svensson" ur anna.svensson@...) ser ut
+   * som ett riktigt namn: bakfyllnaden, som bara fyller tomma namn, hade aldrig hittat raden, och det riktiga namnet i Identity
+   * hade aldrig kommit fram. Härledningen finns dessutom redan i Identity (`visningsnamnFranEpost`), och en andra kopia här
+   * hade glidit isär från den (regel 2). Adressen står i stället på raden (`epost`), och `personnamn` visar den när namnet
+   * saknas, märkt som det den är.
+   *
+   * ⛔ HÄR STOD FÖRUT "TOMMA STRÄNGAR OCH INTE UTELÄMNADE FÄLT" (regel 5): ett utelämnat fält gick inte att skilja från en rad
+   * som en äldre version skrev. För namnet är det inte längre sant att skillnaden behövs, och den tomma strängen var precis
+   * det som ritades som "Namn saknas". `bild` står kvar som tom sträng: en tom bild skriver inte över något och ritas som
+   * initialer.
+   */
+  const namn = rensa(rad.namn);
+  // ⛔ Adressen i gemener, som `users.epost` och inbjudans `epost`: samma person ska ha samma adress på alla rader.
+  const epost = typ === "agent" ? "" : rensa(rad.epost).toLowerCase();
   return Object.freeze({
     id,
     userId,
@@ -833,14 +872,9 @@ export function byggMedlemskap(d) {
     roll: /** @type {Medlemskap["roll"]} */ (roll),
     typ: /** @type {Medlemskap["typ"]} */ (typ),
     status: /** @type {Medlemskap["status"]} */ (status),
-    /*
-     * ⛔ TOMMA STRÄNGAR OCH INTE UTELÄMNADE FÄLT. En agent har inget namn hos
-     * Google, och en person kan sakna bild. Skrivs fältet inte alls går "har
-     * ingen bild" inte att skilja från "raden skrevs av en äldre version", och
-     * det är arbetsreglernas punkt 5.
-     */
-    namn: rensa(rad.namn),
+    ...(namn ? { namn } : {}),
     bild: rensa(rad.bild),
+    ...(epost ? { epost } : {}),
   });
 }
 

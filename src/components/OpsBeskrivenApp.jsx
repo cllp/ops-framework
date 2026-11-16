@@ -64,7 +64,7 @@ import { MAX_SKAPARNAMN, laesSkapare, namnMedVia } from "../lib/skapare.js";
  * @param {unknown} props.beskrivning Appens beskrivning. Prövas av vyn; det som inte håller visas som felen.
  * @param {ReturnType<typeof import("../data/beskrivenappkalla.js").createBeskrivenAppKalla>} props.kalla Läser och skriver raderna.
  * @param {{ uid: string, roll: string, groupId?: string } | null} props.jag Den inloggades aktiva medlemskap i gruppen, eller `null` när personen inte är medlem. Krävs.
- * @param {ReadonlyArray<{ userId: string, namn?: string, typ?: string, status?: string }>} props.medlemmar Gruppens medlemskap. Fälten av typen person väljer ur de aktiva personerna (inte agenten).
+ * @param {ReadonlyArray<{ userId: string, namn?: string, epost?: string, typ?: string, status?: string }>} props.medlemmar Gruppens medlemskap. Fälten av typen person väljer ur de aktiva personerna (inte agenten).
  * @param {"sv"|"en"} [props.sprak] Förval är appens språk (`OpsSprakProvider`).
  * @param {string} [props.hubHref] Hubbens adress. Utelämnad: ingen tillbaka-rad.
  * @param {string} [props.hubEtikett] Förval "Verktyg".
@@ -224,7 +224,7 @@ function kapa(s, max) {
 
 /**
  * Personerna en person-väljare erbjuder: aktiva medlemmar som är personer, inte agenten.
- * @param {ReadonlyArray<{ userId: string, namn?: string, typ?: string, status?: string }>} medlemmar
+ * @param {ReadonlyArray<{ userId: string, namn?: string, epost?: string, typ?: string, status?: string }>} medlemmar
  */
 function personer(medlemmar) {
   return medlemmar.filter((m) => m && typeof m.userId === "string" && m.userId && (m.status ?? "aktiv") === "aktiv" && (m.typ ?? "person") === "person");
@@ -235,7 +235,7 @@ function personer(medlemmar) {
  *
  * @param {import("../lib/beskrivenapp.js").Falt} falt
  * @param {unknown} varde
- * @param {{ sprak: string, medlemmar: ReadonlyArray<{ userId: string, namn?: string }>, ord: (nyckel: keyof typeof ORD_OPSBESKRIVENAPP) => string }} ctx
+ * @param {{ sprak: string, medlemmar: ReadonlyArray<{ userId: string, namn?: string, epost?: string }>, ord: (nyckel: keyof typeof ORD_OPSBESKRIVENAPP) => string }} ctx
  * @returns {string}
  */
 function visaVarde(falt, varde, ctx) {
@@ -251,7 +251,8 @@ function visaVarde(falt, varde, ctx) {
     case "person": {
       const m = ctx.medlemmar.find((x) => x.userId === varde);
       if (!m) return ctx.ord("okandMedlem");
-      const n = personnamn(m.namn, { saknas: ctx.ord("okandMedlem") });
+      // ⛔ Adressen när namnet saknas (0.234.0, lifehub.app#861, CP: "Det måste alltid finnas en fallback på eposten").
+      const n = personnamn(m.namn, { epost: m.epost, saknas: ctx.ord("okandMedlem") });
       return n.text;
     }
     case "langtext": {
@@ -271,7 +272,7 @@ function visaVarde(falt, varde, ctx) {
  * @param {import("../lib/beskrivenapp.js").Beskrivning} props.b
  * @param {ReturnType<typeof import("../data/beskrivenappkalla.js").createBeskrivenAppKalla>} props.kalla
  * @param {{ uid: string, roll: string, groupId?: string } | null} props.jag
- * @param {ReadonlyArray<{ userId: string, namn?: string, typ?: string, status?: string }>} props.medlemmar
+ * @param {ReadonlyArray<{ userId: string, namn?: string, epost?: string, typ?: string, status?: string }>} props.medlemmar
  * @param {string} props.sprak
  * @param {any} props.tillbaka
  */
@@ -544,7 +545,7 @@ function Tabell({ lista, rader, ctx, rubrikFor, onOppna }) {
  * @param {import("../lib/beskrivenapp.js").Lista} props.lista
  * @param {import("../data/beskrivenappkalla.js").Beskrivenapprad | null} props.rad `null` när raden är ny.
  * @param {boolean} props.kan Får personen spara? Annars är fälten låsta.
- * @param {ReadonlyArray<{ userId: string, namn?: string, typ?: string, status?: string }>} props.medlemmar
+ * @param {ReadonlyArray<{ userId: string, namn?: string, epost?: string, typ?: string, status?: string }>} props.medlemmar
  * @param {string} props.sprak
  * @param {string} props.rubrik
  * @param {() => void} props.onStang
@@ -690,7 +691,7 @@ function startvarden(lista, rad) {
  * @param {import("../lib/beskrivenapp.js").Falt} f
  * @param {string} v
  * @param {(v: string) => void} sattV
- * @param {{ kan: boolean, valbara: ReturnType<typeof personer>, t: (nyckel: keyof typeof ORD_OPSBESKRIVENAPP) => string, locale: string, medlemmar: ReadonlyArray<{ userId: string, namn?: string }> }} k
+ * @param {{ kan: boolean, valbara: ReturnType<typeof personer>, t: (nyckel: keyof typeof ORD_OPSBESKRIVENAPP) => string, locale: string, medlemmar: ReadonlyArray<{ userId: string, namn?: string, epost?: string }> }} k
  */
 function kontroll(f, v, sattV, k) {
   const { kan, valbara, t, locale } = k;
@@ -729,7 +730,7 @@ function kontroll(f, v, sattV, k) {
       );
     }
     case "person": {
-      const val = valbara.map((m) => ({ value: m.userId, label: personnamn(m.namn, { saknas: t("okandMedlem") }).text }));
+      const val = valbara.map((m) => ({ value: m.userId, label: personnamn(m.namn, { epost: m.epost, saknas: t("okandMedlem") }).text }));
       const saknas = v !== "" && !val.some((a) => a.value === v);
       return (
         <OpsSelect

@@ -260,6 +260,9 @@ export function createGroupService(konfig) {
      * @param {{ uid: string, epost: string, grupp: GruppUppgifter, inbjudningar?: ReadonlyArray<Inbjudningsrad>, skapadAv?: any, namn?: string }} b
      *   `namn`: den inloggades namn ur anropets inloggning (`request.auth.token.name`). Används BARA när profilraden saknar
      *   namn, så att ägarens medlemskap inte skrivs utan namn fast det fanns ett (0.40.1, #218).
+     *   `epost`: den inloggades adress (`request.auth.token.email`). Krävs när vitlistan prövas. Sedan 0.234.0 skrivs den
+     *   också på ägarens medlemskap när profilraden saknar en, så att gruppen ser adressen i stället för "Namn saknas"
+     *   (cllp/lifehub.app#861). Skicka den alltid, också när vitlistan inte krävs.
      * @returns {Promise<SkapaGruppSvar>}
      */
     async skapaGrupp(b) {
@@ -358,6 +361,12 @@ export function createGroupService(konfig) {
          */
         namn: anvandaren?.namn || rensa(b.namn),
         bild: anvandaren?.bild ?? "",
+        /*
+         * ⛔ ADRESSEN FÖLJER MED, UR SAMMA KÄLLOR SOM NAMNET (0.234.0, cllp/lifehub.app#861). CP 2026-11-16: "Det får ALDRIG
+         * stå namn saknas. Det måste alltid finnas en fallback på eposten." Profilens adress, annars anropets (`epost`, ur
+         * inloggningen). Skickar appen ingen och profilen saknar en, utelämnas fältet.
+         */
+        epost: anvandaren?.epost || epost,
       });
 
       /*

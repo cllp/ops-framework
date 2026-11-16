@@ -9,6 +9,35 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.234.0
+
+**Det står aldrig "Namn saknas" när adressen finns.** CP 2026-11-16: "När Collan hade loggat in stod hans namn som Namn Saknas innan han gick ut och sparade om sin profil." Och samma kväll: "Det får ALDRIG stå namn saknas. Det måste alltid finnas en fallback på eposten." Rotorsaken låg i Identity (tokenen som lämnades till hubben utfärdades innan namnet sattes, rättat i lifehub.identity), men ramverket hade ingen reserv för alla andra i gruppen än "Namn saknas" (cllp/lifehub.app#861).
+
+### Ändrat
+
+- **`personnamn` visar radens adress när namnet saknas.** Nytt alternativ `epost`. Ordningen är medlemskapets namn, den inloggades namn och adress (för den egna raden), radens adress, och först sist `NAMN_SAKNAS`, som nu bara står för den som varken har namn eller adress. `usePersonnamn()` tar adressen som tredje argument: `personnamn(namn, id, epost)`.
+- **Varje vy som ritar en medlem skickar adressen:** `OpsMedlemmar`, `OpsGruppSida`, `OpsMottagare`, `OpsSvar`, `OpsMeddelanden` (avsändare och nämnda), `OpsBeskrivenApp` (fält av typen person) och avatarerna i `OpsGruppanel` (initialerna). `medlemsinfo` bär `epost` på `medlemmar` och `avatarer`, och sorterar på det som visas.
+- **Medlemskapet bär `epost`** (`MEDLEMSKAPSFALT`, gemener). `accepteraInbjudningar` och `skapaGrupp` skriver den ur profilraden, annars ur anropets `epost` (inloggningens), samma källor som namnet. Ett avslutat medlemskap som återaktiveras av en inbjudan får namn och adress om raden saknade dem.
+- **Ett tomt namn skrivs aldrig.** `byggMedlemskap` utelämnar `namn` när det är tomt, i stället för att skriva `""`. Valet och skälet står i koden: ett namn härlett ur adressen hade sett ut som ett riktigt namn, bakfyllnaden hade aldrig hittat raden, och härledningen finns redan i Identity (regel 2).
+- **`uppdateraProfil` skriver aldrig över ett namn med ett tomt.** Före 0.234.0 gav `{ namn: "", bild }` (en token med bild men utan namn) `namn: ""` i `users` och i varje medlemskap. Nu lämnas namnet orört, och bilden skrivs som förut.
+- **`bakfyllMedlemsnamn` tar `reserv`**, en funktion `(uid) => namn` som frågas när profilraden saknar namn eller inte finns, till exempel `displayName` ur Identity. Den frågas också vid torrkörning (förval), en gång per person. Svaret har en ny rad, `franReserv`, och utskriften en rad "ur reserven", också när den är 0. Ett kast blir ett fel i `fel`.
+
+### Vem som ser adressen
+
+Före 0.234.0 lämnade adressen aldrig `users`, och en vanlig medlem såg bara namn och bild i medlemslistan. Nu bär medlemskapet adressen, och en medlem läser gruppens alla medlemskap (0.32.0, #180). **Adressen blir alltså läsbar för varje aktiv medlem i en gemensam grupp.** Det är innanför #138:s klarkriterium ("ingen läser en annans e-post utan att vara medlem i en gemensam grupp"), `users` är lika stängd som förut, och reglerna är oförändrade utom kommentaren vid `memberships`, som nu säger det.
+
+### Att göra i appen
+
+- **Skicka `epost` till `skapaGrupp`**, också när vitlistan inte krävs: `request.auth.token.email`. `accepteraInbjudningar` tar redan adressen.
+- **Kör bakfyllnaden med Identitys namn** för medlemskap som redan saknar namn, ur appens eget skript: `bakfyllMedlemsnamn({ kalla, reserv: async (uid) => (await identityAuth.getUser(uid)).displayName })`. Torrkörning först, skarp körning (`skarpt: true`) bara med CP:s ja, eftersom den skriver i produktionsdata.
+- **Egna `namnFor`** (till `samtalsnotiser`, `postkommentarer` och `ProjektChatt`) ska svara med adressen när namnet saknas, till exempel `personnamn(m.namn, { epost: m.epost }).text`.
+- **Regenerera reglerna** ur `regelfragment()`: kommentaren vid `memberships` är ändrad, inget villkor.
+- Medlemskap som skrevs före 0.234.0 saknar `epost` och visar fortfarande "Namn saknas" om de också saknar namn, tills bakfyllnaden körts eller personen sparat sin profil.
+
+### Prov
+
+`namn-saknas-epost` (nytt, 25): adressen i stället för "Namn saknas" i varje vy, `medlemsinfo` med adressen, `byggMedlemskap` utan tomt namn, accept och skapande med adressen (också hela kedjan med Collans läge), återaktivering, `uppdateraProfil` med ett tomt namn, och bakfyllnaden med reserv. 21 röda mot 0.233.0 och gröna med ändringen; de fyra som säger att något inte ska hända är gröna i båda och sågs röda mot en ändring som tog bort spärren.
+
 ## 0.233.0
 
 **Mikrofonen står i varje textfält, och ett tryck startar talet utan tangentbord.** CP efter att ha provat 0.232.0 i telefonen: "Kör med mikrofonen och kör alla fält". I 0.232.0 syntes ikonen först när fältet hade fokus, så det krävdes två tryck och en scroll, eftersom tangentbordet kom upp. Han ville ha en större ikon som startar talet direkt, och inget tangentbord när man pratar.

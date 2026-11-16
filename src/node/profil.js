@@ -76,13 +76,27 @@ export async function uppdateraProfil(b) {
   const befintlig = await kalla.read(ANVANDARE, uid);
   if (!befintlig) throw new Error(`uppdateraProfil: ingen användare "${uid}" finns. sakerstallAnvandare måste ha kört först.`);
 
+  /*
+   * ⛔ ETT TOMT NAMN SKRIVER ALDRIG ÖVER ETT BEFINTLIGT (0.234.0, cllp/lifehub.app#861).
+   *
+   * HÄNDELSEN: granskningen av "Namn saknas" 2026-11-16 såg att appen anropar hit med inloggningens namn och bild, och att
+   * en token med bild men utan namn (Identitys första token efter en registrering) gav `{ namn: "", bild }`. Då skrevs
+   * `users.namn` och VARJE medlemskap om med en tom sträng, och ett namn som fanns försvann ur alla grupper. CP samma kväll:
+   * "Det får ALDRIG stå namn saknas." Ett tomt namn i ändringen betyder därför "inget namn att ge", och fältet lämnas orört,
+   * både i `users` och i medlemskapen. Bilden skrivs som förut.
+   */
+  const namnIn = andring && "namn" in andring ? (typeof andring.namn === "string" ? andring.namn.trim() : "") : undefined;
+  /** @type {{ namn?: string, bild?: string }} */
+  const giltig = { ...(andring || {}) };
+  if (namnIn === "") delete giltig.namn;
+
   // ⛔ VALIDERAD FÖRE SKRIVNINGEN, precis som sparaInstallningar: en trasig
   // rad ska stoppas här, inte hos den som läser den härnäst.
-  const nasta = byggAnvandare({ ...befintlig, id: uid, ...andring });
+  const nasta = byggAnvandare({ ...befintlig, id: uid, ...giltig });
   /** @type {Record<string, string>} */
   const skriv = {};
-  if ("namn" in (andring || {})) skriv.namn = nasta.namn;
-  if ("bild" in (andring || {})) skriv.bild = nasta.bild;
+  if ("namn" in giltig) skriv.namn = nasta.namn;
+  if ("bild" in giltig) skriv.bild = nasta.bild;
   await kalla.update(ANVANDARE, uid, skriv);
 
   /*
@@ -100,8 +114,16 @@ export async function uppdateraProfil(b) {
        * som skriver medlemskap, så en trasig rad i databasen upptäcks här och
        * inte tystnar in i ett `update` som bara rör två fält.
        */
-      const uppdaterat = byggMedlemskap({ ...m, namn: nasta.namn, bild: nasta.bild });
-      await kalla.update(MEDLEMSKAP, uppdaterat.id, { namn: uppdaterat.namn, bild: uppdaterat.bild });
+      /*
+       * ⛔ NAMNET SKRIVS BARA NÄR DET FINNS (0.234.0). Före 0.234.0 skrevs `namn: nasta.namn` på varje rad, också när profilen
+       * saknade namn, och raden fick `namn: ""`. Nu behåller raden det den hade när profilen saknar ett: sitt eget namn, eller
+       * inget, och då visas adressen (`personnamn`). Bilden skrivs som förut.
+       */
+      const uppdaterat = byggMedlemskap({ ...m, ...(nasta.namn ? { namn: nasta.namn } : {}), bild: nasta.bild });
+      /** @type {Record<string, string>} */
+      const patch = { bild: uppdaterat.bild };
+      if (nasta.namn && uppdaterat.namn) patch.namn = uppdaterat.namn;
+      await kalla.update(MEDLEMSKAP, uppdaterat.id, patch);
       medlemskapUppdaterade += 1;
     }
   }
@@ -114,10 +136,11 @@ export async function uppdateraProfil(b) {
  * @property {boolean} skarpt Sant: raderna skrevs. Falskt: svaret är planen, ingenting skrevs.
  * @property {number} lasta Medlemskap lästa, alla typer.
  * @property {number} saknar Personmedlemskap utan namn (av `lasta`). Agenter räknas inte, de har inget namn hos Google.
- * @property {number} attFylla Av `saknar`: de vars profilrad bär ett namn, alltså de som GÅR att fylla.
+ * @property {number} attFylla Av `saknar`: de som GÅR att fylla, ur profilraden eller ur reserven.
+ * @property {number} franReserv Av `attFylla`: de vars namn kom ur `reserv` (0.234.0), alltså inte ur profilraden. `0` utan reserv.
  * @property {number} fyllda Medlemskap som fick ett namn. Alltid 0 vid torrkörning, och `attFylla` efter en skarp körning utan fel.
- * @property {number} utanProfilnamn Av `saknar`: profilraden finns men har inget namn. Går inte att fylla, personen måste spara sitt namn.
- * @property {number} utanAnvandare Av `saknar`: det finns ingen profilrad alls för personen.
+ * @property {number} utanProfilnamn Av `saknar`: profilraden finns men har inget namn, och reserven gav inget. Går inte att fylla, personen måste spara sitt namn.
+ * @property {number} utanAnvandare Av `saknar`: det finns ingen profilrad alls för personen, och reserven gav inget.
  * @property {Array<{ id: string, userId: string, skal: "utan-profilnamn" | "utan-anvandare" }>} kvar De som INTE gick att fylla, med skälet, så listan går att agera på.
  * @property {string[]} fel Det som stoppade enskilda rader. Tom lista är svaret "inga fel", aldrig "inte kontrollerat".
  */
@@ -143,25 +166,56 @@ export async function uppdateraProfil(b) {
  * ⛔ SVARAR ALLTID MED ALLA RADERNA, också när de är 0 (arbetsreglernas punkt 5). "0 utan profilnamn" och "inte
  * räknat" ska inte gå att förväxla. Omkörbar: en andra skarp körning ger `saknar` = `utanProfilnamn` + `utanAnvandare`.
  *
+ * ══ ⛔ RESERVEN (0.234.0, cllp/lifehub.app#861) ══════════════════════════════════════════════════════════════════════
+ *
+ * CP 2026-11-16: "När Collan hade loggat in stod hans namn som Namn Saknas innan han gick ut och sparade om sin profil."
+ * Hans profilrad saknade också namn, eftersom den speglade samma token utan namn. Profilen kunde alltså inte fylla hans
+ * medlemskap, men Identity hade namnet hela tiden (`displayName`). `reserv` är appens väg dit: en funktion som får ett uid
+ * och svarar med ett namn, eller tomt. Den frågas bara när profilraden saknar namn eller inte finns, en gång per person,
+ * också vid torrkörning (den läser bara), så att planen säger hur många som går att fylla. Ramverket känner inte Identity:
+ * appen ger funktionen. Kastar den blir det ett fel i `fel`, och raden räknas som ej fylld med sitt skäl.
+ *
  * @param {object} b
  * @param {import("../data/contract.js").DataSource<any>} b.kalla Med list, read och update.
  * @param {boolean} [b.skarpt] Förval falskt.
+ * @param {(uid: string) => (string | null | undefined | Promise<string | null | undefined>)} [b.reserv] Namnet när profilraden
+ *   saknar ett, till exempel `displayName` ur Identity. Ett tomt svar är "inget namn".
  * @param {Samlingar} [b.samlingar]
  * @returns {Promise<BakfyllnadSvar>}
  */
 export async function bakfyllMedlemsnamn(b) {
-  const { kalla, skarpt = false, samlingar = {} } = b ?? /** @type {any} */ ({});
+  const { kalla, skarpt = false, samlingar = {}, reserv } = b ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.read !== "function" || typeof kalla.update !== "function" || typeof kalla.list !== "function") {
     throw new Error("bakfyllMedlemsnamn: en datakälla med read, update och list krävs. Ramverket känner ingen databas.");
+  }
+  if (reserv !== undefined && typeof reserv !== "function") {
+    throw new Error("bakfyllMedlemsnamn: reserv ska vara en funktion (uid) => namn, eller utelämnas. Ett värde som tyst ignorerades hade gett en plan utan reserven.");
   }
   const ANVANDARE = samlingar.anvandare ?? "users";
   const MEDLEMSKAP = samlingar.medlemskap ?? "memberships";
 
   const alla = await kalla.list(MEDLEMSKAP);
   /** @type {BakfyllnadSvar} */
-  const svar = { skarpt: skarpt === true, lasta: alla.length, saknar: 0, attFylla: 0, fyllda: 0, utanProfilnamn: 0, utanAnvandare: 0, kvar: [], fel: [] };
+  const svar = { skarpt: skarpt === true, lasta: alla.length, saknar: 0, attFylla: 0, franReserv: 0, fyllda: 0, utanProfilnamn: 0, utanAnvandare: 0, kvar: [], fel: [] };
   /** @type {Map<string, string | null>} uid -> profilens namn, `null` om raden saknas. Varje profil läses en gång. */
   const namnen = new Map();
+  /** @type {Map<string, string>} uid -> reservens namn, `""` när den inte gav något. Varje person frågas en gång. */
+  const reservnamn = new Map();
+  /** @param {string} uid @param {string} radId */
+  const franReserven = async (uid, radId) => {
+    if (typeof reserv !== "function") return "";
+    if (!reservnamn.has(uid)) {
+      let n = "";
+      try {
+        const v = await reserv(uid);
+        n = typeof v === "string" ? v.trim() : "";
+      } catch (fel) {
+        svar.fel.push(`${radId}: reserven för "${uid}" kastade: ${fel instanceof Error ? fel.message : String(fel)}`);
+      }
+      reservnamn.set(uid, n);
+    }
+    return reservnamn.get(uid) ?? "";
+  };
 
   for (const m of alla) {
     if ((m?.typ ?? "person") !== "person") continue;
@@ -172,8 +226,13 @@ export async function bakfyllMedlemsnamn(b) {
       const rad = await kalla.read(ANVANDARE, m.userId);
       namnen.set(m.userId, rad ? (typeof rad.namn === "string" ? rad.namn.trim() : "") : null);
     }
-    const namn = namnen.get(m.userId);
-    if (namn === null) {
+    const profilnamn = namnen.get(m.userId);
+    let namn = profilnamn ?? "";
+    if (!namn) {
+      namn = await franReserven(m.userId, m.id);
+      if (namn) svar.franReserv += 1;
+    }
+    if (!namn && profilnamn === null) {
       svar.utanAnvandare += 1;
       svar.kvar.push({ id: m.id, userId: m.userId, skal: "utan-anvandare" });
       continue;

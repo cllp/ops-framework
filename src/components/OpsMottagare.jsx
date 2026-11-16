@@ -39,7 +39,7 @@ import { usePersonnamn } from "./usePersonnamn.js";
  *
  * @param {object} props
  * @param {"arende" | "person"} [props.lage] Förval `"arende"`.
- * @param {ReadonlyArray<{ userId: string, namn?: string, bild?: string, typ?: string, status?: string }>} props.medlemmar Gruppens medlemskap.
+ * @param {ReadonlyArray<{ userId: string, namn?: string, bild?: string, epost?: string, typ?: string, status?: string }>} props.medlemmar Gruppens medlemskap. `epost` (0.234.0) visas när namnet saknas.
  * @param {string} [props.uid] Den inloggade. I personläget visas hen inte, i ärendeläget märks hen med `duEtikett`.
  * @param {import("../lib/samtal.js").Arendemottagare | null} props.value
  * @param {(m: import("../lib/samtal.js").Arendemottagare) => void} props.onChange
@@ -80,7 +80,7 @@ export function OpsMottagare({
   const aktiva = (medlemmar ?? []).filter((m) => m && m.userId && (m.status ?? "aktiv") === "aktiv");
   const personer = aktiva
     .filter((m) => (m.typ ?? "person") === "person" && (lage === "arende" || m.userId !== uid))
-    .sort((a, b) => personnamn(a.namn, a.userId).text.localeCompare(personnamn(b.namn, b.userId).text, "sv"));
+    .sort((a, b) => personnamn(a.namn, a.userId, a.epost).text.localeCompare(personnamn(b.namn, b.userId, b.epost).text, "sv"));
   const agent = aktiva.find((m) => m.typ === "agent");
 
   /** @type {Array<{ nyckel: string, varde: import("../lib/samtal.js").Arendemottagare, namn: string, saknas?: boolean, gast?: boolean, ikon: import("react").ReactNode }>} */
@@ -94,9 +94,9 @@ export function OpsMottagare({
   for (const p of personer) {
     /*
      * ⛔ ALDRIG ETT ID SOM NAMN (#218). CP 2026-10-01: raden stod som `eA2ILzNei5TQ2rcHy68aBZPpR1B3 (du)`. Medlemskapets namn
-     * först, den inloggades eget namn ur inloggningen om raden är hens, annars "Namn saknas" (märkt med `data-namn-saknas`).
+     * först, den inloggades eget namn ur inloggningen om raden är hens, annars radens adress (0.234.0, lifehub.app#861), annars "Namn saknas" (märkt med `data-namn-saknas`).
      */
-    const { text: namn, saknas } = personnamn(p.namn, p.userId);
+    const { text: namn, saknas } = personnamn(p.namn, p.userId, p.epost);
     rader.push({
       nyckel: `person:${p.userId}`,
       varde: { slag: "person", uid: p.userId },

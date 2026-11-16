@@ -22,6 +22,11 @@
  *   node web/node_modules/ops-framework/scripts/bakfyll-medlemsnamn.mjs --projekt <projekt-id> --skarpt
  *
  * Valfria: `--anvandare users` och `--medlemskap memberships` om appen heter samlingarna något annat.
+ *
+ * ⛔ RESERVEN FINNS INTE HÄR (0.234.0, cllp/lifehub.app#861). En funktion som hämtar namnet ur Identity går inte att skicka
+ * som flagga, och ramverket känner inte Identity. En app som vill fylla ur Identity anropar `bakfyllMedlemsnamn` från sitt
+ * eget skript med `reserv`, och kan använda `rapport` härifrån för utskriften. Raden "ur reserven" står ändå alltid med,
+ * 0 när ingen reserv gavs.
  * Inloggning: Admin SDK med "application default credentials" (`gcloud auth application-default login`, eller
  * `GOOGLE_APPLICATION_CREDENTIALS`). `firebase-admin` hittas under `functions/` i katalogen skriptet körs ifrån.
  */
@@ -70,6 +75,7 @@ export function rapport(svar) {
     `lästa:            ${svar.lasta}`,
     `saknar namn:      ${svar.saknar}`,
     `att fylla:        ${svar.attFylla}`,
+    `ur reserven:      ${svar.franReserv}`,
     `fyllda:           ${svar.fyllda}`,
     `utan profilnamn:  ${svar.utanProfilnamn}`,
     `utan användare:   ${svar.utanAnvandare}`,

@@ -1436,7 +1436,9 @@ export function harTradar(kalla) {
  * @param {object} konfig
  * @param {ReturnType<typeof createSamtalskalla>} konfig.samtal
  * @param {string} konfig.uid
- * @param {(uid: string) => string} konfig.namnFor Visningsnamnet för ett uid, ur gruppens medlemskap.
+ * @param {(uid: string) => string} konfig.namnFor Visningsnamnet för ett uid, ur gruppens medlemskap. ⛔ Saknas namnet ska den svara med
+ *   medlemskapets adress (0.234.0, cllp/lifehub.app#861, CP: "Det får ALDRIG stå namn saknas"), till exempel
+ *   `personnamn(m.namn, { epost: m.epost }).text`. "Namn saknas" står bara när den svarar tomt.
  * @param {(samtalId: string) => string} [konfig.href] Vart notisen leder.
  * @param {(namn: string) => string} [konfig.titel] Förval `"<namn> skickade ett meddelande"`.
  * @param {ReadonlyArray<{ userId: string, typ?: string, status?: string }>} [konfig.medlemmar] (chattens nattskiva) Gruppens medlemskap,

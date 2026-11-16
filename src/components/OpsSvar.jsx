@@ -45,7 +45,7 @@ function svarsord(svar) {
  *
  * @param {object} props
  * @param {ReadonlyArray<{ id: string, svar: string }>} props.svar Raderna ur `createSvarskalla().lista`.
- * @param {ReadonlyArray<{ uid: string, namn: string }>} props.medlemmar Gruppens aktiva medlemmar av typen person.
+ * @param {ReadonlyArray<{ uid: string, namn: string, epost?: string }>} props.medlemmar Gruppens aktiva medlemmar av typen person. `epost` (0.234.0, lifehub.app#861) visas när namnet saknas.
  * @param {string} props.uid Den som tittar.
  * @param {(val: "kommer" | "kanske" | "kommerInte") => Promise<unknown> | void} props.onSvara
  * @param {string} [props.rubrik] Förval "Svar".
@@ -75,7 +75,7 @@ export function OpsSvar({ svar, medlemmar, uid, onSvara, rubrik = "Svar", gaster
         {medlemmar.map((m) => {
           const s = per.get(m.uid);
           const jag = m.uid === uid;
-          const { text: visat, saknas } = personnamn(m.namn, m.uid);
+          const { text: visat, saknas } = personnamn(m.namn, m.uid, m.epost);
           return (
             <li key={m.uid} data-svarsrad={m.uid} className={cx("flex min-w-0 flex-wrap items-center gap-3 rounded-base p-3", jag ? "border border-accent/30 bg-accent-subtle" : "bg-raised")}>
               <OpsIdentity name={visat} seed={m.uid} size="avatar" />
