@@ -283,7 +283,7 @@ export { GRUPPIKONKATALOG } from "../lib/gruppikonkatalog.generated.js";
 export { KALENDERFARGER, KALENDERIKONER, forvaldKalender, arkiveraKalender, byggGruppkalender, byggMinKalender, kalenderIdUrNamn, nastaOrdning, STANDARD_TIDSZON, valjForvald, validateGruppkalendrar } from "../lib/kalendrar.js";
 export { MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, arLjudpost, arMittBibliotek, byggPost, ljudRubrik, postFel, utskriftFel } from "../lib/bibliotek.js";
 export { NALTAGG, arNalad } from "../lib/bibliotek.js";
-export { INBJUDNING_GILTIGHET_DAGAR, byggGrupp, byggMedlemskap, medlemskapsId } from "../lib/grupp.js";
+export { INBJUDNING_GILTIGHET_DAGAR, byggGrupp, byggMedlemskap, medlemskapAvslutas, medlemskapsId } from "../lib/grupp.js";
 export { byggSamtal, byggTrad, olastaI } from "../lib/samtal.js";
 export { epostFel } from "../lib/mejl.js";
 export { foreVillkor } from "../data/contract.js";

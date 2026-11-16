@@ -863,8 +863,13 @@ export function byggMedlemskap(d) {
    * initialer.
    */
   const namn = rensa(rad.namn);
-  // ⛔ Adressen i gemener, som `users.epost` och inbjudans `epost`: samma person ska ha samma adress på alla rader.
-  const epost = typ === "agent" ? "" : rensa(rad.epost).toLowerCase();
+  /*
+   * ⛔ Adressen i gemener, som `users.epost` och inbjudans `epost`: samma person ska ha samma adress på alla rader.
+   * ⛔ ETT AVSLUTAT MEDLEMSKAP BÄR INGEN ADRESS (granskningen av cllp/ops-framework#608). Gruppens aktiva medlemmar läser alla
+   * gruppens medlemskap, också de avslutade, och en adress som stod kvar hade gått att läsa för den som lämnat gruppen.
+   * Se `medlemskapAvslutas` för skrivningen som avslutar.
+   */
+  const epost = typ === "agent" || status === "avslutad" ? "" : rensa(rad.epost).toLowerCase();
   return Object.freeze({
     id,
     userId,
@@ -876,6 +881,29 @@ export function byggMedlemskap(d) {
     bild: rensa(rad.bild),
     ...(epost ? { epost } : {}),
   });
+}
+
+/**
+ * Ändringen som avslutar ett medlemskap: `status: "avslutad"`, och adressen tas bort (0.234.0, granskningen av cllp/ops-framework#608).
+ *
+ * ⛔ HÄNDELSEN: 0.234.0 lade `epost` på medlemskapet (cllp/lifehub.app#861, CP 2026-11-16: "Det får ALDRIG stå namn saknas"). En
+ * aktiv medlem läser gruppens alla medlemskap, också de avslutade, och granskningen såg att en avslutning som bara satte status
+ * lämnade adressen kvar, läsbar för gruppen, för någon som inte längre är med. Ramverket avslutar inga medlemskap själv (mätt i
+ * `src/node`: ingen skrivning sätter `avslutad`); appen gör det, i sin egen transaktion. Därför är ändringen en funktion här, en
+ * sanning för vad ett avslut skriver (regel 2), och appen använder den i varje avslut.
+ *
+ * ⛔ `taBort` KRÄVS: ramverket känner inte databasen. Admin SDK: `FieldValue.delete()`. En `DataSource`: `FALT_BORT`.
+ *
+ * @param {unknown} taBort Värdet som tar bort ett fält i appens databas.
+ * @returns {Readonly<{ status: "avslutad", epost: unknown }>}
+ */
+export function medlemskapAvslutas(taBort) {
+  if (taBort === undefined || taBort === null || taBort === "") {
+    throw new Error(
+      "medlemskapAvslutas: taBort krävs, värdet som tar bort ett fält (FieldValue.delete() med Admin SDK, FALT_BORT med en DataSource). Utan det står adressen kvar på ett avslutat medlemskap, läsbar för gruppen.",
+    );
+  }
+  return Object.freeze({ status: /** @type {"avslutad"} */ ("avslutad"), epost: taBort });
 }
 
 /**

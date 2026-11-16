@@ -85,7 +85,15 @@ export async function uppdateraProfil(b) {
    * "Det får ALDRIG stå namn saknas." Ett tomt namn i ändringen betyder därför "inget namn att ge", och fältet lämnas orört,
    * både i `users` och i medlemskapen. Bilden skrivs som förut.
    */
-  const namnIn = andring && "namn" in andring ? (typeof andring.namn === "string" ? andring.namn.trim() : "") : undefined;
+  /*
+   * ⛔ ETT NAMN SOM INTE ÄR EN STRÄNG KASTAR (granskningen av cllp/ops-framework#608). Ett tal, `null` eller ett objekt i `namn` är ett
+   * fel hos anroparen, inte "inget namn att ge", och att tyst ta bort det hade dolt felet (regel 5). Bara den tomma strängen betyder
+   * "inget namn": det är vad en token utan namn ger.
+   */
+  if (andring && "namn" in andring && typeof andring.namn !== "string") {
+    throw new Error(`uppdateraProfil: namn ska vara en sträng, fick ${andring.namn === null ? "null" : typeof andring.namn}. En tom sträng betyder "inget namn att ge" och lämnar namnet orört.`);
+  }
+  const namnIn = andring && "namn" in andring ? /** @type {string} */ (andring.namn).trim() : undefined;
   /** @type {{ namn?: string, bild?: string }} */
   const giltig = { ...(andring || {}) };
   if (namnIn === "") delete giltig.namn;

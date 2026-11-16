@@ -20,6 +20,9 @@ anteckningar är en version ingen kan välja att hoppa över.
 - **Medlemskapet bär `epost`** (`MEDLEMSKAPSFALT`, gemener). `accepteraInbjudningar` och `skapaGrupp` skriver den ur profilraden, annars ur anropets `epost` (inloggningens), samma källor som namnet. Ett avslutat medlemskap som återaktiveras av en inbjudan får namn och adress om raden saknade dem.
 - **Ett tomt namn skrivs aldrig.** `byggMedlemskap` utelämnar `namn` när det är tomt, i stället för att skriva `""`. Valet och skälet står i koden: ett namn härlett ur adressen hade sett ut som ett riktigt namn, bakfyllnaden hade aldrig hittat raden, och härledningen finns redan i Identity (regel 2).
 - **`uppdateraProfil` skriver aldrig över ett namn med ett tomt.** Före 0.234.0 gav `{ namn: "", bild }` (en token med bild men utan namn) `namn: ""` i `users` och i varje medlemskap. Nu lämnas namnet orört, och bilden skrivs som förut.
+- **Ett avslutat medlemskap bär ingen adress** (granskningen av PR 608). `byggMedlemskap` ger ingen `epost` åt en rad med `status: "avslutad"`, och den nya `medlemskapAvslutas(taBort)` är ändringen som avslutar: `{ status: "avslutad", epost: taBort }`, där `taBort` är databasens värde för att ta bort ett fält (`FieldValue.delete()` med Admin SDK, `FALT_BORT` med en `DataSource`). Mätt i `src/node`: ramverket avslutar inga medlemskap själv, appen gör det, så funktionen är ramverkets enda sanning för vad ett avslut skriver.
+- **`OpsProfil` stoppar ett tömt namn** med ett synligt fel vid fältet ("Skriv ditt namn. Ett tomt namn sparas inte.", ny prop `namnKravsText`), och Spara går inte att trycka. Utan stoppet hade servern lämnat namnet orört och vyn släppt utkastet som om det sparats.
+- **`uppdateraProfil` kastar på ett `namn` som inte är en sträng**, i stället för att tyst ta bort det. Bara den tomma strängen betyder "inget namn att ge".
 - **`bakfyllMedlemsnamn` tar `reserv`**, en funktion `(uid) => namn` som frågas när profilraden saknar namn eller inte finns, till exempel `displayName` ur Identity. Den frågas också vid torrkörning (förval), en gång per person. Svaret har en ny rad, `franReserv`, och utskriften en rad "ur reserven", också när den är 0. Ett kast blir ett fel i `fel`.
 
 ### Modellvalet visar när nycklarna läses (cllp/ops-framework#607)
@@ -44,12 +47,16 @@ Före 0.234.0 lämnade adressen aldrig `users`, och en vanlig medlem såg bara n
 ### Att göra i appen
 
 - **Skicka `epost` till `skapaGrupp`**, också när vitlistan inte krävs: `request.auth.token.email`. `accepteraInbjudningar` tar redan adressen.
+- ⛔ **Ompinna `web` och `functions` till 0.234.0 i samma PR, och deploya dem tillsammans.** Rader som 0.234.0 skriver bär `epost`, och `byggMedlemskap` i 0.233.0 avvisar okända fält: `uppdateraProfil` och bakfyllnaden kastar på en sådan rad. En återgång till 0.233.0 av bara den ena halvan kastar alltså på `epost`.
+- ⛔ **Avsluta medlemskap med `medlemskapAvslutas(FieldValue.delete())`**, i varje avslut: i lifehub.app `taBortMedlemIGruppen` (`functions/grupp.js:661`) och `lamnaGruppen` (`functions/grupp.js:809`), som i dag skriver bara `{ status: "avslutad" }`. Annars står adressen kvar på raden, läsbar för gruppens aktiva medlemmar, för någon som lämnat gruppen.
 - **Kör bakfyllnaden med Identitys namn** för medlemskap som redan saknar namn, ur appens eget skript: `bakfyllMedlemsnamn({ kalla, reserv: async (uid) => (await identityAuth.getUser(uid)).displayName })`. Torrkörning först, skarp körning (`skarpt: true`) bara med CP:s ja, eftersom den skriver i produktionsdata.
 - **Egna `namnFor`** (till `samtalsnotiser`, `postkommentarer` och `ProjektChatt`) ska svara med adressen när namnet saknas, till exempel `personnamn(m.namn, { epost: m.epost }).text`.
 - **Regenerera reglerna** ur `regelfragment()`: kommentaren vid `memberships` är ändrad, inget villkor.
 - Medlemskap som skrevs före 0.234.0 saknar `epost` och visar fortfarande "Namn saknas" om de också saknar namn, tills bakfyllnaden körts eller personen sparat sin profil.
 
 ### Prov
+
+`namn-saknas-granskning` (nytt, 11, granskningen av PR 608): avslutet tar bort adressen, en rad med adress går igenom `uppdateraProfil` och bakfyllnaden, ett namn som inte är en sträng kastar, och `OpsProfil` stoppar ett tömt namn. 7 röda mot förra commiten och gröna med ändringen; de 4 som var gröna i båda sågs röda mot en mutation (`epost` borttaget ur `MEDLEMSKAPSFALT`, som i 0.233.0, en tom sträng som kastar, och ett stopp som alltid slår till).
 
 `namn-saknas-epost` (nytt, 25): adressen i stället för "Namn saknas" i varje vy, `medlemsinfo` med adressen, `byggMedlemskap` utan tomt namn, accept och skapande med adressen (också hela kedjan med Collans läge), återaktivering, `uppdateraProfil` med ett tomt namn, och bakfyllnaden med reserv. 21 röda mot 0.233.0 och gröna med ändringen; de fyra som säger att något inte ska hända är gröna i båda och sågs röda mot en ändring som tog bort spärren.
 
