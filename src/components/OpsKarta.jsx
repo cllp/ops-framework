@@ -3,6 +3,7 @@ import { OpsGastFelrad } from "./OpsGastFelrad.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { forvalda } from "../lib/ord.js";
 import { lasGeojson } from "../lib/karta.js";
+import { ORD_HELSKARM } from "../lib/helskarmord.js";
 import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
@@ -84,6 +85,9 @@ function rena(ord) {
 /** @type {import("../lib/ord.js").Ordbok} */
 export const ORD_OPSKARTA = {
   rubrik: { sv: "Karta", en: "Map" },
+  // (0.234.0) Samma ord som PDF-vyns helskärm (`ORD_HELSKARM`, regel 2).
+  helskarm: ORD_HELSKARM.helskarm,
+  avslutaHelskarm: ORD_HELSKARM.avsluta,
   hamtar: { sv: "Hämtar kartan.", en: "Loading the map." },
   lasfel: { sv: "Kartan gick inte att hämta. Kontrollera nätet och försök igen.", en: "The map could not be loaded. Check the network and try again." },
   ytfel: { sv: "Kartan gick inte att rita här. Ladda om sidan och försök igen.", en: "The map could not be drawn here. Reload the page and try again." },

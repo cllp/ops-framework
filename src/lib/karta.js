@@ -267,13 +267,15 @@ export function popupElement(feature) {
   rot.className = "grid gap-1";
   if (namn) {
     const rubrik = document.createElement("p");
-    rubrik.className = "m-0 font-karta-ort text-rubrik text-karta-text";
+    // ⛔ TEXTEN FÖLJER APPENS TOKEN, INTE KARTANS (0.234.0). CP 2026-11-16, med en skärmbild i mörkt läge: "kontrasterna funkar inte på locations". Rubriken var
+    // `text-karta-text`, som är ljus i mörkt läge, på MapLibres vita ruta. Rutan bär nu appens yta (`--color-raised`, se `KARTPOPUP_CSS`) och texten appens bläck.
+    rubrik.className = "m-0 font-karta-ort text-rubrik text-ink";
     rubrik.textContent = namn;
     rot.append(rubrik);
   }
   if (beskrivning) {
     const brod = document.createElement("p");
-    brod.className = "m-0 font-karta-etikett text-etikett text-karta-text wrap-anywhere";
+    brod.className = "m-0 font-karta-etikett text-etikett text-ink-secondary wrap-anywhere";
     brod.textContent = beskrivning;
     rot.append(brod);
   }
@@ -482,3 +484,27 @@ export function byggStil(farger, samling) {
     ],
   };
 }
+
+/** Klassen på kartans popup (MapLibres `className`), som `KARTPOPUP_CSS` styr. */
+export const KARTPOPUP_KLASS = "ops-karta-popup";
+
+/** Id:t på stilen som `OpsKartaVy` lägger i dokumentet en gång. */
+export const KARTPOPUP_STIL_ID = "ops-karta-popup-stil";
+
+/**
+ * Popupens yta och pil i appens token (0.234.0). CP 2026-11-16, i mörkt läge: "kontrasterna funkar inte på locations". MapLibres förval är en vit ruta och en
+ * vit pil, och rubriken stod i nästan vit text på den.
+ *
+ * ⛔ UTANFÖR LAGREN, MED HÖGRE VIKT ÄN MAPLIBRES. `maplibre-gl.css` ligger utanför alla `@layer`, och en regel i ett lager förlorar mot den oavsett vikt. Stilen läggs därför
+ * som en egen `<style>` i dokumentet, och väljarna har en klass mer än MapLibres. Bara token: yta `--color-raised`, bläck `--color-ink`, kant `--color-line`, rundning och skugga.
+ * ⛔ PILEN FÖLJER YTAN, för varje sida popupen kan stå på (MapLibre byter `maplibregl-popup-anchor-*` när kartan flyttas).
+ */
+export const KARTPOPUP_CSS = [
+  `.${KARTPOPUP_KLASS} .maplibregl-popup-content{background:var(--color-raised);color:var(--color-ink);border:1px solid var(--color-line);border-radius:var(--radius-base);box-shadow:var(--shadow-md);padding:12px 48px 12px 14px}`,
+  ...[
+    [["top", "top-left", "top-right"], "bottom"],
+    [["bottom", "bottom-left", "bottom-right"], "top"],
+    [["left"], "right"],
+    [["right"], "left"],
+  ].map(([ankare, kant]) => `${/** @type {string[]} */ (ankare).map((a) => `.${KARTPOPUP_KLASS}.maplibregl-popup-anchor-${a} .maplibregl-popup-tip`).join(",")}{border-${kant}-color:var(--color-raised)}`),
+].join("\n");

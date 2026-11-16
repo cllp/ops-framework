@@ -61,6 +61,16 @@ CP 2026-11-16, om agenten: "Jag vill att agenten skall vara en riktig assistens 
 
 Prov: `lankar-i-appen` (nytt, 9). 7 röda mot förra commiten och gröna med ändringen; "utan spela=1 startar ingenting" sågs röd mot en `spelaBegard` som inte prövar `spela`, och `medSpela` är ny.
 
+### Kartan: helskärm, och popupen i appens token
+
+CP 2026-11-16: "Jag kan inte få en fullscreen för kartor, det är ett måste." Och med en skärmbild i mörkt läge: "kontrasterna funkar inte på locations."
+
+- **Helskärm på kartan.** `OpsKarta` har en knapp Helskärm (44 px, uppe till vänster, `data-karta-helskarm-knapp`) som följer PDF-vyns mönster, nu delat i `useHelskarm`: webbläsarens helskärm där den finns, annars ett fast lager över hela skärmen med säkra ytor, Stäng och Escape. Avslår webbläsaren blir det lagret, aldrig ingenting. Kartan ritas om (`resize`) när läget öppnas och stängs. Under läget nollställs dokumentets `scrollbar-gutter`, som annars lämnade en svart rand på 10 px i Chromium. Nya ord `helskarm` och `avslutaHelskarm` (delade med PDF-vyn via `ORD_HELSKARM`).
+- **Popupen bär appens yta och bläck.** Rutan är `--color-raised` med `--color-ink`, kant, rundning och skugga ur token, och pilen har rutans färg på varje sida (`KARTPOPUP_CSS`, klassen `ops-karta-popup`). Stilen läggs som en egen `<style>` utanför lagren, eftersom `maplibre-gl.css` står utanför lagren och vann över allt i dem. Rubriken är `text-ink` i stället för `text-karta-text`. Kartans egna färger är oförändrade.
+- **Popupens Stäng är en knapp med namn och 44 px** i stället för MapLibres kryss på 20 px.
+
+Prov: `karta-helskarm` (nytt, 6): knappen, helskärmen och omritningen, lagret med Stäng och Escape, avslaget, popupens token och Stäng. 6 röda mot förra commiten och gröna med ändringen. `check-skalyta` 52c (helskärmen fyller fönstret vid 390 och 1280) och 52d (popupens kontrast i ljust och mörkt, 12,5:1 och 11,8:1, pilen i rutans färg, Stäng 44 px). 52d mäter en popup som skalytan bygger med MapLibres och vyns klasser, eftersom scenens karta inte laddar brickor och punkten aldrig ritas.
+
 ### Vem som ser adressen
 
 Före 0.234.0 lämnade adressen aldrig `users`, och en vanlig medlem såg bara namn och bild i medlemslistan. Nu bär medlemskapet adressen, och en medlem läser gruppens alla medlemskap (0.32.0, #180). **Adressen blir alltså läsbar för varje aktiv medlem i en gemensam grupp.** Det är innanför #138:s klarkriterium ("ingen läser en annans e-post utan att vara medlem i en gemensam grupp"), `users` är lika stängd som förut, och reglerna är oförändrade utom kommentaren vid `memberships`, som nu säger det.

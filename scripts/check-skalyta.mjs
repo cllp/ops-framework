@@ -7730,6 +7730,86 @@ async function bibliotekKarta() {
       krav(!!m.ladda && m.ladda.t >= m.b - 0.5, `${namn} (d): Ladda ned ${m.ladda ? `börjar ${m.ladda.t.toFixed(0)}` : "saknas"}, kartan slutar ${m.b.toFixed(0)}, väntat Ladda ned under kartan.`);
       krav(m.over <= 0, `${namn} (e): sidan flödar över ${m.over} px.`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `bibliotek-karta-${vp.width}.png`) });
+      // ══ 52c. HELSKÄRM (0.234.0). CP 2026-11-16: "Jag kan inte få en fullscreen för kartor, det är ett måste." Ett tryck på Helskärm: (f) kartans ruta fyller
+      // fönstret, i webbläsarens helskärm eller i reservlagret, (g) ytan MapLibre ritar i fyller rutan (kartan ritades om), (h) Stäng helskärm syns och ligger
+      // inom fönstret, och (i) efter Stäng är rutan tillbaka i sin kolumn. Golv: ett läge lästes.
+      await page.getByRole("button", { name: "Helskärm" }).click();
+      await page.waitForSelector("[data-karta-helskarm]", { state: "attached", timeout: 3000 });
+      await page.waitForTimeout(400);
+      const h = await page.evaluate(() => {
+        const r = /** @type {HTMLElement} */ (document.querySelector("[data-karta]"));
+        const rr = r.getBoundingClientRect();
+        const ir = /** @type {HTMLElement} */ (r.firstElementChild).getBoundingClientRect();
+        const knapp = document.querySelector("[data-karta-helskarm-knapp='stang']");
+        const kr = knapp ? knapp.getBoundingClientRect() : null;
+        return { lage: r.getAttribute("data-karta-helskarm"), w: rr.width, h: rr.height, iw: ir.width, ih: ir.height, vw: window.innerWidth, vh: window.innerHeight, knapp: kr ? { t: kr.top, l: kr.left, b: kr.bottom, r: kr.right } : null };
+      });
+      matt.push(`${namn}, helskärm: läget ${h.lage}, rutan ${h.w.toFixed(0)}x${h.h.toFixed(0)} i ett fönster på ${h.vw}x${h.vh}, inre ${h.iw.toFixed(0)}x${h.ih.toFixed(0)}, Stäng ${JSON.stringify(h.knapp)}`);
+      krav(h.lage === "helskarm" || h.lage === "fonster", `${namn} (f): läget är ${h.lage}, väntat helskarm eller fonster (golv).`);
+      krav(Math.abs(h.w - h.vw) <= 1 && Math.abs(h.h - h.vh) <= 1, `${namn} (f): kartan är ${h.w.toFixed(0)}x${h.h.toFixed(0)} i helskärm, fönstret ${h.vw}x${h.vh}.`);
+      krav(Math.abs(h.iw - h.w) <= 1 && Math.abs(h.ih - h.h) <= 1, `${namn} (g): ytan är ${h.iw.toFixed(0)}x${h.ih.toFixed(0)}, rutan ${h.w.toFixed(0)}x${h.h.toFixed(0)}, väntat lika stora.`);
+      krav(!!h.knapp && h.knapp.t >= 0 && h.knapp.l >= 0 && h.knapp.b <= h.vh && h.knapp.r <= h.vw, `${namn} (h): Stäng helskärm ${JSON.stringify(h.knapp)}, väntat inom fönstret.`);
+      const skarmbild = process.env.KARTA_HELSKARM_BILD;
+      if (skarmbild) await page.screenshot({ path: skarmbild.replace("{bredd}", String(vp.width)) });
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `bibliotek-karta-helskarm-${vp.width}.png`) });
+      await page.getByRole("button", { name: "Stäng helskärm" }).click();
+      await page.waitForTimeout(300);
+      const efter = await page.evaluate(() => {
+        const r = /** @type {HTMLElement} */ (document.querySelector("[data-karta]"));
+        return { lage: r.getAttribute("data-karta-helskarm"), h: r.getBoundingClientRect().height };
+      });
+      krav(efter.lage === null && efter.h < h.vh, `${namn} (i): efter Stäng är läget ${efter.lage} och höjden ${efter.h.toFixed(0)}, väntat tillbaka i kolumnen.`);
+      // ══ 52d. POPUPENS KONTRAST (0.234.0). CP 2026-11-16, med en skärmbild i mörkt läge: "kontrasterna funkar inte på locations". Rubriken stod i nästan vit text på
+      // MapLibres vita ruta. ⛔ POPUPEN ÄR BYGGD HÄR, MED MAPLIBRES EGNA KLASSER OCH KARTVYNS: scenens karta laddar inga brickor utan nät, så punkten ritas aldrig och går inte
+      // att trycka på. Det som mäts är kaskaden, alltså `maplibre-gl.css` (utanför lagren), kartvyns `KARTPOPUP_CSS` (som vyn lagt i dokumentet) och temats token, och den är
+      // densamma som för en riktig popup. Klasserna på rubrik och knapp är samma som `popupElement` och vyn sätter (vitest-provet `karta-helskarm` mäter dem). I ljust och
+      // mörkt: (k) rubrikens kontrast mot rutan är minst 4,5:1, (l) pilens färg är rutans, och (m) Stäng har en träffyta på minst 44 px. Golv: en popup mättes per tema.
+      for (const tema of ["light", "dark"]) {
+        await page.emulateMedia({ colorScheme: tema });
+        await page.waitForTimeout(150);
+        await page.evaluate(() => {
+          const yta = /** @type {HTMLElement} */ (document.querySelector("[data-karta-yta]"));
+          const popup = document.createElement("div");
+          popup.className = "maplibregl-popup ops-karta-popup maplibregl-popup-anchor-bottom";
+          popup.style.cssText = "position:absolute;left:40px;top:40px;transform:none";
+          popup.innerHTML = '<div class="maplibregl-popup-tip"></div><div class="maplibregl-popup-content"><div class="grid gap-1"><p class="m-0 font-karta-ort text-rubrik text-ink">Promenad genom Gamla stan</p><p class="m-0 font-karta-etikett text-etikett text-ink-secondary wrap-anywhere">Från Stortorget till Skeppsbron.</p><button type="button" aria-label="Stäng" data-karta-popup-stang="" class="absolute top-0 right-0 flex size-11 cursor-pointer items-center justify-center rounded-base text-ink-secondary hover:bg-hover hover:text-ink">x</button></div></div>';
+          popup.querySelector("[data-karta-popup-stang]")?.addEventListener("click", () => popup.remove());
+          yta.append(popup);
+        });
+        if ((await page.locator("#ops-karta-popup-stil").count()) !== 1) throw new Error("kartvyns popupstil saknas i dokumentet");
+        const p = await page.evaluate(() => {
+          const rgb = (/** @type {string} */ v) => (v.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+          const lum = (/** @type {number[]} */ c) => {
+            const [r, g, b] = c.map((x) => {
+              const s = x / 255;
+              return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+            });
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          };
+          const ruta = /** @type {HTMLElement} */ (document.querySelector(".maplibregl-popup-content"));
+          const rubrik = /** @type {HTMLElement} */ (ruta.querySelector("p"));
+          const tip = /** @type {HTMLElement} */ (document.querySelector(".maplibregl-popup-tip"));
+          const knapp = /** @type {HTMLElement} */ (ruta.querySelector("[data-karta-popup-stang]"));
+          const bg = rgb(getComputedStyle(ruta).backgroundColor);
+          const fg = rgb(getComputedStyle(rubrik).color);
+          const [a, b] = [lum(bg), lum(fg)].sort((x, y) => y - x);
+          const tipCs = getComputedStyle(tip);
+          const tipFarger = [tipCs.borderTopColor, tipCs.borderBottomColor, tipCs.borderLeftColor, tipCs.borderRightColor];
+          const kr = knapp ? knapp.getBoundingClientRect() : null;
+          return { bg: getComputedStyle(ruta).backgroundColor, fg: getComputedStyle(rubrik).color, kontrast: (a + 0.05) / (b + 0.05), tipHarYtan: tipFarger.includes(getComputedStyle(ruta).backgroundColor), knapp: kr ? { w: kr.width, h: kr.height } : null };
+        });
+        const tnamn = `${namn}, popup ${tema === "dark" ? "mörkt" : "ljust"}`;
+        matt.push(`${tnamn}: ruta ${p.bg}, rubrik ${p.fg}, kontrast ${p.kontrast.toFixed(2)}, pilen ${p.tipHarYtan ? "har rutans färg" : "har INTE rutans färg"}, Stäng ${JSON.stringify(p.knapp)}`);
+        krav(p.kontrast >= 4.5, `${tnamn} (k): rubrikens kontrast är ${p.kontrast.toFixed(2)}:1 (${p.fg} på ${p.bg}), väntat minst 4,5:1.`);
+        krav(p.tipHarYtan, `${tnamn} (l): pilen har inte rutans färg ${p.bg}.`);
+        krav(!!p.knapp && p.knapp.w >= 44 && p.knapp.h >= 44, `${tnamn} (m): Stäng är ${JSON.stringify(p.knapp)}, väntat minst 44x44.`);
+        const popupbild = process.env.KARTA_POPUP_BILD;
+        if (popupbild) await page.screenshot({ path: popupbild.replace("{bredd}", String(vp.width)).replace("{tema}", tema === "dark" ? "morkt" : "ljust") });
+        await page.locator("[data-karta-popup-stang]").click();
+        await page.waitForTimeout(150);
+        krav((await page.locator(".maplibregl-popup").count()) === 0, `${tnamn}: popupen stängdes inte av Stäng.`);
+      }
+      await page.emulateMedia({ colorScheme: "light" });
     } catch (e) {
       krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
     }
