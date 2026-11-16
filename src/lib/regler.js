@@ -39,7 +39,7 @@ import { ID_FORM, KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { PROJEKTTAGGFORM } from "./gast.js";
 import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_INSTALLNINGSTEXT, MAX_MODULINSTALLNINGAR, MODULINSTALLNINGFALT, VISA_I_HUVUDMENYN } from "./modulinstallningar.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
-import { ADRESSFORM, NALTAGG, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, BILDFORM, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, HTML_DISPOSITIONSMONSTER, HTML_MIME, LJUD_STOLPAR, MITT_PREFIX, PLATSFORM, PLATSIDFORM, PLATS_PREFIX, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_HTMLVERSION, MAX_LISTPOSTER, MAX_LJUD_MS, MAX_TAGGAR, POSTIDFORM, TAGGFORM, TOPPFORM, filContentTypeMonster, filMimeMonster, filtakRegel } from "./bibliotek.js";
+import { ADRESSFORM, NALTAGG, ARENDEFORM, ARENDE_PREFIX, BIBLIOTEKFALT, BIBLIOTEKTYPER, BILDFORM, FILFALT, HANDELSEFORM, HANDELSE_PREFIX, HTML_DISPOSITIONSMONSTER, HTML_MIME, LJUD_STOLPAR, MITT_PREFIX, PLATSFORM, PLATSIDFORM, PLATS_PREFIX, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, MAX_HTMLVERSION, MAX_LISTPOSTER, MAX_LJUD_MS, MAX_TAGGAR, POSTIDFORM, TAGGFORM, TOPPFORM, bilagaContentTypeMonster, filContentTypeMonster, filMimeMonster, filtakRegel } from "./bibliotek.js";
 import { LANKKALLOR, lankkallaForm } from "./lankkalla.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
 import { MAX_SKAPARKALLA, MAX_SKAPARNAMN, SKAPARFALT, VIA_FALTNAMN } from "./skapare.js";
@@ -647,7 +647,8 @@ ${handelsefunktioner}    function opsFilPlatsMedlem(gid) {
         && request.resource.contentType.matches('${filContentTypeMonster()}')
         // ⛔ EN HTML-FIL (0.156.0, cllp/ops-framework#472) LADDAS UPP SOM EN BILAGA OCH ÄNDRAS ALDRIG. Utan 'attachment' ritar en direktlänk filen som en sida med dokumentets kod körande utanför den avspärrade rutan, så
         // en HTML-fil utan det nekas. Och ett HTML-objekt skrivs över aldrig: varje version är ett eget objekt (htmldokument.js), och en historik vars filer går att byta ut är ingen historik.
-        && (!request.resource.contentType.matches('^${HTML_MIME}.*') || (request.resource.contentDisposition != null && request.resource.contentDisposition.matches('${HTML_DISPOSITIONSMONSTER}')))
+        // ⛔ ETT ZIP-ARKIV (0.234.0) LADDAS OCKSÅ UPP SOM EN BILAGA, så att en direktlänk alltid laddar ned det (BILAGAMIME i bibliotek.js).
+        && (!request.resource.contentType.matches('${bilagaContentTypeMonster()}') || (request.resource.contentDisposition != null && request.resource.contentDisposition.matches('${HTML_DISPOSITIONSMONSTER}')))
         && (resource == null || !resource.contentType.matches('^${HTML_MIME}.*'));
       allow delete: if false;
     }

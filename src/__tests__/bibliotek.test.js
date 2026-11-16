@@ -154,7 +154,8 @@ describe("bibliotekets post", () => {
     expect(byggd.fil.mime).toBe("image/jpeg");
     expect(Object.hasOwn(byggd, "text")).toBe(false);
     expect(byggPost({ ...bas, fil: { ...fil, mime: "audio/webm;codecs=opus", namn: "ide.webm", sokvag: "grupper/cps-ab/bibliotek/p1/ide.webm" } }).fil.mime).toBe("audio/webm");
-    expect(postFel({ ...bas, fil: { ...fil, mime: "application/zip" } })).toMatch(/application\/zip/);
+    // (0.234.0) Zip tas emot sedan CP:s "Yes, kör zip". Fel format är nu ett rar-arkiv, som fortfarande nekas.
+    expect(postFel({ ...bas, fil: { ...fil, mime: "application/x-rar-compressed" } })).toMatch(/application\/x-rar-compressed/);
     expect(postFel({ ...bas, fil: { ...fil, byte: 25 * 1024 * 1024 + 1 } })).toMatch(/Taket/);
     expect(postFel({ ...anteckning, fil })).toMatch(/ingen fil/);
   });

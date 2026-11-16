@@ -93,6 +93,20 @@ Prov: `snabbmeny-moduler` (nytt, 2), röda mot förra commiten. `verktyg-alla` (
 
 **Att göra i appen (snabbmenyn och kortet):** registrera "Ny anteckning" som `skapa.rad` på Bibliotekets modul efter ompinningen. I `bibliotekPostkort` kommer `{ plats, postId, spela: true }` till appens `onOppna`: navigera då till postens adress med `medSpela`, så startar detaljen spåret (samma väg som L4).
 
+### Zip i Biblioteket
+
+CP 2026-11-16: "Kan vi lägga till zip-filer i biblioteket? Vore bra." och "Yes, kör zip".
+
+- **`application/zip` står i `FILMIME`** (ny konstant `ZIP_MIME`), med dokumentens tak, 25 MB. Firestore-regeln och Storage-regeln läser listan, så båda släpper in typen.
+- **`application/x-zip-compressed` och `application/x-zip` blir `application/zip`** (`MIMEALIAS`, alltså före lagringen), och `.zip` ger typen när webbläsaren inte säger någon (`mimeUrFilnamn`).
+- **Visas som en fil**: ikon, namn, storlek och Ladda ned, ingen förhandsvisning (`filSort` är `dokument`, som Office).
+- **Alltid en bilaga.** Ny lista `BILAGAMIME` (HTML och zip): uppladdningen bär `Content-Disposition: attachment` (`lagringsContentDisposition`), Storage-regeln nekar ett arkiv utan det (samma krav som HTML), och en delad länk är en bilaga också utan nedladdning (`delningsDisposition`).
+- Andra arkiv (rar, 7z, tar, gz) tas inte emot.
+
+Prov: `bibliotek-zip` (nytt, 5). 4 röda mot förra commiten och gröna med ändringen. "Ett okänt format tas fortfarande inte emot" var grönt också före (vakten för det oförändrade). Tre äldre prov använde zip som exempel på fel format (`bibliotek`, `bibliotek-vy`, `bibliotekkalla`) och använder nu ett rar-arkiv, som fortfarande nekas. Regelfixturerna `bibliotekregelfragment-0.128.0*` och `lagringsregelfragment-0.127.0*` är omskrivna ur generatorn: typlistan och bilagekravet är de enda raderna som ändrats.
+
+**Att göra i appen (zip):** Storage-reglerna kommer ur ramverket (`lagringsregelfragment`), så de ändras genom att regenereras efter ompinningen, inte för hand. Två rader ändras: typlistan (`filContentTypeMonster`, nu med `application/zip`) och kravet på bilaga (`^(text/html|application/zip).*` i stället för `^text/html.*`). ⛔ **Reglerna deployas före klienten**, annars nekar lagringen arkivet och posten tas tillbaka. Appens `filer/klar` (API:t som går förbi reglerna med en signerad adress) ska sätta `Content-Disposition` med `lagringsContentDisposition(mime, namn)` för varje typ i `BILAGAMIME`, inte bara HTML.
+
 ### Vem som ser adressen
 
 Före 0.234.0 lämnade adressen aldrig `users`, och en vanlig medlem såg bara namn och bild i medlemslistan. Nu bär medlemskapet adressen, och en medlem läser gruppens alla medlemskap (0.32.0, #180). **Adressen blir alltså läsbar för varje aktiv medlem i en gemensam grupp.** Det är innanför #138:s klarkriterium ("ingen läser en annans e-post utan att vara medlem i en gemensam grupp"), `users` är lika stängd som förut, och reglerna är oförändrade utom kommentaren vid `memberships`, som nu säger det.

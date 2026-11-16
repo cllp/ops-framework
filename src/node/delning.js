@@ -91,7 +91,7 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 // @ts-expect-error Samma skäl: ramverket har inga Node-typer.
 import { Buffer } from "node:buffer";
-import { arDelbar, arHtmlMime, arLjudpost, arMittBibliotek, gruppForPlats, handelseBibliotek, ljudRubrik, mittBibliotek, peaksGiltiga, POSTIDFORM, trimSomRegeln } from "../lib/bibliotek.js";
+import { BILAGAMIME, normaliseraMime, arDelbar, arLjudpost, arMittBibliotek, gruppForPlats, handelseBibliotek, ljudRubrik, mittBibliotek, peaksGiltiga, POSTIDFORM, trimSomRegeln } from "../lib/bibliotek.js";
 import { losLista } from "../lib/biblioteklista.js";
 import {
   ADRESSSEGMENT,
@@ -393,6 +393,7 @@ export function byggAdressdelning(d) {
  *
  * ⛔ EN HTML-FIL ÄR ALLTID `attachment` (0.156.0, cllp/ops-framework#472). `mime` är valfri och bara HTML ändras av den: en signerad adress som svarade `inline` på en HTML-fil hade ritat den som en sida på lagringens
  * adress, med dokumentets kod körande, utanför den avspärrade rutan. Det gäller också en länk som delats utan nedladdning och en fil på en händelsesida (som annars öppnas inline).
+ * (0.234.0) Samma för ett zip-arkiv: listan är `BILAGAMIME`, samma som Storage-regeln och klientens uppladdning läser.
  *
  * @param {string} namn
  * @param {boolean} bifoga
@@ -400,7 +401,7 @@ export function byggAdressdelning(d) {
  * @returns {string}
  */
 export function delningsDisposition(namn, bifoga, mime) {
-  if (!bifoga && !arHtmlMime(mime)) return "inline";
+  if (!bifoga && !(/** @type {readonly string[]} */ (BILAGAMIME)).includes(normaliseraMime(mime))) return "inline";
   const rent = (typeof namn === "string" ? namn : "").trim();
   const enkel = rent.replace(/[^A-Za-z0-9._ -]/g, "_") || "fil";
   const kodad = encodeURIComponent(rent || "fil").replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
