@@ -2,7 +2,8 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, TALK_SKICKAR_TEXT, TALK_INGET_LJUD, TALK_INGET_TAL, barTystnad, TALK_TEXTFEL, ORD_TALK, igenkanningensSprak, kanBeOmMikrofon, kanSpelaInIgen, kontrolleraSamtalet, kontrolleraSkickarText, talkFeltext, talkKvitto, talkMiljo, talkNasta, talkOrd, talkTextPa, talkUnderlag, webblasarensIgenkanning, arWebKit, webblasarensInspelare, skapaIgenkanningsniva, talkAnteckningsLank } from "../lib/talk.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
-import { lyssnaPaTryck, tagFangst } from "../lib/talkfalt.js";
+import { TALK_MAL, fangaTalkfalt, lyssnaPaTryck, tagFangst } from "../lib/talkfalt.js";
+import { useTangentbordTackt } from "../lib/tangentbord.js";
 import { OVANFOR_PANEL } from "../lib/panellager.js";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { rapporteraFel } from "../lib/felrapport.js";
@@ -94,6 +95,12 @@ let mikrofonenUpptagenAv = null;
 /** Felet när en annan del av sidan redan spelar in. */
 export const TALK_UPPTAGEN = ORD_TALK.felUpptagen.sv;
 
+/** Lägena där en omgång pågår och fältet den skriver i bär ramen (`TALK_MAL`, 0.232.0). Inte `vila`, `trycker` och `sparat`: där pågår ingen. */
+const TALK_MAL_LAGEN = new Set(/** @type {import("../lib/talk.js").Talklage[]} */ (["haller", "lyssnar", "skickar", "hort", "fel"]));
+
+/** Lägena där en ny omgång inte kan starta: en pågår redan. Fältets mikrofon gör då ingenting, som skalets knapp (`talkNasta` ignorerar `direkt`). */
+const TALK_UPPTAGEN_LAGEN = new Set(/** @type {import("../lib/talk.js").Talklage[]} */ (["trycker", "haller", "lyssnar", "skickar"]));
+
 /**
  * Lyssnar igenkänningen i den här sortens omgång? (0.218.0)
  *
@@ -161,8 +168,13 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
    * för ett låst mål, som samtalet. Fältet går FÖRE appens `samtalet`: det man står i vinner. Något annat (`direktAv`) tar bort fältet för
    * omgången, och menyn står som förut, med appens samtal om det finns.
    */
-  const [falt, setFalt] = useState(/** @type {{ namn: string, skriv: (text: string) => void } | null} */ (null));
+  const [falt, setFalt] = useState(/** @type {import("../lib/talkfalt.js").Talkfangst | null} */ (null));
   useEffect(() => lyssnaPaTryck(), []);
+  /**
+   * ⛔ FÄLTET SOM MIKROFONEN I FÄLTET GAV (0.232.0). `tillFalt(el)` fångar fältet uttryckligen och lägger det här, och omgången tar det före
+   * fångsten vid trycket. Förbrukas av starten, som fångsten.
+   */
+  const uttryckligtFalt = useRef(/** @type {import("../lib/talkfalt.js").Talkfangst | null} */ (null));
   /** (0.226.0) Samtalet gäller bara där valen finns: utan `onAgent` ignoreras det. */
   const samtaletGiltigt = (() => {
     if (typeof onAgent !== "function") return undefined;
@@ -200,6 +212,18 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
   const [tillstand, setTillstand] = useState(/** @type {{ lage: import("../lib/talk.js").Talklage, fel?: string }} */ ({ lage: "vila" }));
   const lageRef = useRef(tillstand);
   lageRef.current = tillstand;
+  /**
+   * ⛔ RAMEN RUNT FÄLTET SOM OMGÅNGEN SKRIVER I (0.232.0, cllp/ops-framework#602). CP 2026-11-16: med ikonen i fältet "visste man iallafall
+   * vilket fält som talk hanterade". Medan omgången pågår och har ett fält som mål bär fältet `TALK_MAL`, och `tokens.css` ritar ramen. Den
+   * tas bort när omgången är över (vila, sparat), när Något annat slår av fältet (`direktAv`) och när fältet avmonteras (elementet tas bort
+   * med sitt attribut). Ytan säger samma sak i ord: "Till fältet {namn}".
+   */
+  const malElement = falt && !direktAv && TALK_MAL_LAGEN.has(tillstand.lage) ? falt.el : null;
+  useEffect(() => {
+    if (!malElement) return undefined;
+    malElement.setAttribute(TALK_MAL, "");
+    return () => malElement.removeAttribute(TALK_MAL);
+  }, [malElement]);
   const inspRef = useRef(inspelare || null);
   const timer = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
   const tak = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
@@ -542,7 +566,9 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
         reservNasta.current = false;
         // ⛔ (0.230.0, #602) Fältet där markören stod vid trycket, bara för den här omgången. Fångsten förbrukas av varje start (en gammal får aldrig
         // leva vidare till nästa), och "Spela in i stället" är samma omgång som den som föll: där ligger fältet kvar.
-        const fangst = tagFangst();
+        const vidTrycket = tagFangst();
+        const fangst = uttryckligtFalt.current ?? vidTrycket;
+        uttryckligtFalt.current = null;
         if (!reservStart) setFalt(!laast && typeof onAgentRef.current === "function" ? fangst : null);
         // ⛔ (0.218.0) `kanLyssna`: en igenkänning appen gett kan säga att den inte lyssnar i en viss sorts omgång. Se `kanLyssnaI`.
         // ⛔ EN FRÅGA PER KANDIDAT OCH OMGÅNG (granskningen av 0.218.0): förut frågades WebKit-kandidaten två gånger, för valet av väg och
@@ -1103,6 +1129,26 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
     direkt: (val) => {
       laastStart.current = Boolean(val && typeof val === "object" && /** @type {any} */ (val).laast === true);
       skicka({ typ: "direkt" });
+    },
+    /**
+     * (0.232.0, cllp/ops-framework#602) Mikrofonen i fältet: startar en omgång med fältet `el` som mål (`fangaTalkfalt(el)`, markören där den
+     * står nu). Svarar `true` när omgången startade. `false`, och ingenting händer, när fältet inte är registrerat, när kroken saknar valen
+     * (`onAgent`: utan dem går det sagda inte till ett fält) och medan en omgång redan pågår.
+     * @param {Element} el
+     * @returns {boolean}
+     */
+    tillFalt: (el) => {
+      if (typeof onAgentRef.current !== "function") return false;
+      if (TALK_UPPTAGEN_LAGEN.has(lageRef.current.lage)) return false;
+      const f = fangaTalkfalt(el);
+      if (!f) return false;
+      uttryckligtFalt.current = f;
+      laastStart.current = false;
+      skicka({ typ: "direkt" });
+      // Startade inte omgången (ett läge där `direkt` inte gäller) ligger fältet inte kvar till nästa.
+      const startad = uttryckligtFalt.current === null;
+      uttryckligtFalt.current = null;
+      return startad;
     },
     skickaIn: () => skicka({ typ: "skicka" }),
     avbryt: () => skicka({ typ: "avbryt" }),
@@ -2035,6 +2081,14 @@ export function OpsInspelning(props) {
  *   `useTalk().samtalet`.
  */
 export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, samtalet, textVantar, utskriftFel, onSkrivUt, kanSpelaIStallet, onSpelaIStallet, onLank, vy }) {
+  /*
+   * ⛔ ALDRIG UNDER TANGENTBORDET (0.232.0, cllp/ops-framework#602). CP 2026-11-16 om fältikonen: TALK "hamnade lite på olika platser". Ytan står
+   * `fixed` mot layoutfönstrets underkant, och på iOS ligger tangentbordet över den delen utan att layoutfönstret krymper. Är tangentbordet uppe
+   * medan ytan är öppen (huvudets TALK på en dator med skärmtangentbord, eller ett fält som behöll fokus) lyfts ytan med det som tangentbordet
+   * täcker (`useTangentbordTackt`, samma mätning som chatten och bottenraden). Utan tangentbord är talet 0 och ingenting ändras. Mikrofonen i
+   * fältet släpper fokus när den startar TALK, så där fälls tangentbordet ned och ytan står på sin vanliga plats ovanför bottenraden.
+   */
+  const tackt = useTangentbordTackt();
   if (lage === "vila" || lage === "trycker") return null;
   return (
     <Dialog.Root open modal={false} onOpenChange={stangsBaraAvSinaKnappar}>
@@ -2049,7 +2103,8 @@ export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, fra
           onCloseAutoFocus={(e) => e.preventDefault()}
           // ⛔ SAMMA KANT SOM ARKEN, PLUS LUFT (granskningen av PR 366, BÖR 3). Här stod `env(...)+5.5rem`, en gissning av bottenradens
           // höjd som varken följde tokenen eller räknade med skalets spelrad, så fältet låg delvis över dem.
-          className="fixed inset-x-3 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px)+0.75rem)] z-(--z-dropdown) mx-auto max-w-md outline-none md:bottom-[calc(1.5rem+var(--spelrad-h,0px))]"
+          style={/** @type {import("react").CSSProperties} */ ({ "--talk-tangentbord": `${tackt}px` })}
+          className="fixed inset-x-3 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--spelrad-h,0px)+var(--talk-tangentbord,0px)+0.75rem)] z-(--z-dropdown) mx-auto max-w-md outline-none md:bottom-[calc(1.5rem+var(--spelrad-h,0px)+var(--talk-tangentbord,0px))]"
         >
           <Dialog.Title className="sr-only">TALK</Dialog.Title>
           <div className="rounded-3xl border border-line-strong bg-raised p-4 shadow-lg">

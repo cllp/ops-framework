@@ -3,7 +3,7 @@ import { cx } from "../lib/cx.js";
 import { ChevronNedIkon } from "./icons.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsSkapaRubrik } from "./OpsSkapaRubrik.jsx";
-import { usePanelRegistrering } from "../lib/panellager.js";
+import { PANEL, usePanelRegistrering } from "../lib/panellager.js";
 import { SkapaPanelArKlarKontext, SkapaPanelKlarKontext, SkapaPanelStatusKontext } from "./skapaPanelStatus.js";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 
@@ -104,6 +104,7 @@ export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtik
         ref={ref}
         aria-labelledby={rubrikId}
         data-skapa-panel=""
+        {...{ [PANEL]: "" }}
         style={hojd ? /** @type {any} */ ({ "--skapa-hojd": `${hojd}px` }) : undefined}
         className={cx(
           // Under md: helskärm. Från md: en sida i kolumnen som är minst lika hög som fönstret, så knappraden vilar nere.

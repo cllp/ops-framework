@@ -958,7 +958,8 @@ function ChattForslagScen() {
  * TALK funktionen även här på skapa app." Ett `OpsTextarea` med `tal` i en `OpsField`, med så mycket text att raderna når fältets
  * högra kant, så att ett överlapp med mikrofonen syns. En inspelare utan mikrofon och en igenkänning som skriver en mening ord för ord.
  * Det inskrivna värdet står i `window.__textfalt`. ⛔ 0.230.0 (#602): fältet har ingen mikrofon längre. Scenen är skalet med TALK och
- * fältet, och avsnitt 45 mäter att TALK skriver in i fältet där markören står.
+ * fältet, och avsnitt 45 mäter att TALK skriver in i fältet där markören står. ⛔ 0.232.0: med fokus i fältet står en mikrofon i det igen,
+ * och den öppnar skalets TALK med fältet som mål. Avsnitt 45 mäter den också.
  */
 const TEXTFALT_MENING = "och en lista över läxor per barn";
 function TextfaltTalScen() {

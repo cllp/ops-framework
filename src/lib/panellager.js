@@ -29,6 +29,12 @@ import { useEffect, useSyncExternalStore } from "react";
 export const OVANFOR_PANEL = "data-ops-ovanfor-panel";
 
 /**
+ * Attributet på en öppen panels eget element (0.232.0, cllp/ops-framework#602): `OpsSkapaPanel` och `PanelDialog`. TALK läser det för att veta
+ * att ett fält ligger i en panel som fortfarande är öppen (`talkfalt.js`, det senaste fältet). En panel som stängs avmonteras, och elementet med den.
+ */
+export const PANEL = "data-ops-panel";
+
+/**
  * Ligger målet för ett tryck (eller ett fokus) i något som står ovanför en öppen panel?
  * @param {EventTarget | null | undefined} mal
  * @returns {boolean}

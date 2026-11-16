@@ -1883,8 +1883,13 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus =
    *
    * ⛔ OMNÄMNANDENA: det inskrivna går genom `setText` som allt annat som skrivs, och förslagslistan stängs (`setFraga(null)`), eftersom
    * en markör som hoppat inte längre står efter ett `@`.
+   *
+   * ⛔ (0.232.0) MIKROFONEN KOM TILLBAKA, MEN DEN ÖPPNAR SKALETS TALK. CP 2026-11-16 från iPhone: med markören i ett fält och tangentbordet
+   * uppe syns ingen TALK (bottenraden göms), och med ikonen i fältet visste man vilket fält TALK skrev i. Knappen står i pillret medan det har
+   * fokus, och bara i ett skal med TALK (`TalkfaltKontext`): gästens chatt har inget skal och ingen knapp. Den spelar inte in själv, så felet
+   * ovan kan inte komma tillbaka: det är skalets omgång, samma som TALK-knappens.
    */
-  useTalkfalt(ruta, { slag: "textarea", value: text, onChange: (v) => { setText(v); setFraga(null); }, disabled: false, etikett: undefined, ariaLabel: t.skriv, placeholder: platstext ?? t.skriv });
+  const talkFalt = useTalkfalt(ruta, { slag: "textarea", value: text, onChange: (v) => { setText(v); setFraga(null); }, disabled: false, etikett: undefined, ariaLabel: t.skriv, placeholder: platstext ?? t.skriv });
   /** @param {string} v @param {number} markor */
   const las = (v, markor) => {
     if (!omnamnande) return setFraga(null);
@@ -1975,7 +1980,7 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus =
       {onBifoga || onOmrostning ? <Plusmeny onBifoga={onBifoga} onOmrostning={onOmrostning} franBiblioteket={franBiblioteket} texter={t} kamera={kamera === "ja"} kameraKand={kamera !== "okand"} /> : null}
       {/* ⛔ INGEN KANTLINJE RUNT PILLRET (0.196.0, CP 2026-11-06 med en skärmbild av gästens chatt: "Ta bort borders runt chatten och överallt."). En fylld yta, som Signal: det syns ändå var man
           skriver, och platstexten säger vad. Fokus syns med fokusringen (`focus-within:outline`), inte med en kant som byter färg. Samma pill i appens chatt och i gästens. */}
-      <div data-skrivruta="" className="flex min-h-11 min-w-0 flex-1 items-end rounded-3xl bg-hover focus-within:outline-2 focus-within:outline-offset-0 focus-within:outline-accent">
+      <div data-skrivruta="" className="flex min-h-11 min-w-0 flex-1 items-end rounded-3xl bg-hover focus-within:outline-2 focus-within:outline-offset-0 focus-within:outline-accent" {...(talkFalt.medMik ? talkFalt.omslag : {})}>
       {oppen ? (
         <ul id={listId} role="listbox" aria-label={t.namnForslag} data-omnamnande="" className="absolute bottom-full left-3 z-10 mb-1 max-w-[calc(100%-1.5rem)] min-w-56 list-none overflow-hidden rounded-card border border-line bg-surface p-1 shadow-md">
           {forslag.map((k, i) => (
@@ -2066,6 +2071,7 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus =
         // sedan inzoomad. `text-brod` är 16 px, `md:text-etikett` behåller 14 px på dator, som bubblorna.
         className="min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-3xl bg-transparent px-3.5 py-2.5 text-brod text-ink outline-none placeholder:text-ink-muted md:text-etikett"
       />
+      {talkFalt.mik("plats")}
       {visaStopp ? (
         <button
           type="button"

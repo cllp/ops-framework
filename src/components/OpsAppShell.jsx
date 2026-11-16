@@ -14,6 +14,7 @@ import { entryActive, validateNav } from "../lib/nav.js";
 import { Counter } from "./counter.jsx";
 import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, HusIkon, KryssIkon, MeddelandeIkon, MenuIcon, MikrofonIkon, PlusIkon, GruppIkon } from "./icons.jsx";
 import { OpsTalk, useTalk } from "./OpsTalk.jsx";
+import { TalkfaltKontext } from "./useTalkfalt.js";
 import { OpsTooltip } from "./OpsTooltip.jsx";
 import { kontrolleraSamtalet, kontrolleraSkickarText, talkForifyllt, talkKnappNamn } from "../lib/talk.js";
 import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
@@ -2138,6 +2139,15 @@ function OpsAppShellRitad({
     // Utan det, och för appens egna mål, gäller TALK:s 120 sekunder. Förut anropades kroken utan tak alls, så ingen modul kunde få mer.
     maxSekunder: valtMal?.maxSekunder,
   });
+  /*
+   * ⛔ MIKROFONEN I FÄLTEN (0.232.0, cllp/ops-framework#602). CP 2026-11-16 från iPhone: "TALK KOmmer inte upp alls" med markören i ett fält,
+   * eftersom bottenraden göms medan tangentbordet är uppe. Fälten (`useTalkfalt`) ritar en mikrofon medan de har fokus, och den startar DEN HÄR
+   * omgången med fältet som mål: en yta, på en plats. Bara när kroken har valen (`talk.onAgent`), för utan dem går det sagda inte till ett fält.
+   * Värdet byts bara när det svaret byts, så att fälten inte ritas om vid varje rendering av skalet; funktionen läses ur en ref.
+   */
+  const tillFaltRef = useRef(talkStyr.tillFalt);
+  tillFaltRef.current = talkStyr.tillFalt;
+  const talkfaltVarde = useMemo(() => (talkStyr.medAgent ? { tala: (/** @type {Element} */ el) => tillFaltRef.current(el) } : null), [talkStyr.medAgent]);
   /**
    * ⛔ VALET GÄLLER EN INSPELNING, INTE SESSIONEN (0.94.3, lifehub.app#187). `valtInspelning` sattes av
    * Röstinspelning i en moduls Ny-meny, och av ett val i fältet, men återställdes aldrig. Efter en röstinspelning i
@@ -2655,6 +2665,7 @@ function OpsAppShellRitad({
   // bottenraden. Se OpsSpelare.jsx.
   return (
     <OpsSpelareProvider>
+    <TalkfaltKontext.Provider value={talkfaltVarde}>
     <OppnaSkapaKontext.Provider value={oppnaFranApp}>
     <OppnaHandelseKontext.Provider value={handelsepanel ? oppnaHandelse : null}>
     <RadkallorKontext.Provider value={radkallorKontrollerade}>
@@ -3361,6 +3372,7 @@ function OpsAppShellRitad({
     </RadkallorKontext.Provider>
     </OppnaHandelseKontext.Provider>
     </OppnaSkapaKontext.Provider>
+    </TalkfaltKontext.Provider>
     </OpsSpelareProvider>
   );
 }
