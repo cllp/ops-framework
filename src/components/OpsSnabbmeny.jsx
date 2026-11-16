@@ -26,8 +26,9 @@ import { IKON_FOR } from "./ikonlexikon.js";
  *   `ikon` är en nyckel i `IKON_FOR`. Saknas den ritas `ikonNod`, och saknas båda ritas `IKON_FOR.appar`.
  * @param {string | ReadonlyArray<string>} props.ankare CSS-väljare till knappen menyn växer från. Den första som syns (har bredd) vinner.
  * @param {string} [props.tomText] När `poster` är tom. En tom lista är ett svar, inte en meny utan rader.
+ * @param {{ etikett: string, onValj: () => void }} [props.alla] (0.234.0, bara `appar`) Knappen överst i menyn som öppnar alla verktyg: en streckad ring med ett plus.
  */
-export function OpsSnabbmeny({ oppen, onOppen, variant, etikett, poster, ankare, tomText }) {
+export function OpsSnabbmeny({ oppen, onOppen, variant, etikett, poster, ankare, tomText, alla }) {
   const [ruta, setRuta] = useState(/** @type {{ top: number, left: number, right: number, bottom: number, width: number, height: number } | null} */ (null));
   const [inne, setInne] = useState(false);
   const orsak = useRef(/** @type {null | "val" | "utanfor" | "bak"} */ (null));
@@ -160,6 +161,27 @@ export function OpsSnabbmeny({ oppen, onOppen, variant, etikett, poster, ankare,
           }
         >
           <Dialog.Title className="sr-only">{etikett}</Dialog.Title>
+          {/*
+            ⛔ ALLA VERKTYG ÖVERST (0.234.0). CP: ett tryck på Verktyg visade bara de fästa verktygen, och bara ett långtryck öppnade alla, "och det
+            hittar ingen". Knappen är en streckad ring med ett plus ("Typ en ring med ett +"), samma storlek som de andra, och gör samma sak som
+            långtrycket. Den står först i dokumentet, alltså först med tangentbordet, i samma ordning som den syns.
+          */}
+          {variant === "appar" && alla ? (
+            <div className={cx("flex flex-col items-center px-4 pt-2", rader.length === 0 ? "pb-2" : "")}>
+              <button
+                type="button"
+                aria-label={alla.etikett}
+                data-snabbmeny-alla=""
+                onClick={() => stang("val", alla.onValj)}
+                className="flex min-h-11 min-w-11 flex-col items-center gap-1 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-surface"
+              >
+                <span className="inline-flex size-12 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-ink-secondary bg-surface text-ink shadow-md [&_svg]:size-6">
+                  <IKON_FOR.skapa size={24} aria-hidden="true" strokeWidth={1.5} />
+                </span>
+                <span aria-hidden="true" className="max-w-28 truncate rounded-full bg-ink px-2 py-0.5 text-meta font-medium text-canvas" data-snabbmeny-etikett="">{alla.etikett}</span>
+              </button>
+            </div>
+          ) : null}
           {rader.length === 0 ? (
             <p className="m-0 rounded-full bg-ink px-3 py-1.5 text-meta font-medium text-canvas">{tomText}</p>
           ) : variant === "skapa" ? (

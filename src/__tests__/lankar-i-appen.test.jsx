@@ -6,7 +6,7 @@ import { OpsSpelareProvider } from "../components/OpsSpelare.jsx";
 import { AppNavigeringKontext } from "../components/appNavigering.js";
 import { byggPost, kodaToppar } from "../lib/bibliotek.js";
 import { nollstallSpelare } from "../lib/ljudspelare.js";
-import { lasBibliotekslank } from "../lib/postkommentar.js";
+import { bibliotekslank, lasBibliotekslank } from "../lib/postkommentar.js";
 import { medSpela } from "../lib/spelalank.js";
 
 /**
@@ -75,6 +75,21 @@ describe("L3: länkar i texten", () => {
     expect(lasBibliotekslank(bas, `${bas}?plats=g&post=p1`)).toEqual({ plats: "g", postId: "p1" });
     expect(lasBibliotekslank(bas, `${bas}?plats=g&grupp=h&post=p1`)).toBeNull();
     expect(lasBibliotekslank(bas, `${bas}?grupp=g`)).toBeNull();
+  });
+});
+
+describe("⛔ spela-länken blir ett kort i chatten (0.234.0)", () => {
+  // Agentens länk till ett ljud bär spela=1 (`medSpela`), och `lasBibliotekslank` krävde exakt två parametrar: länken blev aldrig ett kort.
+  const bas = "https://my.life-hub.app/bibliotek";
+  it("medSpela(bibliotekslank(...)) läses tillbaka med spela", () => {
+    expect(lasBibliotekslank(bas, medSpela(bibliotekslank(bas, { plats: "g", postId: "hamnen" })))).toEqual({ plats: "g", postId: "hamnen", spela: true });
+    expect(lasBibliotekslank(bas, `${bas}?grupp=g&post=hamnen&spela=1`)).toEqual({ plats: "g", postId: "hamnen", spela: true });
+  });
+  it("spela=2, två spela och en annan extra parameter ger ingen post", () => {
+    expect(lasBibliotekslank(bas, `${bas}?plats=g&post=hamnen&spela=2`)).toBeNull();
+    expect(lasBibliotekslank(bas, `${bas}?plats=g&post=hamnen&spela=1&spela=1`)).toBeNull();
+    expect(lasBibliotekslank(bas, `${bas}?plats=g&post=hamnen&x=1`)).toBeNull();
+    expect(lasBibliotekslank(bas, `${bas}?plats=g&post=hamnen`)).toEqual({ plats: "g", postId: "hamnen" });
   });
 });
 

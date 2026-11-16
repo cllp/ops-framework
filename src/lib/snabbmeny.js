@@ -5,8 +5,11 @@
  *
  * Plusets ark ritar Ny händelse, Nytt ärende, Nytt meddelande och Ny grupp i den ordningen (OpsAppShell, renderSkapaLista),
  * och bara när appen gett mottagaren. Snabbmenyn läser samma fyra frågor. Ny grupp är med för att telefonen annars
- * saknar väg att skapa en grupp (CP 2026-11-04). Modulernas `skapa.rad` (Nytt projekt) och registreringar (Skapa app)
- * ingår inte: ett projekt skapas i Projekt, och Skapa app står i Appars huvud.
+ * saknar väg att skapa en grupp (CP 2026-11-04). Registreringar (Skapa app) ingår inte: Skapa app står i Appars huvud.
+ *
+ * ⛔ MODULERNAS `skapa.rad` STÅR EFTER DE FYRA (0.234.0). Här stod att de inte ingick. CP ville ha Ny anteckning i pluset, och en modul som
+ * registrerat en rad syntes då i arket men aldrig i snabbmenyn. Skalet lägger dem efter de fasta raderna, i modulordning (`OpsAppShell`).
+ * `skapaSnabbPoster` är fortfarande bara de fasta raderna.
  *
  * ══ ⛔ APPAR ÄR VYNS KORT, INTE HUBBEN ═══════════════════════════════════════
  *

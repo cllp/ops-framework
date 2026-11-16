@@ -43,6 +43,7 @@
  *       node scripts/check-skalyta.mjs --bara-chatt      bara avsnitt 29g, chattens nattskiva (#273), för en snabb körning
  *       node scripts/check-skalyta.mjs --bara-spelrad    bara avsnitt 24, spelraden mot mikrofonknappen och ytan (0.176.0, cllp/lifehub.app#417)
  *       node scripts/check-skalyta.mjs --bara-appar      bara Appar-hyllan mot plusknappen (0.90.6)
+ *       node scripts/check-skalyta.mjs --bara-verktyg    bara avsnitt 52e, Alla verktyg överst i Verktyg-menyn vid 390 px, ljust och mörkt (0.234.0)
  *       node scripts/check-skalyta.mjs --bara-textfalt   bara avsnitt 45, TALK och mikrofonen i textfälten (0.104.0, 0.233.0)
  *       node scripts/check-skalyta.mjs --bara-talkval    bara avsnitt 46, valen efter talet och förslagen i chatten (0.105.0)
  *       node scripts/check-skalyta.mjs --bara-sidled     bara avsnitt 63, chatten rullar aldrig i sidled vid 390 och 375 px (0.212.1, cllp/lifehub.app#734), i scripts/lib/skalyta734.mjs
@@ -1220,6 +1221,14 @@ if (argv.includes("--bara-0127")) {
   await kalenderPreliminar();
   await nyHandelseTillagg();
   await bibliotekVideo();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-verktyg`: bara avsnitt 52e, Alla verktyg överst i Verktyg-menyn (0.234.0).
+if (argv.includes("--bara-verktyg")) {
+  await verktygMeny();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -7700,6 +7709,47 @@ async function bibliotekVideo() {
 // definierade, och den inre ytan är `absolute inset-0`. jsdom kör ingen CSS och såg det aldrig. Scenen `bibliotekkarta` (skalyta-entry.jsx) öppnar en GeoJSON-fil i detaljen
 // med `hamtaFil`, alltså samma väg som i appen. Krav, vid 390 och 1280 px: (a) kartans ruta (`[data-karta]`) finns, (b) den är minst 200 px hög och fyller sin kolumn i bredd,
 // (c) den inre ytan som MapLibre ritar i är lika stor som rutan, (d) Ladda ned står under kartan, och (e) sidan flödar inte över i sidled. Golv: en ruta mättes.
+/*
+ * ══ 52e. ALLA VERKTYG ÖVERST I VERKTYG-MENYN (0.234.0, cllp/lifehub.app#842 C). Ett tryck på Verktyg visade bara de fästa verktygen, och alla nåddes
+ * bara med ett långtryck, "och det hittar ingen". Vid 390, i ljust och mörkt: (a) knappen Alla verktyg står överst i menyn, (b) ringen är streckad och
+ * lika stor som de andras, och (c) dess kant har en färg som syns mot dimman. Golv: menyn öppnades och minst en rad till mättes.
+ */
+async function verktygMeny() {
+  for (const tema of ["light", "dark"]) {
+    const namn = `Verktyg-menyn 390 ${tema === "dark" ? "mörkt" : "ljust"}`;
+    const { page, context } = await oppna("verktygmeny", { width: 390, height: 844 }, tema);
+    try {
+      await page.locator("[data-ops-appar-knapp]").first().click();
+      await page.waitForSelector("[data-snabbmeny-alla]", { timeout: 4000 });
+      await page.waitForTimeout(250);
+      const m = await page.evaluate(() => {
+        const meny = /** @type {HTMLElement} */ (document.querySelector("[data-ops-snabbmeny='appar']"));
+        const knappar = [...meny.querySelectorAll("button")];
+        const ring = /** @type {HTMLElement} */ (knappar[0]?.querySelector("span"));
+        const annan = /** @type {HTMLElement | null} */ (knappar[1]?.querySelector("span") ?? null);
+        const rs = ring ? getComputedStyle(ring) : null;
+        const rr = ring?.getBoundingClientRect();
+        const ar = annan?.getBoundingClientRect();
+        return {
+          forsta: knappar[0]?.getAttribute("aria-label") ?? null, rader: knappar.length, stil: rs?.borderTopStyle ?? null, kant: rs?.borderTopColor ?? null,
+          w: rr?.width ?? 0, h: rr?.height ?? 0, aw: ar?.width ?? 0, ah: ar?.height ?? 0, overst: rr && ar ? rr.top < ar.top : false,
+        };
+      });
+      matt.push(`${namn}: första ${m.forsta}, ${m.rader} knappar, ringen ${m.w}x${m.h} (${m.stil}, ${m.kant}), nästa ${m.aw}x${m.ah}`);
+      krav(m.rader >= 2, `${namn}: ${m.rader} knappar i menyn, väntat minst 2 (golv).`);
+      krav(m.forsta === "Alla verktyg" && m.overst, `${namn} (a): första knappen är ${m.forsta}, väntat Alla verktyg överst.`);
+      krav(m.stil === "dashed" && Math.abs(m.w - m.aw) <= 0.5 && Math.abs(m.h - m.ah) <= 0.5, `${namn} (b): ringen är ${m.stil}, ${m.w}x${m.h} mot ${m.aw}x${m.ah}.`);
+      krav(!!m.kant && m.kant !== "rgba(0, 0, 0, 0)", `${namn} (c): ringens kant har ingen färg (${m.kant}).`);
+      const bild = process.env.VERKTYG_MENY_BILD;
+      if (bild) await page.screenshot({ path: bild.replace("{tema}", tema === "dark" ? "morkt" : "ljust") });
+    } catch (e) {
+      krav(false, `${namn}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      await context.close();
+    }
+  }
+}
+
 async function bibliotekKarta() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const namn = `karta i biblioteket ${vp.width}`;
@@ -9724,6 +9774,7 @@ await kalenderPreliminar();
 await nyHandelseTillagg();
 await bibliotekVideo();
 await bibliotekKarta();
+await verktygMeny();
 await gruppVantar();
 await kategoriFormular();
 await gastVyer();

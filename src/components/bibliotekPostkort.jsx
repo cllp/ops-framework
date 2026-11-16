@@ -19,7 +19,8 @@ const laddaVisning = () => import("./bibliotekPostkortVisning.jsx");
  * @param {(d: { plats: string, postId: string }) => Promise<({ id: string, typ: string, rubrik?: string, fil?: { namn?: string, mime?: string } }) | null | undefined>} konfig.hamta
  *   Appens uppslag: posten med id:t på platsen, genom samma källa som biblioteket läser (så att reglerna avgör), eller `null` när den inte finns eller inte går att läsa.
  *   ⛔ Ett nej från reglerna är inget fel att visa: personen får inte se posten, och kortet ska då inte finnas. Svara `null` för det. Ett annat fel får kasta, och kortet säger det.
- * @param {(d: { plats: string, postId: string }, e: import("react").MouseEvent) => void} [konfig.onOppna] Appens navigering till posten. Utelämnad: en vanlig länk.
+ * @param {(d: { plats: string, postId: string, spela?: true }, e: import("react").MouseEvent) => void} [konfig.onOppna] Appens navigering till posten. Utelämnad: en vanlig länk.
+ *   (0.234.0) `spela: true` när länken bar `spela=1`: navigera då till postens adress med `medSpela`, så startar detaljen spåret (samma väg som L4).
  * @param {string} [konfig.sprak]
  * @returns {import("./OpsMeddelanden.jsx").Postkort}
  */
