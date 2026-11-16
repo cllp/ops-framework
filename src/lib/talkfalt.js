@@ -30,8 +30,14 @@
  * Beslutet ("Ja kör."): mikrofonen kommer tillbaka i fältet, men den öppnar SKALETS TALK med just det fältet som mål. En röstknapp till ytan,
  * en yta, på en plats.
  *
- *   5. `useTalkfalt` ritar mikrofonen medan fältet har fokus, och bara i ett skal med TALK (`TalkfaltKontext`). Klicket fångar fältet uttryckligen
+ *   5. `useTalkfalt` ritar mikrofonen i fältet, och bara i ett skal med TALK (`TalkfaltKontext`). Klicket fångar fältet uttryckligen
  *      (`fangaTalkfalt(el)`, inte den globala fångsten vid trycket) och lämnar det till skalets `useTalk().tillFalt`.
+ *      ⛔ (0.233.0) CP efter att ha provat 0.232.0 i telefonen: "Kör med mikrofonen och kör alla fält". Ikonen syntes bara när fältet hade
+ *      fokus, så det krävdes två tryck och en scroll, eftersom tangentbordet kom upp. Nu står mikrofonen i varje fält som går att skriva i, och
+ *      ett tryck på den startar talet utan att fältet får fokus och utan tangentbord.
+ *   8. ⛔ MARKÖREN BARA OM DEN HAR SATTS (0.233.0). Ett fält som aldrig haft fokus har ingen markör som personen valt, och `selectionStart` är
+ *      där ofta 0: det sagda hade hamnat FÖRST i en text som redan stod där. Registret minns därför vilka fält som haft fokus sedan de
+ *      monterades (`HAFT_FOKUS`). Har fältet fokus nu eller har haft det gäller markören, annars läggs det sagda sist (`skrivInTal` med `null`).
  *   6. Medan en omgång har ett fält som mål bär fältet `TALK_MAL` (`data-ops-talk-mal`), och `tokens.css` ritar en ram runt det.
  *   7. ⛔ DET SENASTE FÄLTET I EN ÖPPEN PANEL. Trycker man på bottenradens TALK efter att ha fällt ned tangentbordet har fältet inte längre
  *      fokus. Är det senast fokuserade fältet fortfarande monterat och ligger i en panel som är öppen (`PANEL`), är det målet, med markören där
@@ -83,14 +89,22 @@ export const FANGST_GILTIG_MS = 3000;
 /** @type {WeakMap<Element, Talkfalt>} */
 const REGISTER = new WeakMap();
 
+/** Fält som haft fokus sedan de monterades (0.233.0): bara där har personen satt markören. Se punkt 8 i filhuvudet. @type {WeakSet<Element>} */
+const HAFT_FOKUS = new WeakSet();
+
 /**
- * Registrerar ett element som ett fält TALK kan skriva i. Ger en funktion som tar bort registreringen (vid avmontering).
+ * Registrerar ett element som ett fält TALK kan skriva i. Ger en funktion som tar bort registreringen (vid avmontering). Fältet minns från och
+ * med nu om det fått fokus (punkt 8); ett fält som redan har fokus när det registreras räknas.
  * @param {Element} el @param {Talkfalt} post
  * @returns {() => void}
  */
 export function registreraTalkfalt(el, post) {
   REGISTER.set(el, post);
+  const vidFokus = () => HAFT_FOKUS.add(el);
+  if (typeof document !== "undefined" && document.activeElement === el) vidFokus();
+  el.addEventListener("focus", vidFokus);
   return () => {
+    el.removeEventListener("focus", vidFokus);
     if (REGISTER.get(el) === post) REGISTER.delete(el);
   };
 }
@@ -104,7 +118,7 @@ export function registreraTalkfalt(el, post) {
 
 /**
  * Fältet där markören står: `document.activeElement` om det är registrerat. Markören läses NU (`selectionStart` och `selectionEnd`), för
- * efter fokusbytet är den borta.
+ * efter fokusbytet är den borta. (0.233.0) Med ett fält som aldrig haft fokus (mikrofonen i fältet) är markören `null` och det sagda hamnar sist.
  * @param {Element | null} [aktivt]
  * @returns {Talkfangst | null}
  */
@@ -115,14 +129,19 @@ export function fangaTalkfalt(aktivt = typeof document !== "undefined" ? documen
   return fangst(/** @type {HTMLInputElement | HTMLTextAreaElement} */ (aktivt), post, lasMarkor(/** @type {HTMLInputElement | HTMLTextAreaElement} */ (aktivt)));
 }
 
-/** @param {HTMLInputElement | HTMLTextAreaElement} el */
+/**
+ * Markören i fältet, eller `null` när personen aldrig satt den (punkt 8): fältet har inte fokus och har aldrig haft det sedan det monterades.
+ * @param {HTMLInputElement | HTMLTextAreaElement} el
+ * @returns {{ start: number, slut: number } | null}
+ */
 function lasMarkor(el) {
+  if (!HAFT_FOKUS.has(el) && !(typeof document !== "undefined" && document.activeElement === el)) return null;
   return { start: el.selectionStart ?? el.value.length, slut: el.selectionEnd ?? el.value.length };
 }
 
 /**
  * En fångst av ett registrerat fält med en given markör. EN väg för fältet med fokus och för det senaste fältet i en panel (regel 2).
- * @param {HTMLInputElement | HTMLTextAreaElement} el @param {Talkfalt} post @param {{ start: number, slut: number }} markor
+ * @param {HTMLInputElement | HTMLTextAreaElement} el @param {Talkfalt} post @param {{ start: number, slut: number } | null} markor `null`: sist.
  * @returns {Talkfangst}
  */
 function fangst(el, post, markor) {
@@ -207,7 +226,7 @@ let senaste = null;
 let lyssnare = 0;
 /**
  * Det senast fokuserade registrerade fältet, med markören som den stod när fokus lämnade det (0.232.0). Se punkt 7 i filhuvudet.
- * @type {{ el: HTMLInputElement | HTMLTextAreaElement, post: Talkfalt, markor: { start: number, slut: number } } | null}
+ * @type {{ el: HTMLInputElement | HTMLTextAreaElement, post: Talkfalt, markor: { start: number, slut: number } | null } | null}
  */
 let senastFalt = null;
 

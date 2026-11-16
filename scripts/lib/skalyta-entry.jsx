@@ -967,7 +967,10 @@ function TextfaltTalScen() {
   // TALK och fältet. Det som lämnats någon annanstans står i `window.__textfaltTalk` (ska vara tomt: ingenting går ut av sig självt).
   const { OpsView } = Ops;
   const [v, setV] = useState("En app där familjen ser veckans aktiviteter, vem som hämtar och lämnar, och vad som behöver handlas till helgen.");
+  // (0.233.0) Ett fält på en rad som ingen rört: mikrofonen ska stå där utan fokus, och det sagda hamna sist.
+  const [rubrik, setRubrik] = useState("Veckoschemat");
   window.__textfalt = v;
+  window.__rubrik = rubrik;
   window.__textfaltTalk = window.__textfaltTalk || [];
   const inspelare = {
     starta: async () => {},
@@ -996,6 +999,9 @@ function TextfaltTalScen() {
       <OpsView>
         <div className="flex max-w-2xl flex-col gap-4" data-textfalt-tal>
           <p className="m-0 text-rubrik text-ink">Skapa app</p>
+          <OpsField label="Rubrik">
+            <Ops.OpsInput value={rubrik} onChange={setRubrik} placeholder="Till exempel Veckoschemat för familjen" />
+          </OpsField>
           <OpsField label="Beskriv appen du vill ha" hint="Skriv vad appen ska göra.">
             <Ops.OpsTextarea value={v} onChange={setV} rows={5} maxLength={2000} />
           </OpsField>

@@ -5,7 +5,6 @@ import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsField, OpsInput, OpsTextarea } from "../components/OpsField.jsx";
 import { Skrivfalt, texterPa } from "../components/OpsMeddelanden.jsx";
 import { PanelDialog } from "../components/PanelDialog.jsx";
-import { MIK_DOLJS_EFTER_MS } from "../components/useTalkfalt.js";
 import { PANEL } from "../lib/panellager.js";
 import { TALK_MAL } from "../lib/talkfalt.js";
 
@@ -17,6 +16,10 @@ import { TALK_MAL } from "../lib/talkfalt.js";
  * tidigare i textfältet så visste man iallafall vilket fält som talk hanterade." Beslutet ("Ja kör."): mikrofonen tillbaka i fältet, men den
  * öppnar skalets TALK med fältet som mål, fältet får en ram medan TALK skriver dit, ytan hamnar aldrig under tangentbordet, och det senaste
  * fältet i en öppen panel är målet när bottenradens TALK trycks efter att tangentbordet fällts ned.
+ *
+ * (0.233.0) CP efter att ha provat 0.232.0 i telefonen: "Kör med mikrofonen och kör alla fält". Ikonen syntes först när fältet var aktivt, så
+ * det krävdes två tryck och en scroll, eftersom tangentbordet kom upp. Nu står mikrofonen i varje fält, större, och ett tryck startar talet
+ * utan att fältet får fokus. Ett fält som aldrig haft fokus får det sagda sist.
  */
 
 function falskInspelare() {
@@ -85,18 +88,87 @@ afterEach(() => {
 });
 
 describe("mikrofonen i fältet (0.232.0)", () => {
-  it("⛔ syns medan fältet har fokus, och bara i ett skal med TALK och valen", () => {
+  it("⛔ (0.233.0) syns i fältet utan fokus, och står kvar när fältet fått och tappat fokus", () => {
     render(<Tradet talk={skapaTalk()} barn={<Falt />} />);
     const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));
-    expect(faltMik()).toBeNull();
-    act(() => ta.focus());
+    expect(document.activeElement).not.toBe(ta);
     expect(faltMik()).not.toBeNull();
     expect(faltMik()?.getAttribute("aria-label")).toBe("Tala in i fältet Not");
+    act(() => ta.focus());
     act(() => ta.blur());
-    // (granskningen av PR 605) Döljs först efter en kort stund, så att ett tryck som tar fokus från fältet hinner fram.
+    act(() => vi.advanceTimersByTime(5000));
     expect(faltMik()).not.toBeNull();
-    act(() => vi.advanceTimersByTime(MIK_DOLJS_EFTER_MS + 10));
-    expect(faltMik()).toBeNull();
+  });
+
+  it("⛔ (0.233.0) ett tryck på mikrofonen i ett fält utan fokus: fältet får aldrig fokus, TALK startar med ramen, och det sagda hamnar sist", async () => {
+    render(<Tradet talk={skapaTalk()} barn={<Falt />} />);
+    const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));
+    // Ett orört fält: markören står först, men personen har aldrig satt den.
+    ta.setSelectionRange(0, 0);
+    const mik = /** @type {HTMLElement} */ (faltMik());
+    expect(fireEvent.pointerDown(mik)).toBe(false);
+    expect(fireEvent.mouseDown(mik)).toBe(false);
+    fireEvent.click(mik);
+    await flush();
+    expect(document.activeElement).not.toBe(ta);
+    expect(samtalsrad()?.textContent).toContain("Till fältet Not");
+    expect(ta.hasAttribute(TALK_MAL)).toBe(true);
+    await klar();
+    expect(ta.value).toBe("Hej världen Ring Anna i morgon");
+    expect(document.activeElement).not.toBe(ta);
+  });
+
+  it("⛔ (granskningen av PR 606) ett ANNAT fält har fokus: det släpps också, så att tangentbordet fälls ned och markören inte blinkar i fel fält", async () => {
+    render(
+      <Tradet
+        talk={skapaTalk()}
+        barn={
+          <>
+            <Falt />
+            <Falt mangrad={false} etikett="Rubrik" start="Möte" />
+          </>
+        }
+      />,
+    );
+    const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));
+    const rubrik = /** @type {HTMLInputElement} */ (screen.getByLabelText("Rubrik"));
+    act(() => rubrik.focus());
+    expect(document.activeElement).toBe(rubrik);
+    const mik = screen.getByRole("button", { name: "Tala in i fältet Not" });
+    fireEvent.pointerDown(mik);
+    fireEvent.mouseDown(mik);
+    fireEvent.click(mik);
+    await flush();
+    expect(document.activeElement).not.toBe(rubrik);
+    expect(ta.hasAttribute(TALK_MAL)).toBe(true);
+    expect(rubrik.hasAttribute(TALK_MAL)).toBe(false);
+    await klar();
+    expect(ta.value).toBe("Hej världen Ring Anna i morgon");
+    expect(rubrik.value).toBe("Möte");
+  });
+
+  it("⛔ (0.233.0) har personen satt markören i fältet tidigare gäller den, också när fokus sedan lämnat fältet", async () => {
+    render(<Tradet talk={skapaTalk()} barn={<Falt />} />);
+    const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));
+    act(() => stall(ta, 4));
+    act(() => ta.blur());
+    // Tangentbordet fälldes ned en stund innan: mikrofonen står kvar.
+    act(() => vi.advanceTimersByTime(5000));
+    fireEvent.pointerDown(/** @type {HTMLElement} */ (faltMik()));
+    fireEvent.click(/** @type {HTMLElement} */ (faltMik()));
+    await flush();
+    await klar();
+    expect(ta.value).toBe("Hej Ring Anna i morgon världen");
+  });
+
+  it("⛔ (0.233.0) större: en cirkel på 40 px med en ikon på 22 px, i en träffyta på 44 px", () => {
+    render(<Tradet talk={skapaTalk()} barn={<Falt />} />);
+    const mik = /** @type {HTMLElement} */ (faltMik());
+    expect(mik.className).toContain("size-11");
+    const cirkel = /** @type {HTMLElement} */ (mik.firstElementChild);
+    expect(cirkel.className).toContain("size-10");
+    expect(cirkel.className).not.toContain("size-9");
+    expect(mik.querySelector("svg")?.getAttribute("width")).toBe("22");
   });
 
   it("⛔ utanför ett skal, i ett skal utan valen och i ett e-postfält finns ingen mikrofon", () => {
@@ -263,11 +335,10 @@ describe("chattens skrivfält (0.232.0)", () => {
     return <Skrivfalt text={text} setText={setText} skickar={false} onSkicka={() => {}} texter={texterPa("sv", {})} />;
   }
 
-  it("⛔ i skalet står mikrofonen i pillret medan det har fokus, och skriver in där", async () => {
+  it("⛔ i skalet står mikrofonen i pillret, också utan fokus (0.233.0), och skriver in där", async () => {
     render(<Tradet talk={skapaTalk()} barn={<Chatt />} />);
     const ta = /** @type {HTMLTextAreaElement} */ (screen.getByRole("textbox"));
-    expect(faltMik()).toBeNull();
-    act(() => ta.focus());
+    expect(document.activeElement).not.toBe(ta);
     const mik = /** @type {HTMLElement} */ (faltMik());
     expect(mik.closest("[data-skrivruta]")).not.toBeNull();
     fireEvent.click(mik);
@@ -294,7 +365,7 @@ describe("granskningen av PR 605", () => {
     fireEvent.pointerDown(mik);
     // Safari fokuserar ingen knapp: fokus går till <body> före klicket. Fingret ligger kvar en stund.
     act(() => ta.blur());
-    act(() => vi.advanceTimersByTime(MIK_DOLJS_EFTER_MS + 200));
+    act(() => vi.advanceTimersByTime(450));
     expect(faltMik()).toBe(mik);
     fireEvent.click(mik);
     await flush();
@@ -302,20 +373,6 @@ describe("granskningen av PR 605", () => {
     expect(ta.hasAttribute(TALK_MAL)).toBe(true);
     await klar();
     expect(ta.value).toBe("Hej Ring Anna i morgon världen");
-  });
-
-  it("(1) utan tryck döljs mikrofonen efter en stund, och nytt fokus avbryter det", () => {
-    render(<Tradet talk={skapaTalk()} barn={<Falt />} />);
-    const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));
-    act(() => ta.focus());
-    act(() => ta.blur());
-    act(() => vi.advanceTimersByTime(MIK_DOLJS_EFTER_MS / 2));
-    act(() => ta.focus());
-    act(() => vi.advanceTimersByTime(MIK_DOLJS_EFTER_MS * 2));
-    expect(faltMik()).not.toBeNull();
-    act(() => ta.blur());
-    act(() => vi.advanceTimersByTime(MIK_DOLJS_EFTER_MS + 10));
-    expect(faltMik()).toBeNull();
   });
 
   it("⛔ (2) tangentbordet: Enter på mikrofonen lämnar fokus på TALK-ytans första knapp, aldrig på <body>", async () => {
@@ -381,7 +438,7 @@ describe("granskningen av PR 605", () => {
     expect(screen.getByLabelText("Rubrik")).toBe(fore);
   });
 
-  it("⛔ (5) platsen för mikrofonen är reserverad också utan fokus, så att texten inte hoppar", () => {
+  it("⛔ (5) platsen för mikrofonen är reserverad, så att texten inte går in under den", () => {
     render(<Tradet talk={skapaTalk()} barn={<><Falt /><Falt mangrad={false} etikett="Rubrik" /></>} />);
     expect(screen.getByLabelText("Not").className).toContain("pe-14");
     expect(screen.getByLabelText("Rubrik").className).toContain("pe-12");
