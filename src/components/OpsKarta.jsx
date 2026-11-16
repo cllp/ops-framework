@@ -89,6 +89,13 @@ export const ORD_OPSKARTA = {
   helskarm: ORD_HELSKARM.helskarm,
   avslutaHelskarm: ORD_HELSKARM.avsluta,
   hamtar: { sv: "Hämtar kartan.", en: "Loading the map." },
+  // (0.234.0) Min position och länkarna ut. CP 2026-11-16: "Kan man få sin position i en karta också?"
+  minPosition: { sv: "Visa min position", en: "Show my location" },
+  positionSaknas: { sv: "Positionen går inte att visa", en: "Your location is not available" },
+  platsNekad: { sv: "Platsen är avstängd i telefonens inställningar. Slå på den för att se var du är.", en: "Location is turned off in the phone's settings. Turn it on to see where you are." },
+  platsFel: { sv: "Din position gick inte att hitta just nu.", en: "Your location could not be found right now." },
+  oppnaKartor: { sv: "Öppna i Kartor", en: "Open in Maps" },
+  oppnaGoogle: { sv: "Öppna i Google Maps", en: "Open in Google Maps" },
   lasfel: { sv: "Kartan gick inte att hämta. Kontrollera nätet och försök igen.", en: "The map could not be loaded. Check the network and try again." },
   ytfel: { sv: "Kartan gick inte att rita här. Ladda om sidan och försök igen.", en: "The map could not be drawn here. Reload the page and try again." },
   forsokIgen: { sv: "Försök igen", en: "Try again" },

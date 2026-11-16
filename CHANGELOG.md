@@ -71,6 +71,18 @@ CP 2026-11-16: "Jag kan inte få en fullscreen för kartor, det är ett måste."
 
 Prov: `karta-helskarm` (nytt, 6): knappen, helskärmen och omritningen, lagret med Stäng och Escape, avslaget, popupens token och Stäng. 6 röda mot förra commiten och gröna med ändringen. `check-skalyta` 52c (helskärmen fyller fönstret vid 390 och 1280) och 52d (popupens kontrast i ljust och mörkt, 12,5:1 och 11,8:1, pilen i rutans färg, Stäng 44 px). 52d mäter en popup som skalytan bygger med MapLibres och vyns klasser, eftersom scenens karta inte laddar brickor och punkten aldrig ritas.
 
+### Kartan: min position, och Öppna i Kartor eller Google Maps
+
+CP 2026-11-16: "Kan man få sin position i en karta också?" och "Samt en länk, öppna rutt eller position i telefonens Kartor eller Google Maps om det är installerat."
+
+- **Min position.** `OpsKarta` har MapLibres `GeolocateControl` under zoomen, med följ-läge och träffsäkerhetens cirkel, också i helskärm. Positionen ritas bara i kartan: ingenting sparas och ingenting skickas. Ett nej ger raden "Platsen är avstängd i telefonens inställningar. Slå på den för att se var du är." (`data-karta-plats-fel="nekad"`), en position som inte kommer en egen rad, och raden går bort när positionen hittas (regel 5). Nya ord `minPosition`, `positionSaknas`, `platsNekad`, `platsFel`.
+- **Öppna i Kartor och Öppna i Google Maps** i popupen för en punkt och en linje (rutt). URL:erna byggs av den rena `kartlankar(feature)` i `lib/karta.js`: en punkt som `lat,lng` med namnet kodat, en rutt som vägbeskrivning (Google med start, slut och jämnt fördelade mellanpunkter, högst 9 totalt, `glesaRutt`; Apple med start och slut). Kartor visas bara på en Apple-enhet (`arAppleEnhet`). Länkarna öppnas utanför appen (`target="_blank"`, `rel="noopener noreferrer"`). Nya ord `oppnaKartor`, `oppnaGoogle`.
+- ⛔ **Apples rutt har bara start och slut.** `daddr` med flera `to:` är inte provat i en telefon, och en länk som visar fel väg är sämre än en som visar start och slut. En yta får inga länkar.
+
+Prov: `karta-plats` (nytt, 7): kontrollen läggs till, ett nej och ett fel visar raden och en position tar bort den, URL:erna för punkt och rutt (ordningen lat,lng, kodat namn, högst 9 punkter), ytor och ogiltiga koordinater, och Kartor bara på en Apple-enhet. 7 röda mot förra commiten och gröna med ändringen.
+
+**Att göra i appen (kartan):** i lifehub.native, `NSLocationWhenInUseUsageDescription` i iOS-skalets `Info.plist` (till exempel "Life Hub visar var du är på kartan. Positionen sparas inte.") och `ACCESS_FINE_LOCATION` och `ACCESS_COARSE_LOCATION` i Androids manifest. Utan dem frågar telefonen aldrig, och kartan visar raden om inställningarna. Länkarna behöver ingen ändring, läst i Capacitors källa i lifehub.native: på iOS gör `createWebViewWith` (en länk med `target="_blank"`) `UIApplication.shared.open`, på Android gör `launchIntent` `ACTION_VIEW` för en adress utanför `allowNavigation`. Båda låter en universell länk öppna Kartor eller Google Maps. Hypotes tills det provats i telefonen.
+
 ### Vem som ser adressen
 
 Före 0.234.0 lämnade adressen aldrig `users`, och en vanlig medlem såg bara namn och bild i medlemslistan. Nu bär medlemskapet adressen, och en medlem läser gruppens alla medlemskap (0.32.0, #180). **Adressen blir alltså läsbar för varje aktiv medlem i en gemensam grupp.** Det är innanför #138:s klarkriterium ("ingen läser en annans e-post utan att vara medlem i en gemensam grupp"), `users` är lika stängd som förut, och reglerna är oförändrade utom kommentaren vid `memberships`, som nu säger det.

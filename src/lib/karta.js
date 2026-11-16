@@ -508,3 +508,85 @@ export const KARTPOPUP_CSS = [
     [["right"], "left"],
   ].map(([ankare, kant]) => `${/** @type {string[]} */ (ankare).map((a) => `.${KARTPOPUP_KLASS}.maplibregl-popup-anchor-${a} .maplibregl-popup-tip`).join(",")}{border-${kant}-color:var(--color-raised)}`),
 ].join("\n");
+
+/**
+ * Högst så många punkter i en rutt till Google Maps: start, slut och mellan dem jämnt fördelade punkter (0.234.0). Googles vägbeskrivning tar högst nio
+ * mellanpunkter, och en mobil webbläsare färre, så rutten glesas ut till nio punkter totalt, vilket ryms överallt.
+ */
+export const KARTLANK_MAX_PUNKTER = 9;
+
+/**
+ * Ett koordinatpar ur GeoJSON (`[lng, lat]`) som `lat,lng`, eller `null` när paret inte är en giltig position.
+ * @param {unknown} par
+ * @returns {string | null}
+ */
+function latLng(par) {
+  if (!Array.isArray(par)) return null;
+  const [lng, lat] = par;
+  if (typeof lng !== "number" || typeof lat !== "number" || !Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return `${lat},${lng}`;
+}
+
+/**
+ * Glesar ut en lista till högst `max` element: första och sista står alltid kvar, och mellan dem väljs jämnt fördelade.
+ * @template T
+ * @param {ReadonlyArray<T>} lista
+ * @param {number} [max]
+ * @returns {T[]}
+ */
+export function glesaRutt(lista, max = KARTLANK_MAX_PUNKTER) {
+  if (!Number.isInteger(max) || max < 2) throw new Error(`glesaRutt: max ska vara ett heltal från 2, inte ${String(max)}.`);
+  if (lista.length <= max) return [...lista];
+  const ut = [];
+  for (let i = 0; i < max; i += 1) ut.push(lista[Math.round((i * (lista.length - 1)) / (max - 1))]);
+  return ut;
+}
+
+/**
+ * Länkarna "Öppna i Kartor" och "Öppna i Google Maps" för ett objekt på kartan (0.234.0). CP 2026-11-16: "Samt en länk, öppna rutt eller position i
+ * telefonens Kartor eller Google Maps om det är installerat." Båda är universella länkar: telefonen öppnar appen när den finns, annars webben.
+ *
+ * En punkt ger positionen (`lat,lng`, namnet kodat som sökord i Apples länk). En linje (en rutt) ger en vägbeskrivning: Google med start, slut och
+ * jämnt fördelade mellanpunkter (högst `KARTLANK_MAX_PUNKTER` totalt), Apple med start och slut. ⛔ Apples `daddr` med flera `to:` är inte provat i
+ * en telefon, och en länk som öppnar fel väg är sämre än en som visar start och slut. En yta, och ett objekt utan giltiga koordinater, ger `null`.
+ *
+ * @param {{ geometry?: { type?: string, coordinates?: unknown } | null, properties?: Record<string, unknown> | null }} feature
+ * @returns {{ apple: string, google: string } | null}
+ */
+export function kartlankar(feature) {
+  const geo = feature?.geometry;
+  if (!geo) return null;
+  const namn = popupTexter(/** @type {any} */ (feature)).namn;
+  if (geo.type === "Point") {
+    const ll = latLng(geo.coordinates);
+    if (!ll) return null;
+    return {
+      apple: `https://maps.apple.com/?ll=${ll}&q=${encodeURIComponent(namn || ll)}`,
+      google: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ll)}`,
+    };
+  }
+  if (geo.type === "LineString" || geo.type === "MultiLineString") {
+    const linje = /** @type {unknown[]} */ (geo.type === "LineString" ? geo.coordinates : Array.isArray(geo.coordinates) ? geo.coordinates.flat() : []);
+    const punkter = (Array.isArray(linje) ? linje : []).map(latLng).filter((p) => p !== null);
+    if (punkter.length < 2) return null;
+    const rutt = glesaRutt(/** @type {string[]} */ (punkter));
+    const start = /** @type {string} */ (rutt[0]);
+    const slut = /** @type {string} */ (rutt[rutt.length - 1]);
+    const mellan = rutt.length > 2 ? `&waypoints=${encodeURIComponent(rutt.slice(1, -1).join("|"))}` : "";
+    return {
+      apple: `https://maps.apple.com/?saddr=${start}&daddr=${slut}`,
+      google: `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(start)}&destination=${encodeURIComponent(slut)}${mellan}`,
+    };
+  }
+  return null;
+}
+
+/**
+ * Om enheten är en Apple-enhet, där Kartor finns (iPhone, iPad, Mac). En iPad i skrivbordsläge säger "Macintosh", och räknas därför med.
+ * @param {{ userAgent?: string } | undefined} [nav]
+ * @returns {boolean}
+ */
+export function arAppleEnhet(nav = typeof navigator === "undefined" ? undefined : navigator) {
+  return /iPhone|iPad|iPod|Macintosh|Mac OS X/.test(String(nav?.userAgent ?? ""));
+}

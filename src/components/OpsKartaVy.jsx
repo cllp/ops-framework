@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IKON_FOR } from "./ikonlexikon.js";
 import { useHelskarm } from "./useHelskarm.js";
-import { Map, NavigationControl, Popup, getWorkerUrl, setWorkerUrl } from "maplibre-gl";
+import { GeolocateControl, Map, NavigationControl, Popup, getWorkerUrl, setWorkerUrl } from "maplibre-gl";
 // @ts-expect-error CSS-importen löses av appens bundler. tsc har ingen deklaration för den.
 import "maplibre-gl/dist/maplibre-gl.css";
-import { basPensel, berika, byggStil, granser, KARTPOPUP_CSS, KARTPOPUP_KLASS, KARTPOPUP_STIL_ID, lasKartFarger, objektPensel, OBJEKT_LAGER, popupElement } from "../lib/karta.js";
+import { arAppleEnhet, basPensel, berika, kartlankar, byggStil, granser, KARTPOPUP_CSS, KARTPOPUP_KLASS, KARTPOPUP_STIL_ID, lasKartFarger, objektPensel, OBJEKT_LAGER, popupElement } from "../lib/karta.js";
 import { cx } from "../lib/cx.js";
 
 /**
@@ -29,6 +29,8 @@ export function OpsKartaVy({ samling, texter }) {
   senast.current = { samling, texter };
   const [fel, setFel] = useState(/** @type {string} */ (""));
   // Den öppna popupen: platsen i dess innehåll där vyn ritar sina knappar (en portal), och popupen själv.
+  // ⛔ MIN POSITION SOM INTE GICK ATT FÅ SYNS (0.234.0, regel 5): "nekad" när personen eller telefonen sagt nej, "fel" när positionen inte kom.
+  const [platsFel, setPlatsFel] = useState(/** @type {"" | "nekad" | "fel"} */ (""));
   const [popupMal, setPopupMal] = useState(/** @type {{ plats: HTMLElement, popup: any, feature: any } | null} */ (null));
   /*
    * ══ ⛔ HELSKÄRM (0.234.0) ═══════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -66,6 +68,8 @@ export function OpsKartaVy({ samling, texter }) {
           "NavigationControl.ZoomOut": senast.current.texter.zoomaUt,
           "NavigationControl.ResetBearing": senast.current.texter.aterstall,
           "Popup.Close": senast.current.texter.stang,
+          "GeolocateControl.FindMyLocation": senast.current.texter.minPosition,
+          "GeolocateControl.LocationNotAvailable": senast.current.texter.positionSaknas,
           "AttributionControl.ToggleAttribution": senast.current.texter.visaTillhorighet,
           "CooperativeGesturesHandler.WindowsHelpText": senast.current.texter.ctrl,
           "CooperativeGesturesHandler.MacHelpText": senast.current.texter.cmd,
@@ -81,6 +85,20 @@ export function OpsKartaVy({ samling, texter }) {
     // Popupens stil läggs när kartan finns, inte först vid ett tryck, så att den står i dokumentet före första popupen.
     installeraPopupStil();
     kartaNu.addControl(new NavigationControl({ showCompass: false, visualizePitch: false }), "top-right");
+    /*
+     * ══ ⛔ MIN POSITION (0.234.0) ═══════════════════════════════════════════════════════════════════════════════════════════════════
+     * CP 2026-11-16: "Kan man få sin position i en karta också?" MapLibres egen kontroll, med följ-läge och träffsäkerhetens cirkel. Positionen
+     * ritas bara i kartan i den här webbläsaren: ingenting sparas och ingenting skickas. Kontrollen står under zoomen, och följer med i helskärm.
+     * Ett nej eller en position som inte kommer blir en rad i kartan (`data-karta-plats-fel`), aldrig en knapp som bara slutar svara.
+     */
+    const plats = new GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true, showAccuracyCircle: true, showUserLocation: true });
+    plats.on("error", (/** @type {{ code?: number }} */ e) => {
+      if (kvar) setPlatsFel(e?.code === 1 ? "nekad" : "fel");
+    });
+    plats.on("geolocate", () => {
+      if (kvar) setPlatsFel("");
+    });
+    kartaNu.addControl(plats, "top-right");
     kartaNu.on("click", (e) => {
       const traff = kartaNu.queryRenderedFeatures(e.point, { layers: OBJEKT_LAGER });
       const feature = OBJEKT_LAGER.map((id) => traff.find((f) => f.layer?.id === id)).find(Boolean);
@@ -200,6 +218,7 @@ export function OpsKartaVy({ samling, texter }) {
       </button>
       {popupMal
         ? createPortal(
+            <>
             <button
               type="button"
               aria-label={texter.stang}
@@ -208,12 +227,44 @@ export function OpsKartaVy({ samling, texter }) {
               className="absolute top-0 right-0 flex size-11 cursor-pointer items-center justify-center rounded-base text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
             >
               <StangIkon size={18} aria-hidden="true" />
-            </button>,
+            </button>
+            <PopupLankar feature={popupMal.feature} texter={texter} />
+            </>,
             popupMal.plats,
           )
         : null}
+      {platsFel ? (
+        <p role="status" data-karta-plats-fel={platsFel} className="absolute inset-x-2 bottom-2 z-10 m-0 rounded-base border border-line bg-raised px-3 py-2 text-etikett text-ink shadow-md">
+          {platsFel === "nekad" ? texter.platsNekad : texter.platsFel}
+        </p>
+      ) : null}
       {fel === "lasfel" || fel === "ytfel" ? <p role="alert" className="absolute inset-x-0 bottom-0 m-0 bg-karta-papper px-3 py-2 text-etikett text-karta-text">{texter[fel]}</p> : null}
     </div>
+  );
+}
+
+/**
+ * "Öppna i Kartor" och "Öppna i Google Maps" för en punkt eller en rutt (0.234.0). CP 2026-11-16: "Samt en länk, öppna rutt eller position i telefonens
+ * Kartor eller Google Maps om det är installerat." Kartor bara på en Apple-enhet, där appen finns. Båda öppnas utanför appen (`target="_blank"`),
+ * som appens andra externa länkar: i appens skal är en adress utanför `allowNavigation` en adress som telefonen öppnar, och en universell länk
+ * öppnar då appen om den är installerad.
+ * @param {{ feature: any, texter: Record<string, string> }} props
+ */
+function PopupLankar({ feature, texter }) {
+  const lankar = kartlankar(feature);
+  if (!lankar) return null;
+  const klass = "inline-flex min-h-11 items-center text-etikett font-medium text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  return (
+    <span className="mt-1 flex flex-wrap gap-x-4" data-karta-lankar="">
+      {arAppleEnhet() ? (
+        <a href={lankar.apple} target="_blank" rel="noopener noreferrer" className={klass} data-karta-lank="apple">
+          {texter.oppnaKartor}
+        </a>
+      ) : null}
+      <a href={lankar.google} target="_blank" rel="noopener noreferrer" className={klass} data-karta-lank="google">
+        {texter.oppnaGoogle}
+      </a>
+    </span>
   );
 }
 

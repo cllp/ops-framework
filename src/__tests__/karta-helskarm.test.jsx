@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { exempelkarta } from "../../examples/karta/dahab.js";
 
@@ -47,7 +47,8 @@ vi.mock("maplibre-gl", () => {
       return this;
     }
     addControl(kontroll) {
-      this.kontroll = kontroll;
+      (this.kontroller ??= []).push(kontroll);
+      this.kontroll ??= kontroll;
       return this;
     }
     getSource(id) {
@@ -104,12 +105,23 @@ vi.mock("maplibre-gl", () => {
       return this;
     }
   }
+  class GeolocateControl {
+    constructor(val) {
+      this.val = val;
+      this._on = {};
+      (globalThis.__opsPlatskontroller ??= []).push(this);
+    }
+    on(ev, fn) {
+      this._on[ev] = fn;
+      return this;
+    }
+  }
   class NavigationControl {
     constructor(val) {
       this.val = val;
     }
   }
-  return { Map, Popup, NavigationControl, setWorkerUrl: vi.fn(), getWorkerUrl: () => "" };
+  return { Map, Popup, NavigationControl, GeolocateControl, setWorkerUrl: vi.fn(), getWorkerUrl: () => "" };
 });
 
 function sattFarger() {
@@ -138,6 +150,8 @@ async function rita() {
   const { OpsKarta } = await import("../components/OpsKarta.jsx");
   render(<OpsKarta data={exempelkarta} />);
   const region = await screen.findByRole("region", { name: "Karta" });
+  // Regionen ritas före effekten som bygger kartan: vänta på kartan, inte bara på regionen.
+  await waitFor(() => expect(globalThis.__opsKartor.length).toBeGreaterThan(0));
   return { region, karta: globalThis.__opsKartor.at(-1) };
 }
 
