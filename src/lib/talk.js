@@ -88,6 +88,9 @@ export const ORD_TALK = {
   tillSamtalet: { sv: "Till {namn}", en: "To {namn}" },
   tillFaltet: { sv: "Till fältet {namn}", en: "To the field {namn}" },
   tillFaltetUtanNamn: { sv: "Till fältet där markören står", en: "To the field where the cursor is" },
+  // ⛔ (0.232.0) Mikrofonen i fältet: knappen säger vart talet går, som "Till fältet" på ytan.
+  talaInFaltet: { sv: "Tala in i fältet {namn}", en: "Speak into the field {namn}" },
+  talaInFaltetUtanNamn: { sv: "Tala in i fältet", en: "Speak into the field" },
   anteckningSparad: { sv: "Anteckningen är sparad", en: "The note is saved" },
   oppnaAnteckningen: { sv: "Öppna anteckningen", en: "Open the note" },
   kopiera: { sv: "Kopiera", en: "Copy" },

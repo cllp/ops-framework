@@ -5,12 +5,14 @@ import { cx } from "../lib/cx.js";
  *
  * ⛔ DISKRET I FORMULÄRENS FÄLT (0.106.0, #386 skiva 8). I `falt`, `rad-falt` och `plats` är cirkeln utan kant och skugga och ikonen
  * dämpad, tills pekaren eller fokus är på den. `rad` har sin cirkel.
- * (0.230.0) Flyttad hit ur `OpsRostinmatning.jsx`, som togs bort när TALK blev den enda röstknappen. Bara `OpsFilePicker` använder den (gemknappen).
+ * (0.230.0) Flyttad hit ur `OpsRostinmatning.jsx`, som togs bort när TALK blev den enda röstknappen. (0.232.0) Används av gemknappen
+ * (`OpsFilePicker`) och av fältets mikrofon (`useTalkfalt`), som ger `onPointerDown`, `onMouseDown`, `onTouchStart` och `onPointerCancel`: fältet
+ * behåller fokus till klicket där webbläsaren låter det, och knappen står kvar medan den trycks.
  *
- * @param {{ ikon: import("react").ReactNode, etikett: string, onClick: () => void, placering?: "rad" | "falt" | "rad-falt" | "plats", disabled?: boolean, data?: Record<string, string> }} props `falt`: i textfältets
+ * @param {{ ikon: import("react").ReactNode, etikett: string, onClick: (e: import("react").MouseEvent<HTMLButtonElement>) => void, onPointerDown?: (e: import("react").PointerEvent) => void, onMouseDown?: (e: import("react").MouseEvent) => void, onTouchStart?: (e: import("react").TouchEvent) => void, onPointerCancel?: (e: import("react").PointerEvent) => void, placering?: "rad" | "falt" | "rad-falt" | "plats", disabled?: boolean, data?: Record<string, string> }} props `falt`: i textfältets
  *   nedre hörn. `rad-falt`: vid slutet av ett fält på en rad, mitt i höjden. `plats`: knappen står där dess förälder lagt den (fältets bifogaplats), utan egen placering.
  */
-export function Faltknapp({ ikon, etikett, onClick, placering = "rad", disabled = false, data = {} }) {
+export function Faltknapp({ ikon, etikett, onClick, onPointerDown, onMouseDown, onTouchStart, onPointerCancel, placering = "rad", disabled = false, data = {} }) {
   const iFalt = placering !== "rad";
   return (
     <button
@@ -18,6 +20,10 @@ export function Faltknapp({ ikon, etikett, onClick, placering = "rad", disabled 
       {...data}
       aria-label={etikett}
       onClick={onClick}
+      onPointerDown={onPointerDown}
+      onMouseDown={onMouseDown}
+      onTouchStart={onTouchStart}
+      onPointerCancel={onPointerCancel}
       disabled={disabled}
       className={cx(
         "group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-55",

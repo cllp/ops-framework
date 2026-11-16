@@ -1296,6 +1296,16 @@
   }
 }
 
+/* ─── Fältet som TALK skriver i (0.232.0, cllp/ops-framework#602). ──────────────────────────────────────────────────────────
+ * CP 2026-11-16: med ikonen i fältet "visste man iallafall vilket fält som talk hanterade". Medan en omgång har ett fält som mål
+ * bär fältet `data-ops-talk-mal` (`useTalk`, `TALK_MAL` i `src/lib/talkfalt.js`), och här ritas ramen: accent, utanför fältets kant,
+ * så att den syns också på chattens pill och på ett fält vars egen kant är transparent. I `ops-ramverk`-lagret, så att den vinner över
+ * ett fälts `outline-none` (verktygsklasserna ligger i lagret före). Ytan säger samma sak i ord: "Till fältet {namn}". */
+[data-ops-talk-mal] {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 @media (max-height: 31.25rem) {
   :root {
     --flytande-skapa-storlek: 2.75rem;

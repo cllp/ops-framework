@@ -1,6 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
-import { skyddaOvanforPanel, usePanelRegistrering } from "../lib/panellager.js";
+import { PANEL, skyddaOvanforPanel, usePanelRegistrering } from "../lib/panellager.js";
 
 /**
  * Dialogen som `OpsRadPanel` och `OpsExternPanel` ritas i: en modal panel ovanpå listan eller kalendern (0.231.0, cllp/ops-framework#602).
@@ -39,6 +39,7 @@ export function PanelDialog({ oppen, onStang, titel, children, markor = {} }) {
         <Dialog.Overlay className="fixed inset-x-0 top-0 bottom-(--panel-botten) z-(--z-overlay) bg-scrim md:top-(--sloja-topp) md:bottom-0" />
         <Dialog.Content
           {...markor}
+          {...{ [PANEL]: "" }}
           aria-describedby={undefined}
           onOpenAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={skyddaOvanforPanel}

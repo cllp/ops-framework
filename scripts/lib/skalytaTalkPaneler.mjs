@@ -16,6 +16,9 @@ import path from "node:path";
  *     (3) 390: flikarna går inte att trycka på: ett tryck mitt på Kalender navigerar inte och panelen står kvar, och fliken tar inte fokus.
  *     (4) Markören i Beskrivning, tryck på TALK: raden säger "Till fältet Beskrivning", Klar skriver in det sagda där markören stod, panelen står kvar
  *         och ingenting går till appen.
+ *     (4b) (0.232.0) DET SENASTE FÄLTET: markören i Beskrivning, fokus lämnar fältet (tangentbordet fälls ned), tryck på TALK: raden säger ändå
+ *         "Till fältet Beskrivning", och Klar skriver in där markören stod. CP 2026-11-16 från iPhone: med tangentbordet uppe syns ingen TALK,
+ *         så den som fäller ned det och trycker på bottenradens TALK har inte längre fokus i fältet.
  *   ÄRENDET I DETALJ (`talk-radpanel`, en modal Radix-dialog):
  *     (5) 390: panelen och slöjan slutar ovanför bottenraden. 1280: slöjan och panelen börjar under huvudet.
  *     (6) TALK-knappen är det som träffas och är inte `aria-hidden`; ett tryck på den STÄNGER INTE panelen, och TALK:s yta öppnas ovanpå.
@@ -160,6 +163,28 @@ async function skapapanelen(v) {
       v.krav(efter.varde === vantat && efter.panel, `${namn}: efter Klar står ${JSON.stringify(efter.varde)} (panelen ${efter.panel ? "kvar" : "borta"}), väntat ${JSON.stringify(vantat)} med panelen kvar.`);
       v.krav(efter.appen.length === 0 && !efter.meny, `${namn}: ingenting får gå till appen och ingen meny ritas (${JSON.stringify(efter)}).`);
       if (v.bildmapp) await page.screenshot({ path: path.join(v.bildmapp, `talk-skapapanel-${vp.width}-efter-klar.png`) });
+
+      // (4b) Det senaste fältet i panelen, utan fokus (0.232.0).
+      await page.waitForFunction(() => !document.querySelector("[data-ops-talk]"), null, { timeout: 4000 });
+      const fore2 = String(await page.evaluate(() => /** @type {any} */ (window).__panelfalt));
+      await page.locator("[data-panelformular] textarea").click();
+      await page.evaluate(() => {
+        const ta = /** @type {HTMLTextAreaElement} */ (document.querySelector("[data-panelformular] textarea"));
+        ta.setSelectionRange(0, 0);
+        ta.blur();
+      });
+      const utanFokus = await page.evaluate(() => document.activeElement === document.querySelector("[data-panelformular] textarea"));
+      v.krav(!utanFokus, `${namn} (4b): fältet har fortfarande fokus, provet mäter inte det senaste fältet.`);
+      await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2);
+      await page.locator("[data-talk-samtalet]").waitFor({ timeout: 4000 });
+      await page.waitForFunction((m) => (document.querySelector("[data-talk-text]")?.textContent || "").endsWith(m.split(" ").pop() || ""), MENING, { timeout: 4000 });
+      const rad2 = await page.evaluate(() => document.querySelector("[data-talk-samtalet]")?.textContent ?? "");
+      v.matt.push(`${namn} (4b), det senaste fältet: ${JSON.stringify(rad2)}`);
+      v.krav(rad2.includes("Till fältet Beskrivning"), `${namn} (4b): raden säger ${JSON.stringify(rad2)}, väntat Till fältet Beskrivning.`);
+      await page.locator("[data-talk-skicka]").click();
+      await page.waitForFunction((f) => /** @type {any} */ (window).__panelfalt !== f, fore2, { timeout: 4000 });
+      const varde2 = String(await page.evaluate(() => /** @type {any} */ (window).__panelfalt));
+      v.krav(varde2 === `${MENING} ${fore2}`, `${namn} (4b): efter Klar står ${JSON.stringify(varde2)}, väntat ${JSON.stringify(`${MENING} ${fore2}`)}.`);
     } catch (e) {
       v.krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
     }
