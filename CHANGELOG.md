@@ -107,6 +107,12 @@ Prov: `bibliotek-zip` (nytt, 5). 4 röda mot förra commiten och gröna med änd
 
 **Att göra i appen (zip):** Storage-reglerna kommer ur ramverket (`lagringsregelfragment`), så de ändras genom att regenereras efter ompinningen, inte för hand. Två rader ändras: typlistan (`filContentTypeMonster`, nu med `application/zip`) och kravet på bilaga (`^(text/html|application/zip).*` i stället för `^text/html.*`). ⛔ **Reglerna deployas före klienten**, annars nekar lagringen arkivet och posten tas tillbaka. Appens `filer/klar` (API:t som går förbi reglerna med en signerad adress) ska sätta `Content-Disposition` med `lagringsContentDisposition(mime, namn)` för varje typ i `BILAGAMIME`, inte bara HTML.
 
+### Inbjudan bär `mejlId`
+
+CP 2026-11-16: "Inbjudan status, om den inte har svarat." och "vi måste kunna läsa mailkön". Appen sparar en referens till köns rad i `mejl` på inbjudan: `null` när den skapas och skickas om, rad-id:t när brevet är köat. `mejlId` står nu i `INBJUDNINGSFALT`, och `byggInbjudan` godtar en sträng eller `null` (en tom sträng eller annan typ kastar). En rad utan fältet byggs som förut, utan fältet. Ett okänt fält avvisas som förut. Firestore-regeln räknar inte inbjudningens fält (raden skrivs bara av servern), så den är oförändrad.
+
+Prov: `inbjudan-mejlid` (nytt, 3). Godkännandet rött mot förra commiten; avvisningen av okända fält och av fel typ var grön före och efter (vakterna).
+
 ### Vem som ser adressen
 
 Före 0.234.0 lämnade adressen aldrig `users`, och en vanlig medlem såg bara namn och bild i medlemslistan. Nu bär medlemskapet adressen, och en medlem läser gruppens alla medlemskap (0.32.0, #180). **Adressen blir alltså läsbar för varje aktiv medlem i en gemensam grupp.** Det är innanför #138:s klarkriterium ("ingen läser en annans e-post utan att vara medlem i en gemensam grupp"), `users` är lika stängd som förut, och reglerna är oförändrade utom kommentaren vid `memberships`, som nu säger det.

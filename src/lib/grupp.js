@@ -187,6 +187,7 @@ export const MAX_PRESENTATION = 500;
  * @property {string} giltigTill ISO 8601. Förval 30 dagar efter att raden byggdes. 0.32.0.
  * @property {string} skickad ISO 8601 för senaste utskicket, eller tom sträng (aldrig skickad). 0.32.0.
  * @property {number} antalSkickade Hur många gånger inbjudan skickats, 0 eller fler. 0.32.0.
+ * @property {string | null} [mejlId] (0.234.0) Köns rad i `mejl` för det senaste brevet, eller `null` innan det köats. Saknas på en rad som skrevs före fältet.
  */
 
 /*
@@ -319,7 +320,11 @@ export const GRUPPFALT = ["id", ...AGARGRUPPFALT, "skapadAv"];
  * ett nätverksanrop per vy (väg B) eller en läsbar e-post (väg C).
  */
 export const MEDLEMSKAPSFALT = ["id", "userId", "groupId", "roll", "typ", "status", "namn", "bild", "epost"];
-export const INBJUDNINGSFALT = ["id", "epost", "groupId", "roll", "status", "skapadAv", "tokenHash", "giltigTill", "skickad", "antalSkickade"];
+/*
+ * ⛔ `mejlId` (0.234.0). CP 2026-11-16: "Inbjudan status, om den inte har svarat." och "vi måste kunna läsa mailkön". Appen sparar en referens till köns
+ * rad i `mejl`: `null` när inbjudan skapas och när den skickas om, rad-id:t när brevet är köat. Utan fältet i listan hade `byggInbjudan` avvisat varje sådan rad.
+ */
+export const INBJUDNINGSFALT = ["id", "epost", "groupId", "roll", "status", "skapadAv", "tokenHash", "giltigTill", "skickad", "antalSkickade", "mejlId"];
 
 /**
  * @param {string} samling
@@ -986,7 +991,13 @@ export function byggInbjudan(d) {
     throw new Error(`invitations: antalSkickade för "${id}" måste vara ett heltal 0 eller större, inte ${JSON.stringify(antalSkickade)}.`);
   }
 
+  // `mejlId` är en sträng eller null. Saknas fältet lämnas det borta, så att en rad som skrevs före 0.234.0 byggs som förut.
+  if (rad.mejlId !== undefined && rad.mejlId !== null && (typeof rad.mejlId !== "string" || rad.mejlId.trim() === "")) {
+    throw new Error(`invitations: mejlId för "${id}" ska vara köns rad-id (en sträng) eller null, inte ${JSON.stringify(rad.mejlId)}.`);
+  }
+
   return Object.freeze({
+    ...(rad.mejlId !== undefined ? { mejlId: rad.mejlId } : {}),
     id,
     epost,
     groupId,
