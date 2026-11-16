@@ -22,6 +22,21 @@ anteckningar är en version ingen kan välja att hoppa över.
 - **`uppdateraProfil` skriver aldrig över ett namn med ett tomt.** Före 0.234.0 gav `{ namn: "", bild }` (en token med bild men utan namn) `namn: ""` i `users` och i varje medlemskap. Nu lämnas namnet orört, och bilden skrivs som förut.
 - **`bakfyllMedlemsnamn` tar `reserv`**, en funktion `(uid) => namn` som frågas när profilraden saknar namn eller inte finns, till exempel `displayName` ur Identity. Den frågas också vid torrkörning (förval), en gång per person. Svaret har en ny rad, `franReserv`, och utskriften en rad "ur reserven", också när den är 0. Ett kast blir ett fel i `fel`.
 
+### Modellvalet visar när nycklarna läses (cllp/ops-framework#607)
+
+CP 2026-11-16, med en skärmbild från gruppens agent: "När jag öppnar Modell under agentens inställningar visas modellerna först som låsta med 'Koppla nyckel', också den modell vars nyckel redan finns. Efter en stund låses den upp av sig själv." Väljaren kände bara `kopplade`, och en lista som inte var läst än såg ut som en tom lista.
+
+- **`OpsAgenter` tar `nyckellage`** (`laddar`, `klar` eller `fel`, förval `klar`) och `nyckelfel` (felets text). Varje modell som kräver en nyckel ritar sitt läge, i både översikten och avsnittet Modell och nycklar, och raden bär `data-nyckellage`:
+  - `laddar`: "Läser nycklar ..." med väntans rad (`OpsVantar`, samma som `OpsEmpty busy`). Valet går inte att välja, också om leverantören redan står i `kopplade`.
+  - `klar`: valbar när nyckeln finns (`finns`), annars "Koppla nyckel" (`saknas`), som nu bara står när det är bekräftat.
+  - `fel`: ett fel ovanför listan ("Nycklarna kunde inte läsas", med `nyckelfel` eller ramverkets mening), valet avstängt och aldrig "Koppla nyckel" (regel 5).
+  - Gemini Flash Lite behöver ingen nyckel och går att välja i alla tre (`utan-nyckel`). Spara går inte att trycka för en nyckelmodell förrän läget är `klar`.
+- Ett okänt `nyckellage` kastar, i stället för att ritas som att nyckeln saknas.
+
+Prov: `agenter-nyckellage` (nytt, 13), alla tre lägen och felet i båda väljarna, Flash Lite i alla lägen och ett okänt läge. 13 röda mot 0.233.0 och gröna med ändringen.
+
+**Att göra i appen (#607):** skicka `nyckellage`. I lifehub.app (`AgenterView.jsx`) är `nycklar` `null` medan `aiByok` läses, och ett fel ger i dag `[]`, alltså samma sak som "inga nycklar". Ge `nyckellage={nycklar === null ? "laddar" : nyckelfel ? "fel" : "klar"}`, och låt felvägen sätta ett fel i stället för en tom lista. Utan propen är förvalet `klar`, och vyn beter sig som i 0.233.0.
+
 ### Vem som ser adressen
 
 Före 0.234.0 lämnade adressen aldrig `users`, och en vanlig medlem såg bara namn och bild i medlemslistan. Nu bär medlemskapet adressen, och en medlem läser gruppens alla medlemskap (0.32.0, #180). **Adressen blir alltså läsbar för varje aktiv medlem i en gemensam grupp.** Det är innanför #138:s klarkriterium ("ingen läser en annans e-post utan att vara medlem i en gemensam grupp"), `users` är lika stängd som förut, och reglerna är oförändrade utom kommentaren vid `memberships`, som nu säger det.
