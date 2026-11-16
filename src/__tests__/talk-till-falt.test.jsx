@@ -410,6 +410,36 @@ describe("registret och fångsten (talkfalt.js)", () => {
     expect(fangaTalkfalt(document.body)).toBeNull();
   });
 
+  it("⛔ (0.233.0) ett fält som aldrig haft fokus får det sagda sist, ett fält som haft fokus får det där markören stod", () => {
+    function Tva() {
+      const [a, setA] = useState("Hej världen");
+      const [b, setB] = useState("Hej världen");
+      return (
+        <>
+          <OpsField label="Orört"><OpsInput value={a} onChange={setA} /></OpsField>
+          <OpsField label="Använt"><OpsInput value={b} onChange={setB} /></OpsField>
+        </>
+      );
+    }
+    render(<Tva />);
+    const [orort, anvant] = /** @type {HTMLInputElement[]} */ ([...document.querySelectorAll("input")]);
+    // Ett orört fält kan ha `selectionStart` 0, och det får inte läsas som en markör personen satt.
+    orort.setSelectionRange(0, 0);
+    act(() => {
+      fangaTalkfalt(orort)?.skriv("tal");
+    });
+    expect(orort.value).toBe("Hej världen tal");
+    act(() => {
+      anvant.focus();
+      anvant.setSelectionRange(4, 4);
+      anvant.blur();
+    });
+    act(() => {
+      fangaTalkfalt(anvant)?.skriv("tal");
+    });
+    expect(anvant.value).toBe("Hej tal världen");
+  });
+
   it("fångsten förbrukas, och en gammal fångst gäller inte", () => {
     render(<OpsField label="Fält"><OpsInput value="" onChange={() => {}} /></OpsField>);
     const inp = /** @type {HTMLInputElement} */ (document.querySelector("input"));

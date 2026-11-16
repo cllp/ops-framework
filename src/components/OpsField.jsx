@@ -186,10 +186,10 @@ export function OpsInput({
   if (!talk.medOmslag) return falt;
   // ⛔ (0.232.0) Ett omslag bara i ett skal med TALK: `w-full` som fältet självt, så att en rad där fältet stod direkt som flex-barn behåller
   // sin bredd. Utanför ett skal (tam, gästen) är fältet exakt som förut. ⛔ (granskningen av PR 605) Omslaget står där OAVSETT om fältet går
-  // att skriva i just nu: ett träd som byter form när `disabled` växlar monterar om fältet. Platsen för knappen reserveras när mikrofonen KAN
-  // visas (`medMik`), inte bara när den syns, så att texten inte hoppar när fältet får fokus.
+  // att skriva i just nu: ett träd som byter form när `disabled` växlar monterar om fältet. (0.233.0) Mikrofonen står i fältet hela tiden
+  // (`medMik`), och `pe-12` håller texten borta från den.
   return (
-    <div data-falt-omslag="" className="relative w-full min-w-0" {...talk.omslag}>
+    <div data-falt-omslag="" className="relative w-full min-w-0">
       {falt}
       {talk.mik("rad-falt")}
     </div>
@@ -259,12 +259,12 @@ export function OpsTextarea({ value, onChange, placeholder, name, rows = 4, disa
     />
   );
   if (!bifogaPlats && !talk.medOmslag) return falt;
-  // ⛔ (0.232.0) Mikrofonen står till vänster om gemknappen när båda finns, så att gemmen inte flyttar när fältet får fokus.
+  // ⛔ (0.232.0) Mikrofonen står till vänster om gemknappen när båda finns. (0.233.0) Den står där hela tiden (`medMik`), inte bara vid fokus.
   return (
-    <div data-falt-omslag="" className={cx("relative min-w-0", !bifogaPlats && "w-full")} {...(talk.medOmslag ? talk.omslag : {})}>
+    <div data-falt-omslag="" className={cx("relative min-w-0", !bifogaPlats && "w-full")}>
       {falt}
       {bifogaPlats && !disabled ? <div ref={bifogaPlats} data-bifoga-plats="" className="absolute end-3 bottom-0.5" /> : null}
-      {talk.mikSyns ? bifogaPlats ? <div className="absolute end-15 bottom-0.5">{talk.mik("plats")}</div> : talk.mik("falt") : null}
+      {talk.medMik ? bifogaPlats ? <div className="absolute end-15 bottom-0.5">{talk.mik("plats")}</div> : talk.mik("falt") : null}
     </div>
   );
 }

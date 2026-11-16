@@ -9,6 +9,22 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.233.0
+
+**Mikrofonen står i varje textfält, och ett tryck startar talet utan tangentbord.** CP efter att ha provat 0.232.0 i telefonen: "Kör med mikrofonen och kör alla fält". I 0.232.0 syntes ikonen först när fältet hade fokus, så det krävdes två tryck och en scroll, eftersom tangentbordet kom upp. Han ville ha en större ikon som startar talet direkt, och inget tangentbord när man pratar.
+
+### Ändrat
+
+- **Alltid synlig.** `OpsInput`, `OpsTextarea` och chattens skrivfält visar mikrofonen i varje fält som går att skriva i, i ett skal med TALK och valen, med eller utan fokus. Utanför ett skal (`tam`, gästens sida och gästens chatt) och i ett skal utan valen finns den fortfarande inte.
+- **Ett tryck, inget tangentbord.** `pointerdown` och `mousedown` på mikrofonen gör `preventDefault`, så fältet får aldrig fokus av trycket. Klicket startar skalets TALK med fältet som mål, och hade fältet redan fokus släpps det, så att tangentbordet fälls ned. Fältet får ramen, och efter Klar skrivs texten in utan att fokus flyttas.
+- **Markören bara om personen satt den.** Registret minns vilka fält som haft fokus sedan de monterades. Har fältet fokus nu eller har haft det gäller markören. Annars hamnar det sagda sist, inte först (ett orört fält har ofta `selectionStart` 0).
+- **Större.** Mikrofonens cirkel är 40 px och ikonen 22 px (`Faltknapp` med `storlek="stor"`). Träffytan är 44 px som förut, så fältets reserverade plats räcker. Gemknappen är oförändrad.
+- Tangentbordsvägen (Tab till mikrofonen och Enter, fokus till TALK-ytan), `aria-disabled` under en pågående omgång och reserven till det senaste fältet i en öppen panel står kvar.
+
+### Borttaget
+
+- Döljandet efter fokus: `MIK_DOLJS_EFTER_MS`, fokusläget för synligheten och trycket som höll knappen kvar. `useTalkfalt` ger inte längre `mikSyns` och `omslag`, och `Faltknapp` tar inte längre `onTouchStart` och `onPointerCancel`.
+
 ## 0.232.0
 
 **Mikrofonen är tillbaka i textfälten, och den öppnar skalets TALK med fältet som mål.** CP 2026-11-16, med en skärmbild från iPhone (en rad i Inkorgen, fältet Not med markören i, tangentbordet uppe): "TALK KOmmer inte upp alls." Mätt i koden: bottenraden göms medan tangentbordet är uppe (0.152.0, `useTangentbordUppe`), och telefonens huvud har ingen TALK, så just där man skriver fanns ingen röst. CP samma morgon: "När man tryckte på ikonen tidigare i textfältet så visste man iallafall vilket fält som talk hanterade", och om fältikonen som öppnade skalets TALK: snygg, men TALK "hamnade lite på olika platser". Beslutet ("Ja kör."): en röstknapp i fältet, en yta, på en plats (cllp/ops-framework#602).

@@ -1,4 +1,4 @@
-import { createContext, createElement, useContext, useEffect, useRef, useState } from "react";
+import { createContext, createElement, useContext, useEffect, useRef } from "react";
 import { talkOrd } from "../lib/talk.js";
 import { TALK_MAL, UTAN_TAL, registreraTalkfalt } from "../lib/talkfalt.js";
 import { Faltknapp } from "./Faltknapp.jsx";
@@ -15,11 +15,6 @@ import { useOpsSprak } from "./OpsSprak.jsx";
 export const TalkfaltKontext = createContext(/** @type {{ tala: (el: Element) => boolean, upptagen: boolean } | null} */ (null));
 
 /**
- * Hur länge mikrofonen står kvar efter att fokus lämnat fältet, i ms (granskningen av PR 605). Se `DOLJ_EFTER_MS` i kroken.
- */
-export const MIK_DOLJS_EFTER_MS = 250;
-
-/**
  * Registrerar ett textfält som ett fält TALK kan skriva i (0.230.0, cllp/ops-framework#602). Se `src/lib/talkfalt.js` för hela flödet.
  *
  * Fältet registreras bara när det går att skriva i: med `onChange`, utan `disabled` och `readOnly`, och inte av en typ i `UTAN_TAL`.
@@ -32,42 +27,34 @@ export const MIK_DOLJS_EFTER_MS = 250;
  * ══ ⛔ 0.232.0: MIKROFONEN I FÄLTET ═════════════════════════════════════════════════════════════════════════════════════════════
  *
  * CP 2026-11-16 från iPhone: "TALK KOmmer inte upp alls", med markören i ett fält och tangentbordet uppe (bottenraden göms då), och "När man
- * tryckte på ikonen tidigare i textfältet så visste man iallafall vilket fält som talk hanterade". Kroken ger därför också fältets mikrofon:
- *   - `mik(placering)` ritar den MEDAN FÄLTET (eller knappen själv) HAR FOKUS, och bara när skalet ger `TalkfaltKontext`. Annars `null`.
- *   - `omslag` sätts på elementet runt fältet och knappen. Fokus räknas på det, inte på fältet, så att Tab från fältet till knappen inte får
- *     knappen att försvinna under fokus.
- *   - `medMik` säger att mikrofonen kan visas, så att fältet reserverar platsen för knappen hela tiden (granskningen av PR 605: annars hoppade
- *     texten åt sidan när fältet fick fokus). `medOmslag` säger att skalet har TALK, och då har fältet ALLTID sitt omslag, oberoende av om det
- *     går att skriva i just nu: ett träd som byter form när `disabled` växlar monterar om fältet, och fokus och markör försvinner med det.
- * ⛔ MIKROFONEN FÅR INTE FÖRSVINNA MELLAN TRYCK OCH KLICK (granskningen av PR 605, CP:s scenario). På iOS lämnar fokus fältet när fingret
- * landar på knappen (Safari fokuserar aldrig en knapp, och `touchstart` i React är passiv, så `preventDefault` där gör ingenting). Hade
- * mikrofonen dolts på `blur` hade klicket kommit till en knapp som inte längre fanns. Därför: medan knappen trycks (`trycks`, satt på
- * `pointerdown`, `touchstart` och `mousedown`, nollad efter `click` och `pointercancel`) döljs den inte alls, och annars döljs den först
- * `MIK_DOLJS_EFTER_MS` efter att fokus lämnat, och inte alls om fokus kommer tillbaka. Klicket behöver inte fältets fokus: `tala(el)` får
- * elementet ur ref:en, och markören står kvar i elementet efter `blur`.
- * ⛔ TANGENTBORDET (granskningen av PR 605). Med Enter eller Space har knappen fokus, och när den avmonteras hade fokus hamnat på <body>. Fokus
- * går därför till TALK-ytans första knapp, eller tillbaka till fältet om ytan inte öppnades.
- * ⛔ TRYCKET FLYTTAR INTE FOKUS. `pointerdown` och `mousedown` på knappen gör `preventDefault`, så fältet har fokus och markören fram till
- * klicket, och `fangaTalkfalt(el)` läser den där. Efter klicket släpps fokus (`blur`): tangentbordet fälls ned, och TALK:s yta står på sin
- * vanliga plats ovanför bottenraden.
+ * tryckte på ikonen tidigare i textfältet så visste man iallafall vilket fält som talk hanterade". Kroken ger därför också fältets mikrofon,
+ * `mik(placering)`, som öppnar skalets TALK med fältet som mål. `medMik` säger att den ritas, och fältet reserverar platsen för den.
+ * `medOmslag` säger att skalet har TALK, och då har fältet ALLTID sitt omslag, oberoende av om det går att skriva i just nu: ett träd som
+ * byter form när `disabled` växlar monterar om fältet, och fokus och markör försvinner med det (granskningen av PR 605).
+ *
+ * ══ ⛔ 0.233.0: ALLTID SYNLIG, ETT TRYCK, INGET TANGENTBORD ═════════════════════════════════════════════════════════════════════
+ *
+ * CP efter att ha provat 0.232.0 i telefonen: "Kör med mikrofonen och kör alla fält". I 0.232.0 syntes ikonen först när fältet hade fokus: ett
+ * tryck i fältet (tangentbordet kom upp och sidan rullade), sedan ett tryck på ikonen. Han ville ha en större ikon som startar talet direkt,
+ * och inget tangentbord när man pratar. Därför:
+ *   - MIKROFONEN STÅR I VARJE FÄLT SOM GÅR ATT SKRIVA I, i ett skal med TALK (`medMik`), med eller utan fokus. Utanför ett skal (`tam`, gästens
+ *     sida) och i ett skal utan valen finns den inte: en knapp utan någon som lyssnar hade varit död.
+ *   - TRYCKET GER FÄLTET INGET FOKUS. `pointerdown` och `mousedown` på knappen gör `preventDefault`, så webbläsaren flyttar inte fokus och
+ *     inget tangentbord kommer. Klicket startar `tala(el)`, och hade fältet redan fokus släpps det (`blur`), så att tangentbordet fälls ned
+ *     och TALK:s yta står på sin vanliga plats. Fältet får ramen (`TALK_MAL`), och efter Klar skrivs texten in utan att fokus flyttas.
+ *   - MARKÖREN: hade fältet fokus, eller har personen satt markören i det sedan det monterades, gäller den. Annars hamnar det sagda sist
+ *     (`src/lib/talkfalt.js`, punkt 8).
+ *   - STÖRRE: cirkeln är 40 px och ikonen 22 px (`Faltknapp` med `storlek="stor"`), träffytan 44 px som förut.
+ * ⛔ TANGENTBORDET (granskningen av PR 605). Med Tab och Enter har knappen fokus. Fokus går till TALK-ytans första knapp när ytan öppnats,
+ * och står annars kvar på knappen. Medan en omgång pågår bär knappen `aria-disabled`.
  *
  * @param {import("react").RefObject<HTMLInputElement | HTMLTextAreaElement | null>} ref
  * @param {{ slag: "input" | "textarea", typ?: string, value: string | undefined, onChange: ((v: string) => void) | undefined, disabled: boolean, readOnly?: boolean, maxLength?: number, etikett?: string, ariaLabel?: string, placeholder?: string }} f
- * @returns {{ medOmslag: boolean, medMik: boolean, mikSyns: boolean, mik: (placering: "falt" | "rad-falt" | "plats" | "rad") => import("react").ReactNode, omslag: { onFocus: (e: import("react").FocusEvent) => void, onBlur: (e: import("react").FocusEvent) => void } }}
+ * @returns {{ medOmslag: boolean, medMik: boolean, mik: (placering: "falt" | "rad-falt" | "plats" | "rad") => import("react").ReactNode }}
  */
 export function useTalkfalt(ref, f) {
   const kontext = useContext(TalkfaltKontext);
   const sprak = useOpsSprak();
-  const [fokus, setFokus] = useState(false);
-  /** Knappen trycks just nu: mellan `pointerdown` (eller `touchstart`, `mousedown`) och `click` eller `pointercancel`. */
-  const trycks = useRef(false);
-  /** Det uppskjutna döljandet efter `blur`. @type {import("react").MutableRefObject<ReturnType<typeof setTimeout> | null>} */
-  const doljTimer = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
-  const avbrytDolj = () => {
-    if (doljTimer.current) clearTimeout(doljTimer.current);
-    doljTimer.current = null;
-  };
-  useEffect(() => avbrytDolj, []);
   const lage = useRef(f);
   lage.current = f;
   /** @type {import("react").MutableRefObject<{ varde: string, pos: number } | null>} */
@@ -102,73 +89,33 @@ export function useTalkfalt(ref, f) {
   namnRef.current = namn;
   const medOmslag = kontext !== null;
   const medMik = kan && medOmslag;
-  const mikSyns = medMik && fokus;
-  /** Döljer mikrofonen om `MIK_DOLJS_EFTER_MS`, om inte fokus kommer tillbaka eller knappen trycks under tiden. */
-  const planeraDolj = () => {
-    avbrytDolj();
-    doljTimer.current = setTimeout(() => {
-      doljTimer.current = null;
-      if (!trycks.current) setFokus(false);
-    }, MIK_DOLJS_EFTER_MS);
-  };
-  const omslag = {
-    onFocus: () => {
-      avbrytDolj();
-      setFokus(true);
-    },
-    onBlur: (/** @type {import("react").FocusEvent} */ e) => {
-      const dit = e.relatedTarget;
-      if (dit instanceof Node && e.currentTarget.contains(dit)) return;
-      // ⛔ Inte synkront: se filhuvudet, "MIKROFONEN FÅR INTE FÖRSVINNA MELLAN TRYCK OCH KLICK".
-      if (trycks.current) return;
-      planeraDolj();
-    },
-  };
   /** @param {"falt" | "rad-falt" | "plats" | "rad"} placering */
   const mik = (placering) => {
-    if (!mikSyns || !kontext) return null;
+    if (!medMik || !kontext) return null;
     const n = namn();
-    // `preventDefault` på `pointerdown` och `mousedown` håller fokus i fältet där webbläsaren låter det. `touchstart` är passiv i React och
-    // markerar bara trycket.
-    const ner = (/** @type {import("react").SyntheticEvent} */ e) => {
-      trycks.current = true;
-      avbrytDolj();
-      e.preventDefault();
-    };
+    // ⛔ Trycket flyttar inte fokus: inget fokus i fältet, inget tangentbord. `touchstart` är passiv i React och behövs inte här, eftersom
+    // `pointerdown` kommer före den kompatibla `mousedown` som hade flyttat fokus.
+    const ner = (/** @type {import("react").SyntheticEvent} */ e) => e.preventDefault();
     return createElement(Faltknapp, {
-      ikon: createElement(MikrofonIkon, { size: 18 }),
+      ikon: createElement(MikrofonIkon, { size: 22 }),
       etikett: n ? talkOrd("talaInFaltet", sprak, { namn: n }) : talkOrd("talaInFaltetUtanNamn", sprak),
       placering,
+      storlek: "stor",
       data: { "data-falt-talk": "", ...(kontext.upptagen ? { "aria-disabled": "true" } : {}) },
       onPointerDown: ner,
       onMouseDown: ner,
-      onTouchStart: () => {
-        trycks.current = true;
-        avbrytDolj();
-      },
-      onPointerCancel: () => {
-        trycks.current = false;
-      },
       onClick: (/** @type {import("react").MouseEvent<HTMLButtonElement>} */ e) => {
-        trycks.current = false;
         const el = ref.current;
         if (!el) return;
         const knappHadeFokus = document.activeElement === e.currentTarget;
-        if (!kontext.tala(el)) {
-          // Ingen omgång startade (en pågår redan). Med tangentbordet står fokus kvar på knappen; med ett tryck utan fokus i fältet döljs
-          // knappen som efter vilken `blur` som helst.
-          if (!knappHadeFokus && document.activeElement !== el) planeraDolj();
-          return;
-        }
+        // Ingen omgång startade (en pågår redan): ingenting ändras, och fokus står kvar där det stod.
+        if (!kontext.tala(el)) return;
         if (document.activeElement === el) /** @type {HTMLElement} */ (el).blur();
-        avbrytDolj();
-        setFokus(false);
         if (knappHadeFokus) {
-          // ⛔ Knappen avmonteras i den här renderingen. Efter den: fokus till TALK-ytans första knapp, eller tillbaka till fältet.
+          // Tangentbordsvägen: fokus till TALK-ytans första knapp när ytan ritats. Finns ingen yta står fokus kvar på knappen.
           queueMicrotask(() => {
             const forsta = /** @type {HTMLElement | null} */ (document.querySelector("[data-ops-talk] button"));
             if (forsta) forsta.focus();
-            else if (el.isConnected) /** @type {HTMLElement} */ (el).focus();
           });
         }
       },
@@ -186,5 +133,5 @@ export function useTalkfalt(ref, f) {
       }
     }
   }, [f.value, ref]);
-  return { medOmslag, medMik, mikSyns, mik, omslag };
+  return { medOmslag, medMik, mik };
 }

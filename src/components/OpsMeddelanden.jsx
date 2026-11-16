@@ -1980,7 +1980,7 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus =
       {onBifoga || onOmrostning ? <Plusmeny onBifoga={onBifoga} onOmrostning={onOmrostning} franBiblioteket={franBiblioteket} texter={t} kamera={kamera === "ja"} kameraKand={kamera !== "okand"} /> : null}
       {/* ⛔ INGEN KANTLINJE RUNT PILLRET (0.196.0, CP 2026-11-06 med en skärmbild av gästens chatt: "Ta bort borders runt chatten och överallt."). En fylld yta, som Signal: det syns ändå var man
           skriver, och platstexten säger vad. Fokus syns med fokusringen (`focus-within:outline`), inte med en kant som byter färg. Samma pill i appens chatt och i gästens. */}
-      <div data-skrivruta="" className="flex min-h-11 min-w-0 flex-1 items-end rounded-3xl bg-hover focus-within:outline-2 focus-within:outline-offset-0 focus-within:outline-accent" {...(talkFalt.medOmslag ? talkFalt.omslag : {})}>
+      <div data-skrivruta="" className="flex min-h-11 min-w-0 flex-1 items-end rounded-3xl bg-hover focus-within:outline-2 focus-within:outline-offset-0 focus-within:outline-accent">
       {oppen ? (
         <ul id={listId} role="listbox" aria-label={t.namnForslag} data-omnamnande="" className="absolute bottom-full left-3 z-10 mb-1 max-w-[calc(100%-1.5rem)] min-w-56 list-none overflow-hidden rounded-card border border-line bg-surface p-1 shadow-md">
           {forslag.map((k, i) => (
