@@ -9,6 +9,27 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.232.0
+
+**Mikrofonen är tillbaka i textfälten, och den öppnar skalets TALK med fältet som mål.** CP 2026-11-16, med en skärmbild från iPhone (en rad i Inkorgen, fältet Not med markören i, tangentbordet uppe): "TALK KOmmer inte upp alls." Mätt i koden: bottenraden göms medan tangentbordet är uppe (0.152.0, `useTangentbordUppe`), och telefonens huvud har ingen TALK, så just där man skriver fanns ingen röst. CP samma morgon: "När man tryckte på ikonen tidigare i textfältet så visste man iallafall vilket fält som talk hanterade", och om fältikonen som öppnade skalets TALK: snygg, men TALK "hamnade lite på olika platser". Beslutet ("Ja kör."): en röstknapp i fältet, en yta, på en plats (cllp/ops-framework#602).
+
+### Tillagt
+
+- **Mikrofonen i fältet.** `OpsInput`, `OpsTextarea` och chattens skrivfält visar en mikrofon (44 px, `data-falt-talk`, "Tala in i fältet {namn}") medan fältet har fokus. Ett tryck startar skalets TALK med just det fältet som mål och släpper fokus, så att tangentbordet fälls ned och TALK:s yta står på sin vanliga plats ovanför bottenraden. Trycket (`pointerdown`, `mousedown`) flyttar inte fokus, så markören står kvar till klicket, och fältet fångas uttryckligen (`fangaTalkfalt(el)`), inte av den globala fångsten vid trycket: också Tab och Enter på knappen når fältet. Med en gemknapp i fältet står mikrofonen till vänster om den, så att gemmen inte flyttar.
+- **Bara i ett skal med TALK och valen.** Skalet ger `TalkfaltKontext` när `talk.onAgent` finns (utan valen går det sagda inte till ett fält). Utanför ett skal (`tam`, gästens sida och gästens chatt) och i ett skal utan valen ritas ingen mikrofon, och fältet är exakt som förut, utan omslag. E-post, lösenord och de andra typerna i `UTAN_TAL` får ingen.
+- **`useTalk().tillFalt(el)`.** Startar en omgång med fältet `el` som mål och svarar `true` när den startade. Medan en omgång redan pågår gör den ingenting, som skalets egen knapp.
+- **Ramen runt fältet som TALK skriver i.** Medan en omgång har ett fält som mål bär fältet `data-ops-talk-mal`, och `tokens.css` ritar en ram i accentfärgen utanför fältets kant (i `ops-ramverk`-lagret, så den vinner över chattens `outline-none`). Den tas bort när omgången är över, när Något annat trycks och när fältet avmonteras. Ytan säger samma sak i ord, "Till fältet {namn}", som förut.
+- **Det senaste fältet i en öppen panel.** Trycker man på bottenradens eller huvudets TALK utan att något fält har fokus, men det senast fokuserade fältet fortfarande är monterat och ligger i en panel som är öppen, är det målet, med markören där den stod när fokus lämnade det. Panelerna (`OpsSkapaPanel`, `PanelDialog`, alltså också `OpsRadPanel` och `OpsExternPanel`) bär `data-ops-panel` (`PANEL` i `panellager.js`). Utanför en panel finns ingen sådan reserv: där vet ingen om personen fortfarande menar fältet.
+
+### Ändrat
+
+- **TALK:s yta hamnar aldrig under tangentbordet.** Är tangentbordet uppe medan ytan är öppen lyfts ytan med det som tangentbordet täcker (`useTangentbordTackt`, samma mätning som chatten). Utan tangentbord är talet 0 och ingenting ändras.
+- `Faltknapp` tar `onPointerDown` och `onMouseDown`.
+
+### Prov
+
+`talk-falt-mik` (nytt, 12): mikrofonen syns med fokus och bara i ett skal med valen, trycket flyttar inte fokus, klicket startar TALK med fältet som mål och ramar in det, Klar skriver in där markören stod, Tab och Enter når fältet, Något annat tar bort ramen, mikrofonen gör ingenting medan en omgång pågår, det senaste fältet i en panel och ingen reserv utanför, ytans lyft med tangentbordet, chattens mikrofon i skalet och ingen hos gästen. Nio röda mot 0.231.0 och gröna med ändringen; de tre som säger att något inte finns är gröna i båda och sågs röda mot en ändring som tog bort spärren (skalet, panelen). `check-skalyta` avsnitt 45 mäter mikrofonen i en riktig webbläsare vid 390 och 1280 px (träffbar på 44x44 inne i fältet, texten slutar före den, fokus lämnar fältet, ramen syns, ytan står ovanför bottenraden, Klar), avsnitt 67 (4b) det senaste fältet i skapa-panelen, avsnitt 8 att chatten utan TALK inte får någon mikrofon med fokus, och gästens chatt räknas med fokus i fältet. 45 och 67 röda mot 0.231.0 och gröna med ändringen, se PR-texten.
+
 ## 0.231.0
 
 **TALK syns och går att trycka på också när en panel är öppen.** CP 2026-11-15, efter 0.230.0: "TAlk finns ju inte när man skall skriva text i ärenden mm." 0.230.0 gjorde TALK till den enda röstknappen och lät talet gå till fältet där markören står, men panelerna täckte knappen. `OpsSkapaPanel` (Ny händelse, Nytt ärende) var helskärm under `md` och låg över bottenraden, och `OpsRadPanel` (ärende och händelse i detalj) var en modal Radix-dialog vars slöja låg över huvudet på datorn och över bottenraden i telefonen. Där man skriver mest fanns alltså ingen röst alls. Skissen i cllp/ops-framework#602 (https://claude.ai/artifact/771tvrsnuTXzTBU8LqNbqN), CP samma kväll: "Snyggt kör på skissen." Mikrofonen flyttar aldrig, och ingen panel täcker den.
