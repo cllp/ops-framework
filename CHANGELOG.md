@@ -50,6 +50,17 @@ CP 2026-11-16: "När man börjar prata med agenten tar det några sekunder att v
 
 Prov: `agent-vaknar` (nytt, 8): raden direkt efter skickat, ersatt av "tänker", borta när svaret kommer, en felrad efter taket, ingen rad i ett samtal utan agent (och raden i agentsamtalet med samma meddelande), och villkoret. 8 röda mot förra commiten och gröna med ändringen.
 
+### Länkar till appen öppnas i appen, och spela-länken (cllp/lifehub.app#860, L3 och L4)
+
+CP 2026-11-16, om agenten: "Jag vill att agenten skall vara en riktig assistens i Life Hub. Ha tillgång till allt och kunna skapa genvägar och länkar direkt till kanske att spela upp en låt eller visa en fil." Om förslaget: "Kör snyggt".
+
+- **L3. En länk till appen navigerar i appen.** `OpsMarkdown` (i agentens svar och i alla meddelanden) skiljer en länk till appen själv, relativ eller med samma ursprung, från en extern. Den interna navigerar med skalets `onNavigate` (`AppNavigeringKontext`, som `OpsAppShell` ger) utan omladdning, och Ctrl, Cmd, Skift, Alt och mittknappen lämnas åt webbläsaren, som `HandelseLank`. Externa länkar öppnas i en ny flik som förut. Utanför skalet är en intern länk en vanlig länk i samma flik.
+- **En relativ adress i texten blir en länk**, `[Hamnen](/bibliotek?plats=g&post=p)`, men bara när den börjar med ett enda `/` (`arRelativAppadress`). `javascript:`, `data:`, `//annan.se` och `/\annan.se` blir aldrig länkar. Postkortets uppslag får en relativ adress som hel adress, med appens ursprung.
+- **Postkortet godtar `?grupp=&post=`** (`lasBibliotekslank`), som `?plats=&post=`. Aldrig båda, och fortfarande exakt två parametrar.
+- **L4. `?spela=1`** (med `post=<id>`) på en ljudposts adress startar spåret i skalets spelare när detaljen öppnats och adressen är klar, och parametern tas bort ur adressen (`history.replaceState`) så att en omladdning inte startar låten igen. Säger webbläsaren nej (`NotAllowedError`) står "Webbläsaren startade inte låten. Tryck på Spela." med `role="alert"`, och Spela får fokus. `medSpela(lank)` bygger länken. Skalets `spela` svarar nu med utfallet (`{ startad }` eller `{ startad: false, fel: "blockerad" | ... }`). Att trycket på länken räcker för att webbläsaren ska tillåta uppspelningen är en **hypotes** för iPhone och ska mätas. Utanför skalet startar inget.
+
+Prov: `lankar-i-appen` (nytt, 9). 7 röda mot förra commiten och gröna med ändringen; "utan spela=1 startar ingenting" sågs röd mot en `spelaBegard` som inte prövar `spela`, och `medSpela` är ny.
+
 ### Vem som ser adressen
 
 Före 0.234.0 lämnade adressen aldrig `users`, och en vanlig medlem såg bara namn och bild i medlemslistan. Nu bär medlemskapet adressen, och en medlem läser gruppens alla medlemskap (0.32.0, #180). **Adressen blir alltså läsbar för varje aktiv medlem i en gemensam grupp.** Det är innanför #138:s klarkriterium ("ingen läser en annans e-post utan att vara medlem i en gemensam grupp"), `users` är lika stängd som förut, och reglerna är oförändrade utom kommentaren vid `memberships`, som nu säger det.
@@ -61,6 +72,7 @@ Före 0.234.0 lämnade adressen aldrig `users`, och en vanlig medlem såg bara n
 - ⛔ **Avsluta medlemskap med `medlemskapAvslutas(FieldValue.delete())`**, i varje avslut: i lifehub.app `taBortMedlemIGruppen` (`functions/grupp.js:661`) och `lamnaGruppen` (`functions/grupp.js:809`), som i dag skriver bara `{ status: "avslutad" }`. Annars står adressen kvar på raden, läsbar för gruppens aktiva medlemmar, för någon som lämnat gruppen.
 - **Kör bakfyllnaden med Identitys namn** för medlemskap som redan saknar namn, ur appens eget skript: `bakfyllMedlemsnamn({ kalla, reserv: async (uid) => (await identityAuth.getUser(uid)).displayName })`. Torrkörning först, skarp körning (`skarpt: true`) bara med CP:s ja, eftersom den skriver i produktionsdata.
 - **Egna `namnFor`** (till `samtalsnotiser`, `postkommentarer` och `ProjektChatt`) ska svara med adressen när namnet saknas, till exempel `personnamn(m.namn, { epost: m.epost }).text`.
+- **Agentens länkar (L3, L4):** skicka postens länk i formen appen redan har (`bibliotekslank`, eller `?grupp=&post=`), och `medSpela(lank)` för en ljudpost som ska spela. Kontrollera i telefonen att spela-länken startar låten (hypotesen ovan), och att `onNavigate` till skalet tar en relativ adress.
 - **Regenerera reglerna** ur `regelfragment()`: kommentaren vid `memberships` är ändrad, inget villkor.
 - Medlemskap som skrevs före 0.234.0 saknar `epost` och visar fortfarande "Namn saknas" om de också saknar namn, tills bakfyllnaden körts eller personen sparat sin profil.
 

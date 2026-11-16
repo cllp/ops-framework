@@ -37,6 +37,7 @@ import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
 export { menyPilar, OpsTaggFilter as TaggFilter };
 import { formateraTid } from "../lib/ljudspelare.js";
+import { spelaBegard, utanSpela } from "../lib/spelalank.js";
 import { formatDateTime } from "../lib/format.js";
 import { lankKalla, lankKallnamn, lankRubrik } from "../lib/lankkalla.js";
 import { LISTA_FLYTT_TEXT, LISTA_I_LISTA_TEXT, listorAttLaggaI } from "../lib/biblioteklista.js";
@@ -218,6 +219,8 @@ function medNal(post, ny) {
 const NedladdningKontext = createContext(true);
 
 const ORD_BIBLIOTEKLISTA = {
+  // (0.234.0, cllp/lifehub.app#860, L4) När webbläsaren inte tillät att spela-länken startade låten.
+  spelaBlockerad: { sv: "Webbläsaren startade inte låten. Tryck på Spela.", en: "The browser did not start the track. Press Play." },
   flik_alla: { sv: "Allt", en: "All" },
   flik_ljud: { sv: "Ljud", en: "Audio" },
   flik_anteckning: { sv: "Anteckningar", en: "Notes" },
@@ -2451,6 +2454,41 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
   const sprak = useOpsSprak();
   const o = (/** @type {keyof typeof ORD_BIBLIOTEKLISTA} */ k) => ordet(ORD_BIBLIOTEKLISTA, k, sprak);
   const sort = filSort(post.fil?.mime);
+  /*
+   * ══ ⛔ SPELA-LÄNKEN (0.234.0, cllp/lifehub.app#860, L4) ══════════════════════════════════════════════════════════════════════
+   * CP 2026-11-16 ville ha "länkar direkt till kanske att spela upp en låt". Med `spela=1` (och `post=<id>`) i adressen startar detaljen
+   * spåret i skalets spelare så snart adressen är klar, en gång, och tar bort parametern ur adressen så att en omladdning inte startar
+   * låten igen. Säger webbläsaren nej (`NotAllowedError`) står en uppmaning med `role="alert"` och Spela får fokus: en avvisad start får
+   * inte se ut som en tyst knapp (regel 5). Utanför skalet (ingen spelare) startar inget, och adressen lämnas.
+   */
+  const ljudAdress = lage.lage === "klar" ? lage.adress : "";
+  const ljudSpar = useMemo(() => {
+    const id = post.id || "";
+    return { id, namn: ljudRubrik(post), src: ljudAdress, durationMs: post.durationMs, peaks: post.peaks, onMeta: id && onMeta ? (/** @type {any} */ m) => onMeta(id, m) : undefined, ...(farLaddaNed ? {} : { laddaNed: false }) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- spåret är posten och adressen; `onMeta` byts vid varje ritning hos appen.
+  }, [post.id, post.rubrik, post.durationMs, post.peaks, ljudAdress, farLaddaNed]);
+  const [spelaBlockerad, setSpelaBlockerad] = useState(false);
+  const spelaStartadFor = useRef("");
+  const kontroller = useRef(/** @type {HTMLDivElement | null} */ (null));
+  useEffect(() => {
+    const id = post.id || "";
+    if (!spelare || sort !== "ljud" || !ljudAdress || !id || spelaStartadFor.current === id) return;
+    if (typeof window === "undefined" || !spelaBegard(window.location.search, id)) return;
+    spelaStartadFor.current = id;
+    const start = spelare.spela(ljudSpar);
+    try {
+      window.history.replaceState(window.history.state, "", utanSpela(`${window.location.pathname}${window.location.search}${window.location.hash}`));
+    } catch {
+      /* en adress som inte går att skriva om startar på nytt vid en omladdning; spelningen här påverkas inte */
+    }
+    void start.then((r) => {
+      if (!r.startad && r.fel === "blockerad") setSpelaBlockerad(true);
+    });
+  }, [spelare, sort, ljudAdress, post.id, ljudSpar]);
+  const blockeradNu = spelaBlockerad && !(spelare?.spelar && spelare.spar?.src === ljudAdress);
+  useEffect(() => {
+    if (blockeradNu) /** @type {HTMLElement | null | undefined} */ (kontroller.current?.querySelector("[data-spela-knapp]"))?.focus();
+  }, [blockeradNu]);
   const namn = post.fil?.namn ?? "Fil";
   const rad = `${namn}${filStorlek(post.fil?.byte) ? ` · ${filStorlek(post.fil?.byte)}` : ""}`;
   // ⛔ EN AVBRUTEN UPPLADDNING SÄGER DET OCH ERBJUDER RADERA (granskningen av PR 408), för den som får radera posten. Den raderar via
@@ -2488,7 +2526,16 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
     // ⛔ I SKALET ÄR DETALJENS SPELARE SKALETS (0.102.0): vågen och kontrollerna styr spelraden, så ljudet spelar vidare när man
     // går tillbaka till listan. Utanför skalet spelar posten själv, som förut.
     if (spelare) {
-      return <OpsSpelarKontroller spar={{ id, namn: rubrik, src: adress, durationMs: post.durationMs, peaks: post.peaks, onMeta: id && onMeta ? (m) => onMeta(id, m) : undefined, ...(farLaddaNed ? {} : { laddaNed: false }) }} />;
+      return (
+        <div ref={kontroller} className="flex w-full min-w-0 flex-col gap-2">
+          {blockeradNu ? (
+            <p role="alert" data-spela-blockerad="" className="m-0 text-etikett font-medium text-ink">
+              {o("spelaBlockerad")}
+            </p>
+          ) : null}
+          <OpsSpelarKontroller spar={ljudSpar} />
+        </div>
+      );
     }
     return (
       <OpsLjudspelare

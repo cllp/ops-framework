@@ -489,6 +489,7 @@ export { createSamtalskalla, samtalsnotiser, harTradar, harStatus, harReaktioner
  * `createPostkommentarer` är medlemmens källa till `OpsBibliotek({ kommentarer })`, `bibliotekPostkort` chattens kort för en länk till biblioteket.
  */
 export { KOMMENTARROT_PREFIX, kommentarRotId, postIdUrRot, bibliotekslank, lasBibliotekslank, adresserIText, kommentarRotText, utanPostlank } from "./lib/postkommentar.js";
+export { medSpela } from "./lib/spelalank.js";
 export { createPostkommentarer } from "./data/postkommentarer.js";
 export { BibliotekKommentarer, ORD_BIBLIOTEKKOMMENTARER } from "./components/BibliotekKommentarer.jsx";
 export { BibliotekKommentarerLat, ORD_BIBLIOTEKKOMMENTARER_LAT, forladdaBibliotekKommentarer } from "./components/BibliotekKommentarerLat.jsx";

@@ -92,8 +92,8 @@ export function bibliotekslank(bas, { plats, postId }) {
 }
 
 /**
- * Platsen och posten ur en länk som `bibliotekslank` gav, eller `null`. ⛔ BARA APPENS EGEN FORM: samma ursprung och sökväg som `bas`, och exakt parametrarna `plats` och
- * `post`. En adress till en annan sida med samma parametrar är ingen post.
+ * Platsen och posten ur en länk som `bibliotekslank` gav, eller `null`. ⛔ BARA APPENS EGEN FORM: samma ursprung och sökväg som `bas`, och exakt parametrarna `plats` (eller
+ * `grupp`, sedan 0.234.0) och `post`. En adress till en annan sida med samma parametrar är ingen post.
  *
  * @param {string} bas
  * @param {unknown} url
@@ -111,8 +111,14 @@ export function lasBibliotekslank(bas, url) {
   }
   if (`${u.origin}${u.pathname}` !== b || u.hash) return null;
   const nycklar = [...u.searchParams.keys()];
-  if (nycklar.length !== 2 || !nycklar.includes("plats") || !nycklar.includes("post")) return null;
-  const plats = u.searchParams.get("plats") ?? "";
+  /*
+   * ⛔ `grupp` GÄLLER SOM `plats` (0.234.0, cllp/lifehub.app#860, L3). Agentens länkar till en post skrivs med `?grupp=&post=`, och
+   * kortet kände bara `?plats=&post=`: samma post blev ett kort i den ena formen och en lång adress i den andra. Fortfarande exakt två
+   * parametrar, och aldrig båda.
+   */
+  const platsnyckel = nycklar.includes("plats") ? "plats" : "grupp";
+  if (nycklar.length !== 2 || !nycklar.includes(platsnyckel) || !nycklar.includes("post")) return null;
+  const plats = u.searchParams.get(platsnyckel) ?? "";
   const postId = u.searchParams.get("post") ?? "";
   if (plats === "" || !POSTIDFORM.test(postId)) return null;
   return { plats, postId };

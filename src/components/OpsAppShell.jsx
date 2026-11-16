@@ -14,6 +14,7 @@ import { entryActive, validateNav } from "../lib/nav.js";
 import { Counter } from "./counter.jsx";
 import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, HusIkon, KryssIkon, MeddelandeIkon, MenuIcon, MikrofonIkon, PlusIkon, GruppIkon } from "./icons.jsx";
 import { OpsTalk, useTalk } from "./OpsTalk.jsx";
+import { AppNavigeringKontext } from "./appNavigering.js";
 import { TalkfaltKontext } from "./useTalkfalt.js";
 import { OpsTooltip } from "./OpsTooltip.jsx";
 import { kontrolleraSamtalet, kontrolleraSkickarText, talkForifyllt, talkKnappNamn } from "../lib/talk.js";
@@ -2669,6 +2670,7 @@ function OpsAppShellRitad({
   // bottenraden. Se OpsSpelare.jsx.
   return (
     <OpsSpelareProvider>
+    <AppNavigeringKontext.Provider value={onNavigate ?? null}>
     <TalkfaltKontext.Provider value={talkfaltVarde}>
     <OppnaSkapaKontext.Provider value={oppnaFranApp}>
     <OppnaHandelseKontext.Provider value={handelsepanel ? oppnaHandelse : null}>
@@ -3377,6 +3379,7 @@ function OpsAppShellRitad({
     </OppnaHandelseKontext.Provider>
     </OppnaSkapaKontext.Provider>
     </TalkfaltKontext.Provider>
+    </AppNavigeringKontext.Provider>
     </OpsSpelareProvider>
   );
 }

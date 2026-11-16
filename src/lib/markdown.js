@@ -45,6 +45,8 @@
  * möjlig den dagen en källa till läggs.
  */
 
+import { arRelativAppadress } from "./applank.js";
+
 /**
  * ⛔ TECKEN SOM AVSLUTAR EN MENING TILLHÖR MENINGEN, INTE ADRESSEN.
  * "se https://example.com/x." slutar med en punkt som är skiljetecken. Kolon
@@ -163,9 +165,13 @@ export function bilderI(text) {
   return ut;
 }
 
-/** @param {string} url @returns {boolean} */
+/**
+ * En adress som får bli en länk: http, https, eller en relativ adress i appen som börjar med ett enda `/` (0.234.0, cllp/lifehub.app#860,
+ * L3: agentens svar "[Hamnen](/bibliotek?plats=g&post=p)" blev text). Aldrig `javascript:`, `data:` eller `//annan.se` (`arRelativAppadress`).
+ * @param {string} url @returns {boolean}
+ */
 function saker(url) {
-  return /^https?:\/\//i.test(url);
+  return /^https?:\/\//i.test(url) || arRelativAppadress(url);
 }
 
 /**
@@ -239,7 +245,7 @@ function delaMedPlats(row, bilder = false) {
 }
 
 /**
- * Länkarna i en text, http och https, i den ordning de står. Samma tolkning som bubblan (`splitInline`), så en
+ * Länkarna i en text, http, https och relativa adresser i appen (0.234.0), i den ordning de står. Samma tolkning som bubblan (`splitInline`), så en
  * `javascript:`-adress inte blir en länk här heller.
  *
  * ⛔ HÄRLETT, ALDRIG LAGRA (0.80.0, #301, arbetsreglernas punkt 2). Chattinfo läser meddelandenas text. En sparad

@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { Image as BildIkon } from "lucide-react";
+import { appadress } from "../lib/applank.js";
 import { cx } from "../lib/cx.js";
 import { splitMarkdown } from "../lib/markdown.js";
 import { ordet } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsVantar } from "./OpsVantar.jsx";
+import { AppNavigeringKontext } from "./appNavigering.js";
 
 /**
  * Markdown som riktiga element.
@@ -151,6 +153,49 @@ function MarkdownBild({ alt, namn, bildAdress, onBildFel, sprak }) {
 }
 
 /**
+ * En länk i texten (0.234.0, cllp/lifehub.app#860, L3).
+ *
+ * ⛔ HÄNDELSEN: CP 2026-11-16 ville att agenten ska "kunna skapa genvägar och länkar direkt till kanske att spela upp en låt eller visa en
+ * fil". Varje länk öppnades i en ny flik, också en till appen själv, så en genväg i agentens svar lämnade appen. Nu:
+ *   - en länk till appen (relativ, eller samma ursprung) navigerar i appen med skalets navigering (`AppNavigeringKontext`), utan omladdning,
+ *     som `HandelseLank`: ett vanligt tryck navigerar, Ctrl, Cmd, Skift, Alt och mittknappen lämnas åt webbläsaren. Utanför skalet är det
+ *     en vanlig länk i samma flik;
+ *   - en extern länk öppnas i en ny flik, som förut.
+ *
+ * @param {{ url: string, arv: boolean, children: import("react").ReactNode }} props
+ */
+function MarkdownLank({ url, arv, children }) {
+  const navigera = useContext(AppNavigeringKontext);
+  const ursprung = typeof window !== "undefined" ? window.location.origin : null;
+  const iAppen = appadress(url, ursprung);
+  const klass = cx(
+    "rounded-sm underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2",
+    arv ? "text-current focus-visible:outline-current" : "text-accent focus-visible:outline-accent",
+  );
+  if (iAppen === null) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className={klass}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <a
+      href={iAppen}
+      data-applank=""
+      onClick={(e) => {
+        if (!navigera || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        navigera(iAppen, e);
+      }}
+      className={klass}
+    >
+      {children}
+    </a>
+  );
+}
+
+/**
  * @param {import("../lib/markdown.js").Bit[]} pieces
  * @param {string} blockKey
  * @param {boolean} [arv] Chattens bubbla (#273): färgen ärvs. Den egna bubblan är accentfärgad, och en länk i `text-accent` eller
@@ -167,18 +212,9 @@ function inline(pieces, blockKey, arv = false, bild = { sprak: "sv" }, omnamnand
     if (b.kind === "italic") return <em key={k}>{b.value}</em>;
     if (b.kind === "link") {
       return (
-        <a
-          key={k}
-          href={b.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={cx(
-            "rounded-sm underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2",
-            arv ? "text-current focus-visible:outline-current" : "text-accent focus-visible:outline-accent",
-          )}
-        >
+        <MarkdownLank key={k} url={b.url ?? ""} arv={arv}>
           {b.value}
-        </a>
+        </MarkdownLank>
       );
     }
     if (b.kind === "code") {

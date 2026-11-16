@@ -6,6 +6,7 @@ import { formatDateTime, formatTime, formatRelativeDate } from "../lib/format.js
 import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, bilagaUrDokument, kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { readAttachment } from "../lib/file.js";
 import { arGastId } from "../lib/gast.js";
+import { arRelativAppadress } from "../lib/applank.js";
 import { AGENTSTATUS_MAX_ALDER, MAX_ALTERNATIV, MAX_ALTERNATIVTEXT, MAX_ALTERNATIV_VID_START, MAX_FRAGA, MAX_MEDDELANDE, MAX_TRADNAMN, MIN_ALTERNATIV_VID_START, RAKNARE_FRAN, REAKTIONSKODER, agentstatus, vackerAgenten, arDelatSamtal, projekttaggUr, jamforbar, summeraOmrostning, amnesrubrik, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
 import { harAmnen, harBilagor, harCitat, harFasta, harOmnamnanden, harOmrostningar, harProjekt, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
@@ -5476,6 +5477,11 @@ const MAX_POSTKORT = 2;
  */
 const POSTKORTMINNE = new WeakMap();
 
+/** En relativ adress i appen som hel adress, med appens ursprung. Allt annat som det är. @param {string} url */
+function helAdress(url) {
+  return arRelativAppadress(url) && typeof window !== "undefined" ? new URL(url, window.location.origin).href : url;
+}
+
 /** @param {Postkort["slaUpp"]} sla @param {string} url */
 function slaUppPostkort(sla, url) {
   const minne = POSTKORTMINNE.get(sla) ?? new Map();
@@ -5510,7 +5516,9 @@ function MedPostkort({ text, postkort, egen, texter: t, children }) {
     if (!sla) return undefined;
     let levande = true;
     for (const url of adresser) {
-      slaUppPostkort(sla, url).then(
+      // ⛔ (0.234.0, cllp/lifehub.app#860) En relativ adress i appen är en länk sedan 0.234.0. Appens uppslag har bara fått hela adresser,
+      // så den får en hel adress här också, med appens ursprung.
+      slaUppPostkort(sla, helAdress(url)).then(
         (r) => levande && setSvar((f) => ({ ...f, [url]: r ?? null })),
         () => levande && setSvar((f) => ({ ...f, [url]: { fel: true } })),
       );
@@ -5535,7 +5543,7 @@ function MedPostkort({ text, postkort, egen, texter: t, children }) {
             key={url}
             href={url}
             data-postkort={url}
-            onClick={postkort.onOppna ? (e) => postkort.onOppna?.(url, e) : undefined}
+            onClick={postkort.onOppna ? (e) => postkort.onOppna?.(helAdress(url), e) : undefined}
             className="flex min-h-11 w-full items-center gap-2.5 rounded-card bg-hover px-3 py-2 text-left no-underline transition-colors duration-(--duration-fast) ease-standard hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             <span aria-hidden="true" className="inline-flex shrink-0 text-accent">
