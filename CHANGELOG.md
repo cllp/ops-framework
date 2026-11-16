@@ -21,6 +21,16 @@ anteckningar är en version ingen kan välja att hoppa över.
 - **Ramen runt fältet som TALK skriver i.** Medan en omgång har ett fält som mål bär fältet `data-ops-talk-mal`, och `tokens.css` ritar en ram i accentfärgen utanför fältets kant (i `ops-ramverk`-lagret, så den vinner över chattens `outline-none`). Den tas bort när omgången är över, när Något annat trycks och när fältet avmonteras. Ytan säger samma sak i ord, "Till fältet {namn}", som förut.
 - **Det senaste fältet i en öppen panel.** Trycker man på bottenradens eller huvudets TALK utan att något fält har fokus, men det senast fokuserade fältet fortfarande är monterat och ligger i en panel som är öppen, är det målet, med markören där den stod när fokus lämnade det. Panelerna (`OpsSkapaPanel`, `PanelDialog`, alltså också `OpsRadPanel` och `OpsExternPanel`) bär `data-ops-panel` (`PANEL` i `panellager.js`). Utanför en panel finns ingen sådan reserv: där vet ingen om personen fortfarande menar fältet.
 
+### Granskningen av PR 605
+
+- **Mikrofonen står kvar mellan tryck och klick.** På iOS lämnar fokus fältet när fingret landar på knappen (Safari fokuserar aldrig en knapp, och `touchstart` är passiv i React). Medan knappen trycks (`pointerdown`, `touchstart`, `mousedown` till `click` eller `pointercancel`) döljs den inte, och annars först `MIK_DOLJS_EFTER_MS` (250 ms) efter att fokus lämnat, och inte alls om fokus kommer tillbaka. Klicket behöver inte fältets fokus: elementet och dess markör räcker.
+- **Tangentbordet:** med Enter eller Space på mikrofonen går fokus till TALK-ytans första knapp, eller tillbaka till fältet om ytan inte öppnades, aldrig till `<body>`. Startar ingen omgång står fokus kvar på knappen.
+- **`aria-disabled`** på mikrofonen medan en omgång pågår (`useTalk().upptagen`).
+- **Fältet byter inte form** när `disabled`, `readOnly` eller `onChange` växlar: omslaget står så länge skalet har TALK, och fältet är samma nod före och efter.
+- **Platsen för knappen är reserverad** när mikrofonen kan visas, inte bara när den syns, så att texten inte hoppar vid fokus.
+- **Reserven:** panelen ska vara den översta öppna (den sista i dokumentet), och reserven glöms när fokus går till ett annat skrivbart fält som inte är registrerat (sök, e-post, `contenteditable`).
+- **Ramen tas bort när fältet avmonteras** mitt i en omgång.
+
 ### Ändrat
 
 - **TALK:s yta hamnar aldrig under tangentbordet.** Är tangentbordet uppe medan ytan är öppen lyfts ytan med det som tangentbordet täcker (`useTangentbordTackt`, samma mätning som chatten). Utan tangentbord är talet 0 och ingenting ändras.
@@ -28,7 +38,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ### Prov
 
-`talk-falt-mik` (nytt, 12): mikrofonen syns med fokus och bara i ett skal med valen, trycket flyttar inte fokus, klicket startar TALK med fältet som mål och ramar in det, Klar skriver in där markören stod, Tab och Enter når fältet, Något annat tar bort ramen, mikrofonen gör ingenting medan en omgång pågår, det senaste fältet i en panel och ingen reserv utanför, ytans lyft med tangentbordet, chattens mikrofon i skalet och ingen hos gästen. Nio röda mot 0.231.0 och gröna med ändringen; de tre som säger att något inte finns är gröna i båda och sågs röda mot en ändring som tog bort spärren (skalet, panelen). `check-skalyta` avsnitt 45 mäter mikrofonen i en riktig webbläsare vid 390 och 1280 px (träffbar på 44x44 inne i fältet, texten slutar före den, fokus lämnar fältet, ramen syns, ytan står ovanför bottenraden, Klar), avsnitt 67 (4b) det senaste fältet i skapa-panelen, avsnitt 8 att chatten utan TALK inte får någon mikrofon med fokus, och gästens chatt räknas med fokus i fältet. 45 och 67 röda mot 0.231.0 och gröna med ändringen, se PR-texten.
+`talk-falt-mik` (nytt, 24 efter granskningen): mikrofonen syns med fokus och bara i ett skal med valen, trycket flyttar inte fokus, klicket startar TALK med fältet som mål och ramar in det, Klar skriver in där markören stod, Tab och Enter når fältet, Något annat tar bort ramen, mikrofonen gör ingenting medan en omgång pågår, det senaste fältet i en panel och ingen reserv utanför, ytans lyft med tangentbordet, chattens mikrofon i skalet och ingen hos gästen. Nio röda mot 0.231.0 och gröna med ändringen; de tre som säger att något inte finns är gröna i båda och sågs röda mot en ändring som tog bort spärren (skalet, panelen). `check-skalyta` avsnitt 45 mäter mikrofonen i en riktig webbläsare vid 390 och 1280 px (träffbar på 44x44 inne i fältet, texten slutar före den, fokus lämnar fältet, ramen syns, ytan står ovanför bottenraden, Klar), avsnitt 67 (4b) det senaste fältet i skapa-panelen, avsnitt 8 att chatten utan TALK inte får någon mikrofon med fokus, och gästens chatt räknas med fokus i fältet. 45 och 67 röda mot 0.231.0 och gröna med ändringen, se PR-texten.
 
 ## 0.231.0
 

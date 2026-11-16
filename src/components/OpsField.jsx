@@ -167,7 +167,7 @@ export function OpsInput({
     <input
       ref={ruta}
       id={f.id}
-      className={cx(faltKlass({ invalid: f.invalid, yta }), talk.medMik && "block", talk.mikSyns && "pe-12")}
+      className={cx(faltKlass({ invalid: f.invalid, yta }), talk.medOmslag && "block", talk.medMik && "pe-12")}
       type={type}
       value={value}
       onChange={onChange ? (e) => onChange(e.target.value) : undefined}
@@ -183,9 +183,11 @@ export function OpsInput({
       aria-describedby={f.describedBy}
     />
   );
-  if (!talk.medMik) return falt;
-  // ⛔ (0.232.0) Ett omslag bara i ett skal med TALK, där mikrofonen kan visas: `w-full` som fältet självt, så att en rad där fältet stod
-  // direkt som flex-barn behåller sin bredd. Utanför ett skal (tam, gästen) är fältet exakt som förut.
+  if (!talk.medOmslag) return falt;
+  // ⛔ (0.232.0) Ett omslag bara i ett skal med TALK: `w-full` som fältet självt, så att en rad där fältet stod direkt som flex-barn behåller
+  // sin bredd. Utanför ett skal (tam, gästen) är fältet exakt som förut. ⛔ (granskningen av PR 605) Omslaget står där OAVSETT om fältet går
+  // att skriva i just nu: ett träd som byter form när `disabled` växlar monterar om fältet. Platsen för knappen reserveras när mikrofonen KAN
+  // visas (`medMik`), inte bara när den syns, så att texten inte hoppar när fältet får fokus.
   return (
     <div data-falt-omslag="" className="relative w-full min-w-0" {...talk.omslag}>
       {falt}
@@ -242,7 +244,7 @@ export function OpsTextarea({ value, onChange, placeholder, name, rows = 4, disa
       ref={ruta}
       onKeyDown={sendGenvag(onSend)}
       id={f.id}
-      className={cx(faltKlass({ invalid: f.invalid }), "resize-y", (bifogaPlats || talk.medMik) && "block", talk.mikSyns && bifogaPlats ? "pe-28" : (talk.mikSyns || bifogaPlats) && "pe-14")}
+      className={cx(faltKlass({ invalid: f.invalid }), "resize-y", (bifogaPlats || talk.medOmslag) && "block", talk.medMik && bifogaPlats ? "pe-28" : (talk.medMik || bifogaPlats) && "pe-14")}
       value={value}
       onChange={onChange ? (e) => onChange(e.target.value) : undefined}
       placeholder={placeholder}
@@ -256,10 +258,10 @@ export function OpsTextarea({ value, onChange, placeholder, name, rows = 4, disa
       aria-describedby={f.describedBy}
     />
   );
-  if (!bifogaPlats && !talk.medMik) return falt;
+  if (!bifogaPlats && !talk.medOmslag) return falt;
   // ⛔ (0.232.0) Mikrofonen står till vänster om gemknappen när båda finns, så att gemmen inte flyttar när fältet får fokus.
   return (
-    <div data-falt-omslag="" className={cx("relative min-w-0", !bifogaPlats && "w-full")} {...(talk.medMik ? talk.omslag : {})}>
+    <div data-falt-omslag="" className={cx("relative min-w-0", !bifogaPlats && "w-full")} {...(talk.medOmslag ? talk.omslag : {})}>
       {falt}
       {bifogaPlats && !disabled ? <div ref={bifogaPlats} data-bifoga-plats="" className="absolute end-3 bottom-0.5" /> : null}
       {talk.mikSyns ? bifogaPlats ? <div className="absolute end-15 bottom-0.5">{talk.mik("plats")}</div> : talk.mik("falt") : null}

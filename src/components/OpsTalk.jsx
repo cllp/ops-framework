@@ -1130,6 +1130,8 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
       laastStart.current = Boolean(val && typeof val === "object" && /** @type {any} */ (val).laast === true);
       skicka({ typ: "direkt" });
     },
+    /** (0.232.0, granskningen av PR 605) En omgång pågår: `tillFalt` gör ingenting nu, och fältets mikrofon bär `aria-disabled`. */
+    upptagen: TALK_UPPTAGEN_LAGEN.has(tillstand.lage),
     /**
      * (0.232.0, cllp/ops-framework#602) Mikrofonen i fältet: startar en omgång med fältet `el` som mål (`fangaTalkfalt(el)`, markören där den
      * står nu). Svarar `true` när omgången startade. `false`, och ingenting händer, när fältet inte är registrerat, när kroken saknar valen

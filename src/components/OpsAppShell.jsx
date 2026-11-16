@@ -2147,7 +2147,11 @@ function OpsAppShellRitad({
    */
   const tillFaltRef = useRef(talkStyr.tillFalt);
   tillFaltRef.current = talkStyr.tillFalt;
-  const talkfaltVarde = useMemo(() => (talkStyr.medAgent ? { tala: (/** @type {Element} */ el) => tillFaltRef.current(el) } : null), [talkStyr.medAgent]);
+  // `upptagen` (granskningen av PR 605): mikrofonen bär `aria-disabled` medan en omgång pågår, så att den inte lovar något den inte gör.
+  const talkfaltVarde = useMemo(
+    () => (talkStyr.medAgent ? { tala: (/** @type {Element} */ el) => tillFaltRef.current(el), upptagen: talkStyr.upptagen } : null),
+    [talkStyr.medAgent, talkStyr.upptagen],
+  );
   /**
    * ⛔ VALET GÄLLER EN INSPELNING, INTE SESSIONEN (0.94.3, lifehub.app#187). `valtInspelning` sattes av
    * Röstinspelning i en moduls Ny-meny, och av ett val i fältet, men återställdes aldrig. Efter en röstinspelning i

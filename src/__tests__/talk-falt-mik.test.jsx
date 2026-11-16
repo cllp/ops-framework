@@ -4,6 +4,8 @@ import { useState } from "react";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsField, OpsInput, OpsTextarea } from "../components/OpsField.jsx";
 import { Skrivfalt, texterPa } from "../components/OpsMeddelanden.jsx";
+import { PanelDialog } from "../components/PanelDialog.jsx";
+import { MIK_DOLJS_EFTER_MS } from "../components/useTalkfalt.js";
 import { PANEL } from "../lib/panellager.js";
 import { TALK_MAL } from "../lib/talkfalt.js";
 
@@ -91,6 +93,9 @@ describe("mikrofonen i fältet (0.232.0)", () => {
     expect(faltMik()).not.toBeNull();
     expect(faltMik()?.getAttribute("aria-label")).toBe("Tala in i fältet Not");
     act(() => ta.blur());
+    // (granskningen av PR 605) Döljs först efter en kort stund, så att ett tryck som tar fokus från fältet hinner fram.
+    expect(faltMik()).not.toBeNull();
+    act(() => vi.advanceTimersByTime(MIK_DOLJS_EFTER_MS + 10));
     expect(faltMik()).toBeNull();
   });
 
@@ -276,5 +281,202 @@ describe("chattens skrivfält (0.232.0)", () => {
     render(<Chatt />);
     act(() => /** @type {HTMLTextAreaElement} */ (screen.getByRole("textbox")).focus());
     expect(faltMik()).toBeNull();
+  });
+});
+
+describe("granskningen av PR 605", () => {
+  it("⛔ (1) iOS: fokus lämnar fältet när fingret landar, och klicket startar ändå TALK med fältet som mål", async () => {
+    render(<Tradet talk={skapaTalk()} barn={<Falt />} />);
+    const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));
+    act(() => stall(ta, 4));
+    const mik = /** @type {HTMLElement} */ (faltMik());
+    fireEvent.touchStart(mik);
+    fireEvent.pointerDown(mik);
+    // Safari fokuserar ingen knapp: fokus går till <body> före klicket. Fingret ligger kvar en stund.
+    act(() => ta.blur());
+    act(() => vi.advanceTimersByTime(MIK_DOLJS_EFTER_MS + 200));
+    expect(faltMik()).toBe(mik);
+    fireEvent.click(mik);
+    await flush();
+    expect(samtalsrad()?.textContent).toContain("Till fältet Not");
+    expect(ta.hasAttribute(TALK_MAL)).toBe(true);
+    await klar();
+    expect(ta.value).toBe("Hej Ring Anna i morgon världen");
+  });
+
+  it("(1) utan tryck döljs mikrofonen efter en stund, och nytt fokus avbryter det", () => {
+    render(<Tradet talk={skapaTalk()} barn={<Falt />} />);
+    const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));
+    act(() => ta.focus());
+    act(() => ta.blur());
+    act(() => vi.advanceTimersByTime(MIK_DOLJS_EFTER_MS / 2));
+    act(() => ta.focus());
+    act(() => vi.advanceTimersByTime(MIK_DOLJS_EFTER_MS * 2));
+    expect(faltMik()).not.toBeNull();
+    act(() => ta.blur());
+    act(() => vi.advanceTimersByTime(MIK_DOLJS_EFTER_MS + 10));
+    expect(faltMik()).toBeNull();
+  });
+
+  it("⛔ (2) tangentbordet: Enter på mikrofonen lämnar fokus på TALK-ytans första knapp, aldrig på <body>", async () => {
+    render(<Tradet talk={skapaTalk()} barn={<Falt />} />);
+    const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));
+    act(() => stall(ta, 0));
+    const mik = /** @type {HTMLElement} */ (faltMik());
+    act(() => mik.focus());
+    fireEvent.keyDown(mik, { key: "Enter" });
+    fireEvent.click(mik);
+    await flush();
+    expect(document.activeElement).not.toBe(document.body);
+    expect(/** @type {HTMLElement} */ (document.activeElement).tagName).toBe("BUTTON");
+    expect(document.querySelector("[data-ops-talk]")?.contains(document.activeElement)).toBe(true);
+  });
+
+  it("⛔ (2) startar ingen omgång står fokus kvar på mikrofonen", async () => {
+    render(<Tradet talk={skapaTalk()} barn={<Falt />} />);
+    const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));
+    fireEvent.pointerDown(huvudMikrofon());
+    fireEvent.click(huvudMikrofon());
+    await flush();
+    act(() => stall(ta, 0));
+    const mik = /** @type {HTMLElement} */ (faltMik());
+    act(() => mik.focus());
+    fireEvent.click(mik);
+    await flush();
+    expect(document.activeElement).toBe(mik);
+  });
+
+  it("⛔ (3) aria-disabled medan en omgång pågår, och inte annars", async () => {
+    render(<Tradet talk={skapaTalk()} barn={<Falt />} />);
+    const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));
+    act(() => ta.focus());
+    expect(faltMik()?.hasAttribute("aria-disabled")).toBe(false);
+    act(() => ta.blur());
+    fireEvent.pointerDown(huvudMikrofon());
+    fireEvent.click(huvudMikrofon());
+    await flush();
+    act(() => ta.focus());
+    expect(faltMik()?.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("⛔ (4) fältet är samma nod när disabled växlar, med fokus", () => {
+    function Vaxlande() {
+      const [av, setAv] = useState(false);
+      const [v, setV] = useState("text");
+      return (
+        <>
+          <OpsField label="Rubrik">
+            <OpsInput value={v} onChange={setV} disabled={av} />
+          </OpsField>
+          <button type="button" onClick={() => setAv((x) => !x)}>Växla</button>
+        </>
+      );
+    }
+    render(<Tradet talk={skapaTalk()} barn={<Vaxlande />} />);
+    const fore = screen.getByLabelText("Rubrik");
+    act(() => fore.focus());
+    fireEvent.click(screen.getByText("Växla"));
+    expect(screen.getByLabelText("Rubrik")).toBe(fore);
+    fireEvent.click(screen.getByText("Växla"));
+    expect(screen.getByLabelText("Rubrik")).toBe(fore);
+  });
+
+  it("⛔ (5) platsen för mikrofonen är reserverad också utan fokus, så att texten inte hoppar", () => {
+    render(<Tradet talk={skapaTalk()} barn={<><Falt /><Falt mangrad={false} etikett="Rubrik" /></>} />);
+    expect(screen.getByLabelText("Not").className).toContain("pe-14");
+    expect(screen.getByLabelText("Rubrik").className).toContain("pe-12");
+  });
+
+  it("⛔ (7) ramen tas bort när fältet avmonteras mitt i en omgång", async () => {
+    function Borta() {
+      const [kvar, setKvar] = useState(true);
+      return (
+        <>
+          {kvar ? <Falt /> : null}
+          <button type="button" onClick={() => setKvar(false)}>Ta bort</button>
+        </>
+      );
+    }
+    render(<Tradet talk={skapaTalk()} barn={<Borta />} />);
+    const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));
+    act(() => stall(ta, 0));
+    fireEvent.click(/** @type {HTMLElement} */ (faltMik()));
+    await flush();
+    expect(ta.hasAttribute(TALK_MAL)).toBe(true);
+    fireEvent.click(screen.getByText("Ta bort"));
+    await flush();
+    expect(ta.isConnected).toBe(false);
+    expect(ta.hasAttribute(TALK_MAL)).toBe(false);
+  });
+});
+
+describe("reserven i en riktig panel (granskningen av PR 605, fynd 6)", () => {
+  const varv = () => act(async () => { vi.advanceTimersByTime(20); });
+  /** @param {{ a: boolean, b: boolean, sok?: boolean }} p */
+  function Paneler({ a, b, sok = false }) {
+    return (
+      <>
+        <PanelDialog oppen={a} onStang={() => {}} titel="Panel A">
+          <Falt />
+          {sok ? <input type="search" aria-label="Sök" /> : null}
+        </PanelDialog>
+        <PanelDialog oppen={b} onStang={() => {}} titel="Panel B">
+          <p>Panel B</p>
+        </PanelDialog>
+      </>
+    );
+  }
+  async function tryckHuvud() {
+    fireEvent.pointerDown(huvudMikrofon());
+    fireEvent.click(huvudMikrofon());
+    await flush();
+  }
+
+  it("⛔ fältet i en öppen PanelDialog är målet efter att fokus lämnat det", async () => {
+    render(<Tradet talk={skapaTalk()} barn={<Paneler a b={false} />} />);
+    await varv();
+    const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));
+    act(() => stall(ta, 4));
+    act(() => ta.blur());
+    await tryckHuvud();
+    expect(samtalsrad()?.textContent).toContain("Till fältet Not");
+  });
+
+  it("⛔ fokus i ett annat skrivbart fält som inte är registrerat glömmer reserven", async () => {
+    render(<Tradet talk={skapaTalk()} barn={<Paneler a b={false} sok />} />);
+    await varv();
+    const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));
+    act(() => stall(ta, 4));
+    act(() => ta.blur());
+    const sok = screen.getByLabelText("Sök");
+    act(() => sok.focus());
+    act(() => sok.blur());
+    await tryckHuvud();
+    expect(samtalsrad()).toBeNull();
+  });
+
+  it("⛔ en panel ovanpå: fältet i panelen under är inte målet", async () => {
+    const { rerender } = render(<Tradet talk={skapaTalk()} barn={<Paneler a b={false} />} />);
+    await varv();
+    const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));
+    act(() => stall(ta, 4));
+    act(() => ta.blur());
+    rerender(<Tradet talk={skapaTalk()} barn={<Paneler a b />} />);
+    await varv();
+    await tryckHuvud();
+    expect(samtalsrad()).toBeNull();
+  });
+
+  it("⛔ panelbyte: reserven är borta när panelen med fältet stängts", async () => {
+    const talk = skapaTalk();
+    const { rerender } = render(<Tradet talk={talk} barn={<Paneler a b={false} />} />);
+    await varv();
+    const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));
+    act(() => stall(ta, 4));
+    act(() => ta.blur());
+    rerender(<Tradet talk={talk} barn={<Paneler a={false} b />} />);
+    await varv();
+    await tryckHuvud();
+    expect(samtalsrad()).toBeNull();
   });
 });

@@ -36,6 +36,9 @@
  *   7. ⛔ DET SENASTE FÄLTET I EN ÖPPEN PANEL. Trycker man på bottenradens TALK efter att ha fällt ned tangentbordet har fältet inte längre
  *      fokus. Är det senast fokuserade fältet fortfarande monterat och ligger i en panel som är öppen (`PANEL`), är det målet, med markören där
  *      den stod när fokus lämnade. Utanför en panel finns ingen sådan reserv: där vet ingen om personen fortfarande menar fältet.
+ *      ⛔ (granskningen av PR 605) Två villkor till. Panelen ska vara den ÖVERSTA öppna panelen: öppnas en annan panel ovanpå (eller byts
+ *      panelen) menar personen inte längre fältet under. Och reserven glöms när fokus går till ett annat skrivbart element som inte är
+ *      registrerat (ett sökfält, ett e-postfält, `contenteditable`): där skrev personen senast, och det hade varit fel fält att skriva i.
  *
  * ⛔ INGENTING SKICKAS AV SIG SJÄLVT. `skriv` lägger texten i fältet genom fältets egen `onChange`, där markören stod. Är fältet borta
  * (avmonterat) eller skrivskyddat när Klar trycks, eller får inte det sagda plats, kastas ett fel med svensk text: TALK:s meny står då
@@ -43,6 +46,7 @@
  */
 
 import { PANEL } from "./panellager.js";
+import { arTextfalt } from "./tangentbord.js";
 import { ORD_TALK } from "./talk.js";
 
 /** Attributet på fältet som en pågående TALK-omgång skriver i (0.232.0). `tokens.css` ritar ramen. */
@@ -215,12 +219,32 @@ export function senasteFaltetIPanel() {
   const s = senastFalt;
   if (!s) return null;
   if (REGISTER.get(s.el) !== s.post || !s.el.isConnected) return null;
-  if (!s.el.closest(`[${PANEL}]`)) return null;
+  const panel = s.el.closest(`[${PANEL}]`);
+  if (!panel || panel !== overstePanelen()) return null;
   return fangst(s.el, s.post, s.markor);
+}
+
+/**
+ * Den översta öppna panelen: den sista med `PANEL` i dokumentets ordning. (bedömning, mätt mot hur panelerna ritas) En modal panel ritas
+ * i en portal sist i <body> när den öppnas, och skapa-panelen står i skalets innehåll före portalerna, med samma `z-index` (`--z-modal`).
+ * Den som ligger sist i dokumentet ligger alltså överst.
+ * @returns {Element | null}
+ */
+function overstePanelen() {
+  const alla = document.querySelectorAll(`[${PANEL}]`);
+  return alla.length ? alla[alla.length - 1] : null;
 }
 
 function vidTryck() {
   senaste = { fangst: fangaTalkfalt() ?? senasteFaltetIPanel(), tid: Date.now() };
+}
+/**
+ * Fokus till ett annat skrivbart element som inte är registrerat glömmer reserven (se punkt 7 i filhuvudet).
+ * @param {FocusEvent} e
+ */
+function vidFokusIn(e) {
+  const el = e.target;
+  if (el instanceof Element && !REGISTER.has(el) && arTextfalt(el)) senastFalt = null;
 }
 /** @param {FocusEvent} e */
 function vidFokusUt(e) {
@@ -246,6 +270,7 @@ export function lyssnaPaTryck() {
     document.addEventListener("pointerdown", vidTryck, true);
     document.addEventListener("keydown", vidTangent, true);
     document.addEventListener("focusout", vidFokusUt, true);
+    document.addEventListener("focusin", vidFokusIn, true);
   }
   lyssnare += 1;
   let kvar = true;
@@ -257,6 +282,7 @@ export function lyssnaPaTryck() {
       document.removeEventListener("pointerdown", vidTryck, true);
       document.removeEventListener("keydown", vidTangent, true);
       document.removeEventListener("focusout", vidFokusUt, true);
+      document.removeEventListener("focusin", vidFokusIn, true);
       senaste = null;
       senastFalt = null;
     }
