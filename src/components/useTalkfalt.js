@@ -1,5 +1,6 @@
 import { createContext, createElement, useContext, useEffect, useRef } from "react";
 import { talkOrd } from "../lib/talk.js";
+import { arTextfalt } from "../lib/tangentbord.js";
 import { TALK_MAL, UTAN_TAL, registreraTalkfalt } from "../lib/talkfalt.js";
 import { Faltknapp } from "./Faltknapp.jsx";
 import { MikrofonIkon } from "./icons.jsx";
@@ -110,7 +111,10 @@ export function useTalkfalt(ref, f) {
         const knappHadeFokus = document.activeElement === e.currentTarget;
         // Ingen omgång startade (en pågår redan): ingenting ändras, och fokus står kvar där det stod.
         if (!kontext.tala(el)) return;
-        if (document.activeElement === el) /** @type {HTMLElement} */ (el).blur();
+        // ⛔ (granskningen av PR 606) Det fält som har fokus släpps, inte bara det här. Hade ett annat fält fokus stod tangentbordet kvar uppe och
+        // markören blinkade i ett fält som inte fick texten: samma läge som CP:s "TALK kommer inte upp".
+        const aktivt = document.activeElement;
+        if (aktivt instanceof HTMLElement && (aktivt === el || arTextfalt(aktivt))) aktivt.blur();
         if (knappHadeFokus) {
           // Tangentbordsvägen: fokus till TALK-ytans första knapp när ytan ritats. Finns ingen yta står fokus kvar på knappen.
           queueMicrotask(() => {

@@ -27,7 +27,7 @@ export function Faltknapp({ ikon, etikett, onClick, onPointerDown, onMouseDown, 
       onMouseDown={onMouseDown}
       disabled={disabled}
       className={cx(
-        "group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-55",
+        "group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-55 aria-disabled:cursor-not-allowed aria-disabled:opacity-55",
         placering === "falt" && "absolute end-3 bottom-0.5",
         placering === "rad-falt" && "absolute end-0.5 top-1/2 -translate-y-1/2",
       )}

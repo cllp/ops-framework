@@ -118,6 +118,35 @@ describe("mikrofonen i fältet (0.232.0)", () => {
     expect(document.activeElement).not.toBe(ta);
   });
 
+  it("⛔ (granskningen av PR 606) ett ANNAT fält har fokus: det släpps också, så att tangentbordet fälls ned och markören inte blinkar i fel fält", async () => {
+    render(
+      <Tradet
+        talk={skapaTalk()}
+        barn={
+          <>
+            <Falt />
+            <Falt mangrad={false} etikett="Rubrik" start="Möte" />
+          </>
+        }
+      />,
+    );
+    const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));
+    const rubrik = /** @type {HTMLInputElement} */ (screen.getByLabelText("Rubrik"));
+    act(() => rubrik.focus());
+    expect(document.activeElement).toBe(rubrik);
+    const mik = screen.getByRole("button", { name: "Tala in i fältet Not" });
+    fireEvent.pointerDown(mik);
+    fireEvent.mouseDown(mik);
+    fireEvent.click(mik);
+    await flush();
+    expect(document.activeElement).not.toBe(rubrik);
+    expect(ta.hasAttribute(TALK_MAL)).toBe(true);
+    expect(rubrik.hasAttribute(TALK_MAL)).toBe(false);
+    await klar();
+    expect(ta.value).toBe("Hej världen Ring Anna i morgon");
+    expect(rubrik.value).toBe("Möte");
+  });
+
   it("⛔ (0.233.0) har personen satt markören i fältet tidigare gäller den, också när fokus sedan lämnat fältet", async () => {
     render(<Tradet talk={skapaTalk()} barn={<Falt />} />);
     const ta = /** @type {HTMLTextAreaElement} */ (screen.getByLabelText("Not"));

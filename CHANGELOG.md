@@ -19,6 +19,8 @@ anteckningar är en version ingen kan välja att hoppa över.
 - **Ett tryck, inget tangentbord.** `pointerdown` och `mousedown` på mikrofonen gör `preventDefault`, så fältet får aldrig fokus av trycket. Klicket startar skalets TALK med fältet som mål, och hade fältet redan fokus släpps det, så att tangentbordet fälls ned. Fältet får ramen, och efter Klar skrivs texten in utan att fokus flyttas.
 - **Markören bara om personen satt den.** Registret minns vilka fält som haft fokus sedan de monterades. Har fältet fokus nu eller har haft det gäller markören. Annars hamnar det sagda sist, inte först (ett orört fält har ofta `selectionStart` 0).
 - **Större.** Mikrofonens cirkel är 40 px och ikonen 22 px (`Faltknapp` med `storlek="stor"`). Träffytan är 44 px som förut, så fältets reserverade plats räcker. Gemknappen är oförändrad.
+- **Ett annat fält med fokus släpps också** (granskningen av PR 606). Hade fält B fokus när man tryckte på mikrofonen i fält A stod tangentbordet kvar uppe och markören blinkade i B. Nu släpps fokus i varje skrivbart fält, inte bara i målfältet.
+- **`aria-disabled` syns.** Mikrofonen är dämpad medan en omgång pågår, som en avstängd knapp, i stället för att se aktiv ut och inte göra något.
 - Tangentbordsvägen (Tab till mikrofonen och Enter, fokus till TALK-ytan), `aria-disabled` under en pågående omgång och reserven till det senaste fältet i en öppen panel står kvar.
 
 ### Borttaget
