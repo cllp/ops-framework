@@ -1269,6 +1269,33 @@
   --bottom-nav-overhang: 0px;
 }
 
+/* ─── Panelernas kanter mot skalets huvud och bottenrad (0.231.0, cllp/ops-framework#602). ────────────────────────────
+ * CP 2026-11-15: "TAlk finns ju inte när man skall skriva text i ärenden mm." Panelerna täckte TALK: på telefonen låg de över
+ * bottenraden (där mikrofonen står), och på datorn låg slöjan över huvudet (där mikrofonen står). Skissen CP godkände ("Snyggt kör på
+ * skissen"): mikrofonen flyttar aldrig, panelerna slutar där den börjar.
+ *
+ *   --panel-botten  Hur högt upp en panel på TELEFONEN slutar: bottenraden (med sin kantlinje, 1 px, mätt: raden börjar 69 px upp vid
+ *                   `--bottom-nav-h` 68), dess säkra yta och mikrofonens lyft över raden (`--bottom-nav-overhang`), så att knappen
+ *                   sticker upp över en tom kant och inte under panelen. 0 utan bottenrad.
+ *                   Medan tangentbordet är uppe är raden borta och talen ovanför noll, och då är det bara den säkra ytan kvar.
+ *   --sloja-topp    Var slöjan och en modal panel på DATORN börjar: under skalets huvud. 0 utan skal.
+ *
+ * ⛔ MÄRKENA SÄTTS AV SKALET (`src/lib/panellager.js`, `useRotmarke`), inte av panelerna: en panel vet inte om den står i ett skal, och en
+ * Radix-dialog i en portal ärver inga variabler från skalets element. ⛔ BARA UNDER `md` för bottenraden: raden är `md:hidden` men monterad,
+ * och en panel på datorn ska inte sluta 84 px ovanför fönstrets underkant. */
+:root {
+  --panel-botten: 0px;
+  --sloja-topp: 0px;
+}
+:root[data-ops-med-huvud] {
+  --sloja-topp: calc(var(--safe-top) + var(--topbar-height) + 1px);
+}
+@media (width < 48rem) {
+  :root[data-ops-med-bottenrad] {
+    --panel-botten: calc(var(--bottom-nav-h) + 1px + var(--safe-bottom) + var(--bottom-nav-overhang));
+  }
+}
+
 @media (max-height: 31.25rem) {
   :root {
     --flytande-skapa-storlek: 2.75rem;

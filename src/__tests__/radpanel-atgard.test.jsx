@@ -109,8 +109,9 @@ describe("⛔ på telefonen börjar panelen under statusfältet (CP 2026-11-13: 
     await user.click(screen.getByRole("button", { name: "Attest större leverantörsfakturor" }));
     const panel = /** @type {HTMLElement} */ (radpanel());
     // jsdom kör ingen CSS, så det som mäts är att panelen som är `fixed inset-0` på telefonen också bär zonerna. Utan dem låg Tillbaka bakom klockan.
-    expect(panel.className).toMatch(/\bfixed inset-0\b/);
-    expect(panel.className.split(/\s+/)).toEqual(expect.arrayContaining(["max-md:pt-(--safe-top)", "max-md:pb-(--safe-bottom)"]));
+    // ⛔ 0.231.0 (cllp/ops-framework#602): panelen slutar ovanför bottenraden (`bottom-(--panel-botten)`) så att TALK syns, och bär den säkra zonen
+    // nedtill själv bara när ingen bottenrad bär den (`--panel-botten` är 0 utan rad). Var den slutar mäts i check-skalyta avsnitt 67.
+    expect(panel.className.split(/\s+/)).toEqual(expect.arrayContaining(["fixed", "inset-x-0", "top-0", "bottom-(--panel-botten)", "max-md:pt-(--safe-top)", "max-md:pb-[max(0px,calc(var(--safe-bottom)-var(--panel-botten)))]"]));
   });
 });
 

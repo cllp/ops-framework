@@ -47,6 +47,7 @@
  *       node scripts/check-skalyta.mjs --bara-talkval    bara avsnitt 46, valen efter talet och förslagen i chatten (0.105.0)
  *       node scripts/check-skalyta.mjs --bara-sidled     bara avsnitt 63, chatten rullar aldrig i sidled vid 390 och 375 px (0.212.1, cllp/lifehub.app#734), i scripts/lib/skalyta734.mjs
  *       node scripts/check-skalyta.mjs --bara-vantar     bara avsnitt 65 och 66, väntraden (OpsVantar) rör sig vid 390 px och står still men syns med reducerad rörelse, och profilens Life Hub-konto vid 390 och 1280 px (0.229.0), i scripts/lib/skalytaVantar.mjs
+ *       node scripts/check-skalyta.mjs --bara-talkpaneler  bara avsnitt 67, TALK ovanpå panelerna: skapa-panelen och ärendet i detalj vid 390 och 1280 px (0.231.0, cllp/ops-framework#602), i scripts/lib/skalytaTalkPaneler.mjs
  *       node scripts/check-skalyta.mjs --bara-alternativ  bara avsnitt 64, fältet Nytt alternativ i omröstningskortet tar raden vid 390 och 375 px (cllp/lifehub.app#742), i scripts/lib/skalyta734.mjs
  *       node scripts/check-skalyta.mjs --bara-0106       bara avsnitt 47, chattepiken 0.106.0 (#386), i scripts/lib/skalyta0106.mjs
  *       node scripts/check-skalyta.mjs --bara-bandkontrast  bara avsnitt 49, bandets text mot underlaget över en vald ruta (0.120.0), ljust och mörkt
@@ -77,6 +78,7 @@ import { kravPaMittknappen, matMittknappen } from "./lib/mittknappMatt.mjs";
 import { chattepiken0106, FALSKT_VV } from "./lib/skalyta0106.mjs";
 import { chattISidled, nyttAlternativFalt } from "./lib/skalyta734.mjs";
 import { profilKonto, vantraden } from "./lib/skalytaVantar.mjs";
+import { talkPaneler } from "./lib/skalytaTalkPaneler.mjs";
 import { fokusKort } from "./lib/fokusKort.mjs";
 import { distUtanKommentarer } from "./lib/dist-text.mjs";
 
@@ -1043,6 +1045,14 @@ if (argv.includes("--bara-sidled")) {
 if (argv.includes("--bara-vantar")) {
   await vantraden(verktyg0106);
   await profilKonto(verktyg0106);
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-talkpaneler`: bara avsnitt 67, TALK ovanpå panelerna (0.231.0, cllp/ops-framework#602). Hela körningen kör det också.
+if (argv.includes("--bara-talkpaneler")) {
+  await talkPaneler(verktyg0106);
   await browser.close();
   avsluta();
   process.exit(0);
@@ -2960,6 +2970,22 @@ for (const [namn, vp] of /** @type {const} */ ([["390 px", { width: 390, height:
   await context.close();
 }
 
+/**
+ * Var en panel slutar nedtill (0.231.0, cllp/ops-framework#602): på telefonen bottenradens överkant minus mikrofonens lyft (`--panel-botten`),
+ * utan synlig bottenrad fönstrets underkant. EN mätning för avsnitt 15, 22 och 53, som alla mätte att knappraden vilade mot fönstret innan
+ * panelen slutade ovanför raden. CP 2026-11-15: "TAlk finns ju inte när man skall skriva text i ärenden mm."
+ * @param {import("playwright").Page} page
+ * @returns {Promise<number>}
+ */
+function panelUnderkant(page) {
+  return page.evaluate(() => {
+    const n = document.querySelector("nav[data-ops-bottenrad]");
+    const r = n ? n.getBoundingClientRect() : null;
+    if (!r || r.height <= 0) return innerHeight;
+    return r.top - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--bottom-nav-overhang")) * 16 || 0);
+  });
+}
+
 // ══ 15. SKAPA ÄR EN PANEL, INTE EN MODAL, OCH "SKAPA I" ÄR EN DIALOG (0.31.0, avsnitt 16 och 12) ═
 // CP: "Låt det vara paneler istället för modaler precis som i sessionstudio", och (15:01, 390 px): arket täckte hela huvudet, nästa
 // fält klipptes utan knapprad, och valkorten var höga med stor text. Mått: ingen role=dialog för formuläret, panelen i
@@ -3026,15 +3052,20 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     });
     matt.push(`skapa-panelen ${namn}: panel ${JSON.stringify(m.panel)}, kolumn ${m.kolW.toFixed(0)} px, dialoger ${m.dialoger}, knapprad ${m.knappar.top.toFixed(0)}..${m.knappar.bottom.toFixed(0)} av ${m.vh}, valkort ${m.kortSynliga}/${m.kortAntal} synliga (höjd ${m.kortHojd.join(",")}), Spara höger ${m.sparaR} mot knapprad ${m.knappraden}`);
     krav(m.dialoger === 0, `skapa-panelen ${namn}: ${m.dialoger} role=dialog medan formuläret visas. Väntat 0: skapa är en panel, inte en modal.`);
-    krav(m.knappar.bottom <= m.vh + 0.5 && m.knappar.top >= 0, `skapa-panelen ${namn}: knappraden ligger utanför vyn (${m.knappar.top.toFixed(0)}..${m.knappar.bottom.toFixed(0)} av ${m.vh}).`);
-    krav(m.knappar.bottom >= m.vh - 1, `skapa-panelen ${namn}: knappraden vilar inte längst ned (slutar ${m.knappar.bottom.toFixed(0)} av ${m.vh}).`);
+    // ⛔ 0.231.0 (cllp/ops-framework#602): PÅ TELEFONEN SLUTAR PANELEN OVANFÖR BOTTENRADEN. Här mättes förut att knappraden vilade mot fönstrets
+    // underkant och att panelen var helskärm (CP 2026-09-29 15:01, "inträngt": raden fick inte ligga över knappraden). CP 2026-11-15: "TAlk finns
+    // ju inte när man skall skriva text i ärenden mm." och om skissen "Snyggt kör på skissen": raden med TALK syns, och knappraden ligger ovanför den.
+    // Underkanten är därför bottenradens överkant minus mikrofonens lyft (`--panel-botten`); på datorn finns ingen rad och den är fönstrets.
+    const underkant = await panelUnderkant(page);
+    krav(m.knappar.bottom <= underkant + 0.5 && m.knappar.top >= 0, `skapa-panelen ${namn}: knappraden ligger utanför vyn eller under bottenraden (${m.knappar.top.toFixed(0)}..${m.knappar.bottom.toFixed(0)}, underkant ${underkant.toFixed(0)} av ${m.vh}).`);
+    krav(m.knappar.bottom >= underkant - 1, `skapa-panelen ${namn}: knappraden vilar inte längst ned (slutar ${m.knappar.bottom.toFixed(0)}, väntat ${underkant.toFixed(0)}).`);
     krav(m.sparaR !== null && m.knappraden !== null && Math.abs(m.sparaR - (m.knappraden - 16)) <= 1.5, `skapa-panelen ${namn}: Spara slutar ${m.sparaR} men knappradens innerkant är ${m.knappraden === null ? "?" : m.knappraden - 16}. Väntat längst till höger.`);
     krav(m.sparaBg !== null && m.sparaBg !== "rgba(0, 0, 0, 0)" && m.avbrytBg === "rgba(0, 0, 0, 0)", `skapa-panelen ${namn}: Spara har bakgrund ${m.sparaBg} och Avbryt ${m.avbrytBg}. Väntat en fylld Spara och en Avbryt som textknapp.`);
     krav(!m.overflow, `skapa-panelen ${namn}: horisontell överflödning.`);
     krav(m.tillbaka !== null && m.rubrik !== null && (mobil ? Math.abs(m.tillbaka.top - m.rubrik.top) < 40 : m.tillbaka.bottom <= m.rubrik.top + 1), `skapa-panelen ${namn}: Tillbaka och rubriken ligger inte som väntat (${JSON.stringify(m.tillbaka)} ${JSON.stringify(m.rubrik)}).`);
     krav(m.kortSynliga >= 3, `skapa-panelen ${namn}: ${m.kortSynliga} av ${m.kortAntal} valkort syns samtidigt med rubrikraden och knappraden, väntat minst 3.`);
     if (mobil) {
-      krav(Math.abs(m.panel.x) < 0.5 && Math.abs(m.panel.y) < 0.5 && Math.abs(m.panel.w - m.cw) < 0.5 && Math.abs(m.panel.h - vp.height) < 1, `skapa-panelen ${namn}: panelen är ${JSON.stringify(m.panel)}, väntat helskärm 0,0 ${m.cw}x${vp.height} (sidans bredd, scrollbar-gutter stable tar en rullningslist).`);
+      krav(Math.abs(m.panel.x) < 0.5 && Math.abs(m.panel.y) < 0.5 && Math.abs(m.panel.w - m.cw) < 0.5 && Math.abs(m.panel.h - underkant) < 1, `skapa-panelen ${namn}: panelen är ${JSON.stringify(m.panel)}, väntat 0,0 ${m.cw}x${underkant.toFixed(0)}: hela bredden, och höjden ned till bottenraden och mikrofonens lyft (0.231.0, #602).`);
       krav(m.kortHojd.every((h) => h <= 60), `skapa-panelen ${namn}: valkorten är ${m.kortHojd.join(", ")} px höga, väntat högst 60 (tätt, som SS).`);
       // Tangentbord: fönstret krymper till 500 px. Aktivt fält och knapprad ska båda synas.
       await page.setViewportSize({ width: vp.width, height: 500 });
@@ -3793,7 +3824,9 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     );
     krav(m.sektion !== null && m.sektion.fs === "12px" && m.sektion.tt === "uppercase", `ny grupp ${namn}: raden "Visuell identitet" är ${JSON.stringify(m.sektion)}, väntat 12 px versaler (SS text-xs uppercase, ManageGroupModalGroupImages.jsx:32).`);
     krav(m.spara, `ny grupp ${namn}: skalets fasta Spara saknas.`);
-    krav(m.knappar.bottom >= m.vh - 1 && m.knappar.bottom <= m.vh + 0.5, `ny grupp ${namn}: knappraden vilar inte längst ned (${m.knappar.top.toFixed(0)}..${m.knappar.bottom.toFixed(0)} av ${m.vh}).`);
+    // ⛔ 0.231.0 (#602): "längst ned" är panelens underkant, ovanför bottenraden på telefonen (`panelUnderkant`), inte fönstrets.
+    const nedre = await panelUnderkant(page);
+    krav(m.knappar.bottom >= nedre - 1 && m.knappar.bottom <= nedre + 0.5, `ny grupp ${namn}: knappraden vilar inte längst ned (${m.knappar.top.toFixed(0)}..${m.knappar.bottom.toFixed(0)}, väntat slut ${nedre.toFixed(0)} av ${m.vh}).`);
     krav(!m.overflow, `ny grupp ${namn}: horisontell överflödning.`);
     if (!mobil) {
       krav(Math.abs(m.kolW - 672) <= 1, `ny grupp ${namn}: kolumnen är ${m.kolW.toFixed(0)} px, väntat 672 (SS GroupEditRouteView.jsx:40 max-w-2xl).`);
@@ -7605,7 +7638,9 @@ async function gruppVantar() {
       krav(m.busy && m.spard && m.snurra, `${namn} (a): Spara är upptagen ${m.busy}, spärrad ${m.spard}, med snurra ${m.snurra}. Väntat allt tre medan gruppen skapas.`);
       krav(m.text === "Skapar gruppen", `${namn} (b): statusraden säger ${JSON.stringify(m.text)}, väntat "Skapar gruppen".`);
       krav(m.stSynlig && !!m.st && m.st.l >= m.inreL - 0.5 && m.st.r <= m.inreR + 0.5 && m.st.t >= m.radT - 0.5 && m.st.b <= m.radB + 0.5 && m.st.r <= m.vb && m.klippt === false, `${namn} (b): statusraden ligger inte synlig inom knappraden och fönstret (${JSON.stringify(m.st)} mot rad ${m.inreL}-${m.inreR}, ${m.radT.toFixed(0)}-${m.radB.toFixed(0)}, klippt ${m.klippt}).`);
-      krav(m.saraR !== null && Math.abs(m.saraR - (m.inreR - 16)) <= 1.5 && m.radB >= m.vh - 1 && m.radB <= m.vh + 0.5, `${namn} (c): Spara slutar ${m.saraR} mot knappradens innerkant ${m.inreR - 16}, och raden slutar ${m.radB.toFixed(0)} av ${m.vh}. Väntat längst till höger och längst ned.`);
+      // ⛔ 0.231.0 (#602): "längst ned" är panelens underkant, ovanför bottenraden på telefonen (`panelUnderkant`), inte fönstrets.
+      const nedre = await panelUnderkant(page);
+      krav(m.saraR !== null && Math.abs(m.saraR - (m.inreR - 16)) <= 1.5 && m.radB >= nedre - 1 && m.radB <= nedre + 0.5, `${namn} (c): Spara slutar ${m.saraR} mot knappradens innerkant ${m.inreR - 16}, och raden slutar ${m.radB.toFixed(0)}, väntat ${nedre.toFixed(0)} av ${m.vh}. Väntat längst till höger och längst ned.`);
       krav(!m.overflow, `${namn} (d): sidan flödar över i sidled medan gruppen skapas.`);
       krav(m.formStatus === 0, `${namn} (e): formulärets egen statusrad är inte tyst (${m.formStatus} rader med text), väntat 0: texten står på ett ställe, i panelen.`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-grupp-vantar-${vp.width}.png`) });
@@ -9457,6 +9492,7 @@ await chattISidled(verktyg0106);
 await nyttAlternativFalt(verktyg0106);
 await vantraden(verktyg0106);
 await profilKonto(verktyg0106);
+await talkPaneler(verktyg0106);
 await kalenderEtiketter();
 await kalenderBandkontrast();
 await kalenderPreliminar();
