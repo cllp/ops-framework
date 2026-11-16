@@ -40,6 +40,16 @@ Prov: `agenter-nyckellage` (nytt, 13), alla tre lägen och felet i båda väljar
 
 **Att göra i appen (#607):** skicka `nyckellage`. I lifehub.app (`AgenterView.jsx`) är `nycklar` `null` medan `aiByok` läses, och ett fel ger i dag `[]`, alltså samma sak som "inga nycklar". Ge `nyckellage={nycklar === null ? "laddar" : nyckelfel ? "fel" : "klar"}`, och låt felvägen sätta ett fel i stället för en tom lista. Utan propen är förvalet `klar`, och vyn beter sig som i 0.233.0.
 
+### Agenten vaknar (cllp/ops-framework#609)
+
+CP 2026-11-16: "När man börjar prata med agenten tar det några sekunder att väcka den. Det vore bra om man kunde ha en progress även där att agenten vaknar..." "Agenten tänker" skrivs av servern först när agentens funktion har startat, och mellan att man skickat och att statusen kom syntes ingenting.
+
+- **`OpsMeddelanden` (samtalet och tråden) visar "Agenten vaknar" direkt** efter att ett meddelande som väcker agenten skickats, på samma rad och med samma prickar som "Agenten tänker" (`data-agentstatus="vaknar"`). Raden går bort när serverns status, agentens svar eller ett fel kommer. Kommer inget av dem inom samma tak som för "tänker" (`AGENTSTATUS_MAX_ALDER`, två minuter) blir den en felrad (`data-agentstatus="vaknar-fel"`, `role="alert"`), aldrig tyst. Läget är bara klientens, ingenting skrivs till servern.
+- **Villkoret är serverns, i `vackerAgenten`** (`lib/samtal.js`): agentsamtalet (`slag: "agent"`), och gruppchatten med dess trådar när en aktiv agent är nämnd (`agentenNamnd`). Aldrig ett privat samtal mellan personer, ett projekts chatt eller ett meddelande från en agent. "@Agent" skrivet för hand, som appens server också svarar på, ger ingen rad: regexen bor i appen (`agentbeslut.js`), och en kopia här hade varit en andra sanning.
+- Nya ord: `agentVaknar` ("Agenten vaknar", "The agent is waking up") och `agentVaknarFel`.
+
+Prov: `agent-vaknar` (nytt, 8): raden direkt efter skickat, ersatt av "tänker", borta när svaret kommer, en felrad efter taket, ingen rad i ett samtal utan agent (och raden i agentsamtalet med samma meddelande), och villkoret. 8 röda mot förra commiten och gröna med ändringen.
+
 ### Vem som ser adressen
 
 Före 0.234.0 lämnade adressen aldrig `users`, och en vanlig medlem såg bara namn och bild i medlemslistan. Nu bär medlemskapet adressen, och en medlem läser gruppens alla medlemskap (0.32.0, #180). **Adressen blir alltså läsbar för varje aktiv medlem i en gemensam grupp.** Det är innanför #138:s klarkriterium ("ingen läser en annans e-post utan att vara medlem i en gemensam grupp"), `users` är lika stängd som förut, och reglerna är oförändrade utom kommentaren vid `memberships`, som nu säger det.
