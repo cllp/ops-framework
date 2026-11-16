@@ -199,7 +199,12 @@ describe("bibliotekets regler: skapa", () => {
       fil: { sokvag: "grupper/cps-ab/bibliotek/{postId}/kvitto.jpg", namn: "kvitto.jpg", mime: "image/jpeg", byte: 1200 },
     };
     await assertSucceeds(skapa(MEDLEM, fil));
-    await assertFails(skapa(MEDLEM, { ...fil, fil: { ...fil.fil, mime: "application/zip" } }));
+    // ⛔ ZIP ÄR TILLÅTET SEDAN 0.234.0 (CP 2026-11-16: "Yes, kör zip"): ett arkiv på 25 MB går in, ett byte till gör det inte. Fel format
+    // provas nu med rar, som aldrig står i FILMIME.
+    const zip = { ...fil, rubrik: "Noter", fil: { ...fil.fil, sokvag: "grupper/cps-ab/bibliotek/{postId}/noter.zip", namn: "noter.zip", mime: "application/zip", byte: 25 * 1024 * 1024 } };
+    await assertSucceeds(skapa(MEDLEM, zip));
+    await assertFails(skapa(MEDLEM, { ...zip, fil: { ...zip.fil, byte: 25 * 1024 * 1024 + 1 } }));
+    await assertFails(skapa(MEDLEM, { ...fil, fil: { ...fil.fil, mime: "application/vnd.rar" } }));
     await assertFails(skapa(MEDLEM, { ...fil, fil: { ...fil.fil, mime: "audio/webm;codecs=opus" } }));
     await assertFails(skapa(MEDLEM, { ...fil, fil: { ...fil.fil, byte: 25 * 1024 * 1024 + 1 } }));
     // ⛔ LJUD HAR ETT EGET TAK (CP 2026-10-18): CP:s WAV på 64 264 206 byte går in, och taket för ljud är 250 MB.

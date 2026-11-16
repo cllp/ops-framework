@@ -8,6 +8,7 @@ import { byggPost, kodaToppar } from "../lib/bibliotek.js";
 import { nollstallSpelare } from "../lib/ljudspelare.js";
 import { bibliotekslank, lasBibliotekslank } from "../lib/postkommentar.js";
 import { medSpela } from "../lib/spelalank.js";
+import { appadress } from "../lib/applank.js";
 
 /**
  * ⛔ HÄNDELSEN (0.234.0, cllp/lifehub.app#860, L3 och L4). CP 2026-11-16, om agenten: "Jag vill att agenten skall vara en riktig assistens
@@ -56,6 +57,23 @@ describe("L3: länkar i texten", () => {
     expect(screen.queryByRole("link", { name: "bak" })).toBeNull();
     expect(screen.getByRole("link", { name: "bra" }).getAttribute("href")).toBe("/bibliotek");
     expect(document.body.textContent).toContain("[ond](javascript:alert(1))");
+  });
+
+  it("⛔ samma ursprung med en sökväg som börjar med // eller /\\ blir aldrig en adress i appen (granskningen av 0.234.0)", () => {
+    // Mätt i granskningen: alla tre har appens ursprung, men sökvägen pekar på en annan värd när den används som href.
+    expect(appadress(`${URSPRUNG}//evil.com/x`, URSPRUNG)).toBeNull();
+    expect(appadress(`${URSPRUNG}/\\evil.com`, URSPRUNG)).toBeNull();
+    expect(appadress(`${URSPRUNG}/..//evil.com`, URSPRUNG)).toBeNull();
+    expect(appadress(`${URSPRUNG}/bibliotek?plats=g&post=p`, URSPRUNG)).toBe("/bibliotek?plats=g&post=p");
+    const navigera = vi.fn();
+    rita(`[Hamnen](${URSPRUNG}//evil.com/x)`, navigera);
+    const lank = screen.queryByRole("link", { name: "Hamnen" });
+    if (lank) {
+      expect(lank.getAttribute("href")).not.toMatch(/^\/\//);
+      expect(lank.hasAttribute("data-applank")).toBe(false);
+      fireEvent.click(lank);
+    }
+    expect(navigera).not.toHaveBeenCalled();
   });
 
   it("⛔ en relativ adress blir klickbar och navigerar i appen; Ctrl-klick lämnas åt webbläsaren", () => {

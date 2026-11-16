@@ -162,3 +162,21 @@ describe("Lagring: en textfil får sin teckenkodning (0.153.0, cllp/ops-framewor
     assert.equal(new TextDecoder("utf-8").decode(bytes), "Hej, för vår skull.");
   });
 });
+
+describe("Lagring: zip i Biblioteket (0.234.0, CP 2026-11-16: \"Yes, kör zip\")", () => {
+  // ⛔ GRANSKNINGEN AV 0.234.0: regeln provades bara som text i den genererade strängen (ett närvarogrep, regel 4). Här mäts den mot emulatorn.
+  const sok = (/** @type {string} */ namn) => ref(lagringSom(AGARE), `grupper/${CPS}/bibliotek/g1/${namn}`);
+  const BILAGA = 'attachment; filename="noter.zip"';
+
+  it("⛔ ett arkiv som laddas upp som bilaga går in, också på exakt 25 MB", async () => {
+    await assertSucceeds(uploadBytes(sok("noter.zip"), new Uint8Array(25 * 1024 * 1024), { contentType: "application/zip", contentDisposition: BILAGA }));
+  });
+  it("⛔ ett arkiv utan bilaga nekas, så att det aldrig kan visas i webbläsaren", async () => {
+    await assertFails(uploadBytes(sok("utan.zip"), new Uint8Array(1024), { contentType: "application/zip" }));
+    await assertFails(uploadBytes(sok("inline.zip"), new Uint8Array(1024), { contentType: "application/zip", contentDisposition: "inline" }));
+  });
+  it("⛔ ett arkiv över 25 MB nekas, och ett alias för typen nekas", async () => {
+    await assertFails(uploadBytes(sok("stor.zip"), new Uint8Array(25 * 1024 * 1024 + 1), { contentType: "application/zip", contentDisposition: BILAGA }));
+    await assertFails(uploadBytes(sok("alias.zip"), new Uint8Array(1024), { contentType: "application/x-zip-compressed", contentDisposition: BILAGA }));
+  });
+});

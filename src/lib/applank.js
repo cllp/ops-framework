@@ -39,7 +39,12 @@ export function appadress(url, ursprung) {
   if (!ursprung || !/^https?:\/\//i.test(url)) return null;
   try {
     const u = new URL(url);
-    return u.origin === ursprung ? `${u.pathname}${u.search}${u.hash}` : null;
+    if (u.origin !== ursprung) return null;
+    // ⛔ SAMMA URSPRUNG RÄCKER INTE (granskningen av 0.234.0): `https://<app>//evil.com/x`, `https://<app>/\evil.com` och
+    // `https://<app>/..//evil.com` har appens ursprung men en sökväg som börjar med `//`, alltså en adress till en annan värd när den
+    // används som `href` eller skickas till `onNavigate`. Resultatet prövas därför med samma regel som en relativ adress.
+    const vag = `${u.pathname}${u.search}${u.hash}`;
+    return arRelativAppadress(vag) ? vag : null;
   } catch {
     return null;
   }

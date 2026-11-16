@@ -2686,7 +2686,7 @@ function OpsAppShellRitad({
   // bottenraden. Se OpsSpelare.jsx.
   return (
     <OpsSpelareProvider>
-    <AppNavigeringKontext.Provider value={onNavigate ?? null}>
+    <AppNavigeringKontext.Provider value={onNavigate ? onActivate : null}>
     <TalkfaltKontext.Provider value={talkfaltVarde}>
     <OppnaSkapaKontext.Provider value={oppnaFranApp}>
     <OppnaHandelseKontext.Provider value={handelsepanel ? oppnaHandelse : null}>
