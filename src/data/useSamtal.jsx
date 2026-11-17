@@ -4,6 +4,21 @@ import { rapporteraFel } from "../lib/felrapport.js";
 import { harLevandeInkorg } from "./samtalskalla.js";
 
 /** @typedef {Awaited<ReturnType<ReturnType<typeof import("./samtalskalla.js").createSamtalskalla>["oversikt"]>>} Rader */
+
+/**
+ * ⛔ HUR LÄNGE INKORGEN VÄNTAR PÅ SITT FÖRSTA SVAR (0.236.0). CP 2026-11-17, med en skärmbild från SessionStudio-hubben: Meddelanden stod på "…"
+ * och "fastnar såhär" när han klickade runt. Läsningen hade ingen tidsgräns: ett anrop till Firestore som aldrig svarade (hypotes: anslutningen
+ * hängde efter att datorn sovit) blev varken rader eller fel, så "…" stod kvar för alltid och Sentry såg ingenting. Efter gränsen står ett fel
+ * med kod `SVARAR_INTE`, som vyn ritar med Försök igen, och felet rapporteras så att det går att räkna hur ofta det händer. Kommer svaret
+ * senare ritas det som vanligt och felet försvinner.
+ */
+export const INKORG_TIDSGRANS_MS = 15_000;
+
+/** Koden på felet efter `INKORG_TIDSGRANS_MS`. Vyn väljer sin text på koden, inte på felets meddelande. */
+export const SVARAR_INTE = "inkorgen-svarar-inte";
+
+/** Kortaste tid mellan två omläsningar som fönstret själv utlöser (fokus, synlig igen, nätet tillbaka), så att de tre inte läser var för sig. */
+const OMLASNING_MELLANRUM_MS = 2_000;
 /** @typedef {Map<string, { samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null }>} Lokala */
 
 /**
@@ -101,6 +116,8 @@ export function useSamtal({ kalla, groupId, uid, oppet = null }) {
     oppetNu.current = oppet;
   }, [oppet]);
 
+  /** När den senaste läsningen startade, för `OMLASNING_MELLANRUM_MS`. */
+  const senastStart = useRef(0);
   const lasOm = useCallback(async () => {
     if (!kalla || !groupId || !uid) {
       setLage({ rader: [], laddar: !groupId || !uid ? false : true, fel: null });
@@ -119,6 +136,14 @@ export function useSamtal({ kalla, groupId, uid, oppet = null }) {
     const nr = ++levande.current;
     const aktuell = () => nr === levande.current;
     const startnummer = ++lasning.current;
+    senastStart.current = Date.now();
+    // Bara det FÖRSTA svaret har en tidsgräns i vyn: en omläsning som hänger när listan redan står ersätter inte listan med ett fel, den rapporteras bara.
+    const vakt = setTimeout(() => {
+      if (!aktuell()) return;
+      const fel = Object.assign(new Error(`Inkorgen fick inget svar på ${INKORG_TIDSGRANS_MS / 1000} sekunder.`), { kod: SVARAR_INTE });
+      rapporteraFel(fel, { vad: "inkorgen svarade inte", groupId });
+      setLage((f) => (f.laddar ? { ...f, laddar: false, fel } : f));
+    }, INKORG_TIDSGRANS_MS);
     try {
       const svar = await kalla.oversikt({ groupId, uid });
       // ⛔ Ett sent svar för en grupp man redan lämnat skrivs inte in i den nya gruppens inkorg.
@@ -136,6 +161,8 @@ export function useSamtal({ kalla, groupId, uid, oppet = null }) {
       }
     } catch (fel) {
       if (aktuell()) setLage({ rader: [], laddar: false, fel: fel instanceof Error ? fel : new Error(String(fel)) });
+    } finally {
+      clearTimeout(vakt);
     }
   }, [kalla, groupId, uid]);
 
@@ -146,10 +173,24 @@ export function useSamtal({ kalla, groupId, uid, oppet = null }) {
     setLage((f) => ({ ...f, rader: [], laddar: true, fel: null }));
     lasOm();
     if (typeof window === "undefined") return undefined;
-    const fokus = () => lasOm();
-    window.addEventListener("focus", fokus);
+    /*
+     * ⛔ LÄSES OM VID FOKUS, NÄR SIDAN BLIR SYNLIG IGEN OCH NÄR NÄTET KOMMER TILLBAKA (0.236.0). Förut bara vid fokus, och den som klickar runt
+     * i ett fönster som redan har fokus fick aldrig någon ny läsning. De tre kommer ofta samtidigt, så de delar ett mellanrum.
+     */
+    const omlas = () => {
+      if (Date.now() - senastStart.current < OMLASNING_MELLANRUM_MS) return;
+      lasOm();
+    };
+    const synlig = () => {
+      if (document.visibilityState === "visible") omlas();
+    };
+    window.addEventListener("focus", omlas);
+    window.addEventListener("online", omlas);
+    document.addEventListener("visibilitychange", synlig);
     return () => {
-      window.removeEventListener("focus", fokus);
+      window.removeEventListener("focus", omlas);
+      window.removeEventListener("online", omlas);
+      document.removeEventListener("visibilitychange", synlig);
       // ⛔ Det enda skyddet mot ett sent svar när ingen ny läsning startar efter bytet (gruppen blir `null`). Se ovan.
       levande.current += 1;
     };

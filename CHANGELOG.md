@@ -23,6 +23,14 @@ anteckningar är en version ingen kan välja att hoppa över.
   Utan dem ser sidan ut som förut.
 - **`OpsInput` kan visa förslag medan man skriver** (#871): `forslag` (`{ id, etikett, under? }[]`, högst åtta visas) och `onValjForslag(id)`. Fältet blir en kombinationsruta (`role="combobox"`, `aria-expanded`, `aria-activedescendant`): pilarna markerar, Enter väljer, Escape stänger, ett tryck väljer. Listan är ett syskon till fältet och trycket tas på `mousedown`, så att fältet inte tappar fokus före valet. ⛔ Appen filtrerar och bestämmer vem som syns, fältet vet inget om varifrån listan kom. `forslag` utan `onValjForslag` kastar.
 
+### Inkorgen fastnar inte på "…"
+
+CP 2026-11-17, med en skärmbild från SessionStudio-hubben: Meddelanden stod på "…" och "fastnar såhär" när han klickade runt. Mätt: "…" är inkorgens laddläge i `useSamtal`, och läsningen hade ingen tidsgräns. Ett anrop som aldrig svarade blev varken rader eller fel, så Sentry såg ingenting. Varför anropet hängde är en **hypotes**: anslutningen till Firestore har somnat efter att datorn sovit.
+
+- **Tidsgräns:** har inkorgen inget svar efter `INKORG_TIDSGRANS_MS` (15 s) blir laddläget ett fel med koden `SVARAR_INTE`. `OpsMeddelanden` ritar "Meddelandena svarar inte" med en rad om vad man kan göra, och knappen Försök igen. Felet rapporteras via `rapporteraFel`, så att det går att räkna hur ofta det händer. Kommer svaret senare ritas listan som vanligt och felet försvinner. En omläsning som hänger när listan redan står ersätter inte listan, den rapporteras bara.
+- **Omläsning:** inkorgen läses också om när sidan blir synlig igen (`visibilitychange`) och när nätet kommer tillbaka (`online`), inte bara vid fokus. De tre delar ett mellanrum på 2 s, så att de inte läser var för sig.
+- Prov: `inkorg-tidsgrans.test.jsx` (3). Röda mot caf29fc, gröna med ändringen.
+
 ### Granskningen före utgivningen
 
 En fristående granskare läste diffen. Det som ändrades:
