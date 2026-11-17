@@ -20,7 +20,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 ### Vakt
 
 - `check-delbarhet` mäter nu att `OpsKalenderAr` och `arsband` ligger i en egen bit när startfilen importerar `OpsCalendar`. Röd med 0.237.0:s direkta import (4 brott: golvet och tre träffar i startfilen), grön med ändringen.
-- `kalender-arsvy-874.test.jsx` väntar på att årsvyn ritas efter trycket, i stället för att anta att den redan finns.
+- `kalender-arsvy-874.test.jsx` väntar på årsvyn med namn ("Året 2027") efter trycket, och renderar kalendern med tre månader i stället för 25. Med 25 nådde det första provet vitests gräns på 5 s under CI:s last på PR 615, och nästa prov startade medan det väntade.
 - `karta-vy.test.jsx` väntar på kartan, inte bara på regionen. Regionen "Karta" ritas innan effekten har skapat kartan, och provet föll i CI under last på PR 615 (`reading 'opts'`). Med kartattrappens registrering ett varv senare: rött utan väntan (samma fel som i CI), grönt med.
 
 ## 0.237.0
