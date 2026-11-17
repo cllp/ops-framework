@@ -211,8 +211,11 @@ function OpsBottomNavRitad({
     >
       {/* ⛔ 0.231.0: KANTEN MELLAN PANELEN OCH RADEN. Panelen slutar `--bottom-nav-overhang` ovanför raden så att mikrofonen sticker upp över
           något som ligger under den, och inte under panelen (en panel ligger på `--z-modal`, raden på `--z-chrome`). Kanten fyller den remsan i
-          panelens färg, i radens lager, så att panelen och raden möts utan glipa. Ett tryck på den hör till raden och stänger ingen panel. */}
-      {panelOppen ? <div data-panelkant="" aria-hidden="true" className="absolute inset-x-0 bottom-full h-(--bottom-nav-overhang) bg-canvas" /> : null}
+          panelens färg, i radens lager, så att panelen och raden möts utan glipa. Ett tryck på den hör till raden och stänger ingen panel.
+          ⛔ EN PIXEL HÖGRE ÄN LYFTET (granskningen av 0.235.0): kanten mäts från radens innerkant, under kantlinjen, men panelen slutar `--panel-botten` upp, som räknar med
+          kantlinjen. Mätt med Playwright vid 390 px: panelen slutade på 759 och kanten började på 760, och raden mellan visade det som låg bakom. Under en panel på `canvas`
+          syntes den inte (samma färg bakom), under ett blad på `raised` i mörkt tema var den ett mörkt streck. Färgen följer bladet (`tokens.css`, `data-ops-blad-oppet`). */}
+      {panelOppen ? <div data-panelkant="" aria-hidden="true" className="absolute inset-x-0 bottom-full h-[calc(var(--bottom-nav-overhang)+1px)] bg-canvas" /> : null}
       <div className="mx-auto flex h-(--bottom-nav-h) max-w-md items-stretch">
         <Dampad pa={panelOppen}>
           {inRow.slice(0, brytpunkt).map((entry) => (

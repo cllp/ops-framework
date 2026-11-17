@@ -1,5 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it } from "vitest";
+import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsModal } from "../components/OpsModal.jsx";
 import { usePanelOppen } from "../lib/panellager.js";
 
@@ -60,5 +62,57 @@ describe("⛔ bladet slutar ovanför bottenraden på telefonen", () => {
   it("bladet är en panel medan det är öppet: bottenraden dämpar sina flikar", () => {
     oppnaBlad();
     expect(document.querySelector("[data-panel-oppen]")?.getAttribute("data-panel-oppen")).toBe("ja");
+  });
+});
+
+/** Radix lägger sina lyssnare på dokumentet ett varv senare. */
+const varv = () => act(() => new Promise((r) => setTimeout(r, 30)));
+
+describe("⛔ bladet som panel (granskningen av 0.235.0)", () => {
+  it("registreringen släpps när bladet stängs och när det avmonteras, och märket för kanten likaså", () => {
+    const blad = (/** @type {boolean} */ open) => (
+      <>
+        <Panelvakt />
+        <OpsModal open={open} onOpenChange={() => {}} title="Nytt projekt">
+          <p>Formuläret</p>
+        </OpsModal>
+      </>
+    );
+    const oppen = () => document.querySelector("[data-panel-oppen]")?.getAttribute("data-panel-oppen");
+    const marke = () => document.documentElement.hasAttribute("data-ops-blad-oppet");
+    const { rerender, unmount } = render(blad(true));
+    expect([oppen(), marke()]).toEqual(["ja", true]);
+    rerender(blad(false));
+    expect([oppen(), marke()]).toEqual(["nej", false]);
+    rerender(blad(true));
+    expect([oppen(), marke()]).toEqual(["ja", true]);
+    unmount();
+    render(<Panelvakt />);
+    expect([oppen(), marke()]).toEqual(["nej", false]);
+  });
+
+  it("ett tryck i bottenraden stänger inte bladet, ett tryck utanför gör det", async () => {
+    function Skal() {
+      const [open, setOpen] = useState(true);
+      return (
+        <OpsAppShell fasta={{ idag: { href: "/" }, kalender: { href: "/kalender" }, hub: { href: "/hub" } }} moduler={[{ id: "projekt", href: "/projekt", label: "Projekt" }]} activeHref="/">
+          <OpsModal open={open} onOpenChange={setOpen} title="Nytt projekt" footer={<button type="button">Skapa projekt</button>}>
+            <p>Formuläret</p>
+          </OpsModal>
+        </OpsAppShell>
+      );
+    }
+    render(<Skal />);
+    await varv();
+    const nav = /** @type {HTMLElement} */ (document.querySelector("nav[data-ops-bottenrad]"));
+    // Golv: raden finns och bär attributet som säger att den står ovanför en panel.
+    expect(nav.hasAttribute("data-ops-ovanfor-panel")).toBe(true);
+    fireEvent.pointerDown(nav);
+    fireEvent.click(nav);
+    await varv();
+    expect(screen.queryByRole("dialog", { name: "Nytt projekt" })).not.toBeNull();
+    fireEvent.pointerDown(document.body);
+    await varv();
+    expect(screen.queryByRole("dialog", { name: "Nytt projekt" })).toBeNull();
   });
 });
