@@ -17,7 +17,11 @@
  * 5. KNAPPARNA stegar en kvarts gång (`stegaZoom`): 100, 125, 150 och så vidare till 400 procent, till närmaste kvart i den riktningen.
  * 6. SVEPET i helskärmen byter sida bara vid hel bredd (`svepTillats`). Inzoomad drar fingret sidan, och ett drag får inte byta sida under fingret.
  * 7. ⛔ OMRITNINGEN VÄNTAR TILLS ZOOMEN STANNAT (`RITA_OM_MS`). Under nypningen sträcks den ritade bilden med CSS (ramen får sin nya storlek och canvasen fyller den). Först när faktorn stått still ritas
- *    synliga sidor om i den nya skalan, i skärmens upplösning. Annars hade varje rörelse med fingrarna startat en ny ritning av varje synlig sida.
+ *    sidorna om i den nya skalan, i skärmens upplösning. Annars hade varje rörelse med fingrarna startat en ny ritning av varje sida.
+ *    ⛔ BARA SIDOR NÄRA VYN HAR EN CANVAS (granskningen av 0.235.0). Den första versionen behöll canvasen för varje sida som någon gång visats, och efter en zoom ritades alla de sidorna om i den nya skalan,
+ *    samtidigt: vid 4x upp till 64 MB per sida, och några sidor räcker för att fylla Safaris canvasminne på en iPhone. Nu har en sida en canvas bara medan den är i vyn eller en skärmhöjd från den
+ *    (`IntersectionObserver` i `OpsPdfVisning`). En sida som lämnar det området släpper sin canvas (bredd och höjd noll) och står kvar som en platshållare i sin storlek.
+ *    ⛔ OMRITNINGARNA KÖAS (`skapaRitko`): en ritning i taget, i den ordning de bads om. Ett avbrott väntar ut den avbrutna ritningen innan nästa börjar.
  * 8. ⛔ TAKET FÖR PIXLAR (`ritmatt`): en canvas får högst `PIXELTAK` pixlar. Safari på iPhone kraschar fliken, eller ritar en tom yta, när en canvas blir större (16 777 216 pixlar är Safaris gräns för en canvas),
  *    och 4x på en A4 i skärmens upplösning (3x) är cirka 9 500 gånger 13 400, alltså 127 miljoner. Över taket ritas sidan i takets upplösning och sträcks resten: suddigare, men fliken lever.
  */
@@ -152,4 +156,64 @@ export function ritmatt(bredd, hojd, dpr, tak = PIXELTAK) {
   const k = Math.min(onskad, Math.sqrt(tak / (b * h)));
   // Nedåt, så att avrundningen aldrig tar canvasen över taket.
   return { bredd: Math.max(1, Math.floor(b * k)), hojd: Math.max(1, Math.floor(h * k)), k };
+}
+
+/**
+ * En kö för ritningar (granskningen av 0.235.0, se punkt 7 i filhuvudet): en ritning i taget, i tur och ordning. `lagg(kor)` lägger en ritning sist och svarar en funktion som stryker den, om den inte börjat.
+ * En ritning som börjat avbryts av den som lade den (pdf.js `cancel`), och kön går vidare först när ritningens löfte lagt sig, så att två ritningar aldrig pågår samtidigt. Ett fel i en ritning stoppar inte kön.
+ * @returns {{ lagg: (kor: () => Promise<unknown>) => () => void, readonly antal: number }}
+ */
+export function skapaRitko() {
+  /** @type {Array<{ kor: () => Promise<unknown> }>} */
+  const ko = [];
+  let pagar = false;
+  const nasta = () => {
+    if (pagar) return;
+    const jobb = ko.shift();
+    if (!jobb) return;
+    pagar = true;
+    Promise.resolve()
+      .then(() => jobb.kor())
+      .catch(() => {})
+      .then(() => {
+        pagar = false;
+        nasta();
+      });
+  };
+  return {
+    lagg(kor) {
+      const jobb = { kor };
+      ko.push(jobb);
+      nasta();
+      return () => {
+        const i = ko.indexOf(jobb);
+        if (i >= 0) ko.splice(i, 1);
+      };
+    },
+    get antal() {
+      return ko.length + (pagar ? 1 : 0);
+    },
+  };
+}
+
+/**
+ * Var punkten under fingret ligger i en sida, som andel av sidans bredd och höjd (granskningen av 0.235.0). Sidans ruta och punkten i samma koordinater (`getBoundingClientRect`, `clientX`).
+ * Med andelen går punkten att lägga tillbaka under fingret efter en zoom, oavsett om sidan är centrerad (helskärmen) eller om luften mellan sidorna inte skalar (den rullande vyn).
+ * @param {{ left: number, top: number, width: number, height: number }} sida
+ * @param {{ x: number, y: number }} punkt
+ * @returns {{ fx: number, fy: number }}
+ */
+export function andelISida(sida, punkt) {
+  return { fx: sida.width > 0 ? (punkt.x - sida.left) / sida.width : 0, fy: sida.height > 0 ? (punkt.y - sida.top) / sida.height : 0 };
+}
+
+/**
+ * Hur mycket rutan ska rullas för att samma andel av sidan ska hamna under fingret igen: positivt rullar åt höger och nedåt.
+ * @param {{ left: number, top: number, width: number, height: number }} sidaEfter Sidans ruta efter zoomen, med rullningen före.
+ * @param {{ fx: number, fy: number }} andel
+ * @param {{ x: number, y: number }} punkt Fingret, i samma koordinater.
+ * @returns {{ dx: number, dy: number }}
+ */
+export function rullningTillAndel(sidaEfter, andel, punkt) {
+  return { dx: sidaEfter.left + andel.fx * sidaEfter.width - punkt.x, dy: sidaEfter.top + andel.fy * sidaEfter.height - punkt.y };
 }

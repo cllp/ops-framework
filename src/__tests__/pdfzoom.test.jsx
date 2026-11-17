@@ -28,8 +28,8 @@ import {
  */
 
 const pdfjs = vi.hoisted(() => {
-  /** @type {{ antal: number, hang: boolean, avbrottMs: number, ritningar: Array<{ nr: number, skala: number, bredd: number, hojd: number, transform: unknown, avbruten: boolean, lagd: boolean, pagaendeVidStart: number }>, getDocument: any, GlobalWorkerOptions: { workerSrc: string } }} */
-  const s = { antal: 1, hang: false, avbrottMs: 0, ritningar: [], getDocument: null, GlobalWorkerOptions: { workerSrc: "" } };
+  /** @type {{ antal: number, hang: boolean, avbrottMs: number, ritMs: number, samtidigt: number, flestSamtidigt: number, ritningar: Array<{ nr: number, skala: number, bredd: number, hojd: number, transform: unknown, avbruten: boolean, lagd: boolean, pagaendeVidStart: number }>, getDocument: any, GlobalWorkerOptions: { workerSrc: string } }} */
+  const s = { antal: 1, hang: false, avbrottMs: 0, ritMs: 0, samtidigt: 0, flestSamtidigt: 0, ritningar: [], getDocument: null, GlobalWorkerOptions: { workerSrc: "" } };
   s.getDocument = (/** @type {any} */ _val) => {
     const dokument = {
       numPages: s.antal,
@@ -39,15 +39,26 @@ const pdfjs = vi.hoisted(() => {
           const pagaendeVidStart = s.ritningar.filter((r) => r.nr === nr && !r.lagd).length;
           const post = { nr, skala: viewport.scale, bredd: canvas.width, hojd: canvas.height, transform, avbruten: false, lagd: false, pagaendeVidStart };
           s.ritningar.push(post);
+          s.samtidigt += 1;
+          s.flestSamtidigt = Math.max(s.flestSamtidigt, s.samtidigt);
           /** @type {(e: unknown) => void} */
           let avvisa = () => {};
           const promise = new Promise((resolve, reject) => {
             avvisa = reject;
             if (!s.hang) {
-              post.lagd = true;
-              resolve(undefined);
+              const klar = () => {
+                if (post.lagd) return;
+                post.lagd = true;
+                resolve(undefined);
+              };
+              if (s.ritMs > 0) setTimeout(klar, s.ritMs);
+              else klar();
             }
           });
+          promise.then(
+            () => (s.samtidigt -= 1),
+            () => (s.samtidigt -= 1),
+          );
           return {
             promise,
             cancel() {
@@ -55,6 +66,7 @@ const pdfjs = vi.hoisted(() => {
               post.avbruten = true;
               // pdf.js lägger sig inte i samma ögonblick som den avbryts: den avvisar löftet en stund senare.
               setTimeout(() => {
+                if (post.lagd) return;
                 post.lagd = true;
                 avvisa(Object.assign(new Error("avbruten"), { name: "RenderingCancelledException" }));
               }, s.avbrottMs);
@@ -78,11 +90,15 @@ beforeEach(() => {
   pdfjs.antal = 1;
   pdfjs.hang = false;
   pdfjs.avbrottMs = 0;
+  pdfjs.ritMs = 0;
+  pdfjs.samtidigt = 0;
+  pdfjs.flestSamtidigt = 0;
   pdfjs.ritningar = [];
 });
 afterEach(() => {
   Object.defineProperty(window, "devicePixelRatio", { value: ursprungligDpr, configurable: true, writable: true });
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 const pdfBlob = () => new Blob(["%PDF-1.7 atrapp"], { type: "application/pdf" });
@@ -310,5 +326,261 @@ describe("helskärmen: svepet och zoomen", () => {
     act(() => void fireEvent.keyDown(document, { key: "ArrowRight" }));
     expect(visadSida()).toBe("2");
     expect(zoomen(/** @type {Element} */ (document.querySelector("[data-pdf-presentationsyta]")))).toBe(1);
+  });
+});
+
+/*
+ * ══ Granskningen av 0.235.0 ══════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * ⛔ RÖTT UTAN ÄNDRINGEN (regel 4), mot commit 6a436cd (den första versionen av zoomen): en sida som en gång visats behöll sin canvas och ritades om efter
+ * zoomen, alla samtidigt; ankaret räknade som om innehållet skalade från rutans övre vänstra hörn; Safaris `gesturechange` stoppades men räknades inte; zoomen
+ * i den rullande vyn stod kvar efter helskärmen; fokus föll till <body> när + eller − stängdes av vid gränsen.
+ */
+
+/** En `IntersectionObserver` där provet säger vilka sidor som är nära vyn. Den andra observatören (mitten, `-50%`) får inget. */
+class FalskIO {
+  /** @type {FalskIO[]} */
+  static alla = [];
+  /** @param {(p: Array<{ isIntersecting: boolean, target: Element }>) => void} cb @param {{ rootMargin?: string }} [val] */
+  constructor(cb, val) {
+    this.cb = cb;
+    this.val = val ?? {};
+    /** @type {Set<Element>} */
+    this.mal = new Set();
+    FalskIO.alla.push(this);
+  }
+  /** @param {Element} el */
+  observe(el) {
+    this.mal.add(el);
+  }
+  unobserve(/** @type {Element} */ el) {
+    this.mal.delete(el);
+  }
+  disconnect() {
+    this.mal.clear();
+    FalskIO.alla = FalskIO.alla.filter((o) => o !== this);
+  }
+}
+/** Sidorna `nr` är nära vyn, alla andra inte. @param {number[]} nr */
+function naraSidor(nr) {
+  act(() => {
+    for (const o of [...FalskIO.alla]) {
+      if (o.val.rootMargin !== "100% 0px") continue;
+      for (const el of [...o.mal]) o.cb([{ isIntersecting: nr.includes(Number(el.getAttribute("data-pdf-sidram"))), target: el }]);
+    }
+  });
+}
+
+describe("⛔ minnet: bara sidor nära vyn har en canvas, och ritningarna köas", () => {
+  it("20 sidor: rulla genom alla och zooma till 4x. Bara sidorna nära vyn har en canvas, den summerade ytan håller sig under taket, och en sida som lämnat vyn har släppt sin", async () => {
+    FalskIO.alla = [];
+    vi.stubGlobal("IntersectionObserver", FalskIO);
+    pdfjs.antal = 20;
+    /** @type {HTMLCanvasElement[]} */
+    const skapade = [];
+    const skapa = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((/** @type {string} */ namn, /** @type {any} */ val) => {
+      const el = skapa(namn, val);
+      if (namn === "canvas") skapade.push(/** @type {HTMLCanvasElement} */ (el));
+      return el;
+    });
+    render(<OpsPdfVy hamta={async () => pdfBlob()} sokvag="s" namn="kvartal.pdf" />);
+    await waitFor(() => expect(document.querySelectorAll("[data-pdf-sidram]")).toHaveLength(20));
+    // Golv: ingen sida är ritad innan observatören sagt något.
+    expect(document.querySelectorAll("[data-pdf-sida-canvas]")).toHaveLength(0);
+    for (let n = 1; n <= 20; n++) {
+      naraSidor([n - 1, n, n + 1]);
+      await waitFor(() => expect(document.querySelectorAll(`[data-pdf-canvas="${n}"]`)).toHaveLength(1));
+    }
+    // Golv: varje sida har ritats en gång.
+    expect(new Set(pdfjs.ritningar.map((r) => r.nr)).size).toBe(20);
+    const r = within(rad());
+    for (let i = 0; i < 12; i++) fireEvent.click(r.getByRole("button", { name: "Zooma in" }));
+    const fyra = (96 / 72) * 4;
+    await waitFor(() => expect(pdfjs.ritningar.filter((x) => Math.abs(x.skala - fyra) < 1e-6).map((x) => x.nr).sort()).toEqual([19, 20]));
+    await vanta(50);
+    const levande = skapade.filter((c) => c.width * c.height > 1);
+    const zoomade = levande.filter((c) => c.width >= 3000);
+    expect(zoomade.length).toBeLessThanOrEqual(3);
+    expect(levande.length).toBeLessThanOrEqual(3);
+    expect(levande.reduce((sum, c) => sum + c.width * c.height, 0)).toBeLessThanOrEqual(3 * PIXELTAK);
+    // Sidan 1 lämnade vyn för länge sedan: platshållare i sin storlek, ingen canvas.
+    const forsta = /** @type {HTMLElement} */ (document.querySelector('[data-pdf-sidram="1"]'));
+    expect(forsta.querySelector("canvas")).toBeNull();
+    expect(parseFloat(forsta.style.height)).toBe(Math.floor(792 * (96 / 72) * 4));
+  });
+  it("⛔ omritningarna efter en zoom körs en i taget, aldrig samtidigt", async () => {
+    pdfjs.antal = 4;
+    pdfjs.ritMs = 15;
+    await visaVyn();
+    await waitFor(() => expect(pdfjs.ritningar.filter((x) => x.lagd)).toHaveLength(4));
+    fireEvent.click(within(rad()).getByRole("button", { name: "Zooma in" }));
+    await waitFor(() => expect(pdfjs.ritningar.filter((x) => x.lagd)).toHaveLength(8), { timeout: 2000 });
+    expect(pdfjs.flestSamtidigt).toBe(1);
+  });
+});
+
+/**
+ * Rutornas lägen som i webbläsaren, för ankaret (jsdom har ingen layout). Modellen följer klasserna i `OpsPdfVisning`: i den rullande vyn står sidorna i en kolumn
+ * med `kant` runt och 12 px mellan, centrerade i den bredaste sidans bredd. I helskärmen är sidan centrerad i båda led så länge den ryms. Storleken läses ur sidans `style`.
+ * @param {number} W @param {number} H
+ */
+function layoutmodell(W, H) {
+  const px = (/** @type {string} */ v) => parseFloat(v) || 0;
+  const storlek = (/** @type {HTMLElement} */ el) => {
+    if (el.style.width) return { w: px(el.style.width), h: px(el.style.height) };
+    const b = /** @type {HTMLElement | null} */ (el.querySelector("[role=img]"));
+    return b ? { w: px(b.style.width), h: px(b.style.height) } : { w: 0, h: 0 };
+  };
+  const rekt = (/** @type {number} */ x, /** @type {number} */ y, /** @type {number} */ w, /** @type {number} */ h) => /** @type {DOMRect} */ ({ left: x, top: y, x, y, width: w, height: h, right: x + w, bottom: y + h, toJSON() {} });
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function () {
+    const el = /** @type {HTMLElement} */ (this);
+    if (el.matches("[data-pdf-sidor], [data-pdf-presentationsyta], [data-pdf-presentation]")) return rekt(0, 0, W, H);
+    const sidor = /** @type {HTMLElement | null} */ (el.closest("[data-pdf-sidor]"));
+    if (sidor && el.matches("[data-pdf-sidram]")) {
+      const kant = px(sidor.style.padding);
+      const alla = /** @type {HTMLElement[]} */ ([...sidor.querySelectorAll("[data-pdf-sidram]")]);
+      const inre = Math.max(W - 2 * kant, ...alla.map((e) => storlek(e).w));
+      let y = kant;
+      for (const e of alla) {
+        const s = storlek(e);
+        if (e === el) return rekt(kant + (inre - s.w) / 2 - sidor.scrollLeft, y - sidor.scrollTop, s.w, s.h);
+        y += s.h + 12;
+      }
+    }
+    const pres = /** @type {HTMLElement | null} */ (el.closest("[data-pdf-presentationsyta]"));
+    if (pres && el.matches("[data-pdf-presentationssida]")) {
+      const s = storlek(el);
+      return rekt(Math.max(0, (W - s.w) / 2) - pres.scrollLeft, Math.max(0, (H - s.h) / 2) - pres.scrollTop, s.w, s.h);
+    }
+    return rekt(0, 0, 0, 0);
+  });
+  const mattet = (/** @type {"clientWidth" | "clientHeight"} */ namn, /** @type {number} */ v) =>
+    vi.spyOn(HTMLElement.prototype, namn, "get").mockImplementation(function () {
+      return /** @type {HTMLElement} */ (this).matches("[data-pdf-sidor], [data-pdf-presentationsyta], [data-pdf-presentation]") ? v : 0;
+    });
+  mattet("clientWidth", W);
+  mattet("clientHeight", H);
+}
+
+/** Var andelen av sidan ligger nu. @param {Element} sida @param {{ fx: number, fy: number }} a */
+const lage = (sida, a) => {
+  const r = sida.getBoundingClientRect();
+  return { x: r.left + a.fx * r.width, y: r.top + a.fy * r.height };
+};
+/** @param {Element} sida @param {{ x: number, y: number }} p */
+const andel = (sida, p) => {
+  const r = sida.getBoundingClientRect();
+  return { fx: (p.x - r.left) / r.width, fy: (p.y - r.top) / r.height };
+};
+
+describe("⛔ ankaret: punkten under fingret står kvar, mätt i sidan", () => {
+  it("den rullande vyn: en punkt på sida 5 ligger kvar under pekaren efter Ctrl+hjul, och efter en nypning", async () => {
+    layoutmodell(390, 700);
+    pdfjs.antal = 8;
+    await visaVyn();
+    const sidor = /** @type {HTMLElement} */ (document.querySelector("[data-pdf-sidor]"));
+    const sida5 = /** @type {HTMLElement} */ (document.querySelector('[data-pdf-sidram="5"]'));
+    // Golv: modellen ger sidan en storlek, och sida 5 står under punkten.
+    await waitFor(() => expect(sida5.getBoundingClientRect().height).toBeGreaterThan(400));
+    sidor.scrollTop = sida5.getBoundingClientRect().top + sidor.scrollTop - 150;
+    const punkt = { x: 200, y: 300 };
+    const r0 = sida5.getBoundingClientRect();
+    expect(r0.top <= punkt.y && punkt.y <= r0.bottom).toBe(true);
+    const a = andel(sida5, punkt);
+    act(() => void sidor.dispatchEvent(new WheelEvent("wheel", { deltaY: -300, ctrlKey: true, clientX: punkt.x, clientY: punkt.y, bubbles: true, cancelable: true })));
+    expect(zoomen(sidor)).toBeCloseTo(1.331, 3);
+    const efter = lage(sida5, a);
+    expect(Math.abs(efter.x - punkt.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(efter.y - punkt.y)).toBeLessThanOrEqual(2);
+    // Nypningen: mitten mellan fingrarna står kvar.
+    const b = andel(sida5, { x: 150, y: 250 });
+    fireEvent.touchStart(sidor, { touches: [{ clientX: 100, clientY: 250 }, { clientX: 200, clientY: 250 }] });
+    fireEvent.touchMove(sidor, { touches: [{ clientX: 50, clientY: 250 }, { clientX: 250, clientY: 250 }] });
+    fireEvent.touchEnd(sidor, { touches: [], changedTouches: [{ clientX: 250, clientY: 250 }] });
+    expect(zoomen(sidor)).toBeCloseTo(2.662, 3);
+    const efterNyp = lage(sida5, b);
+    expect(Math.abs(efterNyp.x - 150)).toBeLessThanOrEqual(2);
+    expect(Math.abs(efterNyp.y - 250)).toBeLessThanOrEqual(2);
+  });
+  it("helskärmen: en punkt på den centrerade sidan ligger kvar under pekaren efter Ctrl+hjul", async () => {
+    layoutmodell(1024, 768);
+    pdfjs.antal = 3;
+    await visaVyn();
+    fireEvent.click(screen.getByRole("button", { name: "Helskärm" }));
+    const yta = /** @type {HTMLElement} */ (document.querySelector("[data-pdf-presentationsyta]"));
+    const sida = /** @type {HTMLElement} */ (document.querySelector("[data-pdf-presentationssida]"));
+    await waitFor(() => expect(sida.getBoundingClientRect().width).toBeGreaterThan(500));
+    // Golv: sidan är centrerad, alltså inte i rutans hörn.
+    expect(sida.getBoundingClientRect().left).toBeGreaterThan(100);
+    const punkt = { x: 400, y: 300 };
+    const a = andel(sida, punkt);
+    // Så långt in att sidan blir bredare och högre än skärmen: medan den är smalare står den centrerad, och då finns ingen rullning att lägga punkten med.
+    act(() => void yta.dispatchEvent(new WheelEvent("wheel", { deltaY: -1000, ctrlKey: true, clientX: punkt.x, clientY: punkt.y, bubbles: true, cancelable: true })));
+    expect(zoomen(yta)).toBeCloseTo(Math.pow(1.1, 10), 3);
+    expect(sida.getBoundingClientRect().width).toBeGreaterThan(1024);
+    const efter = lage(sida, a);
+    expect(Math.abs(efter.x - punkt.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(efter.y - punkt.y)).toBeLessThanOrEqual(2);
+  });
+});
+
+describe("⛔ Safari: nypningen med styrplattan på en Mac kommer som gesture-händelser", () => {
+  const gest = (/** @type {Element} */ el, /** @type {string} */ typ, /** @type {Record<string, number>} */ extra = {}) => {
+    const e = new Event(typ, { bubbles: true, cancelable: true });
+    Object.assign(e, extra);
+    act(() => void el.dispatchEvent(e));
+    return e;
+  };
+  it("gesturechange zoomar ur scale, från zoomen när gesten började, och stoppar Safaris egen zoom", async () => {
+    const sidor = await visaVyn();
+    gest(sidor, "gesturestart", { scale: 1, clientX: 100, clientY: 100 });
+    const andra = gest(sidor, "gesturechange", { scale: 1.5, clientX: 100, clientY: 100 });
+    expect(andra.defaultPrevented).toBe(true);
+    expect(zoomen(sidor)).toBe(1.5);
+    gest(sidor, "gesturechange", { scale: 2.5, clientX: 100, clientY: 100 });
+    expect(zoomen(sidor)).toBe(2.5);
+    gest(sidor, "gesturechange", { scale: 9, clientX: 100, clientY: 100 });
+    expect(zoomen(sidor)).toBe(4);
+    gest(sidor, "gestureend", { scale: 9 });
+    gest(sidor, "gesturestart", { scale: 1 });
+    gest(sidor, "gesturechange", { scale: 0.5 });
+    expect(zoomen(sidor)).toBe(2);
+  });
+  it("på en iPhone räknas nypningen ur fingrarna, och samma gest som gesture-händelse räknas inte en gång till", async () => {
+    const sidor = await visaVyn();
+    fireEvent.touchStart(sidor, { touches: [{ clientX: 100, clientY: 100 }, { clientX: 200, clientY: 100 }] });
+    gest(sidor, "gesturestart", { scale: 1 });
+    gest(sidor, "gesturechange", { scale: 3 });
+    expect(zoomen(sidor)).toBe(1);
+    fireEvent.touchMove(sidor, { touches: [{ clientX: 50, clientY: 100 }, { clientX: 250, clientY: 100 }] });
+    expect(zoomen(sidor)).toBe(2);
+    fireEvent.touchEnd(sidor, { touches: [], changedTouches: [{ clientX: 250, clientY: 100 }] });
+  });
+});
+
+describe("helskärmen och fokus", () => {
+  it("⛔ när helskärmen stängs börjar den rullande vyn på hel bredd", async () => {
+    pdfjs.antal = 3;
+    const sidor = await visaVyn();
+    fireEvent.click(within(rad()).getByRole("button", { name: "Zooma in" }));
+    expect(zoomen(sidor)).toBe(1.25);
+    fireEvent.click(screen.getByRole("button", { name: "Helskärm" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stäng helskärm" }));
+    await waitFor(() => expect(document.querySelector("[data-pdf-sidor]")).toBeTruthy());
+    expect(zoomen(document.querySelector("[data-pdf-sidor]"))).toBe(1);
+  });
+  it("⛔ när + blir avstängd vid gränsen får − fokus, och tvärtom, i stället för att fokus faller till sidan", async () => {
+    await visaVyn();
+    const r = within(rad());
+    const inKnapp = r.getByRole("button", { name: "Zooma in" });
+    const utKnapp = r.getByRole("button", { name: "Zooma ut" });
+    inKnapp.focus();
+    for (let i = 0; i < 12; i++) fireEvent.click(inKnapp);
+    expect(inKnapp.hasAttribute("disabled")).toBe(true);
+    expect(document.activeElement).toBe(utKnapp);
+    for (let i = 0; i < 12; i++) fireEvent.click(utKnapp);
+    expect(utKnapp.hasAttribute("disabled")).toBe(true);
+    expect(document.activeElement).toBe(inKnapp);
   });
 });

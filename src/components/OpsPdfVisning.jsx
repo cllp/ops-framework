@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHelskarm } from "./useHelskarm.js";
 import { DokumentKnapp, Dokumentrad } from "./Dokumentrad.jsx";
 import { OpsGastFelrad } from "./OpsGastFelrad.jsx";
@@ -13,7 +13,7 @@ import { ORD_HELSKARM } from "../lib/helskarmord.js";
 import { ordet } from "../lib/ord.js";
 import { PDFJS_SAKNAS, laddaPdfjs, oppnaPdf, pdfFelsort } from "../lib/pdfjs.js";
 import { SIDNUMMER_MS, bytSida, klickSteg, skarmSkala, svepSteg, tangentIPresentation } from "../lib/pdfpresentation.js";
-import { svepTillats, ritmatt } from "../lib/pdfzoom.js";
+import { ritmatt, skapaRitko, svepTillats } from "../lib/pdfzoom.js";
 import { sparaSomFil } from "../lib/sparaFil.js";
 import { OpsVantar } from "./OpsVantar.jsx";
 
@@ -40,6 +40,7 @@ import { OpsVantar } from "./OpsVantar.jsx";
  * 6. ⛔ ZOOMEN (0.235.0, CP 2026-11-16: "Det går inte att zooma i pdf:er i biblioteket. Det vore bra om det funkade."): nyp med två fingrar (1x till 4x av hel bredd), dubbeltryck växlar mellan hel bredd och 2x,
  *    inzoomad drar ett finger sidan åt alla håll, och i datorn −, + och Anpassa till bredd i raden samt Ctrl- eller Cmd+hjul. Samma zoom finns i helskärmen, där svepet byter sida bara vid hel sida.
  *    Sidorna ritas om i den nya skalan när zoomen stått still, och ingen canvas blir större än taket för pixlar. Reglerna i `lib/pdfzoom.js`, gesterna i `usePdfZoom`.
+ *    ⛔ Bara sidor i vyn eller en skärmhöjd från den har en canvas, och ritningarna köas, en i taget (`skapaRitko`). En sida som lämnar området släpper sin canvas (granskningen av 0.235.0).
  *
  * @param {object} props
  * @param {(sokvag: string) => Promise<Blob>} props.hamta Filens byte.
@@ -97,7 +98,9 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
   useEffect(() => setSida(1), [klar?.dokument]);
 
   // ── Zoomen (0.235.0): faktorn räknas från hel bredd (`bas`, sidan anpassad till rutans bredd, som förvalet var förut). Gesterna och knapparna i `usePdfZoom` ─────────────────────────
-  const zoom = usePdfZoom();
+  const zoom = usePdfZoom({ sidval: "[data-pdf-sidram]" });
+  // En kö för hela vyn: den rullande vyn och helskärmen ritar aldrig samtidigt (`skapaRitko`).
+  const ritko = useMemo(skapaRitko, []);
   const rulla = zoom.el;
   const sidbredd = klar?.sida1.bredd ?? 0;
   // Luften runt sidorna finns bara i helfönstret. I detaljen står sidan kant i kant med raden ovanför, som HTML-rutan.
@@ -132,7 +135,7 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
 
   // Helskärmens egen zoom, från sidan anpassad till skärmen. Ett ensamt tryck med fingret byter sida (som klicket), men först när ett andra tryck inte kom: två tryck är ett dubbeltryck och zoomar.
   const tryckRef = useRef(/** @type {(p: { x: number, y: number }) => void} */ (() => {}));
-  const presZoom = usePdfZoom({ onTryck: (p) => tryckRef.current(p) });
+  const presZoom = usePdfZoom({ onTryck: (p) => tryckRef.current(p), sidval: "[data-pdf-presentationssida]" });
   const nollstallPres = presZoom.nollstall;
   const stegTill = useCallback(
     (/** @type {number | "forsta" | "sista"} */ steg) => {
@@ -148,6 +151,14 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
     if (!svepTillats(presZoom.faktor)) return;
     stegTill(klickSteg(p.x, presZoom.el?.clientWidth ?? 0));
   };
+
+  // ⛔ NÄR HELSKÄRMEN STÄNGS BÖRJAR DEN RULLANDE VYN PÅ HEL BREDD (granskningen av 0.235.0, nit 5): vyn monteras om, och en zoom från före helskärmen hade stått kvar utan sin rullning.
+  const nollstallVy = zoom.nollstall;
+  const varPresentation = useRef(presenterar);
+  useEffect(() => {
+    if (varPresentation.current && !presenterar) nollstallVy();
+    varPresentation.current = presenterar;
+  }, [presenterar, nollstallVy]);
 
   // ⛔ WEBBLÄSARENS EGET SVAR, som `OpsFullscreenToggle`, i `useHelskarm`: helskärm där den finns, annars fyller presentationen fönstret.
   function presentera() {
@@ -244,7 +255,7 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
       >
         <div ref={presZoom.ruta} data-pdf-presentationsyta="" data-pdf-zoom={presZoom.faktor} className="absolute inset-0 overflow-auto" style={{ touchAction: PDF_TOUCH_ACTION }}>
           <div className="flex min-h-full w-max min-w-full items-center justify-center">
-            <Sida key={`p${sida}`} dokument={klar.dokument} nr={sida} yta={skarm} faktor={presZoom.faktor} ritad={presZoom.ritad} mark="data-pdf-presentationssida" etikett={o("sidaEtikett").replace("{nr}", String(sida))} />
+            <Sida key={`p${sida}`} dokument={klar.dokument} nr={sida} yta={skarm} faktor={presZoom.faktor} ritad={presZoom.ritad} ritko={ritko} mark="data-pdf-presentationssida" etikett={o("sidaEtikett").replace("{nr}", String(sida))} />
           </div>
         </div>
         <p
@@ -314,7 +325,7 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
         >
           <div className="mx-auto flex w-max min-w-full flex-col items-center gap-3">
             {Array.from({ length: antal }, (_, i) => (
-              <SynligSida key={i + 1} dokument={/** @type {any} */ (klar).dokument} nr={i + 1} skala={bas} faktor={zoom.faktor} ritad={zoom.ritad} sida1={/** @type {any} */ (klar).sida1} rot={rulla} onSyns={setSida} etikett={o("sidaEtikett").replace("{nr}", String(i + 1))} />
+              <SynligSida key={i + 1} dokument={/** @type {any} */ (klar).dokument} nr={i + 1} skala={bas} faktor={zoom.faktor} ritad={zoom.ritad} ritko={ritko} sida1={/** @type {any} */ (klar).sida1} rot={rulla} onSyns={setSida} etikett={o("sidaEtikett").replace("{nr}", String(i + 1))} />
             ))}
           </div>
         </div>
@@ -344,21 +355,28 @@ function felText(fel, o) {
 }
 
 /**
- * En sida i den rullande vyn: en platshållare i sidans storlek tills den syns, sedan sidan. Utan `IntersectionObserver` ritas den direkt.
- * @param {{ dokument: any, nr: number, skala: number, faktor: number, ritad: number, sida1: { bredd: number, hojd: number }, rot: HTMLElement | null, onSyns: (nr: number) => void, etikett: string }} props
+ * En sida i den rullande vyn: sidan medan den är i vyn eller en skärmhöjd från den, annars en platshållare i sidans storlek. Utan `IntersectionObserver` ritas den direkt.
+ *
+ * ⛔ EN SIDA SOM LÄMNAR OMRÅDET SLÄPPER SIN CANVAS (granskningen av 0.235.0). Förut stod en sida kvar ritad när den en gång syntes, och efter en zoom ritades varje sådan sida om i den nya skalan: vid 4x upp
+ * till 64 MB per sida. Nu avmonteras sidan när observatören säger att den lämnat området (`Sida` släpper canvasen), och platshållaren tar sidans egen storlek, som sidan rapporterade (`onGrund`).
+ *
+ * @param {{ dokument: any, nr: number, skala: number, faktor: number, ritad: number, ritko: ReturnType<typeof skapaRitko>, sida1: { bredd: number, hojd: number }, rot: HTMLElement | null, onSyns: (nr: number) => void, etikett: string }} props
  */
-function SynligSida({ dokument, nr, skala, faktor, ritad, sida1, rot, onSyns, etikett }) {
+function SynligSida({ dokument, nr, skala, faktor, ritad, ritko, sida1, rot, onSyns, etikett }) {
   const ram = useRef(/** @type {HTMLDivElement | null} */ (null));
   const [synlig, setSynlig] = useState(() => typeof IntersectionObserver !== "function");
+  // Sidans egen storlek vid skala 1, när den är känd. Till dess sidan 1:s.
+  const [grund, setGrund] = useState(sida1);
   const onSynsRef = useRef(onSyns);
   onSynsRef.current = onSyns;
   useEffect(() => {
     const el = ram.current;
     if (!el || typeof IntersectionObserver !== "function") return undefined;
-    // ⛔ TVÅ OBSERVATÖRER, INTE EN. Den första ritar sidan när den är nära (en skärmhöjd före). Den andra säger vilken sida som står mitt i rutan, för Sida x av y.
+    // ⛔ TVÅ OBSERVATÖRER, INTE EN. Den första ritar sidan när den är nära (en skärmhöjd före) och släpper den när den inte längre är det. Den andra säger vilken sida som står mitt i rutan, för Sida x av y.
     // Med en observatör och marginalen räknades sidorna under som synliga också: andelen räknas mot den utökade ytan, och raden sade "Sida 3 av 3" när sidan 1 syntes (mätt i en telefon på 390 px).
     const nara = new IntersectionObserver((poster) => {
-      if (poster.some((p) => p.isIntersecting)) setSynlig(true);
+      const sista = poster[poster.length - 1];
+      if (sista) setSynlig(sista.isIntersecting);
     }, { root: rot, rootMargin: "100% 0px" });
     const mitt = new IntersectionObserver((poster) => {
       if (poster.some((p) => p.isIntersecting)) onSynsRef.current(nr);
@@ -371,10 +389,10 @@ function SynligSida({ dokument, nr, skala, faktor, ritad, sida1, rot, onSyns, et
     };
   }, [nr, rot]);
   // Platshållaren följer zoomen, så att rullningen och sidorna under har rätt läge innan sidan ritats.
-  const reserv = { bredd: sida1.bredd * skala * faktor, hojd: sida1.hojd * skala * faktor };
+  const reserv = { bredd: grund.bredd * skala * faktor, hojd: grund.hojd * skala * faktor };
   return (
-    <div ref={ram} data-pdf-sidram={nr} style={synlig ? undefined : { width: reserv.bredd, height: reserv.hojd, background: "white" }}>
-      {synlig ? <Sida dokument={dokument} nr={nr} skala={skala} faktor={faktor} ritad={ritad} reserv={reserv} mark="data-pdf-sida-canvas" etikett={etikett} /> : null}
+    <div ref={ram} data-pdf-sidram={nr} style={synlig ? undefined : { width: Math.floor(reserv.bredd), height: Math.floor(reserv.hojd), background: "white" }}>
+      {synlig ? <Sida dokument={dokument} nr={nr} skala={skala} faktor={faktor} ritad={ritad} ritko={ritko} reserv={reserv} onGrund={setGrund} mark="data-pdf-sida-canvas" etikett={etikett} /> : null}
     </div>
   );
 }
@@ -385,19 +403,20 @@ function SynligSida({ dokument, nr, skala, faktor, ritad, sida1, rot, onSyns, et
  * ⛔ RAMEN FÖLJER ZOOMEN, BILDEN FÖLJER `ritad` (0.235.0). Ramen får sin storlek av `faktor` i varje ritning, och canvasen fyller ramen: under en nypning sträcks den ritade bilden med CSS, utan ny ritning.
  * Först när zoomen stått still (`ritad`, se `usePdfZoom`) ritas sidan om i den nya skalan.
  *
- * ⛔ TVÅ RITNINGAR SKRIVER ALDRIG PÅ SAMMA CANVAS. Varje ritning får en egen canvas, som ersätter den förra i ramen först när den är klar (ingen vit blinkning medan nästa ritas). En ny skala avbryter den pågående
- * ritningen (`cancel`), och nästa börjar först när den avbrutna har lagt sig. En canvas som byts ut eller lämnas släpps (bredd och höjd noll): Safari på iPhone håller annars kvar minnet.
+ * ⛔ TVÅ RITNINGAR SKRIVER ALDRIG PÅ SAMMA CANVAS, OCH PÅGÅR ALDRIG SAMTIDIGT. Varje ritning får en egen canvas, som ersätter den förra i ramen först när den är klar (ingen vit blinkning medan nästa ritas).
+ * Ritningen läggs i vyns kö (`ritko`, `skapaRitko`), som kör en i taget. En ny skala stryker en ritning som väntar och avbryter en som pågår (`cancel`), och kön går vidare först när den avbrutna har lagt sig.
+ * En canvas som byts ut eller lämnas släpps (bredd och höjd noll): Safari på iPhone håller annars kvar minnet.
  *
  * ⛔ TAKET FÖR PIXLAR (`ritmatt`, `lib/pdfzoom.js`): canvasen blir aldrig större än `PIXELTAK` pixlar. Över taket ritas sidan i takets upplösning.
  *
- * @param {{ dokument: any, nr: number, skala?: number, yta?: { bredd: number, hojd: number }, faktor?: number, ritad?: number, reserv?: { bredd: number, hojd: number }, mark: string, etikett: string }} props
+ * @param {{ dokument: any, nr: number, skala?: number, yta?: { bredd: number, hojd: number }, faktor?: number, ritad?: number, ritko: ReturnType<typeof skapaRitko>, reserv?: { bredd: number, hojd: number }, onGrund?: (g: { bredd: number, hojd: number }) => void, mark: string, etikett: string }} props
  */
-function Sida({ dokument, nr, skala, yta, faktor = 1, ritad = 1, reserv, mark, etikett }) {
+function Sida({ dokument, nr, skala, yta, faktor = 1, ritad = 1, ritko, reserv, onGrund, mark, etikett }) {
   const ram = useRef(/** @type {HTMLDivElement | null} */ (null));
   const [grund, setGrund] = useState(/** @type {{ sidan: any, bredd: number, hojd: number } | null} */ (null));
   const [fel, setFel] = useState(false);
-  /** Den senaste ritningen, som nästa väntar på. Den kastar aldrig: felet är redan taget i den. */
-  const forra = useRef(/** @type {Promise<void>} */ (Promise.resolve()));
+  const onGrundRef = useRef(onGrund);
+  onGrundRef.current = onGrund;
 
   useEffect(() => {
     let kvar = true;
@@ -410,6 +429,7 @@ function Sida({ dokument, nr, skala, yta, faktor = 1, ritad = 1, reserv, mark, e
           if (!kvar) return;
           const vp = sidan.getViewport({ scale: CSS_PER_PUNKT });
           setGrund({ sidan, bredd: vp.width, hojd: vp.height });
+          onGrundRef.current?.({ bredd: vp.width, hojd: vp.height });
         },
         () => {
           if (kvar) setFel(true);
@@ -431,9 +451,7 @@ function Sida({ dokument, nr, skala, yta, faktor = 1, ritad = 1, reserv, mark, e
     let kvar = true;
     /** @type {{ cancel: () => void, promise: Promise<unknown> } | null} */
     let uppgift = null;
-    const fore = forra.current;
-    const denna = (async () => {
-      await fore;
+    const stryk = ritko.lagg(async () => {
       if (!kvar) return;
       const vp = grund.sidan.getViewport({ scale: CSS_PER_PUNKT * ritskala });
       const dpr = typeof window !== "undefined" && window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
@@ -444,28 +462,27 @@ function Sida({ dokument, nr, skala, yta, faktor = 1, ritad = 1, reserv, mark, e
       c.setAttribute("aria-hidden", "true");
       c.setAttribute("data-pdf-canvas", String(nr));
       c.className = "block size-full";
-      uppgift = grund.sidan.render({ canvas: c, viewport: vp, transform: m.k !== 1 ? [m.k, 0, 0, m.k, 0, 0] : undefined });
       try {
+        uppgift = grund.sidan.render({ canvas: c, viewport: vp, transform: m.k !== 1 ? [m.k, 0, 0, m.k, 0, 0] : undefined });
         await /** @type {any} */ (uppgift).promise;
       } catch (e) {
         slapp(c);
-        throw e;
+        // Ett avbrott är vår egen ändring (ny skala, ny sida, sidan lämnade vyn), inget fel. Allt annat syns på sidan.
+        if (kvar && !(e && typeof e === "object" && /** @type {any} */ (e).name === "RenderingCancelledException")) setFel(true);
+        return;
       }
       if (!kvar) return slapp(c);
       box.querySelectorAll("canvas").forEach(slapp);
       box.replaceChildren(c);
-    })().catch((e) => {
-      // Ett avbrott är vår egen ändring (ny skala, ny sida), inget fel. Allt annat syns på sidan.
-      if (kvar && !(e && typeof e === "object" && /** @type {any} */ (e).name === "RenderingCancelledException")) setFel(true);
     });
-    forra.current = denna;
     return () => {
       kvar = false;
-      uppgift?.cancel();
+      stryk();
+      /** @type {any} */ (uppgift)?.cancel();
     };
-  }, [grund, ritskala, nr]);
+  }, [grund, ritskala, nr, ritko]);
 
-  // Canvasen släpps när sidan lämnas.
+  // Canvasen släpps när sidan lämnas, också när den lämnar vyn.
   useEffect(() => {
     const box = ram.current;
     return () => box?.querySelectorAll("canvas").forEach(slapp);

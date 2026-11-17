@@ -5,12 +5,14 @@ import {
   RITA_OM_MS,
   DUBBELTRYCK_MS,
   TRYCK_RORELSE,
+  andelISida,
   arDubbeltryck,
   dubbeltryckZoom,
   forankradRullning,
   hjulZoom,
   klampZoom,
   nypZoom,
+  rullningTillAndel,
   stegaZoom,
 } from "../lib/pdfzoom.js";
 
@@ -22,12 +24,18 @@ import {
  * - ett finger: rullar som förut (rutan har `overflow: auto`). Ett tryck utan rörelse räknas, och två inom `DUBBELTRYCK_MS` är ett dubbeltryck som växlar mellan hel bredd och 2x kring trycket.
  *   Ett ensamt tryck går till `onTryck` först när ett andra inte kommit (helskärmens sidbyte), så att dubbeltrycket inte först byter sida.
  * - hjulet med Ctrl eller Cmd: zoomar kring pekaren. Utan dem rullar hjulet som förut.
+ * - Safaris `gesturestart`, `gesturechange` och `gestureend`: på en Mac kommer nypningen med styrplattan bara så (granskningen av 0.235.0), och zoomen räknas ur `e.scale` som nypningen ur fingrarna.
+ *   På en iPhone kommer samma nypning både som `touch*` och `gesture*`, och då räknas den bara ur fingrarna: gesten stoppas, men räknas inte en gång till.
+ *
+ * ⛔ PUNKTEN UNDER FINGRET STÅR KVAR, MÄTT I SIDAN (granskningen av 0.235.0). Den första versionen räknade som om allt innehåll skalade från rutans övre vänstra hörn, och det gäller inte: i helskärmen är sidan
+ * centrerad, och i den rullande vyn skalar inte luften mellan sidorna. Nu letas sidan under punkten upp (`sidval`), och punkten sparas som andel av sidans bredd och höjd (`andelISida`). När sidorna fått
+ * sin nya storlek rullas rutan så att samma andel ligger under fingret igen (`rullningTillAndel`). Utan en sida under punkten gäller den gamla räkningen (`forankradRullning`).
  *
  * ⛔ RUTAN BÄR `touch-action: pan-x pan-y` (`PDF_TOUCH_ACTION`): webbläsaren rullar med ett finger men nyper inte och dubbeltrycker inte själv. Det är det som lämnar gesterna till kroken.
  *
  * `faktor` är zoomen nu (ramarnas storlek, under nypningen sträcks den ritade bilden), `ritad` är den som sidorna ritas i, och den följer `faktor` först när den stått still `RITA_OM_MS`.
  *
- * @param {{ onTryck?: (punkt: { x: number, y: number }) => void }} [val]
+ * @param {{ onTryck?: (punkt: { x: number, y: number }) => void, sidval?: string }} [val] `sidval`: väljaren för sidorna i rutan, för punkten under fingret.
  */
 export function usePdfZoom(val = {}) {
   const [el, setEl] = useState(/** @type {HTMLElement | null} */ (null));
@@ -41,20 +49,19 @@ export function usePdfZoom(val = {}) {
   onTryckRef.current = val.onTryck;
   /** Senaste beröringen, i `Date.now()`. Helskärmens klick efter ett tryck med fingret är webbläsarens eget och ska inte byta sida en gång till. */
   const beroring = useRef(0);
-  /** @type {import("react").MutableRefObject<{ x: number, y: number, sl: number, st: number, fore: number } | null>} */
+  const sidvalRef = useRef(val.sidval);
+  sidvalRef.current = val.sidval;
+  /** @type {import("react").MutableRefObject<{ x: number, y: number, sida: Element | null, fx: number, fy: number, sl: number, st: number, fore: number } | null>} */
   const ankare = useRef(null);
 
   const satt = useCallback((/** @type {number} */ f, /** @type {{ x: number, y: number } | undefined} */ punkt = undefined) => {
     const ny = klampZoom(f);
     if (Math.abs(ny - faktorRef.current) < 1e-9) return;
-    const ruta = elRef.current;
-    if (ruta) {
-      const p = punkt ?? { x: ruta.clientWidth / 2, y: ruta.clientHeight / 2 };
-      // Flera steg före nästa ritning räknas från läget som syns (rullningen och faktorn när ankaret sattes), och bara punkten följer med.
-      if (ankare.current) ankare.current = { ...ankare.current, x: p.x, y: p.y };
-      else ankare.current = { x: p.x, y: p.y, sl: ruta.scrollLeft, st: ruta.scrollTop, fore: lagdRef.current };
-    }
     faktorRef.current = ny;
+    const ruta = elRef.current;
+    // ⛔ TILLBAKA PÅ DET SOM SYNS GER INGEN NY RITNING, och då inget ankare (granskningen av 0.235.0, nit 4): ett ankare som sattes för ett värde som aldrig ritades hade annars legat kvar till nästa zoom.
+    if (!ruta || Math.abs(ny - lagdRef.current) < 1e-9) ankare.current = null;
+    else ankare.current = matAnkare(ruta, punkt ?? { x: ruta.clientWidth / 2, y: ruta.clientHeight / 2 }, sidvalRef.current, lagdRef.current);
     setFaktor(ny);
   }, []);
 
@@ -71,8 +78,15 @@ export function usePdfZoom(val = {}) {
     ankare.current = null;
     const ruta = elRef.current;
     if (a && ruta) {
-      ruta.scrollLeft = forankradRullning(a.sl, a.x, a.fore, faktor);
-      ruta.scrollTop = forankradRullning(a.st, a.y, a.fore, faktor);
+      if (a.sida && a.sida.isConnected) {
+        const r = ruta.getBoundingClientRect();
+        const { dx, dy } = rullningTillAndel(a.sida.getBoundingClientRect(), a, { x: r.left + a.x, y: r.top + a.y });
+        ruta.scrollLeft = Math.max(0, ruta.scrollLeft + dx);
+        ruta.scrollTop = Math.max(0, ruta.scrollTop + dy);
+      } else {
+        ruta.scrollLeft = forankradRullning(a.sl, a.x, a.fore, faktor);
+        ruta.scrollTop = forankradRullning(a.st, a.y, a.fore, faktor);
+      }
     }
     lagdRef.current = faktor;
   }, [faktor]);
@@ -160,9 +174,22 @@ export function usePdfZoom(val = {}) {
       nyp = null;
       tryck = null;
     };
-    // Safari på iPhone: nypningen kommer också som `gesture*`. Att stoppa dem stoppar sidans egen zoom. Faktorn räknas ur `touch*` ovan, så att nypningen inte räknas två gånger.
-    const gest = (/** @type {Event} */ e) => {
+    // Safari: nypningen kommer som `gesture*`. På en iPhone kommer den också som `touch*` och räknas där (`nyp`), så att den inte räknas två gånger. På en Mac (styrplattan) kommer den bara så, och räknas ur `scale`.
+    /** @type {{ f: number } | null} */
+    let gest = null;
+    const gestStart = (/** @type {Event} */ e) => {
       if (e.cancelable) e.preventDefault();
+      gest = { f: faktorRef.current };
+    };
+    const gestAndra = (/** @type {Event} */ e) => {
+      if (e.cancelable) e.preventDefault();
+      const g = /** @type {any} */ (e);
+      if (nyp || !gest || !(g.scale > 0)) return;
+      const punkt = Number.isFinite(g.clientX) && Number.isFinite(g.clientY) ? iRutan(g.clientX, g.clientY) : undefined;
+      satt(nypZoom(gest.f, 1, g.scale), punkt);
+    };
+    const gestSlut = () => {
+      gest = null;
     };
     const hjul = (/** @type {WheelEvent} */ e) => {
       const f = hjulZoom(faktorRef.current, e);
@@ -174,8 +201,9 @@ export function usePdfZoom(val = {}) {
     el.addEventListener("touchmove", flytta, { passive: false });
     el.addEventListener("touchend", slut, { passive: false });
     el.addEventListener("touchcancel", avbryt, { passive: true });
-    el.addEventListener("gesturestart", gest, { passive: false });
-    el.addEventListener("gesturechange", gest, { passive: false });
+    el.addEventListener("gesturestart", gestStart, { passive: false });
+    el.addEventListener("gesturechange", gestAndra, { passive: false });
+    el.addEventListener("gestureend", gestSlut);
     el.addEventListener("wheel", hjul, { passive: false });
     return () => {
       clearTimeout(tryckKlocka);
@@ -183,8 +211,9 @@ export function usePdfZoom(val = {}) {
       el.removeEventListener("touchmove", flytta);
       el.removeEventListener("touchend", slut);
       el.removeEventListener("touchcancel", avbryt);
-      el.removeEventListener("gesturestart", gest);
-      el.removeEventListener("gesturechange", gest);
+      el.removeEventListener("gesturestart", gestStart);
+      el.removeEventListener("gesturechange", gestAndra);
+      el.removeEventListener("gestureend", gestSlut);
       el.removeEventListener("wheel", hjul);
     };
   }, [el, satt]);
@@ -203,6 +232,31 @@ export function usePdfZoom(val = {}) {
   );
 
   return { ruta: setEl, el, faktor, ritad, satt, nollstall, rad, beroring };
+}
+
+/**
+ * Ankaret för en zoom: punkten i rutan, och sidan under den med punktens andel av sidan. Utan en sida under punkten (eller utan `sidval`) bara punkten och rullningen, för `forankradRullning`.
+ * @param {HTMLElement} ruta
+ * @param {{ x: number, y: number }} punkt I rutan, från dess synliga kant.
+ * @param {string | undefined} sidval
+ * @param {number} fore Faktorn som syns.
+ */
+function matAnkare(ruta, punkt, sidval, fore) {
+  const bas = { x: punkt.x, y: punkt.y, sida: /** @type {Element | null} */ (null), fx: 0, fy: 0, sl: ruta.scrollLeft, st: ruta.scrollTop, fore };
+  if (!sidval) return bas;
+  const r = ruta.getBoundingClientRect();
+  const p = { x: r.left + punkt.x, y: r.top + punkt.y };
+  /** @type {{ el: Element, avstand: number, rekt: DOMRect } | null} */
+  let basta = null;
+  for (const el of ruta.querySelectorAll(sidval)) {
+    const s = el.getBoundingClientRect();
+    if (!(s.height > 0)) continue;
+    const avstand = p.y < s.top ? s.top - p.y : p.y > s.bottom ? p.y - s.bottom : 0;
+    if (!basta || avstand < basta.avstand) basta = { el, avstand, rekt: s };
+    if (avstand === 0) break;
+  }
+  if (!basta) return bas;
+  return { ...bas, sida: basta.el, ...andelISida(basta.rekt, p) };
 }
 
 /** Rutans `touch-action`: ett finger rullar i båda led, och webbläsaren nyper eller dubbeltrycker inte själv. Se `usePdfZoom`. */
