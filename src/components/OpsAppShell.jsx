@@ -1100,7 +1100,7 @@ function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
  *   Appar i bottenraden öppnar en snabbmeny rakt ovanför fliken, och ett långtryck på Appar går till Appar-sidan. Valen i Skapa är
  *   Ny händelse, Nytt ärende, Nytt meddelande och Ny grupp, bara de appen gett, och efter dem modulernas `skapa.rad` (0.234.0) i modulordning. Registreringar (Skapa app) ritas inte där.
  *   Apparna är `arkRader` ur `apparArk`: gruppens installerade kort, samma urval som Appar-vyn. Utan propen är skalet som förut.
- * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onMeddelande?: (underlag: import("../lib/talk.js").Talkunderlag) => void, onAgent?: (text: string) => void | Promise<void>, onAnteckning?: (text: string) => void | import("../lib/talk.js").Talkanteckningslank | Promise<void | import("../lib/talk.js").Talkanteckningslank>, tillText?: (blob: Blob, meta: { mimeType: string, sekunder: number }) => Promise<string>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2). ⛔ (0.103.0) Bottenradens mittknapp
+ * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onMeddelande?: (underlag: import("../lib/talk.js").Talkunderlag) => void, onAgent?: (text: string) => void | import("../lib/talkrost.js").Talkrost | Promise<void | import("../lib/talkrost.js").Talkrost>, onAnteckning?: (text: string) => void | import("../lib/talk.js").Talkanteckningslank | Promise<void | import("../lib/talk.js").Talkanteckningslank>, tillText?: (blob: Blob, meta: { mimeType: string, sekunder: number }) => Promise<string>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2). ⛔ (0.103.0) Bottenradens mittknapp
  *   är då en mikrofon: ett vanligt tryck spelar in, och ett långtryck öppnar skapa-listan (utan TALK-raden) när den har något.
  *   Före 0.103.0 spelade ett långtryck på plusset in och ett tryck öppnade Skapa. Huvudets plus (bred skärm, och den gamla
  *   modellen på telefon) får raden "TALK, prata in" först där ingen mikrofon står bredvid. Ljudet lämnas till `talk.onTalk`. När ett mål är valt
@@ -2134,6 +2134,8 @@ function OpsAppShellRitad({
     samtalet: laastTillModul ? undefined : talk?.samtalet,
     inspelare: talk?.inspelare,
     igenkanning: talk?.igenkanning,
+    // (lifehub.app#870 skiva 4) Uppläsningen av agentens svar. Utan den webbläsarens `speechSynthesis`, som `igenkanning` är dess taligenkänning.
+    upplasning: talk?.upplasning,
     // ⛔ "Agenten arbetar…" när inspelningen går till Biblioteket hade varit osant: där är det modulens `spara` som arbetar.
     skickarText: valtMal?.spara ? undefined : talk?.skickarText,
     // ⛔ TAKET ÄR MÅLETS (0.93.0). Ett mål ur en modul kan bära `maxSekunder` (Bibliotekets idé: `IDE_MAX_SEKUNDER`, 10 minuter).
@@ -2976,7 +2978,7 @@ function OpsAppShellRitad({
                   onClick={() => oppnaSkapa(TALK_FORM)}
                   className={cx(
                     huvudTalkKlass({
-                      aktiv: talkStyr.lage === "haller" || talkStyr.lage === "lyssnar" || talkStyr.lage === "skickar" || talkStyr.lage === "hort" || talkStyr.lage === "sparat",
+                      aktiv: talkStyr.lage === "haller" || talkStyr.lage === "lyssnar" || talkStyr.lage === "skickar" || talkStyr.lage === "hort" || talkStyr.lage === "rost" || talkStyr.lage === "sparat",
                     }),
                     "pointer-events-auto",
                   )}
@@ -3323,6 +3325,7 @@ function OpsAppShellRitad({
           kanSpelaIStallet={talkStyr.kanSpelaIStallet}
           onSpelaIStallet={talkStyr.spelaIStallet}
           onLank={onActivate}
+          rost={talkStyr.rost}
         />
       ) : null}
 
