@@ -116,3 +116,40 @@ describe("⛔ bladet som panel (granskningen av 0.235.0)", () => {
     expect(screen.queryByRole("dialog", { name: "Nytt projekt" })).toBeNull();
   });
 });
+
+describe("⛔ märket för kanten med flera blad (den andra granskningen av 0.235.0)", () => {
+  const marke = () => document.documentElement.hasAttribute("data-ops-blad-oppet");
+  /** @param {{ a: boolean, b: boolean, visaB?: boolean }} p */
+  const tva = ({ a, b, visaB = true }) => (
+    <>
+      <OpsModal open={a} onOpenChange={() => {}} title="Blad A">
+        <p>A</p>
+      </OpsModal>
+      {visaB ? (
+        <OpsModal open={b} onOpenChange={() => {}} title="Blad B">
+          <p>B</p>
+        </OpsModal>
+      ) : null}
+    </>
+  );
+  it("två blad efter varandra: märket står medan något av dem är öppet, och är borta när båda stängts", () => {
+    const { rerender } = render(tva({ a: true, b: false }));
+    expect(marke()).toBe(true);
+    rerender(tva({ a: false, b: false }));
+    expect(marke()).toBe(false);
+    rerender(tva({ a: false, b: true }));
+    expect(marke()).toBe(true);
+    rerender(tva({ a: false, b: false }));
+    expect(marke()).toBe(false);
+  });
+  it("ett blad som monteras av medan ett annat är öppet tar inte bort märket för det andra", () => {
+    const { rerender, unmount } = render(tva({ a: true, b: true }));
+    expect(marke()).toBe(true);
+    rerender(tva({ a: true, b: true, visaB: false }));
+    expect(marke()).toBe(true);
+    rerender(tva({ a: false, b: false, visaB: false }));
+    expect(marke()).toBe(false);
+    unmount();
+    expect(marke()).toBe(false);
+  });
+});
