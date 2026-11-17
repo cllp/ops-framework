@@ -9,6 +9,34 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.235.0
+
+**Zoom i PDF-vyn.** CP 2026-11-16: "Det går inte att zooma i pdf:er i biblioteket. Det vore bra om det funkade." och "Ja kör zoom på pdf". Raden hade − och + sedan 0.196.0, men i telefonen zoomar man med fingrarna, och där hände ingenting.
+
+### Ändrat
+
+- **Telefonen:** nyp med två fingrar zoomar sidan från hel bredd till fyra gånger den. Dubbeltryck växlar mellan hel bredd och 2x, kring trycket. Inzoomad drar ett finger sidan åt alla håll. Rutan bär `touch-action: pan-x pan-y`, och nypningen och dubbeltrycket går till zoomen och inte till webbläsarens zoom av hela appen (mätt med Playwright vid 390 px: `visualViewport.scale` står kvar på 1).
+- **Datorn:** −, + och procenten (Anpassa till bredd) i raden, och Ctrl- eller Cmd+hjul kring pekaren. Hjulet utan Ctrl rullar som förut. Procenten är nu räknad från hel bredd: "100 %" är sidan anpassad till rutan, + och − stegar en kvarts gång upp till 400 %. Före 0.235.0 var procenten sidans tryckta storlek, 10 till 200 %.
+- **Helskärmen** har samma zoom, från sidan anpassad till skärmen. Svepet och ett tryck byter sida bara vid hel sida: inzoomad drar fingret sidan. Ett ensamt tryck med fingret byter sida först när inget andra tryck kom inom 300 ms, så att ett dubbeltryck inte först byter sida. En ny sida börjar anpassad till skärmen.
+- **Skärpan:** under nypningen sträcks den ritade bilden. När zoomen stått still i 200 ms ritas synliga sidor om i den nya skalan, i skärmens upplösning. Varje ritning får en egen canvas som ersätter den förra först när den är klar, den pågående avbryts, och nästa börjar först när den avbrutna lagt sig. Två ritningar skriver aldrig på samma canvas.
+- **Minnet:** en canvas får högst 16 777 216 pixlar (Safaris gräns på iPhone). Över taket ritas sidan i takets upplösning. En canvas som byts ut eller lämnas släpps (bredd och höjd noll).
+- Reglerna bor i `lib/pdfzoom.js`, gesterna i `usePdfZoom` (`components/pdfZoom.js`). `HtmlZoomRad` tar `min` och `max` (`ZoomRad`), så att PDF-vyn och HTML-rutan delar knapparna med var sina gränser.
+
+### Bladets knappar skyms inte av bottenraden
+
+CP:s skärmbild från appen: i bladet Nytt projekt (`OpsModal` med `footer`) var Avbryt och Skapa projekt avklippta längst ned. Bladet stod på `bottom-0`, på bottenradens plats.
+
+- **`OpsModal` slutar ovanför bottenraden på telefonen**, på samma tal som `PanelDialog` och `OpsSkapaPanel` (`--panel-botten`). Slöjan också, så att raden och TALK syns. Den säkra ytan läggs bara på när bottenraden inte redan bär den, höjden räknar med båda, och knappraden krymper aldrig (`shrink-0`): det är innehållet som rullar. På datorn är det den centrerade rutan som förut.
+- **`OpsModal` är en panel medan den är öppen** (`usePanelRegistrering`, `skyddaOvanforPanel`): bottenradens flikar är dämpade, och ett tryck på TALK stänger inte bladet.
+
+### HTML-dokumentens zoom: inget att ändra
+
+Kontrollerat: ramverket sätter ingen `user-scalable=no` eller `maximum-scale`, och inget `touch-action` som stänger nypningen i HTML-vyn. Rutans eget skript tar nypningen (sedan 0.192.0). Mätt med Playwright vid 390 px i mobilläge: en nypning i dokumentet tog zoomen från 30 till 90 %, och appens egen skala stod kvar på 1. Safaris `gesture*`-väg går inte att mäta i Chromium.
+
+Prov: `pdfzoom` (nytt, 16) och `modal-bottenrad` (nytt, 5). Mot 0.234.0 är 10 av de 11 vyproven i `pdfzoom` röda (det engelska namnprovet var grönt redan), reglernas 5 prov röda för att modulen saknas, och alla 5 i `modal-bottenrad` röda.
+
+**Att göra i appen:** inget krävs. Ett blad byggt på `OpsModal` slutar nu ovanför bottenraden på telefonen och dämpar radens flikar medan det är öppet. Kontrollera Nytt projekt i telefonen efter ompinningen.
+
 ## 0.234.0
 
 **Det står aldrig "Namn saknas" när adressen finns.** CP 2026-11-16: "När Collan hade loggat in stod hans namn som Namn Saknas innan han gick ut och sparade om sin profil." Och samma kväll: "Det får ALDRIG stå namn saknas. Det måste alltid finnas en fallback på eposten." Rotorsaken låg i Identity (tokenen som lämnades till hubben utfärdades innan namnet sattes, rättat i lifehub.identity), men ramverket hade ingen reserv för alla andra i gruppen än "Namn saknas" (cllp/lifehub.app#861).
