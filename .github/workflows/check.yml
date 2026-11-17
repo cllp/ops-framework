@@ -83,7 +83,7 @@ jobs:
   check:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, lifehub]
     steps:
       - uses: actions/checkout@v7
         # ⛔ TAGGARNA BEHÖVS (0.82.0, granskningen av PR 314). `check-changelog-taggar` kräver en rubrik i CHANGELOG
@@ -124,7 +124,7 @@ jobs:
   scaffold:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, lifehub]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -167,7 +167,7 @@ jobs:
   paket:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, lifehub]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -194,7 +194,7 @@ jobs:
   regelprov:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, lifehub]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -210,3 +210,25 @@ jobs:
         run: java -version
       - run: npm ci
       - run: npm run test:rules
+
+  # ⛔ EGNA RUNNERS, ALDRIG GITHUBS (CP 2026-11-17 23.24, cllp/lifehub.app#880). Actions-minuterna slog i taket 23.38 samma kväll,
+  # och därefter startade inget jobb: Inkorgsraden och appens deploy föll inom tre sekunder utan maskin. Ett nytt arbetsflöde
+  # mot GitHubs maskiner går tyst tillbaka till minuterna, så det här jobbet är rött för varje sådant runs-on. Mönstret står
+  # delat, så att raden inte träffar sig själv. Golvet är antalet arbetsflöden när vakten skrevs.
+  egna-runners:
+    name: egna runners
+    runs-on: [self-hosted, Linux, lifehub]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Alla jobb på egna runners
+        run: |
+          MONSTER="ubuntu""-|windows""-|macos""-"
+          ANTAL="$(ls .github/workflows/*.yml | wc -l)"
+          if [ "$ANTAL" -lt 2 ]; then echo "::error::Bara $ANTAL arbetsflöden lästa, golvet är 2."; exit 1; fi
+          if grep -nE "runs-on:.*($MONSTER)" .github/workflows/*.yml; then
+            echo "::error::Arbetsflöden ovan kör på GitHubs maskiner. Använd runs-on: [self-hosted, Linux, lifehub] (cllp/lifehub.app#880)."
+            exit 1
+          fi
+          echo "Alla $ANTAL arbetsflöden kör på egna runners."
