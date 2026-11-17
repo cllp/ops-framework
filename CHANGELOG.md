@@ -41,7 +41,18 @@ Kontrollerat: ramverket sätter ingen `user-scalable=no` eller `maximum-scale`, 
 - Zoomen i den rullande vyn börjar på hel bredd när helskärmen stängs. Blir + eller − avstängd vid gränsen får den andra knappen fokus (också i HTML-rutan). Ett ankare för ett värde som aldrig ritades ligger inte kvar.
 - **Remsan under bladet.** Bottenradens kant mellan en panel och raden hade panelernas färg (`canvas`) och började en pixel under panelen. Under ett blad (`raised`) i mörkt tema blev det ett mörkt streck, mätt med Playwright: bladet rgb(38, 45, 38), remsan rgb(24, 28, 24). Nu tar kanten bladets färg medan ett blad är öppet (`data-ops-blad-oppet` på <html>, regeln i `tokens.css`), den är en pixel högre, och bladet har ingen nedre kantlinje på telefonen.
 
-Prov: `pdfzoom` (nytt, 24) och `modal-bottenrad` (nytt, 7). Mot 0.234.0 är 10 av de första 11 vyproven i `pdfzoom` röda (det engelska namnprovet var grönt redan), reglernas 5 prov röda för att modulen saknas, och alla 5 första i `modal-bottenrad` röda. Granskningens 8 prov i `pdfzoom` är 7 röda mot den första versionen av zoomen (provet att en iPhone inte räknar nypningen två gånger var grönt redan), och granskningens 2 i `modal-bottenrad` är röda mot 0.234.0 (det om märket för kanten också mot den första versionen).
+### Efter den andra granskningen
+
+- **En minnesbudget för hela vyn**, 40 miljoner pixlar (160 MB), räknad också medan en sida ritas om och den gamla canvasen står kvar (`skapaCanvasbudget`). Taket per canvas är budgeten delad med sidorna nära vyn plus en, och räcker det inte släpper sidan sin gamla canvas först. Förut kunde fyra canvasar på taket finnas samtidigt vid 4x, cirka 256 MB, och äldre iPhones klarar cirka 224 MB.
+- **Området nära vyn följer zoomen:** tre skärmhöjder vid hel bredd (snabb rullning gav vita sidor), en vid 2x och mer. Efter en zoom ritas sidan under fingret eller pekaren först.
+- **Kön har en tidsgräns** på 15 s. En ritning som inte svarat avbryts, sidan får sin felrad, och kön går vidare.
+- **Fel i måtten före ritningen** (`getViewport`, `ritmatt`) ger sidans felrad i stället för ett ohanterat fel.
+- Sidorna har dokumentet i sin nyckel, så att en annan PDF i samma vy aldrig ärver den förras platshållare.
+- WebKit gick inte att starta i byggmiljön (nedladdningen nekas), så ankaret och nypningen är mätta i Chromium och i jsdom med en layoutmodell, inte i Safari.
+
+Prov: `pdfzoom` (nytt, 33) och `modal-bottenrad` (nytt, 9). Den andra granskningens prov i `pdfzoom`: 6 vyprov röda mot b08b94c, och de två proven för kön och budgeten röda utan modulens nya delar. Provet för platshållarna var grönt redan, eftersom vyn monteras om medan en ny fil hämtas. Det står kvar som vakt. Proven för märket med två blad (2) var gröna redan mot b08b94c och är vakter.
+
+Tidigare: `pdfzoom` (16 + 8) och `modal-bottenrad` (5 + 2). Mot 0.234.0 är 10 av de första 11 vyproven i `pdfzoom` röda (det engelska namnprovet var grönt redan), reglernas 5 prov röda för att modulen saknas, och alla 5 första i `modal-bottenrad` röda. Granskningens 8 prov i `pdfzoom` är 7 röda mot den första versionen av zoomen (provet att en iPhone inte räknar nypningen två gånger var grönt redan), och granskningens 2 i `modal-bottenrad` är röda mot 0.234.0 (det om märket för kanten också mot den första versionen).
 
 **Att göra i appen:** inget krävs. Ett blad byggt på `OpsModal` slutar nu ovanför bottenraden på telefonen och dämpar radens flikar medan det är öppet. Kontrollera Nytt projekt i telefonen efter ompinningen.
 
