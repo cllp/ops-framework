@@ -135,7 +135,7 @@ const marken = new Map();
 
 /**
  * Sätter ett tomt attribut på <html> medan komponenten är monterad (och `aktiv`), räknat per namn.
- * @param {"data-ops-med-huvud" | "data-ops-med-bottenrad"} namn
+ * @param {"data-ops-med-huvud" | "data-ops-med-bottenrad" | "data-ops-blad-oppet"} namn `data-ops-blad-oppet` (0.235.0): ett blad (`OpsModal`) är öppet, och bottenradens kant tar bladets färg (`tokens.css`).
  * @param {boolean} [aktiv]
  */
 export function useRotmarke(namn, aktiv = true) {

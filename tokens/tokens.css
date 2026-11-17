@@ -1306,6 +1306,16 @@
   outline-offset: 2px;
 }
 
+/* ─── Kanten under ett blad (0.235.0, granskningen av 0.235.0). ──────────────────────────────────────────────────────────────
+ * Bottenradens kant (`[data-panelkant]`, `OpsBottomNav`) fyller remsan mellan en panel och raden i panelens färg, `bg-canvas`, så att
+ * mikrofonen sticker upp ur något som ligger under den. Panelerna (`PanelDialog`, `OpsSkapaPanel`) står på `canvas`, men ett blad (`OpsModal`)
+ * står på `raised`, och i mörkt tema är skillnaden 16 px mörk remsa under bladet (mätt med Playwright vid 390 px: bladet rgb(38, 45, 38),
+ * remsan rgb(24, 28, 24)). Medan ett blad är öppet bär <html> `data-ops-blad-oppet` (`useRotmarke` i `OpsModal`), och kanten tar bladets färg.
+ * I `ops-ramverk`-lagret, efter verktygsklasserna, så att den vinner över `bg-canvas`. */
+:root[data-ops-blad-oppet] [data-panelkant] {
+  background-color: var(--color-raised);
+}
+
 @media (max-height: 31.25rem) {
   :root {
     --flytande-skapa-storlek: 2.75rem;

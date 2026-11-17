@@ -1,5 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
+import { PANEL, skyddaOvanforPanel, usePanelRegistrering, useRotmarke } from "../lib/panellager.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { KryssIkon } from "./icons.jsx";
 
@@ -15,6 +16,20 @@ import { KryssIkon } from "./icons.jsx";
  * ⛔ En modal utan titel är inte tillåten. Titeln är det skärmläsaren annonserar
  * när dialogen öppnas, och utan den får användaren veta att något öppnades men
  * inte vad.
+ *
+ * ══ ⛔ PÅ TELEFONEN SLUTAR BLADET OVANFÖR BOTTENRADEN (0.235.0) ═══════════════════════════════════════════════════════════
+ *
+ * CP 2026-11-16, skärmbild från appen: i bladet Nytt projekt var knapparna Avbryt och Skapa projekt avklippta längst ned. Bladet var en bottnad sheet
+ * med `bottom-0` och bara den säkra ytan som luft (`pb-(--safe-bottom)`), alltså på samma plats som bottenraden och TALK:s lyft, och utan säker yta
+ * alls där `env(safe-area-inset-bottom)` är 0. Sedan 0.231.0 slutar panelerna ovanför bottenraden (`PanelDialog`, `OpsSkapaPanel`), och bladet gör nu
+ * samma sak på samma tal (regel 2):
+ *   1. Bladet och slöjan slutar på `--panel-botten` (bottenraden, dess kantlinje, säkra yta och mikrofonens lyft; 0 utan bottenrad, `tokens.css`).
+ *   2. Den säkra ytan läggs bara på när bottenraden inte redan bär den: `max(0px, --safe-bottom - --panel-botten)`.
+ *   3. Höjden räknar med båda, så att innehållet rullar ovanför knappraden och knappraden aldrig trycks ut ur bladet.
+ *   4. Bladet är en panel (`usePanelRegistrering`, `skyddaOvanforPanel`): medan det är öppet är radens flikar dämpade, och ett tryck på TALK eller i raden stänger det inte.
+ *   5. Remsan mellan bladet och raden (radens kant, där mikrofonen sticker upp) har bladets färg (`data-ops-blad-oppet` på <html>, regeln i `tokens.css`), och bladet har ingen
+ *      nedre kantlinje på telefonen (`max-md:border-b-0`): bladet och remsan är en yta. Mätt med Playwright vid 390 px i mörkt tema: remsan var rgb(24, 28, 24) under ett blad i rgb(38, 45, 38).
+ * På datorn (`md`) är det den centrerade rutan som förut.
  */
 
 // ⛔ 0.31.0: SS `ui/ModalShell.jsx:13-15`: `sm` max-w-md (448), `md` max-w-2xl (672), `lg` max-w-5xl (1024). Före 0.31.0 var det
@@ -48,10 +63,13 @@ export function OpsModal({ open, onOpenChange, title, description, size = "md", 
     throw new Error("OpsModal: title krävs. Skärmläsaren annonserar titeln när dialogen öppnas, och utan den vet användaren inte vad som hände.");
   }
 
+  usePanelRegistrering(open);
+  // Bottenradens kant under bladet tar bladets färg (`raised`) i stället för panelernas (`canvas`). Se `tokens.css`, granskningen av 0.235.0.
+  useRotmarke("data-ops-blad-oppet", open);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-(--z-overlay) bg-scrim" />
+        <Dialog.Overlay data-ops-modal-sloja="" className="fixed inset-x-0 top-0 bottom-(--panel-botten) z-(--z-overlay) bg-scrim md:bottom-0" />
         {/* `max-h` + inre scroll i stället för fast höjd: en modal med fast höjd
             klipper sitt innehåll så fort texten översätts till ett längre språk
             eller någon zoomar.
@@ -61,9 +79,12 @@ export function OpsModal({ open, onOpenChange, title, description, size = "md", 
             390px. På md+ den centrerade rutan. `dvh`, aldrig `vh`: Safaris
             verktygsrad ändrar höjd och 100vh räknar med den största. */}
         <Dialog.Content
+          {...{ [PANEL]: "" }}
+          data-ops-modal=""
+          onInteractOutside={skyddaOvanforPanel}
           className={cx(
-            "fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[calc(100dvh-var(--safe-top))] w-full flex-col",
-            "rounded-t-lg border border-line bg-raised pb-(--safe-bottom) shadow-lg",
+            "fixed inset-x-0 bottom-(--panel-botten) z-(--z-modal) flex max-h-[calc(100dvh-var(--safe-top)-var(--panel-botten))] w-full flex-col",
+            "rounded-t-lg border border-line bg-raised pb-[max(0px,calc(var(--safe-bottom)-var(--panel-botten)))] shadow-lg max-md:border-b-0",
             "md:inset-x-auto md:bottom-auto md:left-1/2 md:top-1/2 md:w-[calc(100vw---spacing(8))]",
             "md:max-h-[calc(100dvh---spacing(8))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-base md:pb-0",
             storlekKlass,
@@ -93,7 +114,8 @@ export function OpsModal({ open, onOpenChange, title, description, size = "md", 
               skarmlasare dessutom stannar pa. */}
           <div className={cx("min-h-0 flex-1 overflow-auto px-6", footer ? "" : "pb-6")}>{children}</div>
 
-          {footer ? <div className="flex flex-wrap items-center justify-end gap-2 p-6 pt-4">{footer}</div> : null}
+          {/* `shrink-0`: knappraden krymper aldrig, det är innehållet ovanför som rullar. */}
+          {footer ? <div data-ops-modal-fot="" className="flex shrink-0 flex-wrap items-center justify-end gap-2 p-6 pt-4">{footer}</div> : null}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
