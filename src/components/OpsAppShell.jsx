@@ -2150,9 +2150,12 @@ function OpsAppShellRitad({
    */
   const tillFaltRef = useRef(talkStyr.tillFalt);
   tillFaltRef.current = talkStyr.tillFalt;
+  const rostSamtalRef = useRef(talkStyr.rostSamtal);
+  rostSamtalRef.current = talkStyr.rostSamtal;
   // `upptagen` (granskningen av PR 605): mikrofonen bär `aria-disabled` medan en omgång pågår, så att den inte lovar något den inte gör.
   const talkfaltVarde = useMemo(
-    () => (talkStyr.medAgent ? { tala: (/** @type {Element} */ el) => tillFaltRef.current(el), upptagen: talkStyr.upptagen } : null),
+    // (CP 2026-11-18) `rostSamtal`: vågikonen i agentens chatt börjar ett röstsamtal i skalets TALK, med chattens `vidare`.
+    () => (talkStyr.medAgent ? { tala: (/** @type {Element} */ el) => tillFaltRef.current(el), upptagen: talkStyr.upptagen, rostSamtal: (/** @type {import("../lib/talkrost.js").Talkrost["vidare"]} */ v) => rostSamtalRef.current(v) } : null),
     [talkStyr.medAgent, talkStyr.upptagen],
   );
   /**
@@ -3326,6 +3329,7 @@ function OpsAppShellRitad({
           onSpelaIStallet={talkStyr.spelaIStallet}
           onLank={onActivate}
           rost={talkStyr.rost}
+          onSamtal={talkStyr.samtalMedAgenten}
         />
       ) : null}
 

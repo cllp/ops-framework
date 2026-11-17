@@ -36,7 +36,7 @@
  */
 
 import { KALLMARKEN } from "../lib/kallmarken.js";
-import { Archive, ArchiveRestore, AudioLines, Copy, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Play, Reply, SkipBack, SkipForward, Square, StickyNote, ThumbsUp, ArrowRight, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarRange, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Info, Layers, Lock, LogOut, MessagesSquare, Mic, SendHorizontal, MapPin, Menu, Minimize2, PanelRightOpen, Paperclip, Pencil, Smile, User, UserX, UsersRound, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, AudioLines, Volume2, VolumeX, Copy, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Play, Reply, SkipBack, SkipForward, Square, StickyNote, ThumbsUp, ArrowRight, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarRange, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Info, Layers, Lock, LogOut, MessagesSquare, Mic, SendHorizontal, MapPin, Menu, Minimize2, PanelRightOpen, Paperclip, Pencil, Smile, User, UserX, UsersRound, Zap } from "lucide-react";
 import { IKON_FOR } from "./ikonlexikon.js";
 
 /** Reaktionen "tumme" (0.75.0). @param {{ size?: number }} props */
@@ -559,9 +559,23 @@ export function KopieraIkon({ size = 16 }) {
   return <Copy size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
-/** Röstinmatning i skrivfältet: en ljudvåg (chattens nattskiva). @param {{ size?: number }} props */
+/**
+ * Ett röstsamtal med agenten: en ljudvåg (CP 2026-11-18). I TALK-fältet medan man pratar, och bredvid skrivfältet i agentens chatt. Röstinmatningen
+ * i skrivfältet (chattens nattskiva) som ikonen först ritades för är borta sedan 0.230.0, så betydelsen är fortfarande en: rösten till agenten.
+ * @param {{ size?: number }} props
+ */
 export function LjudvagIkon({ size = 18 }) {
   return <AudioLines size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** Uppläsningen av agentens svar är på (CP 2026-11-18, högtalarknappen i TALK). @param {{ size?: number }} props */
+export function HogtalareIkon({ size = 18 }) {
+  return <Volume2 size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** Uppläsningen av agentens svar är av: svaret visas bara (CP 2026-11-18). @param {{ size?: number }} props */
+export function HogtalareAvIkon({ size = 18 }) {
+  return <VolumeX size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** Spela upp ett ljud. @param {{ size?: number }} props */

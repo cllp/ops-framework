@@ -8,9 +8,10 @@ import { OVANFOR_PANEL } from "../lib/panellager.js";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { forraOmgangen, noteraOmgangsslut } from "../lib/talklogg.js";
-import { AgentIkon, AnteckningIkon, ArendePlusIkon, BockIkon, HandelsePlusIkon, KopieraIkon, KryssIkon, KugghjulIkon, MeddelandeIkon, MikrofonIkon, StoppIkon, TradIkon } from "./icons.jsx";
+import { AgentIkon, AnteckningIkon, ArendePlusIkon, BockIkon, HandelsePlusIkon, KopieraIkon, KryssIkon, KugghjulIkon, HogtalareAvIkon, HogtalareIkon, LjudvagIkon, MeddelandeIkon, MikrofonIkon, StoppIkon, TradIkon } from "./icons.jsx";
+import { OpsTooltip } from "./OpsTooltip.jsx";
 import { useKopiera } from "./useKopiera.js";
-import { ROST_INGET_TAL_MS, ROST_MAX_VARV, ROST_SVAR_MAX_MS, ROST_TYSTNAD_MS, arKlarfras, talkrostUr, upplasningensSprak, webblasarensUpplasning } from "../lib/talkrost.js";
+import { ROST_INGET_TAL_MS, ROST_MAX_VARV, ROST_SVAR_MAX_MS, ROST_TYSTNAD_MS, arKlarfras, lasUpplasningPa, sparaUpplasningPa, talkrostUr, upplasningensSprak, webblasarensUpplasning } from "../lib/talkrost.js";
 import { OpsSpinner } from "./OpsSpinner.jsx";
 
 /**
@@ -355,9 +356,13 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
    * ══ ⛔ TALK PRATAR TILLBAKA (lifehub.app#870 skiva 4, `src/lib/talkrost.js`) ═══════════════════════════════════════════════════════
    *
    * Robs första möte med LifeHub, punkt 12: "agenten tar vid direkt tills man är klar och vill gå vidare." När appens mottagare löser till en
-   * `Talkrost` står fältet kvar i läget `rost`: väntar på svaret, läser upp det och lyssnar igen. Ett varv där något sagts går till
+   * `Talkrost` står fältet kvar i läget `rost`: väntar på svaret, visar och läser upp det, och lyssnar igen. Ett varv där något sagts går till
    * `vidare` när det blivit tyst (`ROST_TYSTNAD_MS`), utan meny. Samtalet slutar på Klar och Avbryt, på en avslutande fras (`arKlarfras`), när
    * inget hörs (`ROST_INGET_TAL_MS`) och efter `ROST_MAX_VARV` varv. Varje slut som inte personen själv valde säger varför i ett kvitto.
+   *
+   * ⛔ UTAN UPPLÄSNING FORTSÄTTER SAMTALET SOM TEXT (CP 2026-11-18, högtalarknappen). Svaret visas i fältet och mikrofonen lyssnar igen. Det
+   * gäller när personen slagit av uppläsningen (`lasUpplasningPa`, sparat per person som temat), när webbläsaren saknar den, och när den föll:
+   * då säger en rad i fältet varför (`notis`), en gång per samtal, och uppläsningen prövas inte igen i samma samtal.
    *
    * ⛔ `rostForsok` RÄKNAS UPP AV VARJE SLUT OCH VARJE NYTT VARV, som `forsok` för inspelningen: ett svar eller en uppläsning som kommer efter
    * att samtalet slutat eller gått vidare gör ingenting.
@@ -367,13 +372,24 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
     if (upplasningRef.current === undefined) upplasningRef.current = webblasarensUpplasning();
     return upplasningRef.current;
   };
-  /** Samtalet med röst som pågår, eller `null`. `varv` räknar svaren. @type {{ current: { talkrost: import("../lib/talkrost.js").Talkrost, varv: number } | null }} */
-  const rost = useRef(/** @type {{ talkrost: import("../lib/talkrost.js").Talkrost, varv: number } | null} */ (null));
+  /**
+   * Samtalet med röst som pågår, eller `null`. `vidare` tar nästa sak personen säger, och `varv` räknar svaren (0 när samtalet börjar med att lyssna).
+   * @typedef {{ vidare: import("../lib/talkrost.js").Talkrost["vidare"], varv: number }} Rostsamtal
+   */
+  const rost = useRef(/** @type {Rostsamtal | null} */ (null));
   const rostForsok = useRef(0);
   /** Vad samtalet gör nu, för fältet. `null` utan samtal. */
   const [rostSteg, setRostSteg] = useState(/** @type {"vantar" | "laser" | "lyssnar" | null} */ (null));
-  /** Att uppläsningen saknas sägs en gång, sedan stängs fältet som före skiva 4: ett besked vid varje tryck hade varit ett tryck till varje gång. */
-  const utanUpplasningSagt = useRef(false);
+  /** Agentens senaste svar, som fältet visar. */
+  const [rostSvar, setRostSvar] = useState("");
+  /** Varför svaret visas i stället för att läsas upp, eller `null`. */
+  const [rostNotis, setRostNotis] = useState(/** @type {"rostUtanUpplasning" | "rostKundeInteLasas" | null} */ (null));
+  const rostNotisRef = useRef(rostNotis);
+  rostNotisRef.current = rostNotis;
+  /** (CP 2026-11-18) Högtalarknappen: personens val, sparat som temat. Förval på. */
+  const [upplasningPa, setUpplasningPaState] = useState(() => lasUpplasningPa());
+  const upplasningPaRef = useRef(upplasningPa);
+  upplasningPaRef.current = upplasningPa;
   const stoppaUpplasningen = () => {
     try {
       upplasningRef.current?.stoppa();
@@ -386,19 +402,21 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
     rostForsok.current += 1;
     rost.current = null;
     setRostSteg(null);
+    setRostSvar("");
+    setRostNotis(null);
     stoppaUpplasningen();
   };
   /**
    * Ett slut som personen inte själv valde: beskedet står som kvitto, med Stäng. ⛔ ALDRIG TYST (regel 5): ett samtal som bara slutade
    * hade sett ut som att agenten inte svarade.
-   * @param {"rostUtanUpplasning" | "rostSvarDrojer" | "rostKundeInteLasas" | "rostIngetHordes" | "rostTak"} nyckel
+   * @param {"rostSvarDrojer" | "rostSvarSaknas" | "rostIngetHordes" | "rostTak"} nyckel
    */
   const rostBesked = (nyckel) => {
     angraForsok.current += 1;
     setKvitto({ text: talkOrd(nyckel, sprakRef.current), angra: null, status: "visas" });
     skickaRef.current({ typ: "rostSlut" });
   };
-  /** @param {{ talkrost: import("../lib/talkrost.js").Talkrost, varv: number }} r */
+  /** @param {Rostsamtal} r */
   const lyssnaIgen = (r) => {
     if (rost.current !== r) return;
     if (r.varv >= ROST_MAX_VARV) {
@@ -408,25 +426,27 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
     skickaRef.current({ typ: "direkt" });
   };
   /**
-   * Ett svar att vänta på och läsa upp. `varv` är vilket svar i ordningen det är.
+   * Uppläsningen som gäller nu, eller `null` och varför: personen har slagit av den (ingen notis, det var hens val), den saknas, eller den
+   * har fallit i det här samtalet.
+   * @returns {import("../lib/talkrost.js").Upplasning | null}
+   */
+  const upplasningNu = () => {
+    if (!upplasningPaRef.current || rostNotisRef.current) return null;
+    const u = upplasaren();
+    if (!u) setRostNotis("rostUtanUpplasning");
+    return u;
+  };
+  /**
+   * Ett svar att vänta på, visa och läsa upp. `varv` är vilket svar i ordningen det är.
    * @param {import("../lib/talkrost.js").Talkrost} talkrost @param {number} varv
    */
   const startaRost = (talkrost, varv) => {
-    const u = upplasaren();
-    if (!u) {
-      if (utanUpplasningSagt.current) {
-        skickaRef.current({ typ: "lamnat" });
-        return;
-      }
-      utanUpplasningSagt.current = true;
-      rostBesked("rostUtanUpplasning");
-      return;
-    }
     rostForsok.current += 1;
     const mitt = rostForsok.current;
-    const r = { talkrost, varv };
+    const r = { vidare: talkrost.vidare, varv };
     rost.current = r;
     setRostSteg("vantar");
+    setRostSvar("");
     skickaRef.current({ typ: "rost" });
     const aktuell = () => mitt === rostForsok.current && monterad.current && rost.current === r;
     const DROJER = Symbol("drojer");
@@ -442,7 +462,13 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
         const text = typeof svar === "string" ? svar.trim() : "";
         if (!text) {
           rapporteraFel(new Error(`TALK: agentens svar ska vara en text som inte är tom, fick ${typeof svar === "string" ? "en tom text" : svar === null ? "null" : typeof svar}.`), { yta: "OpsTalk", steg: "rost-svar", varv });
-          rostBesked("rostKundeInteLasas");
+          rostBesked("rostSvarSaknas");
+          return undefined;
+        }
+        setRostSvar(text);
+        const u = upplasningNu();
+        if (!u) {
+          lyssnaIgen(r);
           return undefined;
         }
         setRostSteg("laser");
@@ -454,8 +480,10 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
             },
             (fel) => {
               if (!aktuell()) return;
+              // ⛔ Svaret står redan i fältet: samtalet fortsätter som text, och raden säger varför.
               rapporteraFel(fel, { yta: "OpsTalk", steg: "upplasning", varv });
-              rostBesked("rostKundeInteLasas");
+              setRostNotis("rostKundeInteLasas");
+              lyssnaIgen(r);
             },
           );
       })
@@ -467,7 +495,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
           return;
         }
         rapporteraFel(fel, { yta: "OpsTalk", steg: "rost-svar", varv });
-        rostBesked("rostKundeInteLasas");
+        rostBesked("rostSvarSaknas");
       });
   };
   /** Ett tryck stoppar uppläsningen direkt, och mikrofonen lyssnar: den som avbryter vill säga något. */
@@ -479,17 +507,40 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
     lyssnaIgen(r);
   };
   /**
+   * Högtalarknappen (CP 2026-11-18). Av: en pågående uppläsning tystnar och mikrofonen lyssnar, och följande svar visas bara. På: nästa svar
+   * läses upp. Valet sparas (`sparaUpplasningPa`) och gäller nästa samtal också.
+   */
+  const vaxlaUpplasning = () => {
+    const pa = !upplasningPaRef.current;
+    upplasningPaRef.current = pa;
+    setUpplasningPaState(pa);
+    sparaUpplasningPa(pa);
+    // Läses det upp tystnar det, och mikrofonen lyssnar. Väntar fältet på svaret får väntan gå vidare: svaret visas när det kommer.
+    if (!pa && lageRef.current.lage === "rost" && rostStegRef.current === "laser" && rost.current) {
+      const r = rost.current;
+      rostForsok.current += 1;
+      stoppaUpplasningen();
+      lyssnaIgen(r);
+    }
+  };
+  const rostStegRef = useRef(rostSteg);
+  rostStegRef.current = rostSteg;
+  /**
    * ⛔ LÅSER UPP UPPLÄSNINGEN I PERSONENS TRYCK. HYPOTES, INTE MÄTT PÅ EN IPHONE: WebKit på iOS spelar bara upp tal som en gest låst upp, och
    * svaret kommer sekunder efter trycket. Bara där valen finns (`onAgent`), för utan dem finns ingen agent som svarar.
    */
   const forberedUpplasning = () => {
-    if (typeof onAgentRef.current !== "function") return;
+    if (typeof onAgentRef.current !== "function" || !upplasningPaRef.current) return;
     try {
       upplasaren()?.forbered?.();
     } catch (fel) {
       rapporteraFel(fel, { yta: "OpsTalk", steg: "upplasning-forbered" });
     }
   };
+  /** (CP 2026-11-18, vågikonen) Nästa stopp lämnar det sagda direkt till `onAgent`, utan meny. Nollas av varje start. */
+  const tillAgentenDirekt = useRef(false);
+  /** (CP 2026-11-18, vågikonen i agentchatten) Nästa start börjar ett samtal: inget fält fångas som mål. */
+  const rostStart = useRef(false);
   const kastaText = () => {
     try {
       for (const g of skapadeIgk()) g?.kasta();
@@ -710,6 +761,10 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
         setReserv(false);
         // ⛔ (0.226.0) Varje ny omgång börjar med appens `samtalet.direkt`: Något annat gällde den förra.
         setDirektAv(false);
+        // (CP 2026-11-18) Vågikonen gäller den omgång där den trycktes, och ett samtal fångar inget fält.
+        tillAgentenDirekt.current = false;
+        const borjarSamtal = rostStart.current || Boolean(rost.current);
+        rostStart.current = false;
         /*
          * ⛔ VILKEN SORTS OMGÅNG (0.114.0, cllp/ops-framework#402). TALK med valen (`onAgent`) på WebKit kör BARA igenkänningen och startar
          * ingen inspelare: de två slogs om mikrofonen (#253), och det var därför iPhone och iPad inte fick någon levande text och aldrig
@@ -729,7 +784,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
         const vidTrycket = tagFangst();
         const fangst = uttryckligtFalt.current ?? vidTrycket;
         uttryckligtFalt.current = null;
-        if (!reservStart) setFalt(!laast && typeof onAgentRef.current === "function" ? fangst : null);
+        if (!reservStart) setFalt(!laast && !borjarSamtal && typeof onAgentRef.current === "function" ? fangst : null);
         // ⛔ (0.218.0) `kanLyssna`: en igenkänning appen gett kan säga att den inte lyssnar i en viss sorts omgång. Se `kanLyssnaI`.
         // ⛔ EN FRÅGA PER KANDIDAT OCH OMGÅNG (granskningen av 0.218.0): förut frågades WebKit-kandidaten två gånger, för valet av väg och
         // för omgången. En igenkänning som svarade ja och sedan nej gav en ren igenkänningsomgång utan igenkänning, och ett kast rapporterades två gånger.
@@ -980,13 +1035,13 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
        * (lifehub.app#870 skiva 4) Ett varv i samtalet med röst: det sagda till `vidare`, utan meny. Fältet säger appens `skickarText` medan det
        * lämnas. Löser det till en ny `Talkrost` läses nästa svar upp, annars stängs fältet som efter Agent. ⛔ FALLER DET står menyn med det
        * sagda och felet (`agentFel`), och samtalet med röst är slut: personen väljer själv, som när Agent föll.
-       * @param {{ talkrost: import("../lib/talkrost.js").Talkrost, varv: number }} r
+       * @param {Rostsamtal} r
        * @param {{ blob: Blob, mimeType: string, sekunder: number, text?: string }} post
        */
       const lamnaIRosten = (r, post) => {
         satMal("agent");
         Promise.resolve()
-          .then(() => r.talkrost.vidare(post.text ?? ""))
+          .then(() => r.vidare(post.text ?? ""))
           .then((svar) => {
             if (!monterad.current || rost.current !== r) return;
             senast.current = null;
@@ -1168,6 +1223,16 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
                * ⛔ ETT VARV I SAMTALET MED RÖST (lifehub.app#870 skiva 4): det sagda går till samtalet utan meny, och en avslutande fras
                * ("klar", "tack", "det var allt") stänger fältet. Utan text, eller när personen tryckt Något annat, står menyn som förut.
                */
+              /*
+               * ⛔ VÅGIKONEN (CP 2026-11-18): det sagda blir den första frågan och går direkt till `onAgent`, utan meny, som ett tryck på Agent.
+               * Hördes inget står menyn som förut, med utskriften: det finns ingen fråga att ställa.
+               */
+              if (tillAgentenDirekt.current && hord) {
+                tillAgentenDirekt.current = false;
+                lamnaTillAgent(post);
+                return undefined;
+              }
+              tillAgentenDirekt.current = false;
               const r = rost.current;
               if (r && hord && !direktAvRef.current) {
                 if (arKlarfras(hord)) {
@@ -1411,12 +1476,55 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
      * lyssnar igen. `onStoppa` stoppar uppläsningen och lyssnar.
      * @type {TalkRostVy | undefined}
      */
-    rost:
-      tillstand.lage === "rost" && (rostSteg === "vantar" || rostSteg === "laser")
-        ? { steg: rostSteg, onStoppa: stoppaUpplasning }
-        : tillstand.lage === "lyssnar" && rostSteg === "lyssnar"
-          ? { steg: "lyssnar", onStoppa: stoppaUpplasning }
-          : undefined,
+    rost: (() => {
+      const steg = tillstand.lage === "rost" && (rostSteg === "vantar" || rostSteg === "laser") ? rostSteg : tillstand.lage === "lyssnar" && rostSteg === "lyssnar" ? "lyssnar" : null;
+      if (!steg) return undefined;
+      return {
+        steg,
+        onStoppa: stoppaUpplasning,
+        ...(rostSvar ? { svar: rostSvar } : {}),
+        ...(rostNotis ? { notis: talkOrd(rostNotis, sprak) } : {}),
+        // ⛔ Högtalarknappen bara där uppläsningen finns: en knapp som inte kan slå på något hade varit en lögn.
+        ...(rostNotis !== "rostUtanUpplasning" ? { upplasning: { pa: upplasningPa, onVaxla: vaxlaUpplasning } } : {}),
+      };
+    })(),
+    /**
+     * (CP 2026-11-18) Vågikonen i TALK-fältets översta rad, medan det spelas in: det sagda blir den första frågan och går direkt till `onAgent`,
+     * utan meny. `undefined` utan `onAgent`, och i ett samtal som redan pågår.
+     */
+    samtalMedAgenten:
+      typeof onAgent === "function" && (tillstand.lage === "haller" || tillstand.lage === "lyssnar") && rostSteg === null
+        ? () => {
+            if (lageRef.current.lage !== "haller" && lageRef.current.lage !== "lyssnar") return;
+            forberedUpplasning();
+            tillAgentenDirekt.current = true;
+            skicka({ typ: "skicka" });
+          }
+        : undefined,
+    /**
+     * (CP 2026-11-18, vågikonen i agentchatten) Börjar ett röstsamtal som lyssnar först: det personen säger går till `vidare`, och svaret läses
+     * upp. Svarar `true` när samtalet startade, `false` utan `onAgent` och medan en omgång pågår.
+     * @param {import("../lib/talkrost.js").Talkrost["vidare"]} vidare
+     * @returns {boolean}
+     */
+    rostSamtal: (vidare) => {
+      if (typeof vidare !== "function") throw new Error("useTalk: rostSamtal tar en funktion, vidare, som tar emot det personen säger.");
+      if (typeof onAgentRef.current !== "function" || TALK_UPPTAGEN_LAGEN.has(lageRef.current.lage)) return false;
+      forberedUpplasning();
+      rostForsok.current += 1;
+      rost.current = { vidare, varv: 0 };
+      rostStart.current = true;
+      setRostSvar("");
+      setRostNotis(null);
+      setRostSteg("lyssnar");
+      laastStart.current = false;
+      skicka({ typ: "direkt" });
+      if (lageRef.current.lage !== "lyssnar") {
+        slutaRost();
+        return false;
+      }
+      return true;
+    },
     /** (0.105.0) Om appen gav `onAgent`. Fältet ritar då Agent bland valen. */
     medAgent: typeof onAgent === "function",
     /** (0.114.0) Anteckning i läget hört: lämnar det sagda till `onAnteckning`. */
@@ -1609,7 +1717,7 @@ const VALEN = /** @type {const} */ ([
  * innehåller det synliga ordet går inte att säga åt en röststyrning, och det gäller på båda språken.
  */
 
-const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "textFel", "medText", "skickarText", "kvitto", "onAngra", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj", "vidare", "onAgent", "onAnteckning", "samtalet", "textVantar", "utskriftFel", "onSkrivUt", "kanSpelaIStallet", "onSpelaIStallet", "onLank", "klarEtikett", "vy", "rost"];
+const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "text", "textFel", "medText", "skickarText", "kvitto", "onAngra", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj", "vidare", "onAgent", "onAnteckning", "samtalet", "textVantar", "utskriftFel", "onSkrivUt", "kanSpelaIStallet", "onSpelaIStallet", "onLank", "klarEtikett", "vy", "rost", "onSamtal"];
 
 /**
  * ⛔ VALET "FORTSÄTT MED" ÄR DET FÖRVALDA (0.226.0, cllp/ops-framework#592): hela raden och accentfärgen, så att det syns som det man
@@ -1634,6 +1742,9 @@ const NAGOT_ANNAT = "inline-flex min-h-11 shrink-0 cursor-pointer items-center r
  * @typedef {object} TalkRostVy
  * @property {"vantar" | "laser" | "lyssnar"} steg Väntar på agentens svar, läser upp det, eller lyssnar igen.
  * @property {() => void} onStoppa Stoppar uppläsningen, och mikrofonen lyssnar.
+ * @property {string} [svar] (CP 2026-11-18) Agentens senaste svar, som fältet visar, uppläst eller inte.
+ * @property {string} [notis] Varför svaret visas i stället för att läsas upp, när det inte var personens val.
+ * @property {{ pa: boolean, onVaxla: () => void }} [upplasning] Högtalarknappen: personens val, och växlingen. Saknas när uppläsningen inte finns.
  */
 
 /**
@@ -1718,6 +1829,8 @@ const NAGOT_ANNAT = "inline-flex min-h-11 shrink-0 cursor-pointer items-center r
  * @param {TalkRostVy} [props.rost] (lifehub.app#870 skiva 4) Samtalet med röst (`useTalk().rost`). I läget `rost` säger statusraden "Väntar på
  *   svaret…" eller "Läser upp…", med Klar (avslutar samtalet, `onAvbryt`) och under uppläsningen Stoppa uppläsningen. Medan man pratar säger
  *   statusraden "Lyssnar…".
+ * @param {() => void} [props.onSamtal] (CP 2026-11-18) Vågikonen i översta raden medan man pratar (`useTalk().samtalMedAgenten`): det sagda blir den
+ *   första frågan till agenten, utan meny. Ritas bara när den ges.
  * @param {string} [props.klarEtikett] (0.103.0) Namnet Klar läses upp med. Förval `ORD_TALK.klarNamn` på språket som gäller (0.104.0). Chattens skrivfält
  *   skickar det sagda som ett meddelande, och där hade "spara inspelningen" sagt något annat än det som händer. Ordet på skärmen är
  *   Klar i båda. En tom sträng eller något annat än en sträng kastar.
@@ -1727,8 +1840,11 @@ export function OpsInspelning(props) {
   if (okanda.length > 0) {
     throw new Error(`OpsInspelning: okända props ${okanda.join(", ")}. Tillåtna: ${INSPELNING_PROPS.join(", ")}.`);
   }
-  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, samtalet: samtaletProp, textVantar = false, utskriftFel = "", onSkrivUt, kanSpelaIStallet = false, onSpelaIStallet, onLank, klarEtikett: klarEtikettProp, vy, rost } = props;
-  if (rost !== undefined && (!rost || !["vantar", "laser", "lyssnar"].includes(rost.steg) || typeof rost.onStoppa !== "function")) {
+  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, samtalet: samtaletProp, textVantar = false, utskriftFel = "", onSkrivUt, kanSpelaIStallet = false, onSpelaIStallet, onLank, klarEtikett: klarEtikettProp, vy, rost, onSamtal } = props;
+  if (onSamtal !== undefined && typeof onSamtal !== "function") {
+    throw new Error(`OpsInspelning: onSamtal ska vara en funktion, fick ${onSamtal === null ? "null" : typeof onSamtal}. Vågikonen utan mottagare hade inte gjort något.`);
+  }
+  if (rost !== undefined && (!rost || !["vantar", "laser", "lyssnar"].includes(rost.steg) || typeof rost.onStoppa !== "function" || (rost.upplasning !== undefined && typeof rost.upplasning?.onVaxla !== "function"))) {
     throw new Error("OpsInspelning: rost ska vara { steg, onStoppa } ur useTalk().rost. Ett samtal fältet inte kan säga något om eller stoppa hade läst upp utan väg ut.");
   }
   if (vidare !== undefined) {
@@ -1794,6 +1910,17 @@ export function OpsInspelning(props) {
   /** Ytans egna ord på språket som gäller (0.104.0, `ORD_TALK`). @param {keyof typeof ORD_TALK} k */
   const o = (k) => talkOrd(k, sprak);
   const klarEtikett = klarEtikettProp ?? o("klarNamn");
+  /**
+   * Högtalarknappen (CP 2026-11-18): en växel med `aria-pressed`, och samma namn i båda lägena så att den går att hitta och säga åt.
+   * @param {{ pa: boolean, onVaxla: () => void }} u @param {string} extra
+   */
+  const hogtalare = (u, extra) => (
+    <OpsTooltip content={o("rostUpplasning")}>
+      <button type="button" data-talk-hogtalare={u.pa ? "pa" : "av"} aria-label={o("rostUpplasning")} aria-pressed={u.pa} onClick={u.onVaxla} className={`${KUGG} ${extra}`}>
+        {u.pa ? <HogtalareIkon size={20} /> : <HogtalareAvIkon size={20} />}
+      </button>
+    </OpsTooltip>
+  );
   const malEtikett = useId();
   const valFraga = useId();
   const lyssnar = lage === "haller" || lage === "lyssnar";
@@ -2017,6 +2144,15 @@ export function OpsInspelning(props) {
           {marke ? <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center">{marke}</span> : null}
           <TalkPrickar niva={niva} lyssnar={lyssnar} skickar={!lyssnar} />
           <span data-inspelning-tid="" className="shrink-0 text-meta text-ink-muted tabular-nums">{formateraTid(sekunder)} / {formateraTid(tak)}</span>
+          {/* ⛔ VÅGIKONEN (CP 2026-11-18): det sagda blir en fråga till agenten, och svaret läses upp. Bara medan man pratar och appen har en agent. */}
+          {onSamtal && lyssnar ? (
+            <OpsTooltip content={o("rostSamtalTips")}>
+              <button type="button" data-talk-samtal="" aria-label={o("rostSamtal")} onClick={onSamtal} className={`${KUGG} -my-1`}>
+                <LjudvagIkon size={20} />
+              </button>
+            </OpsTooltip>
+          ) : null}
+          {rost?.upplasning && lyssnar ? hogtalare(rost.upplasning, "-my-1") : null}
           {onInstallningar && lyssnar ? (
             <button type="button" aria-label={o("installningar")} onClick={onInstallningar} className={`${KUGG} -my-1 -mr-1`}>
               <KugghjulIkon size={18} />
@@ -2026,6 +2162,14 @@ export function OpsInspelning(props) {
           {onInstallningar && !lyssnar ? <span aria-hidden="true" className="-my-1 -mr-1 size-11 shrink-0" /> : null}
         </div>
       ) : null}
+      {/* ⛔ SVARET VISAS, UPPLÄST ELLER INTE (CP 2026-11-18): med högtalaren av, och där uppläsningen saknas, är det här samtalet. */}
+      {rost?.svar ? (
+        <div data-talk-rost-svar="" className="flex min-w-0 flex-col gap-1">
+          <span className="text-meta text-ink-muted">{o("rostSvaret")}</span>
+          <p aria-live="polite" className={`${TEXTYTA} text-ink`}>{rost.svar}</p>
+        </div>
+      ) : null}
+      {rost?.notis ? <p data-talk-rost-notis="" className="m-0 text-etikett text-ink-secondary">{rost.notis}</p> : null}
       {visaTextyta ? (
         text ? (
           <p
@@ -2209,6 +2353,7 @@ export function OpsInspelning(props) {
       ) : null}
       {lage === "rost" && rost ? (
         <div className="flex items-center gap-3">
+          {rost.upplasning ? hogtalare(rost.upplasning, "") : null}
           {rost.steg === "laser" ? (
             <button type="button" data-talk-rost-stoppa="" onClick={rost.onStoppa} className={SEKUNDAR_ORD}>
               <StoppIkon size={16} />
@@ -2363,12 +2508,13 @@ export function OpsInspelning(props) {
  *   onLank?: (href: string, event: any) => void,
  *   vy?: string,
  *   rost?: TalkRostVy,
+ *   onSamtal?: () => void,
  * }} props `medText`, `skickarText`, `kvitto` och `onAngra` (0.97.0) kommer ur `useTalk` med samma namn (`onAngra` är `angra`).
  *   `vidare` och `onAgent` (0.105.0: `useTalk().agent`) går som de är till `OpsInspelning`, liksom `onAnteckning` (`useTalk().anteckning`),
  *   `textVantar`, `utskriftFel` och `onSkrivUt` (0.114.0: `useTalk().textVantar`, `.utskriftFel`, `.skrivUt`). `samtalet` (0.226.0) är
  *   `useTalk().samtalet`.
  */
-export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, samtalet, textVantar, utskriftFel, onSkrivUt, kanSpelaIStallet, onSpelaIStallet, onLank, vy, rost }) {
+export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, text = "", textFel = "", medText = false, skickarText = TALK_SKICKAR_TEXT, kvitto = null, onAngra, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj, vidare, onAgent, onAnteckning, samtalet, textVantar, utskriftFel, onSkrivUt, kanSpelaIStallet, onSpelaIStallet, onLank, vy, rost, onSamtal }) {
   /*
    * ⛔ ALDRIG UNDER TANGENTBORDET (0.232.0, cllp/ops-framework#602). CP 2026-11-16 om fältikonen: TALK "hamnade lite på olika platser". Ytan står
    * `fixed` mot layoutfönstrets underkant, och på iOS ligger tangentbordet över den delen utan att layoutfönstret krymper. Är tangentbordet uppe
@@ -2431,6 +2577,7 @@ export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, fra
               onLank={onLank}
               vy={vy}
               rost={rost}
+              onSamtal={onSamtal}
             />
           </div>
         </Dialog.Content>

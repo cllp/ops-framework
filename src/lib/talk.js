@@ -142,9 +142,15 @@ export const ORD_TALK = {
   rostLyssnar: { sv: "Lyssnar… Säg klar när du är klar.", en: "Listening… Say done when you are done." },
   rostStoppa: { sv: "Stoppa uppläsningen", en: "Stop reading" },
   rostKlarNamn: { sv: "Klar, avsluta samtalet", en: "Done, end the conversation" },
-  rostUtanUpplasning: { sv: "Svaret kan inte läsas upp här. Det står som text i chatten.", en: "The answer can't be read aloud here. It is in the chat as text." },
+  rostUtanUpplasning: { sv: "Svaret kan inte läsas upp här, så det visas som text.", en: "The answer can't be read aloud here, so it is shown as text." },
   rostSvarDrojer: { sv: "Svaret dröjer. Det kommer som text i chatten.", en: "The answer is taking a while. It will come as text in the chat." },
-  rostKundeInteLasas: { sv: "Svaret gick inte att läsa upp. Det står som text i chatten.", en: "The answer could not be read aloud. It is in the chat as text." },
+  rostKundeInteLasas: { sv: "Svaret gick inte att läsa upp, så det visas som text.", en: "The answer could not be read aloud, so it is shown as text." },
+  rostSvarSaknas: { sv: "Svaret kunde inte hämtas hit. Det står i chatten när det kommer.", en: "The answer could not be fetched here. It will be in the chat when it comes." },
+  // (CP 2026-11-18) Vågikonen och högtalarknappen.
+  rostSamtal: { sv: "Samtal med agenten", en: "Conversation with the agent" },
+  rostSamtalTips: { sv: "Samtal med agenten: svaret läses upp, och du kan svara direkt", en: "Conversation with the agent: the answer is read aloud, and you can reply right away" },
+  rostUpplasning: { sv: "Läs upp svaren", en: "Read the answers aloud" },
+  rostSvaret: { sv: "Svaret", en: "The answer" },
   rostIngetHordes: { sv: "Inget mer hördes, så samtalet är avslutat. Tryck på mikrofonen för att fortsätta.", en: "Nothing more was heard, so the conversation has ended. Press the microphone to continue." },
   rostTak: { sv: "Samtalet pausas här. Tryck på mikrofonen för att fortsätta.", en: "The conversation pauses here. Press the microphone to continue." },
 };

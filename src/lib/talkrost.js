@@ -247,3 +247,104 @@ export function webblasarensUpplasning({ fonster = globalThis } = {}) {
     },
   };
 }
+
+/**
+ * ══ ⛔ HÖGTALARKNAPPEN: PERSONENS VAL, SPARAT SOM TEMAT (CP 2026-11-18) ══════════════════════════════════════════════════════════════
+ *
+ * "Valet sparas per person, som temat." Temat sparas i `localStorage` under en nyckel för hela ramverket (`theme.js`, `ops-theme`), och
+ * spelarens hastighet likaså (`ljudspelare.js`, `HASTIGHET_NYCKEL`: "hastigheten är personens, inte modulens"). Uppläsningen följer samma
+ * väg: en nyckel, läst och skriven bara här, oavsett vilken TALK (skalets, chattens) som visar knappen.
+ *
+ * ⛔ EN BEKVÄMLIGHET, ALDRIG DATA. Försvinner den (privat fönster, rensad webbplatsdata) gäller förvalet: uppläsning på.
+ */
+export const UPPLASNING_NYCKEL = "ops.talk.upplasning";
+
+/** Läser personens val. `true` utom när hen slagit av uppläsningen. */
+export function lasUpplasningPa() {
+  try {
+    return globalThis.localStorage?.getItem(UPPLASNING_NYCKEL) !== "av";
+  } catch {
+    // Blockerad lagring: förvalet, som temat.
+    return true;
+  }
+}
+
+/** Sparar personens val. @param {boolean} pa */
+export function sparaUpplasningPa(pa) {
+  try {
+    globalThis.localStorage?.setItem(UPPLASNING_NYCKEL, pa ? "pa" : "av");
+  } catch {
+    // Valet gäller för den här sidvisningen även om det inte kan sparas, som temat.
+  }
+}
+
+/**
+ * ══ ⛔ ETT SAMTAL MED AGENTEN I SAMTALSKÄLLAN (CP 2026-11-18, vågikonen i agentchatten) ═══════════════════════════════════════════
+ *
+ * Chatten vet att ett samtal är ett agentsamtal (`samtal.slag === "agent"`) och har samtalskällan (`createSamtalskalla`) med `skicka` och
+ * `prenumerera`. Ett röstsamtal där behöver bara två saker: skicka det sagda, och vänta på nästa meddelande från någon annan än personen.
+ * De två bor här, så att chatten och en app (TALK:s `onAgent`) kan bygga samma `Talkrost` ur samma källa (regel 2).
+ */
+
+/**
+ * Väntar på svaret efter ett skickat meddelande: texten i första meddelandet efter `efter` som någon annan än `uid` skrev. I ett agentsamtal
+ * är det agenten. Avvisar när källan inte kan prenumerera (då finns inget att vänta med) eller när prenumerationen faller.
+ * @param {{ kalla: { prenumerera: (sid: string, l: { onData: (rader: any[]) => void, onError: (fel: Error) => void }) => (() => void) | null }, sid: string, uid: string, efter: { id: string } }} p
+ * @returns {Promise<string>}
+ */
+export function samtalssvar({ kalla, sid, uid, efter }) {
+  return new Promise((losa, avvisa) => {
+    /** @type {(() => void) | null} */
+    let stang = null;
+    let klar = false;
+    /** @param {() => void} gor */
+    const sluta = (gor) => {
+      if (klar) return;
+      klar = true;
+      try {
+        stang?.();
+      } catch (fel) {
+        rapporteraFel(fel, { yta: "OpsTalk", steg: "samtalssvar-stang" });
+      }
+      gor();
+    };
+    stang = kalla.prenumerera(sid, {
+      onData: (rader) => {
+        const i = rader.findIndex((m) => m?.id === efter.id);
+        if (i === -1) return;
+        const svar = rader.slice(i + 1).find((m) => m && m.av !== uid && typeof m.text === "string" && m.text.trim());
+        if (svar) sluta(() => losa(svar.text));
+      },
+      onError: (fel) => sluta(() => avvisa(fel)),
+    });
+    if (klar) {
+      // Svaret fanns redan i första leveransen, före `stang` sattes.
+      try {
+        stang?.();
+      } catch (fel) {
+        rapporteraFel(fel, { yta: "OpsTalk", steg: "samtalssvar-stang" });
+      }
+      return;
+    }
+    if (!stang) sluta(() => avvisa(new Error("Samtalet går inte att följa här, så svaret kan inte väntas in.")));
+  });
+}
+
+/**
+ * `vidare` för ett samtal i samtalskällan: skickar det sagda som personens meddelande och ger en `Talkrost` som väntar på svaret.
+ * `skicka` är förvalt `kalla.skicka(sid, { text, av: uid })`. Chatten ger sin egen, som också säger till inkorgen och visar att agenten vaknat.
+ * @param {{ kalla: any, sid: string, uid: string, skicka?: (text: string) => Promise<{ id: string }> }} p
+ * @returns {(text: string) => Promise<Talkrost>}
+ */
+export function vidareISamtal({ kalla, sid, uid, skicka }) {
+  if (!kalla || typeof kalla.prenumerera !== "function") throw new Error("vidareISamtal: samtalskällan ska kunna prenumerera, annars går svaret inte att vänta in.");
+  if (typeof sid !== "string" || !sid || typeof uid !== "string" || !uid) throw new Error("vidareISamtal: sid och uid krävs.");
+  const sand = skicka ?? ((/** @type {string} */ text) => kalla.skicka(sid, { text, av: uid }));
+  /** @param {string} text @returns {Promise<Talkrost>} */
+  const vidare = async (text) => {
+    const ny = await sand(text);
+    if (!ny || typeof ny.id !== "string") throw new Error("vidareISamtal: det skickade meddelandet saknar id, så svaret kan inte kännas igen.");
+    return { svar: () => samtalssvar({ kalla, sid, uid, efter: ny }), vidare };
+  };
+  return vidare;
+}
