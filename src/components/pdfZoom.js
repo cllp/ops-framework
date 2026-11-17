@@ -53,6 +53,8 @@ export function usePdfZoom(val = {}) {
   sidvalRef.current = val.sidval;
   /** @type {import("react").MutableRefObject<{ x: number, y: number, sida: Element | null, fx: number, fy: number, sl: number, st: number, fore: number } | null>} */
   const ankare = useRef(null);
+  /** Sidan under fingret eller pekaren vid senaste zoomen: den ritas först (den andra granskningen av 0.235.0). @type {import("react").MutableRefObject<Element | null>} */
+  const fokus = useRef(/** @type {Element | null} */ (null));
 
   const satt = useCallback((/** @type {number} */ f, /** @type {{ x: number, y: number } | undefined} */ punkt = undefined) => {
     const ny = klampZoom(f);
@@ -62,6 +64,7 @@ export function usePdfZoom(val = {}) {
     // ⛔ TILLBAKA PÅ DET SOM SYNS GER INGEN NY RITNING, och då inget ankare (granskningen av 0.235.0, nit 4): ett ankare som sattes för ett värde som aldrig ritades hade annars legat kvar till nästa zoom.
     if (!ruta || Math.abs(ny - lagdRef.current) < 1e-9) ankare.current = null;
     else ankare.current = matAnkare(ruta, punkt ?? { x: ruta.clientWidth / 2, y: ruta.clientHeight / 2 }, sidvalRef.current, lagdRef.current);
+    if (ankare.current?.sida) fokus.current = ankare.current.sida;
     setFaktor(ny);
   }, []);
 
@@ -231,7 +234,7 @@ export function usePdfZoom(val = {}) {
     [faktor, satt],
   );
 
-  return { ruta: setEl, el, faktor, ritad, satt, nollstall, rad, beroring };
+  return { ruta: setEl, el, faktor, ritad, satt, nollstall, rad, beroring, fokus };
 }
 
 /**

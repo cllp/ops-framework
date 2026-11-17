@@ -158,13 +158,22 @@ export function ritmatt(bredd, hojd, dpr, tak = PIXELTAK) {
   return { bredd: Math.max(1, Math.floor(b * k)), hojd: Math.max(1, Math.floor(h * k)), k };
 }
 
+/** Så länge en ritning får hålla kön, i millisekunder. Se `skapaRitko`. */
+export const RITA_TIDSGRANS_MS = 15_000;
+
 /**
- * En kö för ritningar (granskningen av 0.235.0, se punkt 7 i filhuvudet): en ritning i taget, i tur och ordning. `lagg(kor)` lägger en ritning sist och svarar en funktion som stryker den, om den inte börjat.
+ * En kö för ritningar (granskningen av 0.235.0, se punkt 7 i filhuvudet): en ritning i taget, i tur och ordning. `lagg(kor, val)` lägger en ritning sist, eller först med `forst`
+ * (sidan under fingret efter en zoom), och svarar en funktion som stryker den, om den inte börjat.
  * En ritning som börjat avbryts av den som lade den (pdf.js `cancel`), och kön går vidare först när ritningens löfte lagt sig, så att två ritningar aldrig pågår samtidigt. Ett fel i en ritning stoppar inte kön.
- * @returns {{ lagg: (kor: () => Promise<unknown>) => () => void, readonly antal: number }}
+ *
+ * ⛔ TIDSGRÄNSEN (den andra granskningen av 0.235.0): en ritning som inte lagt sig efter `tidsgrans` (15 s) får `onTidsgrans` (avbryt och visa felet), och kön går vidare utan att vänta på den.
+ * Utan gränsen hade en enda ritning som aldrig svarade stoppat varje sida efter den, och vyn hade stått vit utan fel.
+ *
+ * @param {{ tidsgrans?: number }} [val]
+ * @returns {{ lagg: (kor: () => Promise<unknown>, val?: { forst?: boolean, onTidsgrans?: () => void }) => () => void, readonly antal: number }}
  */
-export function skapaRitko() {
-  /** @type {Array<{ kor: () => Promise<unknown> }>} */
+export function skapaRitko({ tidsgrans = RITA_TIDSGRANS_MS } = {}) {
+  /** @type {Array<{ kor: () => Promise<unknown>, onTidsgrans?: () => void }>} */
   const ko = [];
   let pagar = false;
   const nasta = () => {
@@ -172,19 +181,36 @@ export function skapaRitko() {
     const jobb = ko.shift();
     if (!jobb) return;
     pagar = true;
+    let klar = false;
+    /** @type {ReturnType<typeof setTimeout> | undefined} */
+    let klocka;
+    const vidare = () => {
+      if (klar) return;
+      klar = true;
+      clearTimeout(klocka);
+      pagar = false;
+      nasta();
+    };
+    klocka = setTimeout(() => {
+      if (klar) return;
+      try {
+        jobb.onTidsgrans?.();
+      } finally {
+        vidare();
+      }
+    }, tidsgrans);
     Promise.resolve()
       .then(() => jobb.kor())
       .catch(() => {})
-      .then(() => {
-        pagar = false;
-        nasta();
-      });
+      .then(vidare);
   };
   return {
-    lagg(kor) {
-      const jobb = { kor };
-      ko.push(jobb);
-      nasta();
+    lagg(kor, val = {}) {
+      const jobb = { kor, onTidsgrans: val.onTidsgrans };
+      if (val.forst) ko.unshift(jobb);
+      else ko.push(jobb);
+      // Kön startar ett varv senare: alla sidor i samma ritning hinner läggas, och sidan under fingret (`forst`) hinner före de andra.
+      Promise.resolve().then(nasta);
       return () => {
         const i = ko.indexOf(jobb);
         if (i >= 0) ko.splice(i, 1);
@@ -192,6 +218,65 @@ export function skapaRitko() {
     },
     get antal() {
       return ko.length + (pagar ? 1 : 0);
+    },
+  };
+}
+
+/** Alla levande canvasar i en vy får tillsammans högst så här många pixlar: 40 miljoner, 160 MB med fyra byte per pixel. Se `skapaCanvasbudget`. */
+export const PIXELBUDGET = 40_000_000;
+
+/**
+ * Minnet för alla canvasar i en vy (den andra granskningen av 0.235.0).
+ *
+ * ⛔ HÄNDELSEN: en sida behåller sin gamla canvas tills den nya är ritad (ingen vit blinkning). Med taket per canvas (`PIXELTAK`) och tre sidor nära vyn kunde därför fyra canvasar på taket finnas
+ * samtidigt under en omritning vid 4x, cirka 256 MB, och äldre iPhones klarar cirka 224 MB för en flik. Därför en budget för hela vyn, räknad med den canvas som håller på att ritas:
+ *   1. `tak()`: taket för nästa canvas är budgeten delad med antalet sidor nära vyn plus en (den som ritas), och aldrig över `PIXELTAK`.
+ *   2. `ledigt()`: det som är kvar av budgeten just nu. Räcker det inte för nästa canvas släpper sidan sin gamla canvas först (`slapp`), och tar resten om det fortfarande inte räcker.
+ *   3. `lagg` och `slapp`: varje canvas som skapas räknas, och en canvas som släpps får bredd och höjd noll (Safari på iPhone håller annars kvar minnet) och räknas bort.
+ * Summan av levande canvasar går alltså aldrig över budgeten, inte heller medan en ritning pågår.
+ *
+ * @param {{ budget?: number }} [val]
+ */
+export function skapaCanvasbudget({ budget = PIXELBUDGET } = {}) {
+  /** @type {Map<HTMLCanvasElement, number>} */
+  const levande = new Map();
+  let sidor = 0;
+  const summa = () => {
+    let s = 0;
+    for (const v of levande.values()) s += v;
+    return s;
+  };
+  return {
+    budget,
+    /** En sida nära vyn. Svarar funktionen som räknar bort den. @returns {() => void} */
+    registrera() {
+      sidor += 1;
+      let kvar = true;
+      return () => {
+        if (!kvar) return;
+        kvar = false;
+        sidor -= 1;
+      };
+    },
+    get sidor() {
+      return sidor;
+    },
+    tak() {
+      return Math.min(PIXELTAK, budget / (Math.max(1, sidor) + 1));
+    },
+    ledigt() {
+      return Math.max(0, budget - summa());
+    },
+    summa,
+    /** @param {HTMLCanvasElement} c */
+    lagg(c) {
+      levande.set(c, c.width * c.height);
+    },
+    /** @param {HTMLCanvasElement} c */
+    slapp(c) {
+      c.width = 0;
+      c.height = 0;
+      levande.delete(c);
     },
   };
 }

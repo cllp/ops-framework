@@ -5,8 +5,10 @@ import { OpsSprakProvider } from "../components/OpsSprak.jsx";
 import {
   PDF_ZOOM_MAX,
   PDF_ZOOM_MIN,
+  PIXELBUDGET,
   PIXELTAK,
   RITA_OM_MS,
+  RITA_TIDSGRANS_MS,
   arDubbeltryck,
   dubbeltryckZoom,
   forankradRullning,
@@ -14,6 +16,8 @@ import {
   klampZoom,
   nypZoom,
   ritmatt,
+  skapaCanvasbudget,
+  skapaRitko,
   stegaZoom,
   svepTillats,
 } from "../lib/pdfzoom.js";
@@ -28,14 +32,20 @@ import {
  */
 
 const pdfjs = vi.hoisted(() => {
-  /** @type {{ antal: number, hang: boolean, avbrottMs: number, ritMs: number, samtidigt: number, flestSamtidigt: number, ritningar: Array<{ nr: number, skala: number, bredd: number, hojd: number, transform: unknown, avbruten: boolean, lagd: boolean, pagaendeVidStart: number }>, getDocument: any, GlobalWorkerOptions: { workerSrc: string } }} */
-  const s = { antal: 1, hang: false, avbrottMs: 0, ritMs: 0, samtidigt: 0, flestSamtidigt: 0, ritningar: [], getDocument: null, GlobalWorkerOptions: { workerSrc: "" } };
+  /** @type {{ antal: number, hang: boolean, avbrottMs: number, ritMs: number, samtidigt: number, flestSamtidigt: number, sidmatt: { b: number, h: number }, viewportFelOver: number, viewportFelSida: number, vidRitning: null | ((nr: number) => void), ritningar: Array<{ nr: number, skala: number, bredd: number, hojd: number, transform: unknown, avbruten: boolean, lagd: boolean, pagaendeVidStart: number }>, getDocument: any, GlobalWorkerOptions: { workerSrc: string } }} */
+  const s = { antal: 1, hang: false, avbrottMs: 0, ritMs: 0, samtidigt: 0, flestSamtidigt: 0, sidmatt: { b: 612, h: 792 }, viewportFelOver: Infinity, viewportFelSida: 0, vidRitning: null, ritningar: [], getDocument: null, GlobalWorkerOptions: { workerSrc: "" } };
   s.getDocument = (/** @type {any} */ _val) => {
+    // Måtten läses när dokumentet öppnas, så att två dokument i samma prov kan skilja sig.
+    const { b, h } = s.sidmatt;
     const dokument = {
       numPages: s.antal,
       getPage: async (/** @type {number} */ nr) => ({
-        getViewport: ({ scale }) => ({ scale, width: 612 * scale, height: 792 * scale }),
+        getViewport: ({ scale }) => {
+          if (scale > s.viewportFelOver || nr === s.viewportFelSida) throw new Error("trasig sida");
+          return { scale, width: b * scale, height: h * scale };
+        },
         render: (/** @type {any} */ { canvas, viewport, transform }) => {
+          s.vidRitning?.(nr);
           const pagaendeVidStart = s.ritningar.filter((r) => r.nr === nr && !r.lagd).length;
           const post = { nr, skala: viewport.scale, bredd: canvas.width, hojd: canvas.height, transform, avbruten: false, lagd: false, pagaendeVidStart };
           s.ritningar.push(post);
@@ -91,6 +101,10 @@ beforeEach(() => {
   pdfjs.hang = false;
   pdfjs.avbrottMs = 0;
   pdfjs.ritMs = 0;
+  pdfjs.sidmatt = { b: 612, h: 792 };
+  pdfjs.viewportFelOver = Infinity;
+  pdfjs.viewportFelSida = 0;
+  pdfjs.vidRitning = null;
   pdfjs.samtidigt = 0;
   pdfjs.flestSamtidigt = 0;
   pdfjs.ritningar = [];
@@ -365,7 +379,8 @@ class FalskIO {
 function naraSidor(nr) {
   act(() => {
     for (const o of [...FalskIO.alla]) {
-      if (o.val.rootMargin !== "100% 0px") continue;
+      // Den första observatören (nära vyn) har en positiv marginal, mittens är negativ.
+      if (!o.val.rootMargin || o.val.rootMargin.startsWith("-")) continue;
       for (const el of [...o.mal]) o.cb([{ isIntersecting: nr.includes(Number(el.getAttribute("data-pdf-sidram"))), target: el }]);
     }
   });
@@ -582,5 +597,166 @@ describe("helskärmen och fokus", () => {
     for (let i = 0; i < 12; i++) fireEvent.click(utKnapp);
     expect(utKnapp.hasAttribute("disabled")).toBe(true);
     expect(document.activeElement).toBe(inKnapp);
+  });
+});
+
+/*
+ * ══ Den andra granskningen av 0.235.0 ══════════════════════════════════════════════════════════════════════════════════════
+ *
+ * ⛔ RÖTT UTAN ÄNDRINGEN (regel 4), mot b08b94c: den gamla canvasen stod kvar medan den nya ritades, utan en gemensam budget; området nära vyn var en skärmhöjd oavsett zoom;
+ * kön väntade för evigt på en ritning som aldrig svarade; ett fel i måtten före ritningen blev ett ohanterat avvisat löfte och ingen felrad; platshållarna behöll det förra dokumentets storlek.
+ */
+
+describe("⛔ minnesbudgeten gäller också medan en sida ritas om", () => {
+  it("20 sidor i skärmens upplösning 3: under varje ritning, också omritningen vid 4x, är summan av levande canvasar inom budgeten", async () => {
+    FalskIO.alla = [];
+    vi.stubGlobal("IntersectionObserver", FalskIO);
+    Object.defineProperty(window, "devicePixelRatio", { value: 3, configurable: true, writable: true });
+    pdfjs.antal = 20;
+    /** @type {HTMLCanvasElement[]} */
+    const skapade = [];
+    const skapa = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((/** @type {string} */ namn, /** @type {any} */ val) => {
+      const el = skapa(namn, val);
+      if (namn === "canvas") skapade.push(/** @type {HTMLCanvasElement} */ (el));
+      return el;
+    });
+    const levandeYta = () => skapade.reduce((sum, c) => sum + (c.width * c.height > 1 ? c.width * c.height : 0), 0);
+    /** @type {number[]} */
+    const underRitning = [];
+    pdfjs.vidRitning = () => underRitning.push(levandeYta());
+    render(<OpsPdfVy hamta={async () => pdfBlob()} sokvag="s" namn="kvartal.pdf" />);
+    await waitFor(() => expect(document.querySelectorAll("[data-pdf-sidram]")).toHaveLength(20));
+    naraSidor([9, 10, 11]);
+    await waitFor(() => expect(document.querySelectorAll("[data-pdf-canvas]")).toHaveLength(3));
+    const r = within(rad());
+    for (let i = 0; i < 12; i++) fireEvent.click(r.getByRole("button", { name: "Zooma in" }));
+    const fyra = (96 / 72) * 4;
+    await waitFor(() => expect(pdfjs.ritningar.filter((x) => Math.abs(x.skala - fyra) < 1e-6).map((x) => x.nr).sort((a, b) => a - b)).toEqual([9, 10, 11]));
+    await waitFor(() => expect(document.querySelectorAll("[data-pdf-canvas]")).toHaveLength(3));
+    // Golv: mätningen gjordes under minst sex ritningar, och omritningarna vid 4x hade fyllt budgeten utan den.
+    expect(underRitning.length).toBeGreaterThanOrEqual(6);
+    expect(Math.max(...underRitning)).toBeLessThanOrEqual(PIXELBUDGET);
+    expect(levandeYta()).toBeLessThanOrEqual(PIXELBUDGET);
+    expect(Math.max(...pdfjs.ritningar.filter((x) => Math.abs(x.skala - fyra) < 1e-6).map((x) => x.bredd * x.hojd))).toBeGreaterThan(PIXELBUDGET / 5);
+  });
+  it("budgeten i sig: taket delas med sidorna plus en, och en släppt canvas räknas bort", () => {
+    const b = skapaCanvasbudget({ budget: 1000 });
+    expect(b.tak()).toBe(500);
+    const av = [b.registrera(), b.registrera(), b.registrera()];
+    expect(b.tak()).toBe(250);
+    const c = document.createElement("canvas");
+    c.width = 20;
+    c.height = 10;
+    b.lagg(c);
+    expect(b.ledigt()).toBe(800);
+    b.slapp(c);
+    expect([c.width, c.height, b.ledigt()]).toEqual([0, 0, 1000]);
+    av.forEach((f) => f());
+    av[0]();
+    expect(b.sidor).toBe(0);
+  });
+});
+
+describe("⛔ området nära vyn följer zoomen, och sidan under pekaren ritas först", () => {
+  it("tre skärmhöjder vid hel bredd, en vid 2x", async () => {
+    FalskIO.alla = [];
+    vi.stubGlobal("IntersectionObserver", FalskIO);
+    pdfjs.antal = 3;
+    render(<OpsPdfVy hamta={async () => pdfBlob()} sokvag="s" namn="kvartal.pdf" />);
+    await waitFor(() => expect(document.querySelectorAll("[data-pdf-sidram]")).toHaveLength(3));
+    const marginaler = () => [...new Set(FalskIO.alla.map((o) => o.val.rootMargin).filter((m) => m && !m.startsWith("-")))];
+    expect(marginaler()).toEqual(["300% 0px"]);
+    for (let i = 0; i < 4; i++) fireEvent.click(within(rad()).getByRole("button", { name: "Zooma in" }));
+    expect(marginaler()).toEqual(["100% 0px"]);
+  });
+  it("efter en zoom ritas sidan under pekaren först", async () => {
+    layoutmodell(390, 700);
+    pdfjs.antal = 5;
+    await visaVyn();
+    const sidor = /** @type {HTMLElement} */ (document.querySelector("[data-pdf-sidor]"));
+    const sida4 = /** @type {HTMLElement} */ (document.querySelector('[data-pdf-sidram="4"]'));
+    // Vänta tills alla fem är ritade i rutans bredd: måttet av rutan kan komma efter den första ritningen och ge en omritning till, beroende på hur fort maskinen är.
+    const hel = (96 / 72) * ((390 - 24) / 816);
+    await waitFor(() => {
+      for (let nr = 1; nr <= 5; nr++) expect(pdfjs.ritningar.some((x) => x.nr === nr && x.lagd && Math.abs(x.skala - hel) < 1e-6)).toBe(true);
+    });
+    await vanta(50);
+    sidor.scrollTop = sida4.getBoundingClientRect().top + sidor.scrollTop - 100;
+    const fore = pdfjs.ritningar.length;
+    act(() => void sidor.dispatchEvent(new WheelEvent("wheel", { deltaY: -300, ctrlKey: true, clientX: 200, clientY: 300, bubbles: true, cancelable: true })));
+    await waitFor(() => expect(pdfjs.ritningar.length).toBeGreaterThanOrEqual(fore + 5));
+    // Golv: den första omritningen är i den nya skalan, och den gäller sidan under pekaren.
+    expect(pdfjs.ritningar[fore].skala / hel).toBeCloseTo(1.331, 3);
+    expect(pdfjs.ritningar[fore].nr).toBe(4);
+  });
+});
+
+describe("⛔ kön har en tidsgräns", () => {
+  it("en ritning som aldrig svarar avbryts efter tidsgränsen, och nästa ritning körs", async () => {
+    vi.useFakeTimers();
+    try {
+      const ko = skapaRitko();
+      const avbruten = vi.fn();
+      const andra = vi.fn(async () => {});
+      ko.lagg(() => new Promise(() => {}), { onTidsgrans: avbruten });
+      ko.lagg(andra);
+      await vi.advanceTimersByTimeAsync(RITA_TIDSGRANS_MS - 1);
+      expect([avbruten.mock.calls.length, andra.mock.calls.length]).toEqual([0, 0]);
+      await vi.advanceTimersByTimeAsync(2);
+      expect([avbruten.mock.calls.length, andra.mock.calls.length]).toEqual([1, 1]);
+      expect(ko.antal).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("i vyn: en sida vars ritning aldrig svarar får sin felrad efter tidsgränsen", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      pdfjs.hang = true;
+      render(<OpsPdfVy hamta={async () => pdfBlob()} sokvag="s" namn="kvartal.pdf" />);
+      await waitFor(() => expect(pdfjs.ritningar).toHaveLength(1));
+      expect(document.querySelector("[data-pdf-sidfel]")).toBeNull();
+      await act(() => vi.advanceTimersByTimeAsync(RITA_TIDSGRANS_MS + 10));
+      expect(document.querySelector('[data-pdf-sidfel="1"]')?.getAttribute("role")).toBe("alert");
+      expect(pdfjs.ritningar[0].avbruten).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("⛔ fel i måtten före ritningen syns (regel 5)", () => {
+  it("getViewport kastar vid omritningen i 2x: sidan får sin felrad", async () => {
+    pdfjs.viewportFelOver = 2;
+    const sidor = await visaVyn();
+    for (let i = 0; i < 4; i++) fireEvent.click(within(rad()).getByRole("button", { name: "Zooma in" }));
+    expect(zoomen(sidor)).toBe(2);
+    await waitFor(() => expect(document.querySelector('[data-pdf-sidfel="1"]')?.getAttribute("role")).toBe("alert"));
+  });
+  it("getViewport kastar redan för sidans storlek: felraden, inte en tom sida, och sidan före ritas", async () => {
+    pdfjs.antal = 2;
+    pdfjs.viewportFelSida = 2;
+    render(<OpsPdfVy hamta={async () => pdfBlob()} sokvag="s" namn="kvartal.pdf" />);
+    await waitFor(() => expect(document.querySelector('[data-pdf-sidfel="2"]')?.getAttribute("role")).toBe("alert"));
+    await waitFor(() => expect(document.querySelector('[data-pdf-canvas="1"]')).not.toBeNull());
+  });
+});
+
+describe("⛔ platshållarna följer dokumentet", () => {
+  it("en annan PDF i samma vy: platshållaren har den nya sidans storlek, inte den förras", async () => {
+    FalskIO.alla = [];
+    vi.stubGlobal("IntersectionObserver", FalskIO);
+    pdfjs.antal = 2;
+    const { rerender } = render(<OpsPdfVy hamta={async () => pdfBlob()} sokvag="a.pdf" namn="a.pdf" />);
+    await waitFor(() => expect(document.querySelectorAll("[data-pdf-sidram]")).toHaveLength(2));
+    naraSidor([1]);
+    await waitFor(() => expect(document.querySelector('[data-pdf-canvas="1"]')).not.toBeNull());
+    naraSidor([]);
+    const hojd = () => parseFloat(/** @type {HTMLElement} */ (document.querySelector('[data-pdf-sidram="1"]')).style.height);
+    expect(hojd()).toBe(Math.floor(792 * (96 / 72)));
+    pdfjs.sidmatt = { b: 400, h: 300 };
+    rerender(<OpsPdfVy hamta={async () => pdfBlob()} sokvag="b.pdf" namn="b.pdf" />);
+    await waitFor(() => expect(hojd()).toBe(Math.floor(300 * (96 / 72))));
   });
 });
