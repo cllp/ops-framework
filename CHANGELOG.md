@@ -9,6 +9,20 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.236.0
+
+**Robs genomgång, första delen** (cllp/lifehub.app#870 och #871). Rob, ny i en grupp, kunde inte släppa en fil på Biblioteket, hittade inte vem som var inbjuden (inbjudningarna stod långt under medlemmarna, med ett formulär emellan), och fick skriva hela adressen till den han ville bjuda in fast personen redan fanns i en av hans grupper.
+
+### Tillagt
+
+- **Filer som släpps på bibliotekets lista laddas upp** (`OpsBibliotek`). Varje fil prövas som i formuläret Ny fil (`filInmatningsfel`) och sparas av appens `onLaddaUpp`, en i taget, med filnamnet utan ändelse som rubrik. Medan filerna dras över listan står en streckad ram och raden "Släpp filerna för att lägga dem i biblioteket.". Under uppladdningen visas "Laddar upp 2 av 5 filer." med en snurra, sedan "5 filer är tillagda.". En fil som inte tas emot (fel format, för stor) eller vars uppladdning faller står med namn och skäl, och de andra laddas upp ändå. Utan `onLaddaUpp` säger listan att uppladdningen inte är kopplad, i stället för att släppet försvinner tyst. Bara filer räknas: markerad text eller en länk som dras över ritar ingen ram. Inget släpp i den inbäddade listan och inget utan inloggning.
+- **`OpsGruppSida` kan samla medlemmar och inbjudna i en sektion** (#870 punkt 13), med tre nya props, alla valfria:
+  - `medlemsknapp`: en knapp i medlemmarnas rubrikrad, till exempel Bjud in.
+  - `medlemsAtgarder(m)`: åtgärderna för en medlem. Ger den poster står ⋯ (`OpsAtgardsblad`) sist på raden, med medlemmens namn i knappens etikett. En tom lista ger ingen ⋯.
+  - `underMedlemmar`: det som står direkt under listan, inne i samma sektion, till exempel väntande inbjudningar och gäster.
+  Utan dem ser sidan ut som förut.
+- **`OpsInput` kan visa förslag medan man skriver** (#871): `forslag` (`{ id, etikett, under? }[]`, högst åtta visas) och `onValjForslag(id)`. Fältet blir en kombinationsruta (`role="combobox"`, `aria-expanded`, `aria-activedescendant`): pilarna markerar, Enter väljer, Escape stänger, ett tryck väljer. Listan är ett syskon till fältet och trycket tas på `mousedown`, så att fältet inte tappar fokus före valet. ⛔ Appen filtrerar och bestämmer vem som syns, fältet vet inget om varifrån listan kom. `forslag` utan `onValjForslag` kastar.
+
 ## 0.235.0
 
 **Zoom i PDF-vyn.** CP 2026-11-16: "Det går inte att zooma i pdf:er i biblioteket. Det vore bra om det funkade." och "Ja kör zoom på pdf". Raden hade − och + sedan 0.196.0, men i telefonen zoomar man med fingrarna, och där hände ingenting.
