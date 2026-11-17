@@ -55,16 +55,16 @@ export function OpsKalenderAr({ ar, poster, kalendrar, forvaldId, arSynlig, onVa
   const veckodagar = weekdayNames(locale);
   const idag = todayKey(today);
   return (
-    <div data-ops-arsvy="" className="flex h-full flex-col bg-bg text-ink">
+    <div data-ops-arsvy="" className="flex h-full flex-col bg-canvas text-ink">
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-3">
         <button type="button" aria-label={o.foregaende} onClick={() => onAr(ar - 1)} className="inline-flex size-9 items-center justify-center rounded-full text-ink-secondary hover:bg-surface-2">
           <ChevronVansterIkon size={18} />
         </button>
-        <h2 className="m-0 text-rubrik font-semibold">{o.rubrik.replace("{ar}", String(ar))}</h2>
+        <h2 className="m-0 text-rubrik">{o.rubrik.replace("{ar}", String(ar))}</h2>
         <button type="button" aria-label={o.nasta} onClick={() => onAr(ar + 1)} className="inline-flex size-9 items-center justify-center rounded-full text-ink-secondary hover:bg-surface-2">
           <ChevronHogerIkon size={18} />
         </button>
-        <ul aria-label="Kalendrar" className="m-0 ml-auto flex list-none flex-wrap gap-1.5 p-0">
+        <ul aria-label="Kalendrar" className="order-last m-0 flex w-full list-none flex-wrap gap-1.5 p-0 md:order-none md:ml-auto md:w-auto">
           {kalendrar.map((k) => {
             const pa = arSynlig(k.id);
             const ton = /** @type {1|2|3|4|5|6} */ (Number(k.farg) >= 1 && Number(k.farg) <= 6 ? Number(k.farg) : 1);
@@ -86,7 +86,7 @@ export function OpsKalenderAr({ ar, poster, kalendrar, forvaldId, arSynlig, onVa
             );
           })}
         </ul>
-        <button type="button" aria-label={o.stang} title={o.stang} onClick={onStang} className="inline-flex size-9 items-center justify-center rounded-full text-ink-secondary hover:bg-surface-2">
+        <button type="button" aria-label={o.stang} title={o.stang} onClick={onStang} className="ml-auto inline-flex size-9 md:ml-0 items-center justify-center rounded-full text-ink-secondary hover:bg-surface-2">
           <KryssIkon size={18} />
         </button>
       </div>

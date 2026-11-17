@@ -1290,6 +1290,8 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  * @param {(manader: { forsta: string, sista: string }) => void} [props.onSynligaManader] (0.74.0, #284) Vilka månader som syns,
  *   som `YYYY-MM`, när rullningen har stannat (`SYNLIGA_MANADER_VILA_MS`) och en gång vid start. Aldrig medan rullningen pågår, och
  *   bara när intervallet ändrats. För en app som hämtar data för det synliga fönstret, så att den inte läser kalenderns DOM.
+ * @param {boolean} [props.arsvy] (0.237.0, cllp/lifehub.app#874) En liten knapp "Visa året" i verktygsraden som fäller ut året i helskärm, ett band
+ *   per kalender och dag för heldag och flera dagar. Ett tryck på en dag eller en månad stänger året och visar den här. Av som förval.
  */
 export function OpsCalendar({
   entries = [],
@@ -1883,7 +1885,7 @@ export function OpsCalendar({
         <div
           ref={arRam}
           data-kalender-arsvy-yta={arLage || undefined}
-          className={arLage === "fonster" ? "fixed inset-0 z-[1000] h-dvh bg-bg pt-(--safe-top) pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left)" : arLage ? "h-full bg-bg" : "hidden"}
+          className={arLage === "fonster" ? "fixed inset-0 z-[1000] h-dvh bg-canvas pt-(--safe-top) pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left)" : arLage ? "h-full bg-canvas" : "hidden"}
         >
           {arLage ? (
             <OpsKalenderAr
