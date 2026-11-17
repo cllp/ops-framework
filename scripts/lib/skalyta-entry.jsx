@@ -2706,7 +2706,8 @@ function BibliotekLjudYta({ oppnaDetalj = false }) {
 }
 
 /** Telefonens app-ark: hyllan sitter på bottenraden och pluset ska måla över kanten. */
-function ApparArkScen() {
+/** @param {{ snabb?: boolean }} [p] `snabb` (0.234.0, avsnitt 52e): skalet med `snabbmenyer`, där Verktyg öppnar snabbmenyn med Alla verktyg överst. */
+function ApparArkScen({ snabb = false } = {}) {
   const bygg = Ops.defineModule;
   if (!bygg) return <p data-saknas="defineModule">defineModule saknas</p>;
   const namn = ["Ekonomi", "Bibliotek", "Meddelanden", "Kontakter"];
@@ -2735,6 +2736,7 @@ function ApparArkScen() {
       moduler={[]}
       activeHref="/"
       onNavigate={gaTill}
+      snabbmenyer={snabb}
       skapa={{ handelse: <p>Formulär</p> }}
       apparArk={{
         moduler,
@@ -3411,6 +3413,7 @@ function Scen() {
   }
   // Appar-hyllan över bottenraden, med pluset i mitten. Utan `skapa` finns ingen upphöjd knapp, och utan `apparArk` är Appar en länk.
   if (s === "apparark") return <ApparArkScen />;
+  if (s === "verktygmeny") return <ApparArkScen snabb />;
   if (s === "karna") return <KarnaScen />;
   if (s === "amnen") return <AmnesScen />;
   if (s === "chatt0106-en") return <EngelskScen />;

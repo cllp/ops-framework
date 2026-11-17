@@ -149,6 +149,7 @@ import { KryssIkon } from "./icons.jsx";
  *   eller en funktion som får felet och ger texten (appen känner sina felkoder: ett tak per minut, ett fält i fel form). Tom eller
  *   utelämnad: `sparaFelForval`. Texten står med `role="alert"` bredvid Spara, och utkastet står kvar.
  * @param {string} [props.sparaFelForval] Förvalet när appen inte ger någon text.
+ * @param {string} [props.namnKravsText] (0.234.0, cllp/lifehub.app#861) Felet vid namnfältet när det tömts. Förval ur ordboken.
  * @param {string} [props.ingaGrupperText]
  * @param {string} [props.profilbildEtikett]
  * @param {string} [props.laddaUppEtikett] Knappen som öppnar filväljaren. #164: förval "Byt" (var "Ladda upp bild").
@@ -226,6 +227,7 @@ function OpsProfilRitad({
   sprakByterEtikett = ORD_OPSPROFIL.sprakByterEtikett.sv,
   sparaFelText,
   sparaFelForval = ORD_OPSPROFIL.sparaFelForval.sv,
+  namnKravsText = ORD_OPSPROFIL.namnKravs.sv,
   ingaGrupperText = ORD_OPSPROFIL.ingaGrupperText.sv,
   profilbildEtikett = ORD_OPSPROFIL.profilbildEtikett.sv,
   laddaUppEtikett = ORD_OPSPROFIL.laddaUppEtikett.sv,
@@ -357,6 +359,13 @@ function OpsProfilRitad({
   /* ⛔ Beslutet ligger i `andringen`, inte här. Skälet står i profil.js:
      Radix Select går inte att driva i jsdom, så logiken flyttades dit ett
      prov kan se den i stället för att få ett prov som inte kan faila. */
+  /*
+   * ⛔ ETT TOMT NAMN STOPPAS HÄR, MED ETT SYNLIGT FEL (0.234.0, granskningen av cllp/ops-framework#608). Sedan 0.234.0 skriver
+   * `uppdateraProfil` aldrig över ett namn med ett tomt (cllp/lifehub.app#861, CP: "Det får ALDRIG stå namn saknas"). Utan stoppet
+   * här hade ett tömt fält skickats, servern hade lämnat namnet orört, och vyn hade släppt utkastet som om det sparats: namnet står
+   * kvar och ingen sade varför. Nu står felet vid fältet och Spara går inte att trycka förrän fältet har ett namn.
+   */
+  const namnTomt = visas("namn") && "namn" in utkastet && !(typeof utkastet.namn === "string" && utkastet.namn.trim());
   const beslut = andringen(bas, utkastet, falt);
   let { andrat } = beslut;
   const { andring } = beslut;
@@ -385,6 +394,7 @@ function OpsProfilRitad({
    * @returns {Promise<boolean>}
    */
   const spara = async () => {
+    if (namnTomt) return false;
     const skickat = utkastet;
     setSparar(true);
     setSparaFel("");
@@ -735,7 +745,7 @@ function OpsProfilRitad({
       <div className="flex flex-col gap-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {visas("namn") ? (
-            <OpsField label={namnEtikett} labelSize="liten">
+            <OpsField label={namnEtikett} labelSize="liten" error={namnTomt ? namnKravsText : undefined}>
               <OpsInput value={namn} onChange={(v) => satt("namn", v)} />
             </OpsField>
           ) : null}
@@ -947,7 +957,7 @@ function OpsProfilRitad({
       ) : null}
 
       <div className="flex flex-wrap gap-2">
-        <OpsButton variant="primary" onClick={spara} disabled={!andrat} busy={sparar} busyLabel={sparaVantarEtikett}>
+        <OpsButton variant="primary" onClick={spara} disabled={!andrat || namnTomt} busy={sparar} busyLabel={sparaVantarEtikett}>
           {sparaEtikett}
         </OpsButton>
         {sparaFelRaden}
@@ -975,6 +985,7 @@ export const ORD_OPSPROFIL = {
   // 0.229.4, CP 2026-11-15: "Det tar tid att växla språk i apparna, helt ok men det behöver en progress, den nya snygga."
   sprakByterEtikett: { sv: "Byter språk…", en: "Changing language…" },
   sparaFelForval: { sv: "Profilen kunde inte sparas. Försök igen.", en: "Your profile could not be saved. Try again." },
+  namnKravs: { sv: "Skriv ditt namn. Ett tomt namn sparas inte.", en: "Enter your name. An empty name is not saved." },
   ingaGrupperText: { sv: "Du är inte med i någon grupp än.", en: "You are not in any group yet." },
   profilbildEtikett: { sv: "Profilbild", en: "Profile picture" },
   laddaUppEtikett: { sv: "Byt", en: "Change" },

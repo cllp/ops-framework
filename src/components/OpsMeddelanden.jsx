@@ -6,7 +6,8 @@ import { formatDateTime, formatTime, formatRelativeDate } from "../lib/format.js
 import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, bilagaUrDokument, kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { readAttachment } from "../lib/file.js";
 import { arGastId } from "../lib/gast.js";
-import { AGENTSTATUS_MAX_ALDER, MAX_ALTERNATIV, MAX_ALTERNATIVTEXT, MAX_ALTERNATIV_VID_START, MAX_FRAGA, MAX_MEDDELANDE, MAX_TRADNAMN, MIN_ALTERNATIV_VID_START, RAKNARE_FRAN, REAKTIONSKODER, agentstatus, arDelatSamtal, projekttaggUr, jamforbar, summeraOmrostning, amnesrubrik, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
+import { arRelativAppadress } from "../lib/applank.js";
+import { AGENTSTATUS_MAX_ALDER, MAX_ALTERNATIV, MAX_ALTERNATIVTEXT, MAX_ALTERNATIV_VID_START, MAX_FRAGA, MAX_MEDDELANDE, MAX_TRADNAMN, MIN_ALTERNATIV_VID_START, RAKNARE_FRAN, REAKTIONSKODER, agentstatus, vackerAgenten, arDelatSamtal, projekttaggUr, jamforbar, summeraOmrostning, amnesrubrik, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
 import { harAmnen, harBilagor, harCitat, harFasta, harOmnamnanden, harOmrostningar, harProjekt, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
 import { BilagaVisning } from "./BilagaVisning.jsx";
@@ -88,6 +89,7 @@ import { OpsVantar } from "./OpsVantar.jsx";
  * @property {string} userId
  * @property {string} [namn]
  * @property {string} [bild]
+ * @property {string} [epost] Medlemskapets adress (0.234.0, cllp/lifehub.app#861). Visas när namnet saknas.
  * @property {string} [typ]
  * @property {string} [status]
  */
@@ -242,6 +244,8 @@ import { OpsVantar } from "./OpsVantar.jsx";
  * @property {string} [agentSkriver] (#273) Förval "Agenten skriver".
  * @property {string} [agentFastnat] (#273) När statusen är äldre än två minuter. Förval "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.".
  * @property {string} [agentstatusFel] (#273) När statusen inte kunde läsas, eller inte har statusens form. Förval "Agentens status kunde inte läsas.".
+ * @property {string} [agentVaknar] (0.234.0, cllp/ops-framework#609) Direkt efter att ett meddelande skickats till agenten, innan serverns status kommer. Förval "Agenten vaknar".
+ * @property {string} [agentVaknarFel] (0.234.0, #609) När varken status, svar eller fel kommit inom två minuter. Förval "Agenten vaknade inte på två minuter. Skriv igen om du fortfarande väntar.".
  * @property {string} [mejl] (0.80.0, #301) Förval "Mejl".
  * @property {string} [tystaNotiser] Förval "Tysta notiser".
  * @property {string} [notiserTysta] Förval "Notiser är tysta".
@@ -452,6 +456,8 @@ const ORD_MEDDELANDEN = {
   agentSkriver: { sv: "Agenten skriver", en: "The agent is writing" },
   agentFastnat: { sv: "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.", en: "The agent has not answered for two minutes. Write again if you are still waiting." },
   agentstatusFel: { sv: "Agentens status kunde inte läsas.", en: "The agent's status could not be read." },
+  agentVaknar: { sv: "Agenten vaknar", en: "The agent is waking up" },
+  agentVaknarFel: { sv: "Agenten vaknade inte på två minuter. Skriv igen om du fortfarande väntar.", en: "The agent did not wake up within two minutes. Write again if you are still waiting." },
   nyttSamtal: { sv: "Nytt samtal", en: "New conversation" },
   gruppensAgent: { sv: "gruppens agent", en: "the group's agent" },
   antalSamtal: { sv: "{n} samtal", en: "{n} conversations" },
@@ -951,10 +957,10 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, projektnamn, me
     for (const r of medlemmar ?? []) if (r?.userId) m.set(r.userId, r);
     return m;
   }, [medlemmar]);
-  // ⛔ ALDRIG ETT ID SOM NAMN (#218): medlemskapets namn, den inloggades eget namn, annars "Namn saknas".
+  // ⛔ ALDRIG ETT ID SOM NAMN (#218): medlemskapets namn, den inloggades eget namn, annars medlemskapets adress (0.234.0, lifehub.app#861), annars "Namn saknas".
   const personnamn = usePersonnamn();
   // En gäst (`av` är ett `g_`-id) är ingen medlem och saknar namn i medlemslistan: i översikten står "Gäst", och i själva chatten gästens eget namn (`Meddelanderader`, ur meddelandet).
-  const namnFor = (/** @type {string} */ id) => (arGastId(id) ? t.gast : personnamn(namn.get(id)?.namn, id).text);
+  const namnFor = (/** @type {string} */ id) => (arGastId(id) ? t.gast : personnamn(namn.get(id)?.namn, id, namn.get(id)?.epost).text);
 
   /*
    * ⛔ GRUPPCHATTEN FINNS ALLTID I LISTAN, ÖVERST (0.68.0). CP 2026-10-06, i en grupp med en medlem: "Hur skriver jag ett
@@ -2671,6 +2677,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
   const sok = useSokISamtal(alla, loggRef);
   const fasta = useFasta(harFasta(las) ? las : null, samtal.id, uid);
   const agentlage = useAgentstatusdok(harStatus(las) ? las : null, samtal.id, undefined);
+  const vakna = useAgentVaknar({ lage: agentlage, alla, medlemmar, samtal, uid });
   const { rader: tradar, fel: tradfel } = useTradmarken({ kalla: medTradar ? kalla : null, sid: samtal.id, meddelanden: meddelanden ? alla : null, minne: tradminne });
   const [info, setInfo] = useState(false);
   const { tyst, vaxla: vaxlaTyst } = useTystnad(las, samtal.id, uid, setFel);
@@ -2757,6 +2764,8 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
       // ⛔ Ett nytt ämne skapas här, med sitt första meddelande (0.106.0).
       const ny = arNy && harAmnen(kalla) ? await kalla.skickaIAmne(samtal, d) : await kalla.skicka(samtal.id, d);
       skickat = true;
+      // ⛔ "Agenten vaknar" direkt, innan serverns status (#609). Bara när servern kommer att svara (`vackerAgenten`).
+      vakna.skickat(d);
       if (arNy) onSkapat?.(samtal, ny);
       setText("");
       bilage.tom();
@@ -2990,7 +2999,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
               : undefined
           }
         />
-        <Agentrad lage={agentlage} texter={t} />
+        <Agentrad lage={agentlage} vaknar={vakna.vaknar} texter={t} />
       </div>
       <TillSenaste lage={lasposition} arbetar={arbetsord(agentlage)} texter={t} />
       </div>
@@ -3520,6 +3529,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   // ⛔ Trådens reaktioner bor under tråden (regeln följer tråden). Rotmeddelandets reaktioner står i gruppchatten.
   const reakt = useReaktioner(harReaktioner(kalla) ? kalla : null, samtal.id, tid, uid);
   const agentlage = useAgentstatusdok(harStatus(kalla) ? kalla : null, samtal.id, tid);
+  const vakna = useAgentVaknar({ lage: agentlage, alla: visade, medlemmar, samtal, uid });
   const namnId = useId();
   const dopKnapp = useRef(/** @type {HTMLButtonElement | null} */ (null));
   // ⛔ KAN 6: fokus stannar i rubriken när Döp om stängs (Spara, Avbryt eller Escape), i stället för att falla till dokumentet.
@@ -3643,6 +3653,8 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         },
       );
       skickat = true;
+      // ⛔ "Agenten vaknar" direkt, innan serverns status (#609).
+      vakna.skickat({ av: uid, ...(extra?.namner ? { namner: extra.namner } : {}) });
       // Skrivet: "Skickas…" går bort, och svaret står kvar som ett vanligt svar tills källan visar det (samma id).
       setLokala((l) => l.map((m) => (m.id === lokalt.id ? { ...m, vantar: false } : m)));
       setText("");
@@ -3825,7 +3837,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         <VisaAldre historik={historik} texter={t} />
         <Reaktionslage reakt={reakt} texter={t} />
         <Meddelanderader meddelanden={visade} efter={skickasEfter} merFor={lyftMer} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} onVisaAgent={onVisaAgent} meddelandeHref={meddelandeHref} flerOmnamnbara={flerOmnamnbara} />
-        <Agentrad lage={agentlage} texter={t} />
+        <Agentrad lage={agentlage} vaknar={vakna.vaknar} texter={t} />
       </div>
       <TillSenaste lage={lasposition} arbetar={arbetsord(agentlage)} texter={t} />
       </div>
@@ -3881,10 +3893,10 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
  * ⛔ EN LUGN ANIMATION, OCH INGEN ALLS FÖR DEN SOM BETT OM DET (`motion-safe:`). Raden är en `status` och läses upp en gång när
  * den kommer, inte vid varje punkt som tänds.
  *
- * @param {{ lage: ReturnType<typeof useAgentstatusdok>, texter: Required<Meddelandetexter> }} props `lage` ur `useAgentstatusdok`, som
- *   samtalet också läser för skrivfältets stoppknapp: en lyssnare, två läsare.
+ * @param {{ lage: ReturnType<typeof useAgentstatusdok>, vaknar?: { fel: boolean } | null, texter: Required<Meddelandetexter> }} props `lage` ur
+ *   `useAgentstatusdok`, som samtalet också läser för skrivfältets stoppknapp: en lyssnare, två läsare. `vaknar` ur `useAgentVaknar`.
  */
-function Agentrad({ lage, texter: t }) {
+function Agentrad({ lage, vaknar = null, texter: t }) {
   const { dok, fel } = lage;
   const [nu, setNu] = useState(() => Date.now());
   const visning = agentstatus(dok, nu);
@@ -3912,13 +3924,25 @@ function Agentrad({ lage, texter: t }) {
       </p>
     );
   }
-  if (!visning) return null;
+  if (!visning) {
+    // ⛔ "AGENTEN VAKNAR" (0.234.0, cllp/ops-framework#609) står på samma rad, med samma prickar, tills serverns status kommer.
+    if (!vaknar) return null;
+    if (vaknar.fel) {
+      return (
+        <p data-agentstatus="vaknar-fel" role="alert" className="m-0 mt-2 flex items-center gap-1.5 text-meta text-danger">
+          <AgentIkon size={14} />
+          <span>{t.agentVaknarFel}</span>
+        </p>
+      );
+    }
+  }
+  const lageNu = visning ? visning.lage : "vaknar";
   return (
-    <p data-agentstatus={visning.lage} role="status" className="m-0 mt-2 flex items-center gap-2 text-meta text-ink-muted">
+    <p data-agentstatus={lageNu} role="status" className="m-0 mt-2 flex items-center gap-2 text-meta text-ink-muted">
       <span className="inline-flex size-8 shrink-0 items-center justify-center text-accent">
         <AgentIkon size={16} />
       </span>
-      <span>{visning.lage === "tanker" ? t.agentTanker : t.agentSkriver}</span>
+      <span>{lageNu === "tanker" ? t.agentTanker : lageNu === "skriver" ? t.agentSkriver : t.agentVaknar}</span>
       <span aria-hidden="true" className="inline-flex gap-0.5">
         {[0, 1, 2].map((i) => (
           <span key={i} className="size-1 rounded-full bg-current motion-safe:animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
@@ -3953,6 +3977,53 @@ function useAgentstatusdok(kalla, sid, tid) {
     };
   }, [kalla, sid, tid]);
   return lage;
+}
+
+/**
+ * "Agenten vaknar": klientens eget läge mellan att ett meddelande till agenten skickats och att serverns status kommer (0.234.0,
+ * cllp/ops-framework#609). CP 2026-11-16: "När man börjar prata med agenten tar det några sekunder att väcka den. Det vore bra om man
+ * kunde ha en progress även där att agenten vaknar..."
+ *
+ * ⛔ BARA KLIENTENS. Ingenting skrivs till servern: statusen är serverns (#273), och en klient som skrev den hade kunnat få agenten att
+ * se ut att arbeta.
+ * ⛔ RADEN GÅR BORT NÄR SERVERN SÄGER NÅGOT: en status (`tanker`, `skriver`), ett meddelande från en agent som inte fanns när man skickade,
+ * eller ett fel vid läsningen av statusen (då står statusens egen felrad).
+ * ⛔ OCH DEN BLIR EN FELRAD EFTER SAMMA TAK SOM "TÄNKER" (`AGENTSTATUS_MAX_ALDER`, två minuter, regel 5): en väckning som aldrig kom fram
+ * får varken stå kvar tyst eller försvinna tyst.
+ * ⛔ VILLKORET ÄR SERVERNS (`vackerAgenten`): agentsamtalet, och gruppchatten och dess trådar när agenten är nämnd.
+ *
+ * @param {{ lage: ReturnType<typeof useAgentstatusdok>, alla: ReadonlyArray<{ id: string, av: string }>, medlemmar: ReadonlyArray<{ userId: string, typ?: string, status?: string }> | undefined, samtal: { slag?: unknown, deltagare?: unknown }, uid: string }} p
+ * @returns {{ vaknar: { fel: boolean } | null, skickat: (m: { av?: unknown, namner?: unknown }) => void }}
+ */
+function useAgentVaknar({ lage, alla, medlemmar, samtal, uid }) {
+  const [vaknar, setVaknar] = useState(/** @type {{ sedan: number, sedda: Set<string>, fel: boolean } | null} */ (null));
+  const agenter = useMemo(() => {
+    const ut = new Set((medlemmar ?? []).filter((m) => m?.typ === "agent" && typeof m.userId === "string").map((m) => m.userId));
+    // I ett agentsamtal är den andra deltagaren agenten, också när appen inte skickat medlemmarna.
+    if (samtal?.slag === "agent" && Array.isArray(samtal.deltagare)) for (const d of samtal.deltagare) if (typeof d === "string" && d && d !== uid) ut.add(d);
+    return ut;
+  }, [medlemmar, samtal, uid]);
+  const skickat = useCallback(
+    (/** @type {{ av?: unknown, namner?: unknown }} */ m) => {
+      if (!vackerAgenten({ samtal, meddelande: m, medlemmar: /** @type {any} */ (medlemmar) })) return;
+      setVaknar({ sedan: Date.now(), sedda: new Set(alla.map((x) => x.id)), fel: false });
+    },
+    [samtal, medlemmar, alla],
+  );
+  // Serverns status, ett fel eller agentens svar avslutar väckningen.
+  useEffect(() => {
+    if (!vaknar) return;
+    if (lage.dok !== null && lage.dok !== undefined) return setVaknar(null);
+    if (lage.fel) return setVaknar(null);
+    if (alla.some((m) => agenter.has(m.av) && !vaknar.sedda.has(m.id))) setVaknar(null);
+  }, [vaknar, lage.dok, lage.fel, alla, agenter]);
+  // Taket: samma som för "tänker".
+  useEffect(() => {
+    if (!vaknar || vaknar.fel) return undefined;
+    const h = setTimeout(() => setVaknar((v) => (v ? { ...v, fel: true } : v)), Math.max(0, vaknar.sedan + AGENTSTATUS_MAX_ALDER - Date.now()));
+    return () => clearTimeout(h);
+  }, [vaknar]);
+  return { vaknar: vaknar ? { fel: vaknar.fel } : null, skickat };
 }
 
 /** Närmare slutet än så räknas som att stå vid slutet, i pixlar (0.106.0, #386 skiva 4). Ungefär en bubbla. */
@@ -5406,6 +5477,11 @@ const MAX_POSTKORT = 2;
  */
 const POSTKORTMINNE = new WeakMap();
 
+/** En relativ adress i appen som hel adress, med appens ursprung. Allt annat som det är. @param {string} url */
+function helAdress(url) {
+  return arRelativAppadress(url) && typeof window !== "undefined" ? new URL(url, window.location.origin).href : url;
+}
+
 /** @param {Postkort["slaUpp"]} sla @param {string} url */
 function slaUppPostkort(sla, url) {
   const minne = POSTKORTMINNE.get(sla) ?? new Map();
@@ -5440,7 +5516,9 @@ function MedPostkort({ text, postkort, egen, texter: t, children }) {
     if (!sla) return undefined;
     let levande = true;
     for (const url of adresser) {
-      slaUppPostkort(sla, url).then(
+      // ⛔ (0.234.0, cllp/lifehub.app#860) En relativ adress i appen är en länk sedan 0.234.0. Appens uppslag har bara fått hela adresser,
+      // så den får en hel adress här också, med appens ursprung.
+      slaUppPostkort(sla, helAdress(url)).then(
         (r) => levande && setSvar((f) => ({ ...f, [url]: r ?? null })),
         () => levande && setSvar((f) => ({ ...f, [url]: { fel: true } })),
       );
@@ -5465,7 +5543,7 @@ function MedPostkort({ text, postkort, egen, texter: t, children }) {
             key={url}
             href={url}
             data-postkort={url}
-            onClick={postkort.onOppna ? (e) => postkort.onOppna?.(url, e) : undefined}
+            onClick={postkort.onOppna ? (e) => postkort.onOppna?.(helAdress(url), e) : undefined}
             className="flex min-h-11 w-full items-center gap-2.5 rounded-card bg-hover px-3 py-2 text-left no-underline transition-colors duration-(--duration-fast) ease-standard hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             <span aria-hidden="true" className="inline-flex shrink-0 text-accent">

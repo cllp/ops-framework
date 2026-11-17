@@ -83,6 +83,7 @@ export const INSTALLNINGAR_PLATSER = /** @type {const} */ (["installningar.sekti
  *
  * - `skapa.rad`: en rad i plussets lista, `{ id, etikett, ikon, onSkapa }`. Etiketten är radens namn ("Nytt projekt"), ikonen ett React-element, och `onSkapa({ grupp })` det som sker när personen väljer
  *   raden: normalt att leda till modulens egen "Nytt ..." (samma formulär och samma adress som modulens egen lista, en väg och inte två). Listan stängs först och `onSkapa` anropas direkt därefter.
+ *   (0.234.0) Med skalets `snabbmenyer` står raden också i snabbmenyn (pluset, långtrycket och den flytande knappen), efter de fyra fasta raderna och i modulordning.
  *
  * ══ ⛔ HÄNDELSEN: VARJE NY MODUL HADE BLIVIT EN NY FAST RAD ═══════════════════════════════════════════════════════════
  *

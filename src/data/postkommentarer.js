@@ -39,6 +39,8 @@ import { samtalsnyckel } from "../lib/samtal.js";
  * @param {string} konfig.uid Den inloggade.
  * @param {string} konfig.bas Appens adress till biblioteket (`bibliotekslank`), till exempel `https://my.life-hub.app/bibliotek`.
  * @param {(uid: string) => string | null | undefined} [konfig.namnFor] Ett namn för en avsändare. Utelämnad, eller utan svar: "Namn saknas".
+ *   ⛔ Saknas namnet ska den svara med medlemskapets adress (0.234.0, cllp/lifehub.app#861), till exempel
+ *   `personnamn(m.namn, { epost: m.epost }).text`, så att "Namn saknas" bara står för den som varken har namn eller adress.
  * @returns {Postkommentarer}
  */
 export function createPostkommentarer(konfig) {

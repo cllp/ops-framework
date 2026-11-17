@@ -1341,6 +1341,37 @@ export function agentenNamnd(meddelande, agentUid, medlemmar) {
   return Boolean(agent) && agent?.typ === "agent" && arNamnd(meddelande, agentUid, medlemmar);
 }
 
+/**
+ * Väcker meddelandet gruppens agent? Det klienten behöver för raden "Agenten vaknar" (0.234.0, cllp/ops-framework#609), innan
+ * serverns status finns.
+ *
+ * ══ ⛔ HÄNDELSEN ════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * CP 2026-11-16: "När man börjar prata med agenten tar det några sekunder att väcka den. Det vore bra om man kunde ha en progress även
+ * där att agenten vaknar..." "Agenten tänker" är en status bara servern skriver, när agentens funktion har startat. Mellan att man
+ * skickar och att statusen kommer syntes ingenting, och där ligger väckningen.
+ *
+ * ⛔ SAMMA VILLKOR SOM DET SOM GÖR ATT SERVERN SKRIVER STATUS, och inget eget. Servern (lifehub.app `agentbeslut.js`, `skaSvara`) svarar
+ *   - i ett agentsamtal (`slag: "agent"`), på personens meddelande;
+ *   - i gruppchatten och dess trådar (`slag: "grupp"`) när agenten är nämnd: `agentenNamnd`, en aktiv agent i `namner`;
+ *   - aldrig på ett meddelande från en agent, aldrig i ett privat samtal mellan två personer och aldrig i ett projekts chatt.
+ * Det servern också gör, svara på "@Agent" skrivet för hand, följer inte med: regexen bor i appen, och en kopia här hade varit
+ * två sanningar (regel 2). Ett handskrivet omnämnande ger alltså ingen väckningsrad, som före 0.234.0, men aldrig en falsk.
+ * En avstängd agent skriver sin rad utan status, och nämns den väcks inget här.
+ *
+ * @param {{ samtal: { slag?: unknown } | null | undefined, meddelande: { av?: unknown, namner?: unknown } | null | undefined, medlemmar?: ReadonlyArray<{ userId: string, typ?: string, status?: string }> }} d
+ * @returns {boolean}
+ */
+export function vackerAgenten({ samtal, meddelande, medlemmar = [] }) {
+  const av = typeof meddelande?.av === "string" ? meddelande.av : "";
+  if (!av) return false;
+  const agenter = (medlemmar ?? []).filter((m) => m && m.typ === "agent" && typeof m.userId === "string" && m.userId);
+  if (agenter.some((a) => a.userId === av)) return false;
+  if (samtal?.slag === "agent") return true;
+  if (samtal?.slag !== "grupp") return false;
+  return agenter.some((a) => (a.status ?? "aktiv") === "aktiv" && agentenNamnd(meddelande, a.userId, medlemmar));
+}
+
 /*
  * ══ ⛔ SVAR MED CITAT I PRIVATA SAMTAL (chattanalysen 3.3) ═════════════════════════════════════════════════════════════════
  *

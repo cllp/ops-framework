@@ -255,9 +255,10 @@ service cloud.firestore {
     // reglerna. Samma beslut som SessionStudio ADR-019.
     //
     // ⛔ EN MEDLEM LÄSER GRUPPENS ÖVRIGA MEDLEMSKAP (0.32.0, #180), inte bara sitt eget. Medlemslistan
-    // är en yta varje medlem ser (SS visar den), och den bär namn och bild, aldrig e-post (se
-    // MEDLEMSKAPSFALT). Läsningen är fortfarande ETT uppslag mot radens egen grupp: en medlem i en
-    // ANNAN grupp läser inte den här, och en avslutad medlem gör det inte heller.
+    // är en yta varje medlem ser (SS visar den), och den bär namn och bild, och sedan 0.234.0 e-post
+    // (cllp/lifehub.app#861, CP: "Det får ALDRIG stå namn saknas"), se MEDLEMSKAPSFALT. Adressen är
+    // alltså läsbar för gruppens aktiva medlemmar. Läsningen är fortfarande ETT uppslag mot radens egen
+    // grupp: en medlem i en ANNAN grupp läser inte den här, och en avslutad medlem gör det inte heller.
     match /memberships/{mid} {
       allow read: if opsInloggad()
         && (resource.data.userId == request.auth.uid || opsArMedlem(resource.data.groupId));

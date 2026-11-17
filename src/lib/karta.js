@@ -267,13 +267,15 @@ export function popupElement(feature) {
   rot.className = "grid gap-1";
   if (namn) {
     const rubrik = document.createElement("p");
-    rubrik.className = "m-0 font-karta-ort text-rubrik text-karta-text";
+    // ⛔ TEXTEN FÖLJER APPENS TOKEN, INTE KARTANS (0.234.0). CP 2026-11-16, med en skärmbild i mörkt läge: "kontrasterna funkar inte på locations". Rubriken var
+    // `text-karta-text`, som är ljus i mörkt läge, på MapLibres vita ruta. Rutan bär nu appens yta (`--color-raised`, se `KARTPOPUP_CSS`) och texten appens bläck.
+    rubrik.className = "m-0 font-karta-ort text-rubrik text-ink";
     rubrik.textContent = namn;
     rot.append(rubrik);
   }
   if (beskrivning) {
     const brod = document.createElement("p");
-    brod.className = "m-0 font-karta-etikett text-etikett text-karta-text wrap-anywhere";
+    brod.className = "m-0 font-karta-etikett text-etikett text-ink-secondary wrap-anywhere";
     brod.textContent = beskrivning;
     rot.append(brod);
   }
@@ -481,4 +483,110 @@ export function byggStil(farger, samling) {
       },
     ],
   };
+}
+
+/** Klassen på kartans popup (MapLibres `className`), som `KARTPOPUP_CSS` styr. */
+export const KARTPOPUP_KLASS = "ops-karta-popup";
+
+/** Id:t på stilen som `OpsKartaVy` lägger i dokumentet en gång. */
+export const KARTPOPUP_STIL_ID = "ops-karta-popup-stil";
+
+/**
+ * Popupens yta och pil i appens token (0.234.0). CP 2026-11-16, i mörkt läge: "kontrasterna funkar inte på locations". MapLibres förval är en vit ruta och en
+ * vit pil, och rubriken stod i nästan vit text på den.
+ *
+ * ⛔ UTANFÖR LAGREN, MED HÖGRE VIKT ÄN MAPLIBRES. `maplibre-gl.css` ligger utanför alla `@layer`, och en regel i ett lager förlorar mot den oavsett vikt. Stilen läggs därför
+ * som en egen `<style>` i dokumentet, och väljarna har en klass mer än MapLibres. Bara token: yta `--color-raised`, bläck `--color-ink`, kant `--color-line`, rundning och skugga.
+ * ⛔ PILEN FÖLJER YTAN, för varje sida popupen kan stå på (MapLibre byter `maplibregl-popup-anchor-*` när kartan flyttas).
+ */
+export const KARTPOPUP_CSS = [
+  `.${KARTPOPUP_KLASS} .maplibregl-popup-content{background:var(--color-raised);color:var(--color-ink);border:1px solid var(--color-line);border-radius:var(--radius-base);box-shadow:var(--shadow-md);padding:12px 48px 12px 14px}`,
+  ...[
+    [["top", "top-left", "top-right"], "bottom"],
+    [["bottom", "bottom-left", "bottom-right"], "top"],
+    [["left"], "right"],
+    [["right"], "left"],
+  ].map(([ankare, kant]) => `${/** @type {string[]} */ (ankare).map((a) => `.${KARTPOPUP_KLASS}.maplibregl-popup-anchor-${a} .maplibregl-popup-tip`).join(",")}{border-${kant}-color:var(--color-raised)}`),
+].join("\n");
+
+/**
+ * Högst så många punkter i en rutt till Google Maps: start, slut och mellan dem jämnt fördelade punkter (0.234.0). Googles vägbeskrivning tar högst nio
+ * mellanpunkter, och en mobil webbläsare färre, så rutten glesas ut till nio punkter totalt, vilket ryms överallt.
+ */
+export const KARTLANK_MAX_PUNKTER = 9;
+
+/**
+ * Ett koordinatpar ur GeoJSON (`[lng, lat]`) som `lat,lng`, eller `null` när paret inte är en giltig position.
+ * @param {unknown} par
+ * @returns {string | null}
+ */
+function latLng(par) {
+  if (!Array.isArray(par)) return null;
+  const [lng, lat] = par;
+  if (typeof lng !== "number" || typeof lat !== "number" || !Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return `${lat},${lng}`;
+}
+
+/**
+ * Glesar ut en lista till högst `max` element: första och sista står alltid kvar, och mellan dem väljs jämnt fördelade.
+ * @template T
+ * @param {ReadonlyArray<T>} lista
+ * @param {number} [max]
+ * @returns {T[]}
+ */
+export function glesaRutt(lista, max = KARTLANK_MAX_PUNKTER) {
+  if (!Number.isInteger(max) || max < 2) throw new Error(`glesaRutt: max ska vara ett heltal från 2, inte ${String(max)}.`);
+  if (lista.length <= max) return [...lista];
+  const ut = [];
+  for (let i = 0; i < max; i += 1) ut.push(lista[Math.round((i * (lista.length - 1)) / (max - 1))]);
+  return ut;
+}
+
+/**
+ * Länkarna "Öppna i Kartor" och "Öppna i Google Maps" för ett objekt på kartan (0.234.0). CP 2026-11-16: "Samt en länk, öppna rutt eller position i
+ * telefonens Kartor eller Google Maps om det är installerat." Båda är universella länkar: telefonen öppnar appen när den finns, annars webben.
+ *
+ * En punkt ger positionen (`lat,lng`, namnet kodat som sökord i Apples länk). En linje (en rutt) ger en vägbeskrivning: Google med start, slut och
+ * jämnt fördelade mellanpunkter (högst `KARTLANK_MAX_PUNKTER` totalt), Apple med start och slut. ⛔ Apples `daddr` med flera `to:` är inte provat i
+ * en telefon, och en länk som öppnar fel väg är sämre än en som visar start och slut. En yta, och ett objekt utan giltiga koordinater, ger `null`.
+ *
+ * @param {{ geometry?: { type?: string, coordinates?: unknown } | null, properties?: Record<string, unknown> | null }} feature
+ * @returns {{ apple: string, google: string } | null}
+ */
+export function kartlankar(feature) {
+  const geo = feature?.geometry;
+  if (!geo) return null;
+  const namn = popupTexter(/** @type {any} */ (feature)).namn;
+  if (geo.type === "Point") {
+    const ll = latLng(geo.coordinates);
+    if (!ll) return null;
+    return {
+      apple: `https://maps.apple.com/?ll=${ll}&q=${encodeURIComponent(namn || ll)}`,
+      google: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ll)}`,
+    };
+  }
+  if (geo.type === "LineString" || geo.type === "MultiLineString") {
+    const linje = /** @type {unknown[]} */ (geo.type === "LineString" ? geo.coordinates : Array.isArray(geo.coordinates) ? geo.coordinates.flat() : []);
+    const punkter = (Array.isArray(linje) ? linje : []).map(latLng).filter((p) => p !== null);
+    if (punkter.length < 2) return null;
+    const rutt = glesaRutt(/** @type {string[]} */ (punkter));
+    const start = /** @type {string} */ (rutt[0]);
+    const slut = /** @type {string} */ (rutt[rutt.length - 1]);
+    const mellan = rutt.length > 2 ? `&waypoints=${encodeURIComponent(rutt.slice(1, -1).join("|"))}` : "";
+    return {
+      apple: `https://maps.apple.com/?saddr=${start}&daddr=${slut}`,
+      google: `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(start)}&destination=${encodeURIComponent(slut)}${mellan}`,
+    };
+  }
+  return null;
+}
+
+/**
+ * Om enheten är en Apple-enhet, där Kartor finns (iPhone, iPad, Mac). En iPad i skrivbordsläge säger "Macintosh", och räknas därför med.
+ * @param {{ userAgent?: string } | undefined} [nav]
+ * @returns {boolean}
+ */
+export function arAppleEnhet(nav = typeof navigator === "undefined" ? undefined : navigator) {
+  return /iPhone|iPad|iPod|Macintosh|Mac OS X/.test(String(nav?.userAgent ?? ""));
 }

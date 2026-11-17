@@ -430,6 +430,8 @@ export function inbjudningstjanst(konfig, namn) {
      * @param {{ uid: string, epost: string, epostVerifierad: boolean, namn?: string, bara?: string[] }} b
      *   `bara` (0.171.0, lifehub.app#533): inbjudningarnas id. Bara de accepteras, övriga väntande lämnas orörda. Utelämnad = alla.
      *   `namn`: den inloggades namn ur inloggningen. Används BARA när profilraden saknar namn (0.40.1, #218).
+     *   `epost`: den inloggades adress. Sedan 0.234.0 skrivs den också på medlemskapet när profilraden saknar en, så att
+     *   gruppen ser adressen i stället för "Namn saknas" (cllp/lifehub.app#861).
      *   `epostVerifierad` (0.82.0, #313): `request.auth.token.email_verified`, rakt ur inloggningen. Krävs och måste vara `true`.
      * @returns {Promise<{ accepterade: string[], utgangna: string[] }>}
      *   `accepterade`: grupper där den här körningen skrev ett nytt medlemskap eller återaktiverade ett avslutat.
@@ -558,6 +560,13 @@ export function inbjudningstjanst(konfig, namn) {
                 // ⛔ Profilens namn, annars inloggningens, aldrig tomt när ett fanns (0.40.1, #218).
                 namn: anvandaren?.namn || (typeof b?.namn === "string" ? b.namn.trim() : ""),
                 bild: anvandaren?.bild ?? "",
+                /*
+                 * ⛔ ADRESSEN FÖLJER MED, UR SAMMA KÄLLOR SOM NAMNET (0.234.0, cllp/lifehub.app#861). CP 2026-11-16, efter att en
+                 * ny medlem stått som "Namn saknas" för alla i gruppen: "Det får ALDRIG stå namn saknas. Det måste alltid finnas
+                 * en fallback på eposten." Profilens adress, annars inloggningens, som är verifierad (kontrollen ovan) och samma
+                 * adress inbjudan matchades mot.
+                 */
+                epost: anvandaren?.epost || epost,
               }),
             );
             ny = created;
@@ -570,7 +579,18 @@ export function inbjudningstjanst(konfig, namn) {
              * ute, samma tysta läge som före rättelsen.
              */
             const roll = typeof inbjudan.roll === "string" && inbjudan.roll ? rollEfterAccept(inbjudan.roll) : tidigare.roll;
-            const { updated } = await uppdateraOm(MEDLEMSKAP, id, { status: "avslutad" }, { status: "aktiv", roll });
+            /*
+             * ⛔ EN RAD SOM SAKNAR NAMN ELLER ADRESS FÅR DEM NÄR DEN ÅTERAKTIVERAS (0.234.0, cllp/lifehub.app#861). Raden kan
+             * vara skriven före 0.234.0, utan `epost`, eller med ett tomt namn. Den som kommer tillbaka ska inte stå som
+             * "Namn saknas" i gruppen. Ett namn eller en adress som redan finns rörs inte: det är `uppdateraProfil`s sak.
+             */
+            if (anvandaren === undefined) anvandaren = (await kalla.read(ANVANDARE, uid)) ?? null;
+            /** @type {Record<string, unknown>} */
+            const patch = { status: "aktiv", roll };
+            const namnNu = anvandaren?.namn || (typeof b?.namn === "string" ? b.namn.trim() : "");
+            if (!(typeof tidigare.namn === "string" && tidigare.namn.trim()) && namnNu) patch.namn = namnNu;
+            if (!(typeof tidigare.epost === "string" && tidigare.epost.trim())) patch.epost = String(anvandaren?.epost || epost).toLowerCase();
+            const { updated } = await uppdateraOm(MEDLEMSKAP, id, { status: "avslutad" }, patch);
             if (updated) {
               ny = true;
             } else {

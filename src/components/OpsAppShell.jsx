@@ -14,6 +14,7 @@ import { entryActive, validateNav } from "../lib/nav.js";
 import { Counter } from "./counter.jsx";
 import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, HusIkon, KryssIkon, MeddelandeIkon, MenuIcon, MikrofonIkon, PlusIkon, GruppIkon } from "./icons.jsx";
 import { OpsTalk, useTalk } from "./OpsTalk.jsx";
+import { AppNavigeringKontext } from "./appNavigering.js";
 import { TalkfaltKontext } from "./useTalkfalt.js";
 import { OpsTooltip } from "./OpsTooltip.jsx";
 import { kontrolleraSamtalet, kontrolleraSkickarText, talkForifyllt, talkKnappNamn } from "../lib/talk.js";
@@ -1097,7 +1098,7 @@ function GenvagRam({ nyckel, ikon, tips = true, className, children }) {
  *   Slå inte på den för en vy som är exakt fönstrets höjd med eget skrivfält i botten (Meddelanden): där finns redan ett eget sätt att skapa.
  * @param {boolean} [props.snabbmenyer] (0.184.0) Plus öppnar en snabbmeny (kolumn uppåt, plus blir kryss) i stället för popover och ark.
  *   Appar i bottenraden öppnar en snabbmeny rakt ovanför fliken, och ett långtryck på Appar går till Appar-sidan. Valen i Skapa är
- *   Ny händelse, Nytt ärende, Nytt meddelande och Ny grupp, bara de appen gett. `skapa.rad` och registreringar ritas inte där.
+ *   Ny händelse, Nytt ärende, Nytt meddelande och Ny grupp, bara de appen gett, och efter dem modulernas `skapa.rad` (0.234.0) i modulordning. Registreringar (Skapa app) ritas inte där.
  *   Apparna är `arkRader` ur `apparArk`: gruppens installerade kort, samma urval som Appar-vyn. Utan propen är skalet som förut.
  * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onMeddelande?: (underlag: import("../lib/talk.js").Talkunderlag) => void, onAgent?: (text: string) => void | Promise<void>, onAnteckning?: (text: string) => void | import("../lib/talk.js").Talkanteckningslank | Promise<void | import("../lib/talk.js").Talkanteckningslank>, tillText?: (blob: Blob, meta: { mimeType: string, sekunder: number }) => Promise<string>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string }, text?: string }) => Promise<void | import("../lib/talk.js").Talkkvitto> | void | import("../lib/talk.js").Talkkvitto }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2). ⛔ (0.103.0) Bottenradens mittknapp
  *   är då en mikrofon: ett vanligt tryck spelar in, och ett långtryck öppnar skapa-listan (utan TALK-raden) när den har något.
@@ -2633,6 +2634,7 @@ function OpsAppShellRitad({
 
   // ⛔ 0.184.0: SNABBMENYNS VAL UR SAMMA FRÅGOR SOM ARKET. Fyra rader, och bara när mottagaren finns.
   // Ny grupp är med (CP 2026-11-04): utan den saknar telefonen en väg att skapa grupp.
+  /** @type {Array<{ id: string, etikett: string, ikon?: string | null, ikonNod?: import("react").ReactNode, onValj: () => void }>} */
   const skapaSnabb = snabbmenyer
     ? skapaSnabbPoster({
         handelse: Boolean(skapa?.handelse),
@@ -2655,6 +2657,21 @@ function OpsAppShellRitad({
         },
       }))
     : [];
+  // ⛔ MODULERNAS `skapa.rad` OCKSÅ I SNABBMENYN (0.234.0). CP ville ha Ny anteckning i pluset, men med `snabbmenyer` ritade skalet bara de fyra
+  // fasta raderna, i pluset, långtrycket och den flytande knappen: en modul som registrerat en rad syntes i arket och aldrig här. Raderna står
+  // efter de fasta, i modulordning, med samma grind (`tillaggFor`, gruppens påslagna moduler) och samma anrop som arket: `onSkapa({ grupp })`.
+  // Menyn stänger först och anropar i nästa tick (`OpsSnabbmeny`, `stang("val", ...)`).
+  if (snabbmenyer) {
+    for (const t of skapaRader) {
+      skapaSnabb.push({
+        id: `modul:${t.modulId}:${t.id}`,
+        etikett: text(t.etikett, skapa?.sprak ?? sprak),
+        ikon: null,
+        ikonNod: /** @type {import("react").ReactNode} */ (t.ikon),
+        onValj: () => /** @type {Function} */ (t.onSkapa)({ grupp: skapa?.aktivGrupp }),
+      });
+    }
+  }
   const apparKort = snabbmenyer && apparArk ? arkRader(apparArk.grupp ?? null, apparArk.moduler ?? []) : [];
   const apparSnabb = apparSnabbPoster(apparKort.map((r) => ({ id: r.id, href: r.href, etikett: text(r.namn, sprak) }))).map((p) => {
     const rad = apparKort.find((r) => r.id === p.id);
@@ -2669,6 +2686,7 @@ function OpsAppShellRitad({
   // bottenraden. Se OpsSpelare.jsx.
   return (
     <OpsSpelareProvider>
+    <AppNavigeringKontext.Provider value={onNavigate ? onActivate : null}>
     <TalkfaltKontext.Provider value={talkfaltVarde}>
     <OppnaSkapaKontext.Provider value={oppnaFranApp}>
     <OppnaHandelseKontext.Provider value={handelsepanel ? oppnaHandelse : null}>
@@ -3248,6 +3266,8 @@ function OpsAppShellRitad({
             etikett={ordet(ORD_OPSAPPARARK, "titel", sprak)}
             poster={apparSnabb}
             tomText={ordet(ORD_OPSAPPARARK, "inga", sprak)}
+            // (0.234.0) Alla verktyg överst, samma väg som långtrycket på fliken (`onTillSidan`).
+            alla={apparHref ? { etikett: ordet(ORD_OPSAPPARARK, "allaAppar", sprak), onValj: () => onActivate(apparHref, { preventDefault() {} }) } : undefined}
             ankare="[data-ops-appar-knapp]"
           />
         </>
@@ -3377,6 +3397,7 @@ function OpsAppShellRitad({
     </OppnaHandelseKontext.Provider>
     </OppnaSkapaKontext.Provider>
     </TalkfaltKontext.Provider>
+    </AppNavigeringKontext.Provider>
     </OpsSpelareProvider>
   );
 }

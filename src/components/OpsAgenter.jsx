@@ -14,6 +14,7 @@ import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsModulRam } from "./OpsModulRam.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsSwitch } from "./OpsToggle.jsx";
+import { OpsVantar } from "./OpsVantar.jsx";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 
 /**
@@ -87,6 +88,10 @@ export const ORD_OPSAGENTER = {
   modellHjalp: { sv: "Välj den modell agenten ska svara med.", en: "Choose the model the agent should reply with." },
   modellLista: { sv: "Modeller", en: "Models" },
   kopplaNyckel: { sv: "Koppla nyckel", en: "Connect a key" },
+  // ⛔ TRE LÄGEN, TRE UTSEENDEN (0.234.0, cllp/ops-framework#607). Se `nyckellage` vid OpsAgenter.
+  lasNycklar: { sv: "Läser nycklar ...", en: "Reading keys ..." },
+  nyckelfelRubrik: { sv: "Nycklarna kunde inte läsas", en: "The keys could not be read" },
+  nyckelfel: { sv: "Modellerna som kräver en nyckel går inte att välja förrän nycklarna har lästs. Försök igen om en stund.", en: "The models that need a key cannot be chosen until the keys have been read. Try again in a moment." },
   okandModell: { sv: "Den valda modellen finns inte i listan.", en: "The chosen model is not in the list." },
   ingenModell: { sv: "Ingen modell angiven.", en: "No model given." },
   kommer: { sv: "Kommer", en: "Coming" },
@@ -262,6 +267,11 @@ function kravGranser(granser) {
  * @param {ReadonlyArray<{ id: string, text: string }>} [props.minne]
  * @param {{ id?: string, namn?: string, hint?: string } | null} [props.modell] Vald modell. `id` är listans id. Ett `namn` som är samma id träffar också.
  * @param {readonly string[]} [props.kopplade] Leverantörer med en nyckel som kan användas. Utan lista är bara modellen utan nyckel valbar.
+ * @param {"laddar" | "klar" | "fel"} [props.nyckellage] (0.234.0, cllp/ops-framework#607) Läget för `kopplade`. `laddar`: nycklarna läses, och
+ *   varje modell som kräver en nyckel visar "Läser nycklar ..." och går inte att välja. `klar` (förval): `kopplade` är läst, och en modell
+ *   vars leverantör saknas där visar "Koppla nyckel". `fel`: läsningen föll, och det står som ett fel, aldrig som "Koppla nyckel".
+ *   Modellen utan nyckel (Gemini Flash Lite) går att välja i alla tre.
+ * @param {string} [props.nyckelfel] (0.234.0) Felets text när `nyckellage` är `fel`. Utelämnad: ramverkets egen mening.
  * @param {string} [props.valvHref] Samma adress som `nycklarHref`, om den inte är satt. Ett gammalt namn från 0.90.2.
  * @param {string} [props.nycklarHref] Adressen till AI-nycklar i Mitt konto. "Koppla nyckel" och "Hantera nycklar i Mitt konto" pekar dit.
  * @param {boolean} [props.inomInstallningar] (0.90.6) Rita listan och agentens inställningar utan modulramen. Gruppens inställningar har redan sin panel.
@@ -302,6 +312,8 @@ export function OpsAgenter({
   minne = [],
   modell = null,
   kopplade = [],
+  nyckellage = "klar",
+  nyckelfel = "",
   valvHref = "",
   nycklarHref = "",
   inomInstallningar = false,
@@ -330,6 +342,12 @@ export function OpsAgenter({
   const tak = kravGranser(granser);
   if (!Array.isArray(kopplade) || kopplade.some((k) => typeof k !== "string")) {
     throw new Error("OpsAgenter: kopplade ska vara en lista av leverantörer. En tom lista betyder att ingen nyckel är kopplad.");
+  }
+  if (nyckellage !== "laddar" && nyckellage !== "klar" && nyckellage !== "fel") {
+    throw new Error(`OpsAgenter: nyckellage "${String(nyckellage)}" finns inte. Giltiga: laddar, klar, fel. Ett okänt värde hade ritats som "Koppla nyckel", alltså som att nyckeln saknas.`);
+  }
+  if (typeof nyckelfel !== "string") {
+    throw new Error("OpsAgenter: nyckelfel ska vara felets text, eller utelämnas.");
   }
   if (typeof valvHref !== "string") {
     throw new Error("OpsAgenter: valvHref ska vara en adress, eller utelämnas. En tom adress pekar på nyckelrutan i avsnittet.");
@@ -367,6 +385,8 @@ export function OpsAgenter({
       minne={minne}
       modell={modell}
       kopplade={kopplade}
+      nyckellage={nyckellage}
+      nyckelfel={nyckelfel}
       valvHref={nyckelAdress}
       onSparaModell={onSparaModell}
       modellvalAktivt={modellvalAktivt}
@@ -476,6 +496,8 @@ function AgentLista({ t, agenter, activeHref, onNavigate, onSkrivTill, listfel =
  * @param {ReadonlyArray<{ id: string, text: string }>} props.minne
  * @param {{ id?: string, namn?: string, hint?: string } | null} props.modell
  * @param {readonly string[]} props.kopplade
+ * @param {"laddar" | "klar" | "fel"} props.nyckellage
+ * @param {string} props.nyckelfel
  * @param {string} props.valvHref
  * @param {Function} [props.onSparaModell]
  * @param {boolean} props.modellvalAktivt
@@ -496,7 +518,7 @@ function AgentLista({ t, agenter, activeHref, onNavigate, onSkrivTill, listfel =
  * @param {boolean} props.kanVaxla
  */
 function AgentKropp({
-  t, agenter, vald, activeHref, onNavigate, status, fel, sparfel, sparar, installning, skills, verktyg, minne, modell, kopplade, valvHref, onSparaModell, modellvalAktivt, sprak, byok, granser, farAndra,
+  t, agenter, vald, activeHref, onNavigate, status, fel, sparfel, sparar, installning, skills, verktyg, minne, modell, kopplade, nyckellage, nyckelfel, valvHref, onSparaModell, modellvalAktivt, sprak, byok, granser, farAndra,
   onSparaIdentitet, onSparaInstruktioner, onSparaVerktyg, onSparaMinnePa, onSparaSkill, onTaBortSkill, onSparaMinne, onTaBortMinne, onLasSkill, onVaxla, kanVaxla,
 }) {
   if (!vald) {
@@ -545,6 +567,8 @@ function AgentKropp({
           minne={minne}
           modell={modell}
           kopplade={kopplade}
+          nyckellage={nyckellage}
+          nyckelfel={nyckelfel}
           valvHref={valvHref}
           onSparaModell={onSparaModell}
           modellvalAktivt={modellvalAktivt}
@@ -582,6 +606,8 @@ function AgentKropp({
  * @param {ReadonlyArray<{ id: string, text: string }>} props.minne
  * @param {{ id?: string, namn?: string, hint?: string } | null} props.modell
  * @param {readonly string[]} props.kopplade
+ * @param {"laddar" | "klar" | "fel"} props.nyckellage
+ * @param {string} props.nyckelfel
  * @param {string} props.valvHref
  * @param {Function} [props.onSparaModell]
  * @param {boolean} props.modellvalAktivt
@@ -606,7 +632,7 @@ function AgentFalt(props) {
   const {
     t, vald, activeHref, onNavigate, installning, farAndra, sparar, granser, onSparaIdentitet, onVaxla, kanVaxla,
     onSparaInstruktioner, onSparaVerktyg, onSparaMinnePa, onSparaSkill, onTaBortSkill, onSparaMinne, onTaBortMinne, onLasSkill,
-    kopplade, valvHref, onSparaModell, modellvalAktivt, sprak,
+    kopplade, nyckellage, nyckelfel, valvHref, onSparaModell, modellvalAktivt, sprak,
   } = props;
   const [lokaltFel, setLokaltFel] = useState("");
   const [sparat, setSparat] = useState("");
@@ -671,7 +697,7 @@ function AgentFalt(props) {
     // ⛔ Avstängt val sparar ingenting och säger inte "Sparat." (0.93.0). `kor` är det som skriver den texten.
     if (!modellvalAktivt) return undefined;
     const m = modellUrId(id);
-    if (!m || !modellKanValjas(m, kopplade)) return undefined;
+    if (!m || !kanValjasNu(m, kopplade, nyckellage)) return undefined;
     return kor(() => onSparaModell?.({ id: m.id, leverantor: m.leverantor }), onSparaModell);
   };
 
@@ -720,6 +746,8 @@ function AgentFalt(props) {
             sprak={sprak}
             valdId={valdModellId}
             kopplade={kopplade}
+            nyckellage={nyckellage}
+            nyckelfel={nyckelfel}
             farAndra={farAndra}
             activeHref={activeHref}
             valvHref={valvHref}
@@ -727,7 +755,7 @@ function AgentFalt(props) {
             aktivt={modellvalAktivt}
             onValj={(id) => {
               const m = modellUrId(id);
-              if (!modellvalAktivt || !m || !modellKanValjas(m, kopplade) || !farAndra) return;
+              if (!modellvalAktivt || !m || !kanValjasNu(m, kopplade, nyckellage) || !farAndra) return;
               if (typeof onSparaModell !== "function") {
                 setSparat("");
                 setLokaltFel(t("sparandeSaknas"));
@@ -945,6 +973,8 @@ function AgentFalt(props) {
             sprak={sprak}
             valdId={valdModellId}
             kopplade={kopplade}
+            nyckellage={nyckellage}
+            nyckelfel={nyckelfel}
             farAndra={farAndra}
             activeHref={activeHref}
             valvHref={valvHref}
@@ -952,7 +982,7 @@ function AgentFalt(props) {
             aktivt={modellvalAktivt}
             onValj={(id) => {
               const m = modellUrId(id);
-              if (!modellvalAktivt || !m || !modellKanValjas(m, kopplade) || !farAndra) return;
+              if (!modellvalAktivt || !m || !kanValjasNu(m, kopplade, nyckellage) || !farAndra) return;
               setLokaltFel("");
               setValdModellId(id);
             }}
@@ -960,7 +990,7 @@ function AgentFalt(props) {
           {props.modell?.hint && props.modell.hint !== props.modell.namn && props.modell.hint !== props.modell.id ? <p className="m-0 text-hjalp text-ink-muted">{props.modell.hint}</p> : null}
           {farAndra && modellvalAktivt ? (
             <div>
-              <OpsButton variant="primary" busy={sparar || undefined} disabled={sparar || !modellUrId(valdModellId) || !modellKanValjas(modellUrId(valdModellId), kopplade)} onClick={() => sparaModell(valdModellId)}>
+              <OpsButton variant="primary" busy={sparar || undefined} disabled={sparar || !modellUrId(valdModellId) || !kanValjasNu(modellUrId(valdModellId), kopplade, nyckellage)} onClick={() => sparaModell(valdModellId)}>
                 {t("spara")}
               </OpsButton>
             </div>
@@ -1060,11 +1090,39 @@ function nyckelHref(activeHref, valvHref) {
 }
 
 /**
+ * Om modellen går att välja NU: modellen utan nyckel alltid, en modell med nyckel bara när nycklarna är lästa och leverantören står i
+ * `kopplade` (0.234.0, cllp/ops-framework#607). Medan nycklarna läses, eller när läsningen föll, är svaret nej, oavsett vad `kopplade` råkar
+ * innehålla: ett val som går att trycka på innan läget är känt är samma gissning som "Koppla nyckel" innan det är bekräftat.
+ *
+ * @param {import("../lib/agentmodeller.js").AgentModell | null | undefined} m
+ * @param {readonly string[]} kopplade
+ * @param {"laddar" | "klar" | "fel"} nyckellage
+ */
+function kanValjasNu(m, kopplade, nyckellage) {
+  if (!m) return false;
+  if (m.nyckel !== true) return true;
+  return nyckellage === "klar" && modellKanValjas(m, kopplade);
+}
+
+/**
+ * ══ ⛔ HÄNDELSEN: TRE LÄGEN SÅG UT SOM TVÅ (0.234.0, cllp/ops-framework#607) ═══════════════════════════════════════════════
+ *
+ * CP 2026-11-16, med en skärmbild från gruppens agent: "När jag öppnar Modell under agentens inställningar visas modellerna först
+ * som låsta med 'Koppla nyckel', också den modell vars nyckel redan finns. Efter en stund låses den upp av sig själv. Under tiden
+ * ser det ut som om nyckeln saknas, och man kan få för sig att koppla en ny." Väljaren kände bara `kopplade`, och en lista som inte
+ * var läst än såg ut som en tom lista. Nu ritar varje modell som kräver en nyckel ett av tre lägen:
+ *
+ *   laddar  "Läser nycklar ..." med väntans rad (`OpsVantar`, samma som `OpsEmpty busy`), och valet är avstängt
+ *   klar    valbar när nyckeln finns, annars "Koppla nyckel", som nu bara står när det är bekräftat
+ *   fel     ett fel ovanför listan och valet avstängt, aldrig "Koppla nyckel" (regel 5: ett fel som ser ut som "saknas" är tyst)
+ *
  * @param {object} props
  * @param {(nyckel: keyof typeof ORD_OPSAGENTER) => string} props.t
  * @param {string} props.sprak
  * @param {string} props.valdId
  * @param {readonly string[]} props.kopplade
+ * @param {"laddar" | "klar" | "fel"} props.nyckellage
+ * @param {string} props.nyckelfel
  * @param {boolean} props.farAndra
  * @param {string} props.activeHref
  * @param {string} props.valvHref
@@ -1072,7 +1130,7 @@ function nyckelHref(activeHref, valvHref) {
  * @param {boolean} props.aktivt Falskt: valen är avstängda och väljaren märkt Kommer (0.93.0).
  * @param {(id: string) => void} props.onValj
  */
-function ModellValjare({ t, sprak, valdId, kopplade, farAndra, activeHref, valvHref, okand, aktivt, onValj }) {
+function ModellValjare({ t, sprak, valdId, kopplade, nyckellage, nyckelfel, farAndra, activeHref, valvHref, okand, aktivt, onValj }) {
   const bas = useId();
   const href = nyckelHref(activeHref, valvHref);
   return (
@@ -1084,13 +1142,18 @@ function ModellValjare({ t, sprak, valdId, kopplade, farAndra, activeHref, valvH
       {aktivt ? null : <p className="m-0 text-etikett text-ink-muted">{t("modellKommer")}</p>}
       {okand ? <p className="m-0 text-etikett text-ink">{t("okandModell")}</p> : null}
       {!valdId && !okand ? <p className="m-0 text-etikett text-ink">{t("ingenModell")}</p> : null}
+      {nyckellage === "fel" ? (
+        <OpsBanner tone="danger" title={t("nyckelfelRubrik")}>
+          <span data-agent-nyckelfel="">{nyckelfel || t("nyckelfel")}</span>
+        </OpsBanner>
+      ) : null}
       <ul aria-label={t("modellLista")} className="m-0 flex list-none flex-col gap-2 p-0">
         {AGENTMODELLER.map((m) => {
-          const kan = modellKanValjas(m, kopplade);
+          const kan = kanValjasNu(m, kopplade, nyckellage);
           const namn = text(m.namn, sprak);
           const id = `${bas}-${m.leverantor}`;
           return (
-            <li key={m.leverantor} className="rounded-base border border-line p-3">
+            <li key={m.leverantor} className="rounded-base border border-line p-3" data-nyckellage={m.nyckel !== true ? "utan-nyckel" : nyckellage === "klar" ? (kan ? "finns" : "saknas") : nyckellage}>
               <label htmlFor={id} className={`flex min-h-11 items-start gap-3 ${aktivt && kan && farAndra ? "cursor-pointer" : "cursor-not-allowed opacity-55"}`}>
                 <input
                   id={id}
@@ -1107,7 +1170,11 @@ function ModellValjare({ t, sprak, valdId, kopplade, farAndra, activeHref, valvH
                   <span className="block text-etikett text-ink-muted">{text(m.beskrivning, sprak)}</span>
                 </span>
               </label>
-              {kan ? null : (
+              {kan || m.nyckel !== true || nyckellage === "fel" ? null : nyckellage === "laddar" ? (
+                <span className="mt-1 flex min-h-11 items-center" data-agent-laser-nycklar="">
+                  <OpsVantar text={t("lasNycklar")} storlek="sm" />
+                </span>
+              ) : (
                 <a
                   href={href}
                   aria-label={`${t("kopplaNyckel")}, ${namn}`}

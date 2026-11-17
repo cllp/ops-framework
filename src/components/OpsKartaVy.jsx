@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Map, NavigationControl, Popup, getWorkerUrl, setWorkerUrl } from "maplibre-gl";
+import { createPortal } from "react-dom";
+import { IKON_FOR } from "./ikonlexikon.js";
+import { useHelskarm } from "./useHelskarm.js";
+import { GeolocateControl, Map, NavigationControl, Popup, getWorkerUrl, setWorkerUrl } from "maplibre-gl";
 // @ts-expect-error CSS-importen löses av appens bundler. tsc har ingen deklaration för den.
 import "maplibre-gl/dist/maplibre-gl.css";
-import { basPensel, berika, byggStil, granser, lasKartFarger, objektPensel, OBJEKT_LAGER, popupElement } from "../lib/karta.js";
+import { arAppleEnhet, basPensel, berika, kartlankar, byggStil, granser, KARTPOPUP_CSS, KARTPOPUP_KLASS, KARTPOPUP_STIL_ID, lasKartFarger, objektPensel, OBJEKT_LAGER, popupElement } from "../lib/karta.js";
+import { cx } from "../lib/cx.js";
 
 /**
  * Själva kartan (0.223.0, cllp/ops-framework#570). Importeras bara av `OpsKarta`, med en dynamisk import, så MapLibre och dess CSS ligger i en egen bit.
@@ -24,6 +28,20 @@ export function OpsKartaVy({ samling, texter }) {
   const senast = useRef({ samling, texter });
   senast.current = { samling, texter };
   const [fel, setFel] = useState(/** @type {string} */ (""));
+  // Den öppna popupen: platsen i dess innehåll där vyn ritar sina knappar (en portal), och popupen själv.
+  // ⛔ MIN POSITION SOM INTE GICK ATT FÅ SYNS (0.234.0, regel 5): "nekad" när personen eller telefonen sagt nej, "fel" när positionen inte kom.
+  const [platsFel, setPlatsFel] = useState(/** @type {"" | "nekad" | "fel"} */ (""));
+  const [popupMal, setPopupMal] = useState(/** @type {{ plats: HTMLElement, popup: any, feature: any } | null} */ (null));
+  /*
+   * ══ ⛔ HELSKÄRM (0.234.0) ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+   * CP 2026-11-16: "Jag kan inte få en fullscreen för kartor, det är ett måste." Samma beteende och samma ord som PDF-vyns Helskärm (0.196.0),
+   * genom `useHelskarm`: webbläsarens helskärm där den finns, annars ett fast lager över hela skärmen (iPhone ger inte ett element helskärm),
+   * med Stäng, säkra zoner och Escape. Kartan ritas om till den nya storleken när den går in i och ut ur läget (`resize`).
+   */
+  const { lage: helskarm, oppna: oppnaHelskarm, avsluta: stangHelskarm } = useHelskarm(ram);
+  useEffect(() => {
+    karta.current?.resize?.();
+  }, [helskarm]);
 
   useEffect(() => {
     const el = ruta.current;
@@ -50,6 +68,8 @@ export function OpsKartaVy({ samling, texter }) {
           "NavigationControl.ZoomOut": senast.current.texter.zoomaUt,
           "NavigationControl.ResetBearing": senast.current.texter.aterstall,
           "Popup.Close": senast.current.texter.stang,
+          "GeolocateControl.FindMyLocation": senast.current.texter.minPosition,
+          "GeolocateControl.LocationNotAvailable": senast.current.texter.positionSaknas,
           "AttributionControl.ToggleAttribution": senast.current.texter.visaTillhorighet,
           "CooperativeGesturesHandler.WindowsHelpText": senast.current.texter.ctrl,
           "CooperativeGesturesHandler.MacHelpText": senast.current.texter.cmd,
@@ -62,14 +82,40 @@ export function OpsKartaVy({ samling, texter }) {
       return undefined;
     }
     karta.current = kartaNu;
+    // Popupens stil läggs när kartan finns, inte först vid ett tryck, så att den står i dokumentet före första popupen.
+    installeraPopupStil();
     kartaNu.addControl(new NavigationControl({ showCompass: false, visualizePitch: false }), "top-right");
+    /*
+     * ══ ⛔ MIN POSITION (0.234.0) ═══════════════════════════════════════════════════════════════════════════════════════════════════
+     * CP 2026-11-16: "Kan man få sin position i en karta också?" MapLibres egen kontroll, med följ-läge och träffsäkerhetens cirkel. Positionen
+     * ritas bara i kartan i den här webbläsaren: ingenting sparas och ingenting skickas. Kontrollen står under zoomen, och följer med i helskärm.
+     * Ett nej eller en position som inte kommer blir en rad i kartan (`data-karta-plats-fel`), aldrig en knapp som bara slutar svara.
+     */
+    const plats = new GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true, showAccuracyCircle: true, showUserLocation: true });
+    plats.on("error", (/** @type {{ code?: number }} */ e) => {
+      if (kvar) setPlatsFel(e?.code === 1 ? "nekad" : "fel");
+    });
+    plats.on("geolocate", () => {
+      if (kvar) setPlatsFel("");
+    });
+    kartaNu.addControl(plats, "top-right");
     kartaNu.on("click", (e) => {
       const traff = kartaNu.queryRenderedFeatures(e.point, { layers: OBJEKT_LAGER });
       const feature = OBJEKT_LAGER.map((id) => traff.find((f) => f.layer?.id === id)).find(Boolean);
       if (!feature) return;
       const innehall = popupElement(feature);
       if (!innehall) return;
-      new Popup({ closeButton: true, maxWidth: "16rem" }).setLngLat(e.lngLat).setDOMContent(innehall).addTo(kartaNu);
+      // ⛔ POPUPEN I APPENS TOKEN (0.234.0, `KARTPOPUP_CSS`), med en egen Stäng: en riktig knapp med namn och en träffyta på 44 px. MapLibres kryss var 20 px och nästan osynligt
+      // i mörkt läge. Knappen ritas av vyn genom en portal till `plats`, så att ikonen är ramverkets (`IKON_FOR.stang`) och inte en handritad.
+      const popup = new Popup({ closeButton: false, maxWidth: "16rem", className: KARTPOPUP_KLASS });
+      const plats = document.createElement("div");
+      plats.setAttribute("data-karta-popup-tillagg", "");
+      innehall.append(plats);
+      popup.on?.("close", () => {
+        if (kvar) setPopupMal((m) => (m?.plats === plats ? null : m));
+      });
+      setPopupMal({ plats, popup, feature });
+      popup.setLngLat(e.lngLat).setDOMContent(innehall).addTo(kartaNu);
     });
     kartaNu.on("load", () => {
       if (!kvar) return;
@@ -141,12 +187,94 @@ export function OpsKartaVy({ samling, texter }) {
   // och `maplibre-gl.css` ger den `position: relative`. Den regeln ligger utanför alla lager och vinner därför över Tailwinds `absolute` (som ligger i `@layer utilities`),
   // var den än står i filen. `inset-0` utan `absolute` ger ingen höjd: ytan blev 0 px i en ruta på 384, och MapLibre ritade ingenting. Höjden ärvs nu av rutans
   // egen höjd, som MapLibres CSS inte rör. `check-skalyta` bäddar in `maplibre-gl.css` som appen gör och mäter ytan mot rutan.
+  const HelskarmIkon = IKON_FOR.helskarm;
+  const StangIkon = IKON_FOR.stang;
   return (
-    <div ref={ram} className="relative h-72 w-full min-w-0 overflow-hidden rounded-lg bg-sunken md:h-96" role="region" aria-label={texter.rubrik} data-karta="" data-karta-fel={fel || undefined}>
+    <div
+      ref={ram}
+      className={cx(
+        "relative w-full min-w-0 overflow-hidden bg-sunken",
+        // Reservlagret (`fonster`) täcker hela skärmen med säkra zoner. I webbläsarens helskärm sätter webbläsaren själv storleken.
+        helskarm === "fonster" ? "fixed inset-0 z-[1000] h-dvh pt-(--safe-top) pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left)" : helskarm ? "" : "h-72 rounded-lg md:h-96",
+      )}
+      role="region"
+      aria-label={texter.rubrik}
+      data-karta=""
+      data-karta-helskarm={helskarm || undefined}
+      data-karta-fel={fel || undefined}
+    >
       <div ref={ruta} className="h-full w-full" data-karta-yta="" />
+      {/* ⛔ KNAPPEN STÅR UPPE TILL VÄNSTER: zoomen (MapLibres NavigationControl) står uppe till höger. I helskärm är den Stäng, med säkra zonen räknad. */}
+      <button
+        type="button"
+        data-karta-helskarm-knapp={helskarm ? "stang" : "oppna"}
+        aria-label={helskarm ? texter.avslutaHelskarm : texter.helskarm}
+        title={helskarm ? texter.avslutaHelskarm : texter.helskarm}
+        onClick={() => (helskarm ? stangHelskarm() : oppnaHelskarm())}
+        className="absolute top-2 left-2 z-10 flex size-11 items-center justify-center rounded-full bg-surface text-ink shadow-sm hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        style={helskarm === "fonster" ? { top: "calc(var(--safe-top) + 0.5rem)", left: "calc(var(--safe-left) + 0.5rem)" } : undefined}
+      >
+        {helskarm ? <StangIkon size={20} aria-hidden="true" /> : <HelskarmIkon size={20} aria-hidden="true" />}
+      </button>
+      {popupMal
+        ? createPortal(
+            <>
+            <button
+              type="button"
+              aria-label={texter.stang}
+              data-karta-popup-stang=""
+              onClick={() => popupMal.popup.remove()}
+              className="absolute top-0 right-0 flex size-11 cursor-pointer items-center justify-center rounded-base text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+            >
+              <StangIkon size={18} aria-hidden="true" />
+            </button>
+            <PopupLankar feature={popupMal.feature} texter={texter} />
+            </>,
+            popupMal.plats,
+          )
+        : null}
+      {platsFel ? (
+        <p role="status" data-karta-plats-fel={platsFel} className="absolute inset-x-2 bottom-2 z-10 m-0 rounded-base border border-line bg-raised px-3 py-2 text-etikett text-ink shadow-md">
+          {platsFel === "nekad" ? texter.platsNekad : texter.platsFel}
+        </p>
+      ) : null}
       {fel === "lasfel" || fel === "ytfel" ? <p role="alert" className="absolute inset-x-0 bottom-0 m-0 bg-karta-papper px-3 py-2 text-etikett text-karta-text">{texter[fel]}</p> : null}
     </div>
   );
+}
+
+/**
+ * "Öppna i Kartor" och "Öppna i Google Maps" för en punkt eller en rutt (0.234.0). CP 2026-11-16: "Samt en länk, öppna rutt eller position i telefonens
+ * Kartor eller Google Maps om det är installerat." Kartor bara på en Apple-enhet, där appen finns. Båda öppnas utanför appen (`target="_blank"`),
+ * som appens andra externa länkar: i appens skal är en adress utanför `allowNavigation` en adress som telefonen öppnar, och en universell länk
+ * öppnar då appen om den är installerad.
+ * @param {{ feature: any, texter: Record<string, string> }} props
+ */
+function PopupLankar({ feature, texter }) {
+  const lankar = kartlankar(feature);
+  if (!lankar) return null;
+  const klass = "inline-flex min-h-11 items-center text-etikett font-medium text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  return (
+    <span className="mt-1 flex flex-wrap gap-x-4" data-karta-lankar="">
+      {arAppleEnhet() ? (
+        <a href={lankar.apple} target="_blank" rel="noopener noreferrer" className={klass} data-karta-lank="apple">
+          {texter.oppnaKartor}
+        </a>
+      ) : null}
+      <a href={lankar.google} target="_blank" rel="noopener noreferrer" className={klass} data-karta-lank="google">
+        {texter.oppnaGoogle}
+      </a>
+    </span>
+  );
+}
+
+/** Popupens stil i dokumentet, en gång (`KARTPOPUP_CSS`). */
+function installeraPopupStil() {
+  if (typeof document === "undefined" || document.getElementById(KARTPOPUP_STIL_ID)) return;
+  const stil = document.createElement("style");
+  stil.id = KARTPOPUP_STIL_ID;
+  stil.textContent = KARTPOPUP_CSS;
+  document.head.appendChild(stil);
 }
 
 /**

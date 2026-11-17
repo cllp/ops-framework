@@ -63,6 +63,10 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  */
 
 /**
+ * @typedef {{ startad: true } | { startad: false, fel: "blockerad" | "avbruten" | "ersatt" | "ingen-adress" | "fel" }} Startutfall
+ */
+
+/**
  * @typedef {object} Spelarlage
  * @property {Spar | null} spar
  * @property {boolean} spelar
@@ -72,7 +76,8 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @property {number} hastighet
  * @property {number[] | null} toppar
  * @property {string} fel
- * @property {(spar: Spar) => void} spela
+ * @property {(spar: Spar) => Promise<Startutfall>} spela Startar spåret. Svaret säger om det startade (0.234.0): `blockerad` när webbläsaren inte
+ *   tillät uppspelningen utan ett tryck (`NotAllowedError`).
  * @property {(spar: Spar) => void} vaxla Spela ett annat spår, eller pausa och fortsätta samma.
  * @property {() => void} pausa
  * @property {(sekunder: number) => void} sok
@@ -222,7 +227,7 @@ export function OpsSpelareProvider({ children }) {
     const el = ljud.current;
     if (!el || !ny || typeof ny.src !== "string" || ny.src === "") {
       setFel("Ljudet har ingen adress.");
-      return;
+      return Promise.resolve(/** @type {Startutfall} */ ({ startad: false, fel: "ingen-adress" }));
     }
     setFel("");
     if (sparRef.current?.src !== ny.src) {
@@ -239,18 +244,23 @@ export function OpsSpelareProvider({ children }) {
     baraEnSpelar(handtag.current);
     setLaddar(true);
     const mitt = ++forsok.current;
-    Promise.resolve()
+    // ⛔ UTFALLET GES TILLBAKA (0.234.0, cllp/lifehub.app#860, L4): den som startade spelningen utan ett tryck på Spela (spela-länken) måste
+    // kunna se att webbläsaren sade nej och be personen trycka. Utan svaret hade en avvisad start bara stått som en rad i spelraden.
+    return Promise.resolve()
       .then(() => el.play())
       .then(
         () => {
           if (mitt === forsok.current) setLaddar(false);
+          return /** @type {Startutfall} */ ({ startad: true });
         },
         (e) => {
-          if (mitt !== forsok.current) return;
+          const namn = e && typeof e === "object" && "name" in e ? String(/** @type {any} */ (e).name) : "";
+          if (mitt !== forsok.current) return /** @type {Startutfall} */ ({ startad: false, fel: "ersatt" });
           setLaddar(false);
           // `AbortError` är ingen felväg, se `startFelText`.
           const text = startFelText(e);
           if (text) setFel(text);
+          return /** @type {Startutfall} */ ({ startad: false, fel: namn === "NotAllowedError" ? "blockerad" : namn === "AbortError" ? "avbruten" : "fel" });
         },
       );
   }, [hastighet]);
@@ -531,6 +541,7 @@ function SpelaKnapp({ spelar, laddar, namn, storlek, onClick, disabled = false }
   return (
     <button
       type="button"
+      data-spela-knapp=""
       aria-label={sord(spelar ? "pausa" : "spela", sprak, { namn })}
       aria-busy={laddar || undefined}
       disabled={disabled}

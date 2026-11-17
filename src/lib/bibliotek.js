@@ -418,6 +418,9 @@ export function gruppForPlats(plats) {
  * Format en fil får ha. Bild, ljud och dokument. En sort per fält hade varit
  * en andra typ, och CP valde en typ.
  */
+/** Zip-arkivets MIME (0.234.0). Ett hem för strängen: `FILMIME`, `MIMEALIAS`, `mimeUrFilnamn`, `lagringsContentDisposition` och Storage-regeln läser den. */
+export const ZIP_MIME = "application/zip";
+
 /** GeoJSON-filens MIME (0.222.0, #763). Ett hem för strängen (0.228.0): `FILMIME`, `mimeUrFilnamn`, `mimeForFil` och `arKartfil` läser den. */
 export const GEOJSON_MIME = "application/geo+json";
 
@@ -458,6 +461,10 @@ export const FILMIME = /** @type {const} */ ([
   // (`KartaForhandsvisning`), och en annan JSON-fil som text. Vilket avgör `arKartfil`, och typen vid uppladdning `mimeForFil`.
   "application/json",
   GEOJSON_MIME,
+  // ⛔ ZIP (0.234.0). CP 2026-11-16: "Kan vi lägga till zip-filer i biblioteket? Vore bra." och "Yes, kör zip". Samma tak som dokumenten (25 MB, `MAX_BIBLIOTEKFIL`). Ett arkiv visas
+  // inte i appen: det laddas ned och öppnas i enhetens egen app. Lagringen sparar det med `Content-Disposition: attachment` (`lagringsContentDisposition`), som HTML, så att en
+  // direktlänk alltid laddar ned. Windows säger application/x-zip-compressed (`MIMEALIAS`), och en tom typ ges av ändelsen (`mimeUrFilnamn`).
+  ZIP_MIME,
 ]);
 
 /**
@@ -584,6 +591,17 @@ export function arHtmlMime(mime) {
 export const HTML_DISPOSITIONSMONSTER = "^attachment(;.*)?$";
 
 /**
+ * Formaten som alltid laddas upp som en bilaga (`Content-Disposition: attachment`), och som Storage-regeln nekar utan den: HTML (0.156.0), som kan köra kod, och zip (0.234.0), som
+ * aldrig ska öppnas av webbläsaren som något annat än en nedladdning.
+ */
+export const BILAGAMIME = /** @type {const} */ ([HTML_MIME, ZIP_MIME]);
+
+/** Mönstret Storage-regeln känner en bilaga på (`BILAGAMIME`), med eller utan parametrar efter typen. */
+export function bilagaContentTypeMonster() {
+  return `^(${BILAGAMIME.map(mimeLiteral).join("|")}).*`;
+}
+
+/**
  * `Content-Disposition` som en HTML-fil laddas upp med (0.156.0): `attachment`, så att en direktlänk till filen laddas ned och aldrig ritas av webbläsaren. Filen ritas bara i den avspärrade rutan.
  *
  * ⛔ STORAGE-REGELN KRÄVER DET OCH `lagringsregelfragment` NEKAR EN HTML-FIL UTAN (`HTML_DISPOSITIONSMONSTER`). Gäller klienten. En signerad adress från servern går förbi reglerna, så appens API sätter samma rubrik själv i `filer/klar`.
@@ -591,11 +609,12 @@ export const HTML_DISPOSITIONSMONSTER = "^attachment(;.*)?$";
  *
  * @param {unknown} mime
  * @param {unknown} namn Filens namn.
- * @returns {string | undefined} Rubrikens värde för en HTML-fil, annars `undefined` (andra filer sätter ingen).
+ * @returns {string | undefined} Rubrikens värde för en HTML-fil och (0.234.0) ett zip-arkiv (`BILAGAMIME`), annars `undefined` (andra filer sätter ingen).
  */
 export function lagringsContentDisposition(mime, namn) {
-  if (!arHtmlMime(mime)) return undefined;
-  const ren = str(namn).replace(/[\u0000-\u001f\u007f]/g, "").replace(/[\\/]/g, "_") || "dokument.html";
+  const m = normaliseraMime(mime);
+  if (!(/** @type {readonly string[]} */ (BILAGAMIME)).includes(m)) return undefined;
+  const ren = str(namn).replace(/[\u0000-\u001f\u007f]/g, "").replace(/[\\/]/g, "_") || (m === ZIP_MIME ? "arkiv.zip" : "dokument.html");
   const ascii = ren.replace(/[^A-Za-z0-9._ -]/g, "_");
   const utf8 = encodeURIComponent(ren).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
   return `attachment; filename="${ascii}"; filename*=UTF-8''${utf8}`;
@@ -920,6 +939,9 @@ const MIMEALIAS = {
   "video/x-m4v": "video/mp4",
   // ⛔ (0.209.0, #706) Webbläsarna säger text/markdown eller text/x-markdown om en .md, och ibland ingenting (då `mimeUrFilnamn`).
   "text/x-markdown": "text/markdown",
+  // ⛔ (0.234.0) Windows och Edge säger application/x-zip-compressed om en .zip, äldre webbläsare application/x-zip. Regeln känner ett namn.
+  "application/x-zip-compressed": ZIP_MIME,
+  "application/x-zip": ZIP_MIME,
 };
 
 /**
@@ -943,7 +965,7 @@ export function mimeUrFilnamn(namn) {
   const m = /\.([a-z0-9]+)$/i.exec(str(namn));
   const andelse = m ? m[1].toLowerCase() : "";
   // (0.133.0) m4a, mp3, aac och ogg: Safari och Android ger ofta tom typ för dem, och utan namnet blev en vald ljudfil "Formatet (tom) går inte att lägga in".
-  return ({ html: "text/html", htm: "text/html", md: "text/markdown", markdown: "text/markdown", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", json: "application/json", geojson: GEOJSON_MIME, docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation" })[andelse] ?? "";
+  return ({ html: "text/html", htm: "text/html", md: "text/markdown", markdown: "text/markdown", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", json: "application/json", geojson: GEOJSON_MIME, docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", zip: ZIP_MIME })[andelse] ?? "";
 }
 
 /**

@@ -9,6 +9,131 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.234.0
+
+**Det står aldrig "Namn saknas" när adressen finns.** CP 2026-11-16: "När Collan hade loggat in stod hans namn som Namn Saknas innan han gick ut och sparade om sin profil." Och samma kväll: "Det får ALDRIG stå namn saknas. Det måste alltid finnas en fallback på eposten." Rotorsaken låg i Identity (tokenen som lämnades till hubben utfärdades innan namnet sattes, rättat i lifehub.identity), men ramverket hade ingen reserv för alla andra i gruppen än "Namn saknas" (cllp/lifehub.app#861).
+
+### Ändrat
+
+- **`personnamn` visar radens adress när namnet saknas.** Nytt alternativ `epost`. Ordningen är medlemskapets namn, den inloggades namn och adress (för den egna raden), radens adress, och först sist `NAMN_SAKNAS`, som nu bara står för den som varken har namn eller adress. `usePersonnamn()` tar adressen som tredje argument: `personnamn(namn, id, epost)`.
+- **Varje vy som ritar en medlem skickar adressen:** `OpsMedlemmar`, `OpsGruppSida`, `OpsMottagare`, `OpsSvar`, `OpsMeddelanden` (avsändare och nämnda), `OpsBeskrivenApp` (fält av typen person) och avatarerna i `OpsGruppanel` (initialerna). `medlemsinfo` bär `epost` på `medlemmar` och `avatarer`, och sorterar på det som visas.
+- **Medlemskapet bär `epost`** (`MEDLEMSKAPSFALT`, gemener). `accepteraInbjudningar` och `skapaGrupp` skriver den ur profilraden, annars ur anropets `epost` (inloggningens), samma källor som namnet. Ett avslutat medlemskap som återaktiveras av en inbjudan får namn och adress om raden saknade dem.
+- **Ett tomt namn skrivs aldrig.** `byggMedlemskap` utelämnar `namn` när det är tomt, i stället för att skriva `""`. Valet och skälet står i koden: ett namn härlett ur adressen hade sett ut som ett riktigt namn, bakfyllnaden hade aldrig hittat raden, och härledningen finns redan i Identity (regel 2).
+- **`uppdateraProfil` skriver aldrig över ett namn med ett tomt.** Före 0.234.0 gav `{ namn: "", bild }` (en token med bild men utan namn) `namn: ""` i `users` och i varje medlemskap. Nu lämnas namnet orört, och bilden skrivs som förut.
+- **Ett avslutat medlemskap bär ingen adress** (granskningen av PR 608). `byggMedlemskap` ger ingen `epost` åt en rad med `status: "avslutad"`, och den nya `medlemskapAvslutas(taBort)` är ändringen som avslutar: `{ status: "avslutad", epost: taBort }`, där `taBort` är databasens värde för att ta bort ett fält (`FieldValue.delete()` med Admin SDK, `FALT_BORT` med en `DataSource`). Mätt i `src/node`: ramverket avslutar inga medlemskap själv, appen gör det, så funktionen är ramverkets enda sanning för vad ett avslut skriver.
+- **`OpsProfil` stoppar ett tömt namn** med ett synligt fel vid fältet ("Skriv ditt namn. Ett tomt namn sparas inte.", ny prop `namnKravsText`), och Spara går inte att trycka. Utan stoppet hade servern lämnat namnet orört och vyn släppt utkastet som om det sparats.
+- **`uppdateraProfil` kastar på ett `namn` som inte är en sträng**, i stället för att tyst ta bort det. Bara den tomma strängen betyder "inget namn att ge".
+- **`bakfyllMedlemsnamn` tar `reserv`**, en funktion `(uid) => namn` som frågas när profilraden saknar namn eller inte finns, till exempel `displayName` ur Identity. Den frågas också vid torrkörning (förval), en gång per person. Svaret har en ny rad, `franReserv`, och utskriften en rad "ur reserven", också när den är 0. Ett kast blir ett fel i `fel`.
+
+### Modellvalet visar när nycklarna läses (cllp/ops-framework#607)
+
+CP 2026-11-16, med en skärmbild från gruppens agent: "När jag öppnar Modell under agentens inställningar visas modellerna först som låsta med 'Koppla nyckel', också den modell vars nyckel redan finns. Efter en stund låses den upp av sig själv." Väljaren kände bara `kopplade`, och en lista som inte var läst än såg ut som en tom lista.
+
+- **`OpsAgenter` tar `nyckellage`** (`laddar`, `klar` eller `fel`, förval `klar`) och `nyckelfel` (felets text). Varje modell som kräver en nyckel ritar sitt läge, i både översikten och avsnittet Modell och nycklar, och raden bär `data-nyckellage`:
+  - `laddar`: "Läser nycklar ..." med väntans rad (`OpsVantar`, samma som `OpsEmpty busy`). Valet går inte att välja, också om leverantören redan står i `kopplade`.
+  - `klar`: valbar när nyckeln finns (`finns`), annars "Koppla nyckel" (`saknas`), som nu bara står när det är bekräftat.
+  - `fel`: ett fel ovanför listan ("Nycklarna kunde inte läsas", med `nyckelfel` eller ramverkets mening), valet avstängt och aldrig "Koppla nyckel" (regel 5).
+  - Gemini Flash Lite behöver ingen nyckel och går att välja i alla tre (`utan-nyckel`). Spara går inte att trycka för en nyckelmodell förrän läget är `klar`.
+- Ett okänt `nyckellage` kastar, i stället för att ritas som att nyckeln saknas.
+
+Prov: `agenter-nyckellage` (nytt, 13), alla tre lägen och felet i båda väljarna, Flash Lite i alla lägen och ett okänt läge. 13 röda mot 0.233.0 och gröna med ändringen.
+
+**Att göra i appen (#607):** skicka `nyckellage`. I lifehub.app (`AgenterView.jsx`) är `nycklar` `null` medan `aiByok` läses, och ett fel ger i dag `[]`, alltså samma sak som "inga nycklar". Ge `nyckellage={nycklar === null ? "laddar" : nyckelfel ? "fel" : "klar"}`, och låt felvägen sätta ett fel i stället för en tom lista. Utan propen är förvalet `klar`, och vyn beter sig som i 0.233.0.
+
+### Agenten vaknar (cllp/ops-framework#609)
+
+CP 2026-11-16: "När man börjar prata med agenten tar det några sekunder att väcka den. Det vore bra om man kunde ha en progress även där att agenten vaknar..." "Agenten tänker" skrivs av servern först när agentens funktion har startat, och mellan att man skickat och att statusen kom syntes ingenting.
+
+- **`OpsMeddelanden` (samtalet och tråden) visar "Agenten vaknar" direkt** efter att ett meddelande som väcker agenten skickats, på samma rad och med samma prickar som "Agenten tänker" (`data-agentstatus="vaknar"`). Raden går bort när serverns status, agentens svar eller ett fel kommer. Kommer inget av dem inom samma tak som för "tänker" (`AGENTSTATUS_MAX_ALDER`, två minuter) blir den en felrad (`data-agentstatus="vaknar-fel"`, `role="alert"`), aldrig tyst. Läget är bara klientens, ingenting skrivs till servern.
+- **Villkoret är serverns, i `vackerAgenten`** (`lib/samtal.js`): agentsamtalet (`slag: "agent"`), och gruppchatten med dess trådar när en aktiv agent är nämnd (`agentenNamnd`). Aldrig ett privat samtal mellan personer, ett projekts chatt eller ett meddelande från en agent. "@Agent" skrivet för hand, som appens server också svarar på, ger ingen rad: regexen bor i appen (`agentbeslut.js`), och en kopia här hade varit en andra sanning.
+- Nya ord: `agentVaknar` ("Agenten vaknar", "The agent is waking up") och `agentVaknarFel`.
+
+Prov: `agent-vaknar` (nytt, 8): raden direkt efter skickat, ersatt av "tänker", borta när svaret kommer, en felrad efter taket, ingen rad i ett samtal utan agent (och raden i agentsamtalet med samma meddelande), och villkoret. 8 röda mot förra commiten och gröna med ändringen.
+
+### Länkar till appen öppnas i appen, och spela-länken (cllp/lifehub.app#860, L3 och L4)
+
+CP 2026-11-16, om agenten: "Jag vill att agenten skall vara en riktig assistens i Life Hub. Ha tillgång till allt och kunna skapa genvägar och länkar direkt till kanske att spela upp en låt eller visa en fil." Om förslaget: "Kör snyggt".
+
+- **L3. En länk till appen navigerar i appen.** `OpsMarkdown` (i agentens svar och i alla meddelanden) skiljer en länk till appen själv, relativ eller med samma ursprung, från en extern. Den interna navigerar med skalets `onNavigate` (`AppNavigeringKontext`, som `OpsAppShell` ger) utan omladdning, och Ctrl, Cmd, Skift, Alt och mittknappen lämnas åt webbläsaren, som `HandelseLank`. Externa länkar öppnas i en ny flik som förut. Utanför skalet är en intern länk en vanlig länk i samma flik.
+- **En relativ adress i texten blir en länk**, `[Hamnen](/bibliotek?plats=g&post=p)`, men bara när den börjar med ett enda `/` (`arRelativAppadress`). `javascript:`, `data:`, `//annan.se` och `/\annan.se` blir aldrig länkar. Postkortets uppslag får en relativ adress som hel adress, med appens ursprung.
+- **Postkortet godtar `?grupp=&post=`** (`lasBibliotekslank`), som `?plats=&post=`. Aldrig båda, och fortfarande exakt två parametrar.
+- **L4. `?spela=1`** (med `post=<id>`) på en ljudposts adress startar spåret i skalets spelare när detaljen öppnats och adressen är klar, och parametern tas bort ur adressen (`history.replaceState`) så att en omladdning inte startar låten igen. Säger webbläsaren nej (`NotAllowedError`) står "Webbläsaren startade inte låten. Tryck på Spela." med `role="alert"`, och Spela får fokus. `medSpela(lank)` bygger länken. Skalets `spela` svarar nu med utfallet (`{ startad }` eller `{ startad: false, fel: "blockerad" | ... }`). Att trycket på länken räcker för att webbläsaren ska tillåta uppspelningen är en **hypotes** för iPhone och ska mätas. Utanför skalet startar inget.
+
+Prov: `lankar-i-appen` (nytt, 9). 7 röda mot förra commiten och gröna med ändringen; "utan spela=1 startar ingenting" sågs röd mot en `spelaBegard` som inte prövar `spela`, och `medSpela` är ny.
+
+### Kartan: helskärm, och popupen i appens token
+
+CP 2026-11-16: "Jag kan inte få en fullscreen för kartor, det är ett måste." Och med en skärmbild i mörkt läge: "kontrasterna funkar inte på locations."
+
+- **Helskärm på kartan.** `OpsKarta` har en knapp Helskärm (44 px, uppe till vänster, `data-karta-helskarm-knapp`) som följer PDF-vyns mönster, nu delat i `useHelskarm`: webbläsarens helskärm där den finns, annars ett fast lager över hela skärmen med säkra ytor, Stäng och Escape. Avslår webbläsaren blir det lagret, aldrig ingenting. Kartan ritas om (`resize`) när läget öppnas och stängs. Under läget nollställs dokumentets `scrollbar-gutter`, som annars lämnade en svart rand på 10 px i Chromium. Nya ord `helskarm` och `avslutaHelskarm` (delade med PDF-vyn via `ORD_HELSKARM`).
+- **Popupen bär appens yta och bläck.** Rutan är `--color-raised` med `--color-ink`, kant, rundning och skugga ur token, och pilen har rutans färg på varje sida (`KARTPOPUP_CSS`, klassen `ops-karta-popup`). Stilen läggs som en egen `<style>` utanför lagren, eftersom `maplibre-gl.css` står utanför lagren och vann över allt i dem. Rubriken är `text-ink` i stället för `text-karta-text`. Kartans egna färger är oförändrade.
+- **Popupens Stäng är en knapp med namn och 44 px** i stället för MapLibres kryss på 20 px.
+
+Prov: `karta-helskarm` (nytt, 6): knappen, helskärmen och omritningen, lagret med Stäng och Escape, avslaget, popupens token och Stäng. 6 röda mot förra commiten och gröna med ändringen. `check-skalyta` 52c (helskärmen fyller fönstret vid 390 och 1280) och 52d (popupens kontrast i ljust och mörkt, 12,5:1 och 11,8:1, pilen i rutans färg, Stäng 44 px). 52d mäter en popup som skalytan bygger med MapLibres och vyns klasser, eftersom scenens karta inte laddar brickor och punkten aldrig ritas.
+
+### Kartan: min position, och Öppna i Kartor eller Google Maps
+
+CP 2026-11-16: "Kan man få sin position i en karta också?" och "Samt en länk, öppna rutt eller position i telefonens Kartor eller Google Maps om det är installerat."
+
+- **Min position.** `OpsKarta` har MapLibres `GeolocateControl` under zoomen, med följ-läge och träffsäkerhetens cirkel, också i helskärm. Positionen ritas bara i kartan: ingenting sparas och ingenting skickas. Ett nej ger raden "Platsen är avstängd i telefonens inställningar. Slå på den för att se var du är." (`data-karta-plats-fel="nekad"`), en position som inte kommer en egen rad, och raden går bort när positionen hittas (regel 5). Nya ord `minPosition`, `positionSaknas`, `platsNekad`, `platsFel`.
+- **Öppna i Kartor och Öppna i Google Maps** i popupen för en punkt och en linje (rutt). URL:erna byggs av den rena `kartlankar(feature)` i `lib/karta.js`: en punkt som `lat,lng` med namnet kodat, en rutt som vägbeskrivning (Google med start, slut och jämnt fördelade mellanpunkter, högst 9 totalt, `glesaRutt`; Apple med start och slut). Kartor visas bara på en Apple-enhet (`arAppleEnhet`). Länkarna öppnas utanför appen (`target="_blank"`, `rel="noopener noreferrer"`). Nya ord `oppnaKartor`, `oppnaGoogle`.
+- ⛔ **Apples rutt har bara start och slut.** `daddr` med flera `to:` är inte provat i en telefon, och en länk som visar fel väg är sämre än en som visar start och slut. En yta får inga länkar.
+
+Prov: `karta-plats` (nytt, 7): kontrollen läggs till, ett nej och ett fel visar raden och en position tar bort den, URL:erna för punkt och rutt (ordningen lat,lng, kodat namn, högst 9 punkter), ytor och ogiltiga koordinater, och Kartor bara på en Apple-enhet. 7 röda mot förra commiten och gröna med ändringen.
+
+**Att göra i appen (kartan):** i lifehub.native, `NSLocationWhenInUseUsageDescription` i iOS-skalets `Info.plist` (till exempel "Life Hub visar var du är på kartan. Positionen sparas inte.") och `ACCESS_FINE_LOCATION` och `ACCESS_COARSE_LOCATION` i Androids manifest. Utan dem frågar telefonen aldrig, och kartan visar raden om inställningarna. Länkarna behöver ingen ändring, läst i Capacitors källa i lifehub.native: på iOS gör `createWebViewWith` (en länk med `target="_blank"`) `UIApplication.shared.open`, på Android gör `launchIntent` `ACTION_VIEW` för en adress utanför `allowNavigation`. Båda låter en universell länk öppna Kartor eller Google Maps. Hypotes tills det provats i telefonen.
+
+### Snabbmenyn: modulernas rader, Alla verktyg, och spela-länken som kort
+
+- **Modulernas `skapa.rad` står i snabbmenyn.** CP ville ha Ny anteckning i pluset. Med `snabbmenyer` ritade skalet bara de fyra fasta raderna (`skapaSnabbPoster`), i pluset, långtrycket och den flytande knappen, och en modul som registrerat en rad syntes i arket men aldrig där. Raderna står nu efter de fyra, i modulordning, med samma grind (gruppens påslagna moduler) och samma anrop, `onSkapa({ grupp })`. Generellt: ingenting i ramverket känner anteckningen. `skapaSnabbPoster` är fortfarande bara de fasta raderna. README och typerna (`lib/tillagg.js`) visar hur en modul registrerar en rad.
+- **Alla verktyg överst i Verktyg-menyn** (cllp/lifehub.app#842 C). Ett tryck på Verktyg visade bara de fästa verktygen, och alla nåddes bara med ett långtryck, "och det hittar ingen". Överst står nu en rund knapp i samma storlek som de andra, en streckad ring med ett plus (CP: "Typ en ring med ett +"), etiketten Alla verktyg (`ORD_OPSAPPARARK.allaAppar`), `aria-label` och först i tangentbordsordningen. Den gör samma sak som långtrycket, som står kvar. Ringen är `border-ink-secondary` på `bg-surface`. Ny prop `alla` på `OpsSnabbmeny`.
+- **En länk med `spela=1` blir ett kort i chatten.** `lasBibliotekslank` krävde exakt två parametrar, så agentens länk till ett ljud (`medSpela`) blev bara en lång adress. Nu är `spela=1` en tillåten tredje parameter, och svaret är `{ plats, postId, spela: true }`. Ett annat värde, två `spela` eller en annan extra parameter ger fortfarande `null`. Kortets `onOppna` får samma svar.
+
+Prov: `snabbmeny-moduler` (nytt, 2), röda mot förra commiten. `verktyg-alla` (nytt, 3): knappen överst och trycket röda mot förra commiten; långtrycket var grönt före och efter (det ska vara oförändrat) och sågs rött mot ett skal där `onLangtryck` stängts av. `lankar-i-appen` (+2): läsningen av `medSpela(bibliotekslank(...))` röd mot förra commiten; vakten mot `spela=2` och `&x=1` grön före (den gamla regeln avvisade allt) och sågs röd mot en läsning som godtar vilken tredje parameter som helst. `check-skalyta` 52e (ny scen `verktygmeny`): Alla verktyg först, ringen streckad och 48 px som de andra, kanten synlig, i ljust och mörkt vid 390.
+
+**Att göra i appen (snabbmenyn och kortet):** registrera "Ny anteckning" som `skapa.rad` på Bibliotekets modul efter ompinningen. I `bibliotekPostkort` kommer `{ plats, postId, spela: true }` till appens `onOppna`: navigera då till postens adress med `medSpela`, så startar detaljen spåret (samma väg som L4).
+
+### Zip i Biblioteket
+
+CP 2026-11-16: "Kan vi lägga till zip-filer i biblioteket? Vore bra." och "Yes, kör zip".
+
+- **`application/zip` står i `FILMIME`** (ny konstant `ZIP_MIME`), med dokumentens tak, 25 MB. Firestore-regeln och Storage-regeln läser listan, så båda släpper in typen.
+- **`application/x-zip-compressed` och `application/x-zip` blir `application/zip`** (`MIMEALIAS`, alltså före lagringen), och `.zip` ger typen när webbläsaren inte säger någon (`mimeUrFilnamn`).
+- **Visas som en fil**: ikon, namn, storlek och Ladda ned, ingen förhandsvisning (`filSort` är `dokument`, som Office).
+- **Alltid en bilaga.** Ny lista `BILAGAMIME` (HTML och zip): uppladdningen bär `Content-Disposition: attachment` (`lagringsContentDisposition`), Storage-regeln nekar ett arkiv utan det (samma krav som HTML), och en delad länk är en bilaga också utan nedladdning (`delningsDisposition`).
+- Andra arkiv (rar, 7z, tar, gz) tas inte emot.
+
+Prov: `bibliotek-zip` (nytt, 5). 4 röda mot förra commiten och gröna med ändringen. "Ett okänt format tas fortfarande inte emot" var grönt också före (vakten för det oförändrade). Tre äldre prov använde zip som exempel på fel format (`bibliotek`, `bibliotek-vy`, `bibliotekkalla`) och använder nu ett rar-arkiv, som fortfarande nekas. Regelfixturerna `bibliotekregelfragment-0.128.0*` och `lagringsregelfragment-0.127.0*` är omskrivna ur generatorn: typlistan och bilagekravet är de enda raderna som ändrats.
+
+**Att göra i appen (zip):** Storage-reglerna kommer ur ramverket (`lagringsregelfragment`), så de ändras genom att regenereras efter ompinningen, inte för hand. Två rader ändras: typlistan (`filContentTypeMonster`, nu med `application/zip`) och kravet på bilaga (`^(text/html|application/zip).*` i stället för `^text/html.*`). ⛔ **Reglerna deployas före klienten**, annars nekar lagringen arkivet och posten tas tillbaka. Appens `filer/klar` (API:t som går förbi reglerna med en signerad adress) ska sätta `Content-Disposition` med `lagringsContentDisposition(mime, namn)` för varje typ i `BILAGAMIME`, inte bara HTML.
+
+### Inbjudan bär `mejlId`
+
+CP 2026-11-16: "Inbjudan status, om den inte har svarat." och "vi måste kunna läsa mailkön". Appen sparar en referens till köns rad i `mejl` på inbjudan: `null` när den skapas och skickas om, rad-id:t när brevet är köat. `mejlId` står nu i `INBJUDNINGSFALT`, och `byggInbjudan` godtar en sträng eller `null` (en tom sträng eller annan typ kastar). En rad utan fältet byggs som förut, utan fältet. Ett okänt fält avvisas som förut. Firestore-regeln räknar inte inbjudningens fält (raden skrivs bara av servern), så den är oförändrad.
+
+Prov: `inbjudan-mejlid` (nytt, 3). Godkännandet rött mot förra commiten; avvisningen av okända fält och av fel typ var grön före och efter (vakterna).
+
+### Vem som ser adressen
+
+Före 0.234.0 lämnade adressen aldrig `users`, och en vanlig medlem såg bara namn och bild i medlemslistan. Nu bär medlemskapet adressen, och en medlem läser gruppens alla medlemskap (0.32.0, #180). **Adressen blir alltså läsbar för varje aktiv medlem i en gemensam grupp.** Det är innanför #138:s klarkriterium ("ingen läser en annans e-post utan att vara medlem i en gemensam grupp"), `users` är lika stängd som förut, och reglerna är oförändrade utom kommentaren vid `memberships`, som nu säger det.
+
+### Att göra i appen
+
+- **Skicka `epost` till `skapaGrupp`**, också när vitlistan inte krävs: `request.auth.token.email`. `accepteraInbjudningar` tar redan adressen.
+- ⛔ **Ompinna `web` och `functions` till 0.234.0 i samma PR, och deploya dem tillsammans.** Rader som 0.234.0 skriver bär `epost`, och `byggMedlemskap` i 0.233.0 avvisar okända fält: `uppdateraProfil` och bakfyllnaden kastar på en sådan rad. En återgång till 0.233.0 av bara den ena halvan kastar alltså på `epost`.
+- ⛔ **Avsluta medlemskap med `medlemskapAvslutas(FieldValue.delete())`**, i varje avslut: i lifehub.app `taBortMedlemIGruppen` (`functions/grupp.js:661`) och `lamnaGruppen` (`functions/grupp.js:809`), som i dag skriver bara `{ status: "avslutad" }`. Annars står adressen kvar på raden, läsbar för gruppens aktiva medlemmar, för någon som lämnat gruppen.
+- **Kör bakfyllnaden med Identitys namn** för medlemskap som redan saknar namn, ur appens eget skript: `bakfyllMedlemsnamn({ kalla, reserv: async (uid) => (await identityAuth.getUser(uid)).displayName })`. Torrkörning först, skarp körning (`skarpt: true`) bara med CP:s ja, eftersom den skriver i produktionsdata.
+- **Egna `namnFor`** (till `samtalsnotiser`, `postkommentarer` och `ProjektChatt`) ska svara med adressen när namnet saknas, till exempel `personnamn(m.namn, { epost: m.epost }).text`.
+- **Agentens länkar (L3, L4):** skicka postens länk i formen appen redan har (`bibliotekslank`, eller `?grupp=&post=`), och `medSpela(lank)` för en ljudpost som ska spela. Kontrollera i telefonen att spela-länken startar låten (hypotesen ovan), och att `onNavigate` till skalet tar en relativ adress.
+- **Regenerera reglerna** ur `regelfragment()`: kommentaren vid `memberships` är ändrad, inget villkor.
+- Medlemskap som skrevs före 0.234.0 saknar `epost` och visar fortfarande "Namn saknas" om de också saknar namn, tills bakfyllnaden körts eller personen sparat sin profil.
+
+### Prov
+
+`namn-saknas-granskning` (nytt, 11, granskningen av PR 608): avslutet tar bort adressen, en rad med adress går igenom `uppdateraProfil` och bakfyllnaden, ett namn som inte är en sträng kastar, och `OpsProfil` stoppar ett tömt namn. 7 röda mot förra commiten och gröna med ändringen; de 4 som var gröna i båda sågs röda mot en mutation (`epost` borttaget ur `MEDLEMSKAPSFALT`, som i 0.233.0, en tom sträng som kastar, och ett stopp som alltid slår till).
+
+`namn-saknas-epost` (nytt, 25): adressen i stället för "Namn saknas" i varje vy, `medlemsinfo` med adressen, `byggMedlemskap` utan tomt namn, accept och skapande med adressen (också hela kedjan med Collans läge), återaktivering, `uppdateraProfil` med ett tomt namn, och bakfyllnaden med reserv. 21 röda mot 0.233.0 och gröna med ändringen; de fyra som säger att något inte ska hända är gröna i båda och sågs röda mot en ändring som tog bort spärren.
+
 ## 0.233.0
 
 **Mikrofonen står i varje textfält, och ett tryck startar talet utan tangentbord.** CP efter att ha provat 0.232.0 i telefonen: "Kör med mikrofonen och kör alla fält". I 0.232.0 syntes ikonen först när fältet hade fokus, så det krävdes två tryck och en scroll, eftersom tangentbordet kom upp. Han ville ha en större ikon som startar talet direkt, och inget tangentbord när man pratar.

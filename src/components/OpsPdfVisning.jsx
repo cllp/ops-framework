@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useHelskarm } from "./useHelskarm.js";
 import { DokumentKnapp, Dokumentrad } from "./Dokumentrad.jsx";
 import { OpsGastFelrad } from "./OpsGastFelrad.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
@@ -7,6 +8,7 @@ import { IKON_FOR } from "./ikonlexikon.js";
 import { ExternLankIkon } from "./icons.jsx";
 import { filadressFel } from "../lib/bibliotek.js";
 import { cx } from "../lib/cx.js";
+import { ORD_HELSKARM } from "../lib/helskarmord.js";
 import { ordet } from "../lib/ord.js";
 import { PDFJS_SAKNAS, laddaPdfjs, oppnaPdf, pdfFelsort } from "../lib/pdfjs.js";
 import { SIDNUMMER_MS, bytSida, klickSteg, skarmSkala, svepSteg, tangentIPresentation } from "../lib/pdfpresentation.js";
@@ -112,7 +114,8 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
 
   // ── Presentationen ──────────────────────────────────────────────────────────────────────────────────────────────────
   const yta = useRef(/** @type {HTMLElement | null} */ (null));
-  const [presenterar, setPresenterar] = useState(/** @type {false | "helskarm" | "fonster"} */ (false));
+  // ⛔ Helskärmen och dess reserv bor i `useHelskarm` (0.234.0), samma som kartans (regel 2).
+  const { lage: presenterar, oppna: oppnaHelskarm, avsluta } = useHelskarm(yta);
   const [visaNummer, setVisaNummer] = useState(false);
   const nummerKlocka = useRef(/** @type {ReturnType<typeof setTimeout> | undefined} */ (undefined));
   const visaSidnummer = useCallback(() => {
@@ -130,37 +133,11 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
     [antal, visaSidnummer],
   );
 
-  const avsluta = useCallback(() => {
-    setPresenterar(false);
-    if (typeof document !== "undefined" && document.fullscreenElement && document.fullscreenElement === yta.current) document.exitFullscreen?.()?.catch(() => {});
-  }, []);
-
+  // ⛔ WEBBLÄSARENS EGET SVAR, som `OpsFullscreenToggle`, i `useHelskarm`: helskärm där den finns, annars fyller presentationen fönstret.
   function presentera() {
-    const el = yta.current;
-    // ⛔ WEBBLÄSARENS EGET SVAR, som `OpsFullscreenToggle`: finns metoden och säger dokumentet ja går vi till helskärm. Annars, och om webbläsaren avslår, fyller presentationen fönstret.
-    const kan = Boolean(el) && typeof document !== "undefined" && Boolean(document.fullscreenEnabled) && typeof el?.requestFullscreen === "function";
-    setPresenterar(kan ? "helskarm" : "fonster");
+    oppnaHelskarm();
     visaSidnummer();
-    if (kan && el) {
-      // Anropet sker i trycket, inte efter: webbläsaren släpper bara in helskärm i en användargest.
-      const tillFonster = () => setPresenterar((nu) => (nu ? "fonster" : nu));
-      try {
-        el.requestFullscreen()?.catch(tillFonster);
-      } catch {
-        tillFonster();
-      }
-    }
   }
-
-  // Lämnas helskärmen utan oss (Esc i webbläsaren, F11, en annan flik) är presentationen slut. Webbläsaren äger det läget, som i `OpsFullscreenToggle`.
-  useEffect(() => {
-    if (presenterar !== "helskarm") return undefined;
-    const vid = () => {
-      if (document.fullscreenElement !== yta.current) setPresenterar(false);
-    };
-    document.addEventListener("fullscreenchange", vid);
-    return () => document.removeEventListener("fullscreenchange", vid);
-  }, [presenterar]);
 
   useEffect(() => {
     if (!presenterar) return undefined;
@@ -175,13 +152,9 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
       else stegTill(g);
     };
     document.addEventListener("keydown", tangent);
-    // Fönsterläget: sidan bakom rullar inte medan presentationen ligger över den.
-    const rot = document.documentElement;
-    const fore = rot.style.overflow;
-    if (presenterar === "fonster") rot.style.overflow = "hidden";
+    // Fönsterläget: att sidan bakom inte rullar sköter `useHelskarm`.
     return () => {
       document.removeEventListener("keydown", tangent);
-      rot.style.overflow = fore;
     };
   }, [presenterar, avsluta, stegTill]);
 
@@ -430,12 +403,12 @@ export const ORD_PDFVISNING = {
   verktyg: { sv: "Dokumentet", en: "Document" },
   sida: { sv: "Sida {nr} av {antal}", en: "Page {nr} of {antal}" },
   sidaEtikett: { sv: "Sida {nr}", en: "Page {nr}" },
-  // ⛔ HELSKÄRM, INTE PRESENTERA (0.196.0). CP 2026-11-06: "Presentera är ett konstigt ord i sammanhanget." Knappen gör sidan stor, det är det den heter.
-  helskarm: { sv: "Helskärm", en: "Full screen" },
+  // ⛔ HELSKÄRM, INTE PRESENTERA (0.196.0). Orden bor i `ORD_HELSKARM` sedan 0.234.0, samma som kartans (regel 2).
+  helskarm: ORD_HELSKARM.helskarm,
   laddaNed: { sv: "Ladda ned", en: "Download" },
   fonster: { sv: "Öppna i eget fönster", en: "Open in a new window" },
   stang: { sv: "Stäng", en: "Close" },
-  avsluta: { sv: "Stäng helskärm", en: "Close full screen" },
+  avsluta: ORD_HELSKARM.avsluta,
   hamtar: { sv: "Hämtar dokumentet.", en: "Fetching the document." },
   tom: { sv: "PDF:en har inga sidor.", en: "The PDF has no pages." },
   forsokIgen: { sv: "Försök igen", en: "Try again" },

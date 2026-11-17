@@ -162,7 +162,8 @@ describe("createBibliotekskalla", () => {
       lagring,
       sokvag: ({ groupId, postId, namn }) => `grupper/${groupId}/bibliotek/${postId}/${namn}`,
     });
-    await expect(kalla.laddaUppFil({ rubrik: "Zip", fil: { name: "a.zip", type: "application/zip", size: 10 } })).rejects.toThrow(/application\/zip/);
+    // (0.234.0) Zip tas emot sedan CP:s "Yes, kör zip". Fel format är nu ett rar-arkiv, som fortfarande nekas.
+    await expect(kalla.laddaUppFil({ rubrik: "Rar", fil: { name: "a.rar", type: "application/x-rar-compressed", size: 10 } })).rejects.toThrow(/application\/x-rar-compressed/);
     const sparad = await kalla.laddaUppFil({
       rubrik: "Idé",
       fil: { name: "ide.webm", type: "audio/webm;codecs=opus", size: 100 },

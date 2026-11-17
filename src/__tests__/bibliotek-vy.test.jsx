@@ -247,9 +247,10 @@ describe("OpsBibliotek", () => {
     fireEvent.change(screen.getByLabelText("Fil"), { target: { files: [stor] } });
     expect(screen.getAllByRole("alert").some((n) => /Taket/.test(n.textContent ?? ""))).toBe(true);
     expect(onLaddaUpp).not.toHaveBeenCalled();
-    const zip = new File(["x"], "a.zip", { type: "application/zip" });
-    fireEvent.change(screen.getByLabelText("Fil"), { target: { files: [zip] } });
-    expect(screen.getAllByRole("alert").some((n) => /application\/zip/.test(n.textContent ?? ""))).toBe(true);
+    // (0.234.0) Zip tas emot sedan CP:s "Yes, kör zip". Fel format är nu ett rar-arkiv, som fortfarande nekas.
+    const rar = new File(["x"], "a.rar", { type: "application/x-rar-compressed" });
+    fireEvent.change(screen.getByLabelText("Fil"), { target: { files: [rar] } });
+    expect(screen.getAllByRole("alert").some((n) => /application\/x-rar-compressed/.test(n.textContent ?? ""))).toBe(true);
     unmount();
 
     const bild = {

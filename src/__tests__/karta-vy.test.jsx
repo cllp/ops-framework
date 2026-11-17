@@ -42,7 +42,8 @@ vi.mock("maplibre-gl", () => {
       return this;
     }
     addControl(kontroll) {
-      this.kontroll = kontroll;
+      (this.kontroller ??= []).push(kontroll);
+      this.kontroll ??= kontroll;
       return this;
     }
     getSource(id) {
@@ -83,12 +84,23 @@ vi.mock("maplibre-gl", () => {
       return this;
     }
   }
+  class GeolocateControl {
+    constructor(val) {
+      this.val = val;
+      this._on = {};
+      (globalThis.__opsPlatskontroller ??= []).push(this);
+    }
+    on(ev, fn) {
+      this._on[ev] = fn;
+      return this;
+    }
+  }
   class NavigationControl {
     constructor(val) {
       this.val = val;
     }
   }
-  return { Map, Popup, NavigationControl, setWorkerUrl: vi.fn(), getWorkerUrl: () => "" };
+  return { Map, Popup, NavigationControl, GeolocateControl, setWorkerUrl: vi.fn(), getWorkerUrl: () => "" };
 });
 
 function sattFarger() {

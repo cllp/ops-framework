@@ -43,6 +43,7 @@
  *       node scripts/check-skalyta.mjs --bara-chatt      bara avsnitt 29g, chattens nattskiva (#273), för en snabb körning
  *       node scripts/check-skalyta.mjs --bara-spelrad    bara avsnitt 24, spelraden mot mikrofonknappen och ytan (0.176.0, cllp/lifehub.app#417)
  *       node scripts/check-skalyta.mjs --bara-appar      bara Appar-hyllan mot plusknappen (0.90.6)
+ *       node scripts/check-skalyta.mjs --bara-verktyg    bara avsnitt 52e, Alla verktyg överst i Verktyg-menyn vid 390 px, ljust och mörkt (0.234.0)
  *       node scripts/check-skalyta.mjs --bara-textfalt   bara avsnitt 45, TALK och mikrofonen i textfälten (0.104.0, 0.233.0)
  *       node scripts/check-skalyta.mjs --bara-talkval    bara avsnitt 46, valen efter talet och förslagen i chatten (0.105.0)
  *       node scripts/check-skalyta.mjs --bara-sidled     bara avsnitt 63, chatten rullar aldrig i sidled vid 390 och 375 px (0.212.1, cllp/lifehub.app#734), i scripts/lib/skalyta734.mjs
@@ -1220,6 +1221,14 @@ if (argv.includes("--bara-0127")) {
   await kalenderPreliminar();
   await nyHandelseTillagg();
   await bibliotekVideo();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-verktyg`: bara avsnitt 52e, Alla verktyg överst i Verktyg-menyn (0.234.0).
+if (argv.includes("--bara-verktyg")) {
+  await verktygMeny();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -7700,6 +7709,47 @@ async function bibliotekVideo() {
 // definierade, och den inre ytan är `absolute inset-0`. jsdom kör ingen CSS och såg det aldrig. Scenen `bibliotekkarta` (skalyta-entry.jsx) öppnar en GeoJSON-fil i detaljen
 // med `hamtaFil`, alltså samma väg som i appen. Krav, vid 390 och 1280 px: (a) kartans ruta (`[data-karta]`) finns, (b) den är minst 200 px hög och fyller sin kolumn i bredd,
 // (c) den inre ytan som MapLibre ritar i är lika stor som rutan, (d) Ladda ned står under kartan, och (e) sidan flödar inte över i sidled. Golv: en ruta mättes.
+/*
+ * ══ 52e. ALLA VERKTYG ÖVERST I VERKTYG-MENYN (0.234.0, cllp/lifehub.app#842 C). Ett tryck på Verktyg visade bara de fästa verktygen, och alla nåddes
+ * bara med ett långtryck, "och det hittar ingen". Vid 390, i ljust och mörkt: (a) knappen Alla verktyg står överst i menyn, (b) ringen är streckad och
+ * lika stor som de andras, och (c) dess kant har en färg som syns mot dimman. Golv: menyn öppnades och minst en rad till mättes.
+ */
+async function verktygMeny() {
+  for (const tema of ["light", "dark"]) {
+    const namn = `Verktyg-menyn 390 ${tema === "dark" ? "mörkt" : "ljust"}`;
+    const { page, context } = await oppna("verktygmeny", { width: 390, height: 844 }, tema);
+    try {
+      await page.locator("[data-ops-appar-knapp]").first().click();
+      await page.waitForSelector("[data-snabbmeny-alla]", { timeout: 4000 });
+      await page.waitForTimeout(250);
+      const m = await page.evaluate(() => {
+        const meny = /** @type {HTMLElement} */ (document.querySelector("[data-ops-snabbmeny='appar']"));
+        const knappar = [...meny.querySelectorAll("button")];
+        const ring = /** @type {HTMLElement} */ (knappar[0]?.querySelector("span"));
+        const annan = /** @type {HTMLElement | null} */ (knappar[1]?.querySelector("span") ?? null);
+        const rs = ring ? getComputedStyle(ring) : null;
+        const rr = ring?.getBoundingClientRect();
+        const ar = annan?.getBoundingClientRect();
+        return {
+          forsta: knappar[0]?.getAttribute("aria-label") ?? null, rader: knappar.length, stil: rs?.borderTopStyle ?? null, kant: rs?.borderTopColor ?? null,
+          w: rr?.width ?? 0, h: rr?.height ?? 0, aw: ar?.width ?? 0, ah: ar?.height ?? 0, overst: rr && ar ? rr.top < ar.top : false,
+        };
+      });
+      matt.push(`${namn}: första ${m.forsta}, ${m.rader} knappar, ringen ${m.w}x${m.h} (${m.stil}, ${m.kant}), nästa ${m.aw}x${m.ah}`);
+      krav(m.rader >= 2, `${namn}: ${m.rader} knappar i menyn, väntat minst 2 (golv).`);
+      krav(m.forsta === "Alla verktyg" && m.overst, `${namn} (a): första knappen är ${m.forsta}, väntat Alla verktyg överst.`);
+      krav(m.stil === "dashed" && Math.abs(m.w - m.aw) <= 0.5 && Math.abs(m.h - m.ah) <= 0.5, `${namn} (b): ringen är ${m.stil}, ${m.w}x${m.h} mot ${m.aw}x${m.ah}.`);
+      krav(!!m.kant && m.kant !== "rgba(0, 0, 0, 0)", `${namn} (c): ringens kant har ingen färg (${m.kant}).`);
+      const bild = process.env.VERKTYG_MENY_BILD;
+      if (bild) await page.screenshot({ path: bild.replace("{tema}", tema === "dark" ? "morkt" : "ljust") });
+    } catch (e) {
+      krav(false, `${namn}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      await context.close();
+    }
+  }
+}
+
 async function bibliotekKarta() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const namn = `karta i biblioteket ${vp.width}`;
@@ -7730,6 +7780,86 @@ async function bibliotekKarta() {
       krav(!!m.ladda && m.ladda.t >= m.b - 0.5, `${namn} (d): Ladda ned ${m.ladda ? `börjar ${m.ladda.t.toFixed(0)}` : "saknas"}, kartan slutar ${m.b.toFixed(0)}, väntat Ladda ned under kartan.`);
       krav(m.over <= 0, `${namn} (e): sidan flödar över ${m.over} px.`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `bibliotek-karta-${vp.width}.png`) });
+      // ══ 52c. HELSKÄRM (0.234.0). CP 2026-11-16: "Jag kan inte få en fullscreen för kartor, det är ett måste." Ett tryck på Helskärm: (f) kartans ruta fyller
+      // fönstret, i webbläsarens helskärm eller i reservlagret, (g) ytan MapLibre ritar i fyller rutan (kartan ritades om), (h) Stäng helskärm syns och ligger
+      // inom fönstret, och (i) efter Stäng är rutan tillbaka i sin kolumn. Golv: ett läge lästes.
+      await page.getByRole("button", { name: "Helskärm" }).click();
+      await page.waitForSelector("[data-karta-helskarm]", { state: "attached", timeout: 3000 });
+      await page.waitForTimeout(400);
+      const h = await page.evaluate(() => {
+        const r = /** @type {HTMLElement} */ (document.querySelector("[data-karta]"));
+        const rr = r.getBoundingClientRect();
+        const ir = /** @type {HTMLElement} */ (r.firstElementChild).getBoundingClientRect();
+        const knapp = document.querySelector("[data-karta-helskarm-knapp='stang']");
+        const kr = knapp ? knapp.getBoundingClientRect() : null;
+        return { lage: r.getAttribute("data-karta-helskarm"), w: rr.width, h: rr.height, iw: ir.width, ih: ir.height, vw: window.innerWidth, vh: window.innerHeight, knapp: kr ? { t: kr.top, l: kr.left, b: kr.bottom, r: kr.right } : null };
+      });
+      matt.push(`${namn}, helskärm: läget ${h.lage}, rutan ${h.w.toFixed(0)}x${h.h.toFixed(0)} i ett fönster på ${h.vw}x${h.vh}, inre ${h.iw.toFixed(0)}x${h.ih.toFixed(0)}, Stäng ${JSON.stringify(h.knapp)}`);
+      krav(h.lage === "helskarm" || h.lage === "fonster", `${namn} (f): läget är ${h.lage}, väntat helskarm eller fonster (golv).`);
+      krav(Math.abs(h.w - h.vw) <= 1 && Math.abs(h.h - h.vh) <= 1, `${namn} (f): kartan är ${h.w.toFixed(0)}x${h.h.toFixed(0)} i helskärm, fönstret ${h.vw}x${h.vh}.`);
+      krav(Math.abs(h.iw - h.w) <= 1 && Math.abs(h.ih - h.h) <= 1, `${namn} (g): ytan är ${h.iw.toFixed(0)}x${h.ih.toFixed(0)}, rutan ${h.w.toFixed(0)}x${h.h.toFixed(0)}, väntat lika stora.`);
+      krav(!!h.knapp && h.knapp.t >= 0 && h.knapp.l >= 0 && h.knapp.b <= h.vh && h.knapp.r <= h.vw, `${namn} (h): Stäng helskärm ${JSON.stringify(h.knapp)}, väntat inom fönstret.`);
+      const skarmbild = process.env.KARTA_HELSKARM_BILD;
+      if (skarmbild) await page.screenshot({ path: skarmbild.replace("{bredd}", String(vp.width)) });
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `bibliotek-karta-helskarm-${vp.width}.png`) });
+      await page.getByRole("button", { name: "Stäng helskärm" }).click();
+      await page.waitForTimeout(300);
+      const efter = await page.evaluate(() => {
+        const r = /** @type {HTMLElement} */ (document.querySelector("[data-karta]"));
+        return { lage: r.getAttribute("data-karta-helskarm"), h: r.getBoundingClientRect().height };
+      });
+      krav(efter.lage === null && efter.h < h.vh, `${namn} (i): efter Stäng är läget ${efter.lage} och höjden ${efter.h.toFixed(0)}, väntat tillbaka i kolumnen.`);
+      // ══ 52d. POPUPENS KONTRAST (0.234.0). CP 2026-11-16, med en skärmbild i mörkt läge: "kontrasterna funkar inte på locations". Rubriken stod i nästan vit text på
+      // MapLibres vita ruta. ⛔ POPUPEN ÄR BYGGD HÄR, MED MAPLIBRES EGNA KLASSER OCH KARTVYNS: scenens karta laddar inga brickor utan nät, så punkten ritas aldrig och går inte
+      // att trycka på. Det som mäts är kaskaden, alltså `maplibre-gl.css` (utanför lagren), kartvyns `KARTPOPUP_CSS` (som vyn lagt i dokumentet) och temats token, och den är
+      // densamma som för en riktig popup. Klasserna på rubrik och knapp är samma som `popupElement` och vyn sätter (vitest-provet `karta-helskarm` mäter dem). I ljust och
+      // mörkt: (k) rubrikens kontrast mot rutan är minst 4,5:1, (l) pilens färg är rutans, och (m) Stäng har en träffyta på minst 44 px. Golv: en popup mättes per tema.
+      for (const tema of ["light", "dark"]) {
+        await page.emulateMedia({ colorScheme: tema });
+        await page.waitForTimeout(150);
+        await page.evaluate(() => {
+          const yta = /** @type {HTMLElement} */ (document.querySelector("[data-karta-yta]"));
+          const popup = document.createElement("div");
+          popup.className = "maplibregl-popup ops-karta-popup maplibregl-popup-anchor-bottom";
+          popup.style.cssText = "position:absolute;left:40px;top:40px;transform:none";
+          popup.innerHTML = '<div class="maplibregl-popup-tip"></div><div class="maplibregl-popup-content"><div class="grid gap-1"><p class="m-0 font-karta-ort text-rubrik text-ink">Promenad genom Gamla stan</p><p class="m-0 font-karta-etikett text-etikett text-ink-secondary wrap-anywhere">Från Stortorget till Skeppsbron.</p><button type="button" aria-label="Stäng" data-karta-popup-stang="" class="absolute top-0 right-0 flex size-11 cursor-pointer items-center justify-center rounded-base text-ink-secondary hover:bg-hover hover:text-ink">x</button></div></div>';
+          popup.querySelector("[data-karta-popup-stang]")?.addEventListener("click", () => popup.remove());
+          yta.append(popup);
+        });
+        if ((await page.locator("#ops-karta-popup-stil").count()) !== 1) throw new Error("kartvyns popupstil saknas i dokumentet");
+        const p = await page.evaluate(() => {
+          const rgb = (/** @type {string} */ v) => (v.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+          const lum = (/** @type {number[]} */ c) => {
+            const [r, g, b] = c.map((x) => {
+              const s = x / 255;
+              return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+            });
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          };
+          const ruta = /** @type {HTMLElement} */ (document.querySelector(".maplibregl-popup-content"));
+          const rubrik = /** @type {HTMLElement} */ (ruta.querySelector("p"));
+          const tip = /** @type {HTMLElement} */ (document.querySelector(".maplibregl-popup-tip"));
+          const knapp = /** @type {HTMLElement} */ (ruta.querySelector("[data-karta-popup-stang]"));
+          const bg = rgb(getComputedStyle(ruta).backgroundColor);
+          const fg = rgb(getComputedStyle(rubrik).color);
+          const [a, b] = [lum(bg), lum(fg)].sort((x, y) => y - x);
+          const tipCs = getComputedStyle(tip);
+          const tipFarger = [tipCs.borderTopColor, tipCs.borderBottomColor, tipCs.borderLeftColor, tipCs.borderRightColor];
+          const kr = knapp ? knapp.getBoundingClientRect() : null;
+          return { bg: getComputedStyle(ruta).backgroundColor, fg: getComputedStyle(rubrik).color, kontrast: (a + 0.05) / (b + 0.05), tipHarYtan: tipFarger.includes(getComputedStyle(ruta).backgroundColor), knapp: kr ? { w: kr.width, h: kr.height } : null };
+        });
+        const tnamn = `${namn}, popup ${tema === "dark" ? "mörkt" : "ljust"}`;
+        matt.push(`${tnamn}: ruta ${p.bg}, rubrik ${p.fg}, kontrast ${p.kontrast.toFixed(2)}, pilen ${p.tipHarYtan ? "har rutans färg" : "har INTE rutans färg"}, Stäng ${JSON.stringify(p.knapp)}`);
+        krav(p.kontrast >= 4.5, `${tnamn} (k): rubrikens kontrast är ${p.kontrast.toFixed(2)}:1 (${p.fg} på ${p.bg}), väntat minst 4,5:1.`);
+        krav(p.tipHarYtan, `${tnamn} (l): pilen har inte rutans färg ${p.bg}.`);
+        krav(!!p.knapp && p.knapp.w >= 44 && p.knapp.h >= 44, `${tnamn} (m): Stäng är ${JSON.stringify(p.knapp)}, väntat minst 44x44.`);
+        const popupbild = process.env.KARTA_POPUP_BILD;
+        if (popupbild) await page.screenshot({ path: popupbild.replace("{bredd}", String(vp.width)).replace("{tema}", tema === "dark" ? "morkt" : "ljust") });
+        await page.locator("[data-karta-popup-stang]").click();
+        await page.waitForTimeout(150);
+        krav((await page.locator(".maplibregl-popup").count()) === 0, `${tnamn}: popupen stängdes inte av Stäng.`);
+      }
+      await page.emulateMedia({ colorScheme: "light" });
     } catch (e) {
       krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
     }
@@ -9644,6 +9774,7 @@ await kalenderPreliminar();
 await nyHandelseTillagg();
 await bibliotekVideo();
 await bibliotekKarta();
+await verktygMeny();
 await gruppVantar();
 await kategoriFormular();
 await gastVyer();

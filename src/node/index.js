@@ -60,7 +60,7 @@ export { arDelbar } from "../lib/bibliotek.js";
  * Modellen och de rena funktionerna är desamma som klientens och exporteras även här, så att en nodfunktion inte behöver dra in React för dem.
  */
 export { createHtmlDokumentService, HTMLDOKUMENTFELKODER } from "./htmldokument.js";
-export { HTML_MIME, HTML_DISPOSITIONSMONSTER, MAX_HTMLVERSION, HTMLVERSIONSFALT, arHtmlMime, lagringsContentDisposition, lagringsContentType, htmlVersionFel } from "../lib/bibliotek.js";
+export { HTML_MIME, HTML_DISPOSITIONSMONSTER, ZIP_MIME, BILAGAMIME, MAX_HTMLVERSION, HTMLVERSIONSFALT, arHtmlMime, lagringsContentDisposition, lagringsContentType, htmlVersionFel } from "../lib/bibliotek.js";
 export { HTML_SANDBOX, arHtmlDokument, htmlText, htmlBytes, VERSIONSFALT, VERSIONSAVGRANSARE, versionsnyckel, nuvarandeVersion, nastaVersionssokvag, byggNyVersion, versionFel, versionslista, byggAterstallning } from "../lib/htmldokument.js";
 export { handelseBibliotek, handelsedelar, arHandelseBibliotek, arendeBibliotek, arendedelar, arArendeBibliotek, arObjektbibliotek, gruppForPlats, platsBibliotek, platsdelar, arPlatsBibliotek } from "../lib/bibliotek.js";
 export { PLATSFALT_FORVALTAD, FORVALTNINGSFALT, platsnyckel, platsnamnFel, byggForvaltadPlats, uppdateraForvaltadPlats, platsFranRad, arForvaltad } from "../lib/platser.js";
@@ -283,7 +283,7 @@ export { GRUPPIKONKATALOG } from "../lib/gruppikonkatalog.generated.js";
 export { KALENDERFARGER, KALENDERIKONER, forvaldKalender, arkiveraKalender, byggGruppkalender, byggMinKalender, kalenderIdUrNamn, nastaOrdning, STANDARD_TIDSZON, valjForvald, validateGruppkalendrar } from "../lib/kalendrar.js";
 export { MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, arLjudpost, arMittBibliotek, byggPost, ljudRubrik, postFel, utskriftFel } from "../lib/bibliotek.js";
 export { NALTAGG, arNalad } from "../lib/bibliotek.js";
-export { INBJUDNING_GILTIGHET_DAGAR, byggGrupp, byggMedlemskap, medlemskapsId } from "../lib/grupp.js";
+export { INBJUDNING_GILTIGHET_DAGAR, byggGrupp, byggMedlemskap, medlemskapAvslutas, medlemskapsId } from "../lib/grupp.js";
 export { byggSamtal, byggTrad, olastaI } from "../lib/samtal.js";
 export { epostFel } from "../lib/mejl.js";
 export { foreVillkor } from "../data/contract.js";
