@@ -379,6 +379,8 @@ async function mat(css, tema) {
   try {
     const page = await context.newPage();
     page.setDefaultTimeout(4000);
+    // ⛔ Laddningen har en egen gräns (cllp/lifehub.app#880): 4 s är till för ett element som saknas, men gällde också setContent/goto, och på den egna runnern där flera jobb delar CPU föll en laddning på det (körning 44197961443).
+    page.setDefaultNavigationTimeout(30_000);
     const fel = /** @type {string[]} */ ([]);
     page.on("pageerror", (e) => fel.push(e.message));
     await page.emulateMedia({ colorScheme: tema });
@@ -485,6 +487,7 @@ try {
     try {
       const page = await context.newPage();
       page.setDefaultTimeout(4000);
+      page.setDefaultNavigationTimeout(30_000);
       const fel = /** @type {string[]} */ ([]);
       page.on("pageerror", (e) => fel.push(e.message));
       await page.emulateMedia({ colorScheme: val.tema ?? "light" });
