@@ -1,0 +1,2529 @@
+{
+  "bottenraden 390 liten": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": 0,
+    "texter": 8,
+    "falt": []
+  },
+  "bottenraden 390 mellan": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": 0,
+    "texter": 8,
+    "falt": []
+  },
+  "bottenraden 390 stor": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": 0,
+    "texter": 8,
+    "falt": []
+  },
+  "bottenraden 1280 liten": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": -10,
+    "texter": 9,
+    "falt": []
+  },
+  "bottenraden 1280 mellan": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": -10,
+    "texter": 9,
+    "falt": []
+  },
+  "bottenraden 1280 stor": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": -10,
+    "texter": 9,
+    "falt": []
+  },
+  "rubrikerna 390 liten": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Profil",
+        "r": 1
+      }
+    ],
+    "sidled": 0,
+    "texter": 39,
+    "falt": [
+      16,
+      16,
+      16,
+      16,
+      16
+    ]
+  },
+  "rubrikerna 390 mellan": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Profil",
+        "r": 1
+      }
+    ],
+    "sidled": 0,
+    "texter": 39,
+    "falt": [
+      16,
+      16,
+      16,
+      16,
+      16
+    ]
+  },
+  "rubrikerna 390 stor": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Profil",
+        "r": 1
+      }
+    ],
+    "sidled": 0,
+    "texter": 39,
+    "falt": [
+      18.4,
+      18.4,
+      18.4,
+      18.4,
+      18.4
+    ]
+  },
+  "rubrikerna 1280 liten": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Profil",
+        "r": 1
+      }
+    ],
+    "sidled": -10,
+    "texter": 52,
+    "falt": [
+      12.6,
+      12.6,
+      12.6,
+      12.6,
+      12.6
+    ]
+  },
+  "rubrikerna 1280 mellan": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Profil",
+        "r": 1
+      }
+    ],
+    "sidled": -10,
+    "texter": 52,
+    "falt": [
+      14,
+      14,
+      14,
+      14,
+      14
+    ]
+  },
+  "rubrikerna 1280 stor": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Profil",
+        "r": 1
+      }
+    ],
+    "sidled": -10,
+    "texter": 52,
+    "falt": [
+      16.1,
+      16.1,
+      16.1,
+      16.1,
+      16.1
+    ]
+  },
+  "gruppsidan 390 liten": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Alfa AB",
+        "r": 1
+      },
+      {
+        "t": "Medlemmar (3)",
+        "r": 2
+      }
+    ],
+    "sidled": 0,
+    "texter": 25,
+    "falt": []
+  },
+  "gruppsidan 390 mellan": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Alfa AB",
+        "r": 1
+      },
+      {
+        "t": "Medlemmar (3)",
+        "r": 2
+      }
+    ],
+    "sidled": 0,
+    "texter": 25,
+    "falt": []
+  },
+  "gruppsidan 390 stor": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Alfa AB",
+        "r": 1
+      },
+      {
+        "t": "Medlemmar (3)",
+        "r": 2
+      }
+    ],
+    "sidled": 0,
+    "texter": 25,
+    "falt": []
+  },
+  "gruppsidan 1280 liten": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Alfa AB",
+        "r": 1
+      },
+      {
+        "t": "Medlemmar (3)",
+        "r": 2
+      }
+    ],
+    "sidled": -10,
+    "texter": 39,
+    "falt": []
+  },
+  "gruppsidan 1280 mellan": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Alfa AB",
+        "r": 1
+      },
+      {
+        "t": "Medlemmar (3)",
+        "r": 2
+      }
+    ],
+    "sidled": -10,
+    "texter": 39,
+    "falt": []
+  },
+  "gruppsidan 1280 stor": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Alfa AB",
+        "r": 1
+      },
+      {
+        "t": "Medlemmar (3)",
+        "r": 2
+      }
+    ],
+    "sidled": -10,
+    "texter": 39,
+    "falt": []
+  },
+  "chatten 390 liten": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Claes Philip Staiger AB",
+        "r": 1
+      }
+    ],
+    "sidled": 0,
+    "texter": 29,
+    "falt": [
+      16
+    ]
+  },
+  "chatten 390 mellan": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Claes Philip Staiger AB",
+        "r": 1
+      }
+    ],
+    "sidled": 0,
+    "texter": 29,
+    "falt": [
+      16
+    ]
+  },
+  "chatten 390 stor": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Claes Philip Staiger AB",
+        "r": 1
+      }
+    ],
+    "sidled": 0,
+    "texter": 29,
+    "falt": [
+      18.4
+    ]
+  },
+  "chatten 1280 liten": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Meddelanden",
+        "r": 1
+      },
+      {
+        "t": "Claes Philip Staiger AB",
+        "r": 1
+      }
+    ],
+    "sidled": -10,
+    "texter": 76,
+    "falt": [
+      9.9,
+      12.6
+    ]
+  },
+  "chatten 1280 mellan": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Meddelanden",
+        "r": 1
+      },
+      {
+        "t": "Claes Philip Staiger AB",
+        "r": 1
+      }
+    ],
+    "sidled": -10,
+    "texter": 76,
+    "falt": [
+      11,
+      14
+    ]
+  },
+  "chatten 1280 stor": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Meddelanden",
+        "r": 1
+      },
+      {
+        "t": "Claes Philip Staiger AB",
+        "r": 1
+      }
+    ],
+    "sidled": -10,
+    "texter": 76,
+    "falt": [
+      12.65,
+      16.1
+    ]
+  },
+  "idag 390 liten": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": 0,
+    "texter": 8,
+    "falt": []
+  },
+  "idag 390 mellan": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": 0,
+    "texter": 8,
+    "falt": []
+  },
+  "idag 390 stor": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": 0,
+    "texter": 8,
+    "falt": []
+  },
+  "idag 1280 liten": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": -10,
+    "texter": 21,
+    "falt": []
+  },
+  "idag 1280 mellan": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": -10,
+    "texter": 21,
+    "falt": []
+  },
+  "idag 1280 stor": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": -10,
+    "texter": 21,
+    "falt": []
+  },
+  "kalendern 390 liten": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "september 2025",
+        "r": 1
+      },
+      {
+        "t": "oktober 2025",
+        "r": 1
+      },
+      {
+        "t": "november 2025",
+        "r": 1
+      },
+      {
+        "t": "december 2025",
+        "r": 1
+      },
+      {
+        "t": "januari 2026",
+        "r": 1
+      },
+      {
+        "t": "februari 2026",
+        "r": 1
+      },
+      {
+        "t": "mars 2026",
+        "r": 1
+      },
+      {
+        "t": "april 2026",
+        "r": 1
+      },
+      {
+        "t": "maj 2026",
+        "r": 1
+      },
+      {
+        "t": "juni 2026",
+        "r": 1
+      },
+      {
+        "t": "juli 2026",
+        "r": 1
+      },
+      {
+        "t": "augusti 2026",
+        "r": 1
+      },
+      {
+        "t": "september 2026",
+        "r": 1
+      },
+      {
+        "t": "oktober 2026",
+        "r": 1
+      },
+      {
+        "t": "november 2026",
+        "r": 1
+      },
+      {
+        "t": "december 2026",
+        "r": 1
+      },
+      {
+        "t": "januari 2027",
+        "r": 1
+      },
+      {
+        "t": "februari 2027",
+        "r": 1
+      },
+      {
+        "t": "mars 2027",
+        "r": 1
+      },
+      {
+        "t": "april 2027",
+        "r": 1
+      },
+      {
+        "t": "maj 2027",
+        "r": 1
+      },
+      {
+        "t": "juni 2027",
+        "r": 1
+      },
+      {
+        "t": "juli 2027",
+        "r": 1
+      },
+      {
+        "t": "augusti 2027",
+        "r": 1
+      },
+      {
+        "t": "september 2027",
+        "r": 1
+      }
+    ],
+    "sidled": 0,
+    "texter": 575,
+    "falt": []
+  },
+  "kalendern 390 mellan": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "september 2025",
+        "r": 1
+      },
+      {
+        "t": "oktober 2025",
+        "r": 1
+      },
+      {
+        "t": "november 2025",
+        "r": 1
+      },
+      {
+        "t": "december 2025",
+        "r": 1
+      },
+      {
+        "t": "januari 2026",
+        "r": 1
+      },
+      {
+        "t": "februari 2026",
+        "r": 1
+      },
+      {
+        "t": "mars 2026",
+        "r": 1
+      },
+      {
+        "t": "april 2026",
+        "r": 1
+      },
+      {
+        "t": "maj 2026",
+        "r": 1
+      },
+      {
+        "t": "juni 2026",
+        "r": 1
+      },
+      {
+        "t": "juli 2026",
+        "r": 1
+      },
+      {
+        "t": "augusti 2026",
+        "r": 1
+      },
+      {
+        "t": "september 2026",
+        "r": 1
+      },
+      {
+        "t": "oktober 2026",
+        "r": 1
+      },
+      {
+        "t": "november 2026",
+        "r": 1
+      },
+      {
+        "t": "december 2026",
+        "r": 1
+      },
+      {
+        "t": "januari 2027",
+        "r": 1
+      },
+      {
+        "t": "februari 2027",
+        "r": 1
+      },
+      {
+        "t": "mars 2027",
+        "r": 1
+      },
+      {
+        "t": "april 2027",
+        "r": 1
+      },
+      {
+        "t": "maj 2027",
+        "r": 1
+      },
+      {
+        "t": "juni 2027",
+        "r": 1
+      },
+      {
+        "t": "juli 2027",
+        "r": 1
+      },
+      {
+        "t": "augusti 2027",
+        "r": 1
+      },
+      {
+        "t": "september 2027",
+        "r": 1
+      }
+    ],
+    "sidled": 0,
+    "texter": 575,
+    "falt": []
+  },
+  "kalendern 390 stor": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "september 2025",
+        "r": 1
+      },
+      {
+        "t": "oktober 2025",
+        "r": 1
+      },
+      {
+        "t": "november 2025",
+        "r": 1
+      },
+      {
+        "t": "december 2025",
+        "r": 1
+      },
+      {
+        "t": "januari 2026",
+        "r": 1
+      },
+      {
+        "t": "februari 2026",
+        "r": 1
+      },
+      {
+        "t": "mars 2026",
+        "r": 1
+      },
+      {
+        "t": "april 2026",
+        "r": 1
+      },
+      {
+        "t": "maj 2026",
+        "r": 1
+      },
+      {
+        "t": "juni 2026",
+        "r": 1
+      },
+      {
+        "t": "juli 2026",
+        "r": 1
+      },
+      {
+        "t": "augusti 2026",
+        "r": 1
+      },
+      {
+        "t": "september 2026",
+        "r": 1
+      },
+      {
+        "t": "oktober 2026",
+        "r": 1
+      },
+      {
+        "t": "november 2026",
+        "r": 1
+      },
+      {
+        "t": "december 2026",
+        "r": 1
+      },
+      {
+        "t": "januari 2027",
+        "r": 1
+      },
+      {
+        "t": "februari 2027",
+        "r": 1
+      },
+      {
+        "t": "mars 2027",
+        "r": 1
+      },
+      {
+        "t": "april 2027",
+        "r": 1
+      },
+      {
+        "t": "maj 2027",
+        "r": 1
+      },
+      {
+        "t": "juni 2027",
+        "r": 1
+      },
+      {
+        "t": "juli 2027",
+        "r": 1
+      },
+      {
+        "t": "augusti 2027",
+        "r": 1
+      },
+      {
+        "t": "september 2027",
+        "r": 1
+      }
+    ],
+    "sidled": 0,
+    "texter": 575,
+    "falt": []
+  },
+  "kalendern 1280 liten": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"10\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"11\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"12\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"13\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"14\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"15\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"16\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"17\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"18\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"19\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"20\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"21\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"22\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"23\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"24\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"25\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"26\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"27\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"28\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"29\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"30\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"31\": texten 15x16 px rinner ur sin ruta 15x13 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "september 2025",
+        "r": 1
+      },
+      {
+        "t": "oktober 2025",
+        "r": 1
+      },
+      {
+        "t": "november 2025",
+        "r": 1
+      },
+      {
+        "t": "december 2025",
+        "r": 1
+      },
+      {
+        "t": "januari 2026",
+        "r": 1
+      },
+      {
+        "t": "februari 2026",
+        "r": 1
+      },
+      {
+        "t": "mars 2026",
+        "r": 1
+      },
+      {
+        "t": "april 2026",
+        "r": 1
+      },
+      {
+        "t": "maj 2026",
+        "r": 1
+      },
+      {
+        "t": "juni 2026",
+        "r": 1
+      },
+      {
+        "t": "juli 2026",
+        "r": 1
+      },
+      {
+        "t": "augusti 2026",
+        "r": 1
+      },
+      {
+        "t": "september 2026",
+        "r": 1
+      },
+      {
+        "t": "oktober 2026",
+        "r": 1
+      },
+      {
+        "t": "november 2026",
+        "r": 1
+      },
+      {
+        "t": "december 2026",
+        "r": 1
+      },
+      {
+        "t": "januari 2027",
+        "r": 1
+      },
+      {
+        "t": "februari 2027",
+        "r": 1
+      },
+      {
+        "t": "mars 2027",
+        "r": 1
+      },
+      {
+        "t": "april 2027",
+        "r": 1
+      },
+      {
+        "t": "maj 2027",
+        "r": 1
+      },
+      {
+        "t": "juni 2027",
+        "r": 1
+      },
+      {
+        "t": "juli 2027",
+        "r": 1
+      },
+      {
+        "t": "augusti 2027",
+        "r": 1
+      },
+      {
+        "t": "september 2027",
+        "r": 1
+      }
+    ],
+    "sidled": -10,
+    "texter": 598,
+    "falt": []
+  },
+  "kalendern 1280 mellan": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"10\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"11\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"12\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"13\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"14\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"15\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"16\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"17\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"18\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"19\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"20\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"21\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"22\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"23\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"24\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"25\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"26\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"27\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"28\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"29\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"30\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"31\": texten 17x18 px rinner ur sin ruta 17x14 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "september 2025",
+        "r": 1
+      },
+      {
+        "t": "oktober 2025",
+        "r": 1
+      },
+      {
+        "t": "november 2025",
+        "r": 1
+      },
+      {
+        "t": "december 2025",
+        "r": 1
+      },
+      {
+        "t": "januari 2026",
+        "r": 1
+      },
+      {
+        "t": "februari 2026",
+        "r": 1
+      },
+      {
+        "t": "mars 2026",
+        "r": 1
+      },
+      {
+        "t": "april 2026",
+        "r": 1
+      },
+      {
+        "t": "maj 2026",
+        "r": 1
+      },
+      {
+        "t": "juni 2026",
+        "r": 1
+      },
+      {
+        "t": "juli 2026",
+        "r": 1
+      },
+      {
+        "t": "augusti 2026",
+        "r": 1
+      },
+      {
+        "t": "september 2026",
+        "r": 1
+      },
+      {
+        "t": "oktober 2026",
+        "r": 1
+      },
+      {
+        "t": "november 2026",
+        "r": 1
+      },
+      {
+        "t": "december 2026",
+        "r": 1
+      },
+      {
+        "t": "januari 2027",
+        "r": 1
+      },
+      {
+        "t": "februari 2027",
+        "r": 1
+      },
+      {
+        "t": "mars 2027",
+        "r": 1
+      },
+      {
+        "t": "april 2027",
+        "r": 1
+      },
+      {
+        "t": "maj 2027",
+        "r": 1
+      },
+      {
+        "t": "juni 2027",
+        "r": 1
+      },
+      {
+        "t": "juli 2027",
+        "r": 1
+      },
+      {
+        "t": "augusti 2027",
+        "r": 1
+      },
+      {
+        "t": "september 2027",
+        "r": 1
+      }
+    ],
+    "sidled": -10,
+    "texter": 598,
+    "falt": []
+  },
+  "kalendern 1280 stor": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"10\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"11\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"12\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"13\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"14\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"15\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"16\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"17\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"18\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"19\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"20\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"21\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"22\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"23\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"24\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"25\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"26\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"27\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"28\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"29\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"30\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"31\": texten 19x21 px rinner ur sin ruta 19x16 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])",
+      "\"30\": texten 19x21 px rinner ur sin ruta 31x18 px (span.flex.aspect-square.w-[clamp(14px,calc(200%-38px),28px)])"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "september 2025",
+        "r": 1
+      },
+      {
+        "t": "oktober 2025",
+        "r": 1
+      },
+      {
+        "t": "november 2025",
+        "r": 1
+      },
+      {
+        "t": "december 2025",
+        "r": 1
+      },
+      {
+        "t": "januari 2026",
+        "r": 1
+      },
+      {
+        "t": "februari 2026",
+        "r": 1
+      },
+      {
+        "t": "mars 2026",
+        "r": 1
+      },
+      {
+        "t": "april 2026",
+        "r": 1
+      },
+      {
+        "t": "maj 2026",
+        "r": 1
+      },
+      {
+        "t": "juni 2026",
+        "r": 1
+      },
+      {
+        "t": "juli 2026",
+        "r": 1
+      },
+      {
+        "t": "augusti 2026",
+        "r": 1
+      },
+      {
+        "t": "september 2026",
+        "r": 1
+      },
+      {
+        "t": "oktober 2026",
+        "r": 1
+      },
+      {
+        "t": "november 2026",
+        "r": 1
+      },
+      {
+        "t": "december 2026",
+        "r": 1
+      },
+      {
+        "t": "januari 2027",
+        "r": 1
+      },
+      {
+        "t": "februari 2027",
+        "r": 1
+      },
+      {
+        "t": "mars 2027",
+        "r": 1
+      },
+      {
+        "t": "april 2027",
+        "r": 1
+      },
+      {
+        "t": "maj 2027",
+        "r": 1
+      },
+      {
+        "t": "juni 2027",
+        "r": 1
+      },
+      {
+        "t": "juli 2027",
+        "r": 1
+      },
+      {
+        "t": "augusti 2027",
+        "r": 1
+      },
+      {
+        "t": "september 2027",
+        "r": 1
+      }
+    ],
+    "sidled": -10,
+    "texter": 598,
+    "falt": []
+  },
+  "handelsen 390 liten": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": 0,
+    "texter": 51,
+    "falt": []
+  },
+  "handelsen 390 mellan": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": 0,
+    "texter": 51,
+    "falt": []
+  },
+  "handelsen 390 stor": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": 0,
+    "texter": 51,
+    "falt": []
+  },
+  "handelsen 1280 liten": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": -10,
+    "texter": 64,
+    "falt": []
+  },
+  "handelsen 1280 mellan": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": -10,
+    "texter": 64,
+    "falt": []
+  },
+  "handelsen 1280 stor": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": -10,
+    "texter": 64,
+    "falt": []
+  },
+  "apparna 390 liten": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": 0,
+    "texter": 6,
+    "falt": []
+  },
+  "apparna 390 mellan": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": 0,
+    "texter": 6,
+    "falt": []
+  },
+  "apparna 390 stor": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": 0,
+    "texter": 6,
+    "falt": []
+  },
+  "apparna 1280 liten": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": -10,
+    "texter": 7,
+    "falt": []
+  },
+  "apparna 1280 mellan": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": -10,
+    "texter": 7,
+    "falt": []
+  },
+  "apparna 1280 stor": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Idag",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Kalender",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Verktyg",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [],
+    "sidled": -10,
+    "texter": 7,
+    "falt": []
+  },
+  "installningar 390 liten": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Händelser",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Översikt",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Ekonomi",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Inställningar",
+        "r": 1
+      }
+    ],
+    "sidled": 0,
+    "texter": 19,
+    "falt": []
+  },
+  "installningar 390 mellan": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Händelser",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Översikt",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Ekonomi",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Inställningar",
+        "r": 1
+      }
+    ],
+    "sidled": 0,
+    "texter": 19,
+    "falt": []
+  },
+  "installningar 390 stor": {
+    "klipp": [],
+    "nav": [
+      {
+        "t": "Händelser",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Översikt",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Ekonomi",
+        "r": 1,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 1,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Inställningar",
+        "r": 1
+      }
+    ],
+    "sidled": 0,
+    "texter": 19,
+    "falt": []
+  },
+  "installningar 1280 liten": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Händelser",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Översikt",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Ekonomi",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Inställningar",
+        "r": 1
+      }
+    ],
+    "sidled": -10,
+    "texter": 21,
+    "falt": []
+  },
+  "installningar 1280 mellan": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Händelser",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Översikt",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Ekonomi",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Inställningar",
+        "r": 1
+      }
+    ],
+    "sidled": -10,
+    "texter": 21,
+    "falt": []
+  },
+  "installningar 1280 stor": {
+    "klipp": [
+      "\"OPS\": texten 34x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)",
+      "\"HUB\": texten 32x16 px rinner ur sin ruta 76x13 px (span.block.max-w-full.whitespace-nowrap)"
+    ],
+    "nav": [
+      {
+        "t": "Händelser",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Översikt",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Ekonomi",
+        "r": 0,
+        "utanfor": false
+      },
+      {
+        "t": "Meny",
+        "r": 0,
+        "utanfor": false
+      }
+    ],
+    "rubriker": [
+      {
+        "t": "Inställningar",
+        "r": 1
+      }
+    ],
+    "sidled": -10,
+    "texter": 21,
+    "falt": []
+  }
+}
