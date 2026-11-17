@@ -3,15 +3,17 @@ import { useHelskarm } from "./useHelskarm.js";
 import { DokumentKnapp, Dokumentrad } from "./Dokumentrad.jsx";
 import { OpsGastFelrad } from "./OpsGastFelrad.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
-import { useHtmlZoom } from "./htmlZoom.jsx";
+import { PDF_TOUCH_ACTION, usePdfZoom } from "./pdfZoom.js";
 import { IKON_FOR } from "./ikonlexikon.js";
 import { ExternLankIkon } from "./icons.jsx";
 import { filadressFel } from "../lib/bibliotek.js";
+import { anpassadSkala } from "../lib/htmlruta.js";
 import { cx } from "../lib/cx.js";
 import { ORD_HELSKARM } from "../lib/helskarmord.js";
 import { ordet } from "../lib/ord.js";
 import { PDFJS_SAKNAS, laddaPdfjs, oppnaPdf, pdfFelsort } from "../lib/pdfjs.js";
 import { SIDNUMMER_MS, bytSida, klickSteg, skarmSkala, svepSteg, tangentIPresentation } from "../lib/pdfpresentation.js";
+import { svepTillats, ritmatt } from "../lib/pdfzoom.js";
 import { sparaSomFil } from "../lib/sparaFil.js";
 import { OpsVantar } from "./OpsVantar.jsx";
 
@@ -35,6 +37,9 @@ import { OpsVantar } from "./OpsVantar.jsx";
  *    Esc avslutar, och sidnumret syns en kort stund vid varje sidbyte (`SIDNUMMER_MS`). Där elementet inte kan gå till helskärm (Safari på iPhone har inget Fullscreen API för element) fyller presentationen
  *    fönstret i stället. ⛔ Det kan inte lovas att Safaris egen rad är borta där. Som hemskärmsapp är fönstret hela skärmen.
  * 5. ⛔ FEL SYNS, MED FÖRSÖK IGEN (regel 5, samma rad som gästflikarna i #675, `OpsGastFelrad`): en fil som inte går att hämta, en import av pdf.js som faller, en PDF med lösenord och en fil som inte är en PDF.
+ * 6. ⛔ ZOOMEN (0.235.0, CP 2026-11-16: "Det går inte att zooma i pdf:er i biblioteket. Det vore bra om det funkade."): nyp med två fingrar (1x till 4x av hel bredd), dubbeltryck växlar mellan hel bredd och 2x,
+ *    inzoomad drar ett finger sidan åt alla håll, och i datorn −, + och Anpassa till bredd i raden samt Ctrl- eller Cmd+hjul. Samma zoom finns i helskärmen, där svepet byter sida bara vid hel sida.
+ *    Sidorna ritas om i den nya skalan när zoomen stått still, och ingen canvas blir större än taket för pixlar. Reglerna i `lib/pdfzoom.js`, gesterna i `usePdfZoom`.
  *
  * @param {object} props
  * @param {(sokvag: string) => Promise<Blob>} props.hamta Filens byte.
@@ -91,26 +96,26 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
   const [sida, setSida] = useState(1);
   useEffect(() => setSida(1), [klar?.dokument]);
 
-  // ── Zoomen: samma tillstånd och knappar som HTML-rutan. Måttet är sidans bredd vid 100 procent mot rutans bredd ──────
-  const zoom = useHtmlZoom();
-  const rulla = useRef(/** @type {HTMLDivElement | null} */ (null));
-  const ta = zoom.ta;
+  // ── Zoomen (0.235.0): faktorn räknas från hel bredd (`bas`, sidan anpassad till rutans bredd, som förvalet var förut). Gesterna och knapparna i `usePdfZoom` ─────────────────────────
+  const zoom = usePdfZoom();
+  const rulla = zoom.el;
   const sidbredd = klar?.sida1.bredd ?? 0;
   // Luften runt sidorna finns bara i helfönstret. I detaljen står sidan kant i kant med raden ovanför, som HTML-rutan.
   const kant = helfonster ? KANT : 0;
+  const [bas, setBas] = useState(1);
   useEffect(() => {
-    const el = rulla.current;
+    const el = rulla;
     if (!el || !sidbredd) return undefined;
     const matt = () => {
       const synlig = el.clientWidth - 2 * kant;
-      if (synlig > 0) ta({ typ: "matt", innehall: sidbredd, synlig });
+      if (synlig > 0) setBas(anpassadSkala({ innehall: sidbredd, synlig }));
     };
     matt();
     if (typeof ResizeObserver !== "function") return undefined;
     const ro = new ResizeObserver(matt);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [sidbredd, ta, kant]);
+  }, [rulla, sidbredd, kant]);
 
   // ── Presentationen ──────────────────────────────────────────────────────────────────────────────────────────────────
   const yta = useRef(/** @type {HTMLElement | null} */ (null));
@@ -125,16 +130,28 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
   }, []);
   useEffect(() => () => clearTimeout(nummerKlocka.current), []);
 
+  // Helskärmens egen zoom, från sidan anpassad till skärmen. Ett ensamt tryck med fingret byter sida (som klicket), men först när ett andra tryck inte kom: två tryck är ett dubbeltryck och zoomar.
+  const tryckRef = useRef(/** @type {(p: { x: number, y: number }) => void} */ (() => {}));
+  const presZoom = usePdfZoom({ onTryck: (p) => tryckRef.current(p) });
+  const nollstallPres = presZoom.nollstall;
   const stegTill = useCallback(
     (/** @type {number | "forsta" | "sista"} */ steg) => {
       setSida((nu) => (steg === "forsta" ? 1 : steg === "sista" ? Math.max(1, antal) : bytSida(nu, antal, steg)));
+      // En ny sida börjar anpassad till skärmen.
+      nollstallPres();
       visaSidnummer();
     },
-    [antal, visaSidnummer],
+    [antal, visaSidnummer, nollstallPres],
   );
+  // ⛔ INZOOMAD BYTER ETT TRYCK ELLER KLICK INTE SIDA: fingret är på sidan för att läsa eller dra den. Ett dubbeltryck går tillbaka till hel sida.
+  tryckRef.current = (p) => {
+    if (!svepTillats(presZoom.faktor)) return;
+    stegTill(klickSteg(p.x, presZoom.el?.clientWidth ?? 0));
+  };
 
   // ⛔ WEBBLÄSARENS EGET SVAR, som `OpsFullscreenToggle`, i `useHelskarm`: helskärm där den finns, annars fyller presentationen fönstret.
   function presentera() {
+    nollstallPres();
     oppnaHelskarm();
     visaSidnummer();
   }
@@ -200,18 +217,24 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
             svepte.current = false;
             return;
           }
+          // Ett tryck med fingret byter sida i `usePdfZoom` (efter att ett dubbeltryck uteslutits). Webbläsarens klick efter trycket räknas inte en gång till.
+          if (Date.now() - presZoom.beroring.current < BERORING_KLICK_MS) return;
+          if (!svepTillats(presZoom.faktor)) return;
           const r = e.currentTarget.getBoundingClientRect();
           stegTill(klickSteg(e.clientX - r.left, r.width));
         }}
         onTouchStart={(e) => {
-          const t = e.touches[0];
+          // Bara ett finger kan svepa. Kommer ett andra är det en nypning, och svepet glöms.
+          const t = e.touches.length === 1 ? e.touches[0] : null;
           svep.current = t ? { x: t.clientX, y: t.clientY } : null;
         }}
         onTouchEnd={(e) => {
           const fran = svep.current;
           const t = e.changedTouches[0];
           svep.current = null;
-          if (!fran || !t) return;
+          if (!fran || !t || e.touches.length > 0) return;
+          // ⛔ SVEPET BYTER SIDA BARA VID HEL SIDA (0.235.0). Inzoomad drar fingret sidan, och ett drag får inte byta sida under fingret.
+          if (!svepTillats(presZoom.faktor)) return;
           const steg = svepSteg(t.clientX - fran.x, t.clientY - fran.y);
           if (steg !== 0) {
             svepte.current = true;
@@ -219,7 +242,11 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
           }
         }}
       >
-        <Sida key={`p${sida}`} dokument={klar.dokument} nr={sida} yta={skarm} mark="data-pdf-presentationssida" etikett={o("sidaEtikett").replace("{nr}", String(sida))} />
+        <div ref={presZoom.ruta} data-pdf-presentationsyta="" data-pdf-zoom={presZoom.faktor} className="absolute inset-0 overflow-auto" style={{ touchAction: PDF_TOUCH_ACTION }}>
+          <div className="flex min-h-full w-max min-w-full items-center justify-center">
+            <Sida key={`p${sida}`} dokument={klar.dokument} nr={sida} yta={skarm} faktor={presZoom.faktor} ritad={presZoom.ritad} mark="data-pdf-presentationssida" etikett={o("sidaEtikett").replace("{nr}", String(sida))} />
+          </div>
+        </div>
         <p
           role="status"
           aria-live="polite"
@@ -248,7 +275,7 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
   // ⛔ EN RAD, INGEN EGEN YTA (0.196.0, `Dokumentrad`): zoomen, sidan och ikonknapparna på en rad utan bakgrund och utan ram. I detaljen står inget filnamn: posten har redan sin rubrik.
   // I helfönstret står namnet som rubrik bredvid raden (under den i en telefon), i appens vanliga rubrikstil.
   const rad = (
-    <Dokumentrad mark="data-pdf-rad" etikett={o("verktyg")} zoom={klar ? zoom : null} sprak={sprak} sida={antal > 0 ? { nr: sida, antal, etikett: sidtext } : null}>
+    <Dokumentrad mark="data-pdf-rad" etikett={o("verktyg")} zoom={klar ? zoom.rad : null} sprak={sprak} sida={antal > 0 ? { nr: sida, antal, etikett: sidtext } : null}>
       <DokumentKnapp mark="data-pdf-helskarm" ikon={IKON_FOR.helskarm} etikett={o("helskarm")} disabled={!klar} onClick={() => presentera()} />
       {laddaNed ? <DokumentKnapp mark="data-pdf-ladda-ned" ikon={IKON_FOR.laddaNed} etikett={o("laddaNed")} onClick={() => sparaFilen()} /> : null}
       {fonster ? <DokumentKnapp mark="data-pdf-fonster" ikon={ExternLankIkon} etikett={o("fonster")} href={fonster} /> : null}
@@ -277,15 +304,17 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
         <p role="status" data-pdf-lage="tom" className={cx("m-0 text-etikett text-ink-muted", helfonster && "px-4 py-4")}>{o("tom")}</p>
       ) : (
         // ⛔ INGEN RAM OCH INGEN EGEN BAKGRUND RUNT SIDORNA (0.196.0, CP: "sidan i en egen ram med rundade hörn inne i rutan"). Sidan står på samma yta som raden, som HTML-rutans dokument.
+        // ⛔ `touch-action: pan-x pan-y` (0.235.0): ett finger rullar i båda led (inzoomad drar det sidan), och nypningen och dubbeltrycket går till zoomen och inte till webbläsarens zoom av hela appen.
         <div
-          ref={rulla}
+          ref={zoom.ruta}
           data-pdf-sidor=""
+          data-pdf-zoom={zoom.faktor}
           className={cx("min-w-0 overflow-auto", helfonster ? "min-h-0 flex-1" : "h-[70vh] min-h-72")}
-          style={{ padding: kant }}
+          style={{ padding: kant, touchAction: PDF_TOUCH_ACTION }}
         >
           <div className="mx-auto flex w-max min-w-full flex-col items-center gap-3">
             {Array.from({ length: antal }, (_, i) => (
-              <SynligSida key={i + 1} dokument={/** @type {any} */ (klar).dokument} nr={i + 1} skala={zoom.skala} sida1={/** @type {any} */ (klar).sida1} rot={rulla} onSyns={setSida} etikett={o("sidaEtikett").replace("{nr}", String(i + 1))} />
+              <SynligSida key={i + 1} dokument={/** @type {any} */ (klar).dokument} nr={i + 1} skala={bas} faktor={zoom.faktor} ritad={zoom.ritad} sida1={/** @type {any} */ (klar).sida1} rot={rulla} onSyns={setSida} etikett={o("sidaEtikett").replace("{nr}", String(i + 1))} />
             ))}
           </div>
         </div>
@@ -298,6 +327,8 @@ export function OpsPdfVisning({ hamta, sokvag, namn, fonster, laddaNed = true, h
 const CSS_PER_PUNKT = 96 / 72;
 /** Luften runt sidorna i rutan, i CSS-pixlar. */
 const KANT = 12;
+/** Ett klick så här snart efter en beröring är webbläsarens eget, efter ett tryck med fingret, och byter inte sida en gång till. Se `usePdfZoom`. */
+const BERORING_KLICK_MS = 800;
 
 /**
  * @param {{ sort: "import" | "saknas" | "hamta" | "losenord" | "trasig" | "annat", text: string }} fel
@@ -313,10 +344,10 @@ function felText(fel, o) {
 }
 
 /**
- * En sida i den rullande vyn: en platshållare i sidans storlek tills den syns, sedan canvas. Utan `IntersectionObserver` ritas den direkt.
- * @param {{ dokument: any, nr: number, skala: number, sida1: { bredd: number, hojd: number }, rot: { current: HTMLElement | null }, onSyns: (nr: number) => void, etikett: string }} props
+ * En sida i den rullande vyn: en platshållare i sidans storlek tills den syns, sedan sidan. Utan `IntersectionObserver` ritas den direkt.
+ * @param {{ dokument: any, nr: number, skala: number, faktor: number, ritad: number, sida1: { bredd: number, hojd: number }, rot: HTMLElement | null, onSyns: (nr: number) => void, etikett: string }} props
  */
-function SynligSida({ dokument, nr, skala, sida1, rot, onSyns, etikett }) {
+function SynligSida({ dokument, nr, skala, faktor, ritad, sida1, rot, onSyns, etikett }) {
   const ram = useRef(/** @type {HTMLDivElement | null} */ (null));
   const [synlig, setSynlig] = useState(() => typeof IntersectionObserver !== "function");
   const onSynsRef = useRef(onSyns);
@@ -328,10 +359,10 @@ function SynligSida({ dokument, nr, skala, sida1, rot, onSyns, etikett }) {
     // Med en observatör och marginalen räknades sidorna under som synliga också: andelen räknas mot den utökade ytan, och raden sade "Sida 3 av 3" när sidan 1 syntes (mätt i en telefon på 390 px).
     const nara = new IntersectionObserver((poster) => {
       if (poster.some((p) => p.isIntersecting)) setSynlig(true);
-    }, { root: rot.current, rootMargin: "100% 0px" });
+    }, { root: rot, rootMargin: "100% 0px" });
     const mitt = new IntersectionObserver((poster) => {
       if (poster.some((p) => p.isIntersecting)) onSynsRef.current(nr);
-    }, { root: rot.current, rootMargin: "-50% 0px -50% 0px" });
+    }, { root: rot, rootMargin: "-50% 0px -50% 0px" });
     nara.observe(el);
     mitt.observe(el);
     return () => {
@@ -339,59 +370,126 @@ function SynligSida({ dokument, nr, skala, sida1, rot, onSyns, etikett }) {
       mitt.disconnect();
     };
   }, [nr, rot]);
+  // Platshållaren följer zoomen, så att rullningen och sidorna under har rätt läge innan sidan ritats.
+  const reserv = { bredd: sida1.bredd * skala * faktor, hojd: sida1.hojd * skala * faktor };
   return (
-    <div ref={ram} data-pdf-sidram={nr} style={synlig ? undefined : { width: sida1.bredd * skala, height: sida1.hojd * skala, background: "white" }}>
-      {synlig ? <Sida dokument={dokument} nr={nr} skala={skala} mark="data-pdf-sida-canvas" etikett={etikett} /> : null}
+    <div ref={ram} data-pdf-sidram={nr} style={synlig ? undefined : { width: reserv.bredd, height: reserv.hojd, background: "white" }}>
+      {synlig ? <Sida dokument={dokument} nr={nr} skala={skala} faktor={faktor} ritad={ritad} reserv={reserv} mark="data-pdf-sida-canvas" etikett={etikett} /> : null}
     </div>
   );
 }
 
 /**
- * En sida på en canvas, i skärmens upplösning. Antingen med en skala (rutan) eller anpassad till en yta (presentationen).
- * Ritningen avbryts när sidan, skalan eller ytan ändras, så att två ritningar aldrig skriver på samma canvas.
+ * En sida, i skärmens upplösning. Antingen med en skala (rutan, där skalan är hel bredd) eller anpassad till en yta (helskärmen). `faktor` är zoomen ovanpå den.
  *
- * @param {{ dokument: any, nr: number, skala?: number, yta?: { bredd: number, hojd: number }, mark: string, etikett: string }} props
+ * ⛔ RAMEN FÖLJER ZOOMEN, BILDEN FÖLJER `ritad` (0.235.0). Ramen får sin storlek av `faktor` i varje ritning, och canvasen fyller ramen: under en nypning sträcks den ritade bilden med CSS, utan ny ritning.
+ * Först när zoomen stått still (`ritad`, se `usePdfZoom`) ritas sidan om i den nya skalan.
+ *
+ * ⛔ TVÅ RITNINGAR SKRIVER ALDRIG PÅ SAMMA CANVAS. Varje ritning får en egen canvas, som ersätter den förra i ramen först när den är klar (ingen vit blinkning medan nästa ritas). En ny skala avbryter den pågående
+ * ritningen (`cancel`), och nästa börjar först när den avbrutna har lagt sig. En canvas som byts ut eller lämnas släpps (bredd och höjd noll): Safari på iPhone håller annars kvar minnet.
+ *
+ * ⛔ TAKET FÖR PIXLAR (`ritmatt`, `lib/pdfzoom.js`): canvasen blir aldrig större än `PIXELTAK` pixlar. Över taket ritas sidan i takets upplösning.
+ *
+ * @param {{ dokument: any, nr: number, skala?: number, yta?: { bredd: number, hojd: number }, faktor?: number, ritad?: number, reserv?: { bredd: number, hojd: number }, mark: string, etikett: string }} props
  */
-function Sida({ dokument, nr, skala, yta, mark, etikett }) {
-  const canvas = useRef(/** @type {HTMLCanvasElement | null} */ (null));
+function Sida({ dokument, nr, skala, yta, faktor = 1, ritad = 1, reserv, mark, etikett }) {
+  const ram = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const [grund, setGrund] = useState(/** @type {{ sidan: any, bredd: number, hojd: number } | null} */ (null));
   const [fel, setFel] = useState(false);
-  const ytaB = yta?.bredd ?? 0;
-  const ytaH = yta?.hojd ?? 0;
+  /** Den senaste ritningen, som nästa väntar på. Den kastar aldrig: felet är redan taget i den. */
+  const forra = useRef(/** @type {Promise<void>} */ (Promise.resolve()));
+
   useEffect(() => {
     let kvar = true;
-    /** @type {{ cancel: () => void } | null} */
-    let uppgift = null;
     setFel(false);
-    (async () => {
+    setGrund(null);
+    Promise.resolve()
+      .then(() => dokument.getPage(nr))
+      .then(
+        (sidan) => {
+          if (!kvar) return;
+          const vp = sidan.getViewport({ scale: CSS_PER_PUNKT });
+          setGrund({ sidan, bredd: vp.width, hojd: vp.height });
+        },
+        () => {
+          if (kvar) setFel(true);
+        },
+      );
+    return () => {
+      kvar = false;
+    };
+  }, [dokument, nr]);
+
+  const ytaB = yta?.bredd ?? 0;
+  const ytaH = yta?.hojd ?? 0;
+  const s0 = grund ? (yta ? skarmSkala({ bredd: grund.bredd, hojd: grund.hojd }, { bredd: ytaB, hojd: ytaH }) : (skala ?? 1)) : 0;
+  const ritskala = s0 * ritad;
+
+  useEffect(() => {
+    const box = ram.current;
+    if (!grund || !box || !(ritskala > 0)) return undefined;
+    let kvar = true;
+    /** @type {{ cancel: () => void, promise: Promise<unknown> } | null} */
+    let uppgift = null;
+    const fore = forra.current;
+    const denna = (async () => {
+      await fore;
+      if (!kvar) return;
+      const vp = grund.sidan.getViewport({ scale: CSS_PER_PUNKT * ritskala });
+      const dpr = typeof window !== "undefined" && window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
+      const m = ritmatt(vp.width, vp.height, dpr);
+      const c = document.createElement("canvas");
+      c.width = m.bredd;
+      c.height = m.hojd;
+      c.setAttribute("aria-hidden", "true");
+      c.setAttribute("data-pdf-canvas", String(nr));
+      c.className = "block size-full";
+      uppgift = grund.sidan.render({ canvas: c, viewport: vp, transform: m.k !== 1 ? [m.k, 0, 0, m.k, 0, 0] : undefined });
       try {
-        const sidan = await dokument.getPage(nr);
-        if (!kvar || !canvas.current) return;
-        const bas = sidan.getViewport({ scale: CSS_PER_PUNKT });
-        const s = yta ? skarmSkala({ bredd: bas.width, hojd: bas.height }, { bredd: ytaB, hojd: ytaH }) : (skala ?? 1);
-        const vp = sidan.getViewport({ scale: CSS_PER_PUNKT * s });
-        const dpr = typeof window !== "undefined" && window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
-        const c = canvas.current;
-        c.width = Math.max(1, Math.floor(vp.width * dpr));
-        c.height = Math.max(1, Math.floor(vp.height * dpr));
-        c.style.width = `${Math.floor(vp.width)}px`;
-        c.style.height = `${Math.floor(vp.height)}px`;
-        uppgift = sidan.render({ canvas: c, viewport: vp, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined });
         await /** @type {any} */ (uppgift).promise;
       } catch (e) {
-        // Ett avbrott är vår egen ändring (ny skala, ny sida), inget fel. Allt annat syns på sidan.
-        if (kvar && !(e && typeof e === "object" && /** @type {any} */ (e).name === "RenderingCancelledException")) setFel(true);
+        slapp(c);
+        throw e;
       }
-    })();
+      if (!kvar) return slapp(c);
+      box.querySelectorAll("canvas").forEach(slapp);
+      box.replaceChildren(c);
+    })().catch((e) => {
+      // Ett avbrott är vår egen ändring (ny skala, ny sida), inget fel. Allt annat syns på sidan.
+      if (kvar && !(e && typeof e === "object" && /** @type {any} */ (e).name === "RenderingCancelledException")) setFel(true);
+    });
+    forra.current = denna;
     return () => {
       kvar = false;
       uppgift?.cancel();
     };
-    // `yta` läses som två tal, så att ett nytt objekt med samma mått inte ritar om.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dokument, nr, skala, ytaB, ytaH]);
+  }, [grund, ritskala, nr]);
+
+  // Canvasen släpps när sidan lämnas.
+  useEffect(() => {
+    const box = ram.current;
+    return () => box?.querySelectorAll("canvas").forEach(slapp);
+  }, []);
+
   const sprak = useOpsSprak();
   if (fel) return <p role="alert" data-pdf-sidfel={nr} className="m-0 bg-surface p-4 text-etikett text-danger">{ordet(ORD_PDFVISNING, "felSida", sprak).replace("{nr}", String(nr))}</p>;
-  return <canvas ref={canvas} {...{ [mark]: nr }} role="img" aria-label={etikett} className="block bg-papper" />;
+  const storlek = grund ? { bredd: grund.bredd * s0 * faktor, hojd: grund.hojd * s0 * faktor } : reserv;
+  return (
+    <div
+      ref={ram}
+      {...{ [mark]: nr }}
+      role="img"
+      aria-label={etikett}
+      className="block shrink-0 bg-papper"
+      style={storlek ? { width: Math.floor(storlek.bredd), height: Math.floor(storlek.hojd) } : undefined}
+    />
+  );
+}
+
+/** Släpper en canvas minne: Safari på iPhone håller annars kvar det tills sidan laddas om. @param {HTMLCanvasElement} c */
+function slapp(c) {
+  c.width = 0;
+  c.height = 0;
 }
 
 /** @type {import("../lib/ord.js").Ordbok} */

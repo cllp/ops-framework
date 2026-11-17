@@ -19,7 +19,7 @@ import { HtmlZoomRad } from "./htmlZoom.jsx";
  * @param {object} props
  * @param {string} props.mark Radens dataattribut, för prov och mätningar (`data-pdf-rad`, `data-html-dokument-verktyg`).
  * @param {string} props.etikett Gruppens namn för skärmläsaren.
- * @param {import("./htmlZoom.jsx").HtmlZoom | null} [props.zoom] Utan zoom (dokumentet hämtas ännu) står bara knapparna.
+ * @param {import("./htmlZoom.jsx").ZoomRad | null} [props.zoom] Utan zoom (dokumentet hämtas ännu) står bara knapparna.
  * @param {string} props.sprak
  * @param {{ nr: number, antal: number, etikett: string } | null} [props.sida] Sidan och antalet. Ritas bara när antalet är större än ett.
  * @param {import("react").ReactNode} [props.children] Ikonknapparna till höger.

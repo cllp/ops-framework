@@ -40,9 +40,15 @@ export function useHtmlZoom() {
 }
 
 /**
+ * Det raden behöver av en zoom. HTML-rutans (`useHtmlZoom`) och PDF-vyns (`usePdfZoom`, 0.235.0) har var sin räkning men samma knappar (regel 2).
+ * `min` och `max` är gränserna för − och +. Utan dem gäller HTML-rutans, 10 och 200 procent. PDF-vyn räknar från hel bredd, 100 till 400 procent (`lib/pdfzoom.js`).
+ * @typedef {{ skala: number, anpassa: boolean, steg: (riktning: 1 | -1) => void, anpassaTillBredd: () => void, min?: number, max?: number }} ZoomRad
+ */
+
+/**
  * Knapparna − , procenten och + vid rutan. Varje knapp är minst 44 px på telefonen (`OpsButton` sm).
  *
- * @param {{ zoom: HtmlZoom, sprak: string }} props
+ * @param {{ zoom: ZoomRad, sprak: string }} props
  */
 export function HtmlZoomRad({ zoom, sprak }) {
   const o = (/** @type {keyof typeof ORD_HTMLZOOM} */ k) => ordet(ORD_HTMLZOOM, k, sprak);
@@ -51,13 +57,13 @@ export function HtmlZoomRad({ zoom, sprak }) {
   const In = IKON_FOR.zoomaIn;
   return (
     <div role="group" aria-label={o("grupp")} data-html-zoom="" data-html-zoom-anpassad={zoom.anpassa ? "" : undefined} className="flex items-center gap-1">
-      <OpsButton variant="ghost" size="sm" iconOnly ariaLabel={o("ut")} disabled={zoom.skala <= ZOOM_MIN + 1e-9} onClick={() => zoom.steg(-1)}>
+      <OpsButton variant="ghost" size="sm" iconOnly ariaLabel={o("ut")} disabled={zoom.skala <= (zoom.min ?? ZOOM_MIN) + 1e-9} onClick={() => zoom.steg(-1)}>
         <Ut size={18} aria-hidden="true" />
       </OpsButton>
       <OpsButton variant="ghost" size="sm" ariaLabel={(zoom.anpassa ? o("anpassad") : o("anpassa")).replace("{procent}", procent)} onClick={zoom.anpassaTillBredd}>
         <span data-html-zoom-procent="" className="tabular-nums">{procent}</span>
       </OpsButton>
-      <OpsButton variant="ghost" size="sm" iconOnly ariaLabel={o("in")} disabled={zoom.skala >= ZOOM_MAX - 1e-9} onClick={() => zoom.steg(1)}>
+      <OpsButton variant="ghost" size="sm" iconOnly ariaLabel={o("in")} disabled={zoom.skala >= (zoom.max ?? ZOOM_MAX) - 1e-9} onClick={() => zoom.steg(1)}>
         <In size={18} aria-hidden="true" />
       </OpsButton>
     </div>
