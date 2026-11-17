@@ -15,7 +15,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ### Tillagt
 
-- **`OpsCalendar arsvy`**: en liten ikonknapp, "Visa året", i kalenderns verktygsrad. Den fäller ut året i helskärm med `useHelskarm`, samma som kartan och PDF-vyn: webbläsarens helskärm där den finns, annars ett lager över hela fönstret. Escape och krysset stänger. Utan propen ingen knapp, så ingen app får den utan att be om den.
+- **`OpsCalendar arsvy`**: en liten ikonknapp, "Visa året", i kalenderns verktygsrad. Den fäller ut året i helskärm med `useHelskarm`, samma som kartan och PDF-vyn: webbläsarens helskärm där den finns, annars ett lager över hela fönstret. Escape och krysset stänger. ⛔ **På som förval** (CP 2026-11-17: "Den får vara på från början ... Ingen kommer att slå på den annars."): varje app med kalendern får knappen, och `arsvy={false}` tar bort den.
 - **`OpsKalenderAr`**: tolv månader i ett rutnät (två kolumner på telefon, tre till fyra på bredare skärm). Varje dag har ett band per kalender för det som är heldag eller flera dagar, i kalenderlistans ordning och i kalenderns färg, högst tre och sedan "+N". Möten med klockslag blir inga band: året visar perioder, inte tider. Idag är inringad. Kalenderlistan överst slår av och på kalendrar, samma val som i kalendern (`useKalenderSynlighet`). Ett tryck på en dag stänger året, väljer dagen och rullar dit. Ett tryck på en månads namn rullar till månaden.
 - **`arsband(poster, { kalendrar, forvaldId })`** och **`MAX_ARSBAND`** (`src/lib/arsband.js`): banden per dag, utan React, så att appen och agenten kan räkna samma sak.
 - **`ArsvyIkon`** i ikonlexikonet (Lucide `CalendarRange`).

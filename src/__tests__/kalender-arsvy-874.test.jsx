@@ -20,11 +20,11 @@ const POSTER = [
 ];
 
 describe("⛔ Visa året i kalendern (#874)", () => {
-  it("knappen finns bara när appen slår på årsvyn", () => {
+  it("⛔ knappen finns från början (CP 2026-11-17), och arsvy={false} tar bort den", () => {
     const { rerender } = render(<OpsCalendar ariaLabel="Kalender" today={IDAG} entries={POSTER} kalendrar={KALENDRAR} />);
-    expect(screen.queryByRole("button", { name: "Visa året" })).toBeNull();
-    rerender(<OpsCalendar ariaLabel="Kalender" today={IDAG} entries={POSTER} kalendrar={KALENDRAR} arsvy />);
     expect(screen.getByRole("button", { name: "Visa året" })).toBeTruthy();
+    rerender(<OpsCalendar ariaLabel="Kalender" today={IDAG} entries={POSTER} kalendrar={KALENDRAR} arsvy={false} />);
+    expect(screen.queryByRole("button", { name: "Visa året" })).toBeNull();
   });
 
   it("öppnar året i ett lager över hela skärmen, och Stäng och Escape lägger tillbaka kalendern", () => {

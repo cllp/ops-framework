@@ -524,9 +524,10 @@ describe("OpsCalendar som SS (F1)", () => {
     expect(fatt).toEqual([["2026-10-05"], ["2026-10-12"]]);
   });
 
-  it("utan kalendrar, typer och onSkapa finns inga av de kontrollerna, men veckonummer och sök finns", () => {
+  // ⛔ "Visa året" är på som förval sedan 0.237.0 (CP 2026-11-17: "Ingen kommer att slå på den annars"), också utan kalendrar: året visar heldagar ändå.
+  it("utan kalendrar, typer och onSkapa finns inga av de kontrollerna, men Visa året, veckonummer och sök finns", () => {
     render(<OpsCalendar ariaLabel="K" entries={[]} today={IDAG} monthsBack={0} monthsForward={0} lagring={{ getItem: () => null, setItem: () => {} }} />);
     const rad = /** @type {HTMLElement} */ (document.querySelector("[data-kalender-verktyg]"));
-    expect(within(rad).getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual(["Veckonummer", "Sök i kalendern"]);
+    expect(within(rad).getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual(["Visa året", "Veckonummer", "Sök i kalendern"]);
   });
 });

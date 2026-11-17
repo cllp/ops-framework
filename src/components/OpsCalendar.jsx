@@ -1292,7 +1292,8 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  *   som `YYYY-MM`, när rullningen har stannat (`SYNLIGA_MANADER_VILA_MS`) och en gång vid start. Aldrig medan rullningen pågår, och
  *   bara när intervallet ändrats. För en app som hämtar data för det synliga fönstret, så att den inte läser kalenderns DOM.
  * @param {boolean} [props.arsvy] (0.237.0, cllp/lifehub.app#874) En liten knapp "Visa året" i verktygsraden som fäller ut året i helskärm, ett band
- *   per kalender och dag för heldag och flera dagar. Ett tryck på en dag eller en månad stänger året och visar den här. Av som förval.
+ *   per kalender och dag för heldag och flera dagar. Ett tryck på en dag eller en månad stänger året och visar den här. ⛔ PÅ SOM FÖRVAL (CP 2026-11-17:
+ *   "Den får vara på från början ... Ingen kommer att slå på den annars."). `arsvy={false}` tar bort knappen.
  */
 export function OpsCalendar({
   entries = [],
@@ -1323,7 +1324,7 @@ export function OpsCalendar({
   onOppnaHandelse,
   filterMinne,
   onSynligaManader,
-  arsvy = false,
+  arsvy = true,
 }) {
   if (!ariaLabel) {
     throw new Error("OpsCalendar: ariaLabel krävs. Ett rutnät med tal är osynligt för den som inte ser det.");
