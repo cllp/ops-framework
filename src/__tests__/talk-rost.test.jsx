@@ -204,13 +204,21 @@ describe("TALK pratar tillbaka genom skalet", () => {
 
   it("⛔ väntan syns: Väntar på svaret… medan svaret dröjer, och efter taket ett lugnt besked i stället för en evig väntan", async () => {
     const u = falskUpplasning();
-    const svar = vi.fn(() => new Promise(() => {}));
+    /** @type {AbortSignal | undefined} */
+    let signal;
+    const svar = vi.fn((/** @type {{ signal?: AbortSignal } | undefined} */ opt) => {
+      signal = opt?.signal;
+      return new Promise(() => {});
+    });
     Skal({ talk: { onAgent: async () => ({ svar, vidare: vi.fn() }) }, igenkanning: falskIgenkanning("Fråga"), upplasning: u });
     await tillAgenten();
     expect(rostSteg()).toBe("vantar");
     expect(screen.getByText("Väntar på svaret…")).toBeTruthy();
+    expect(signal?.aborted).toBe(false);
     await tick(ROST_SVAR_MAX_MS);
     await flush();
+    // ⛔ Väntan är över, så källan får stänga sin prenumeration (`samtalssvar`). Utan avbrottet levde den kvar.
+    expect(signal?.aborted).toBe(true);
     expect(lage()).toBe("sparat");
     expect(screen.getByText("Svaret dröjer. Det kommer som text i chatten.")).toBeTruthy();
     expect(u.las).not.toHaveBeenCalled();
@@ -621,5 +629,15 @@ describe("samtalssvar och vidareISamtal", () => {
 
   it("avvisar när källan inte kan prenumerera", async () => {
     await expect(samtalssvar({ kalla: { prenumerera: () => null }, sid: "x", uid: "a", efter: { id: "m" } })).rejects.toThrow("Samtalet går inte att följa här");
+  });
+
+  it("stänger prenumerationen när väntan avbryts, också när svaret aldrig kommer", async () => {
+    const stang = vi.fn();
+    const avbryt = new AbortController();
+    const svar = samtalssvar({ kalla: { prenumerera: () => stang }, sid: "x", uid: "a", efter: { id: "m" }, signal: avbryt.signal });
+    expect(stang).not.toHaveBeenCalled();
+    avbryt.abort();
+    await expect(svar).rejects.toThrow("avbröts");
+    expect(stang).toHaveBeenCalledTimes(1);
   });
 });

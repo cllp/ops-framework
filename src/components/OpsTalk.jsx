@@ -455,8 +455,13 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
     const tak = new Promise((_, avvisa) => {
       drojer = setTimeout(() => avvisa(DROJER), ROST_SVAR_MAX_MS);
     });
-    Promise.race([Promise.resolve().then(() => talkrost.svar()), tak])
-      .finally(() => clearTimeout(drojer))
+    // ⛔ Väntan avbryts när den är över, vad som än avslutade den: källan stänger då sin prenumeration (`samtalssvar`).
+    const avbryt = new AbortController();
+    Promise.race([Promise.resolve().then(() => talkrost.svar({ signal: avbryt.signal })), tak])
+      .finally(() => {
+        clearTimeout(drojer);
+        avbryt.abort();
+      })
       .then((svar) => {
         if (!aktuell()) return undefined;
         const text = typeof svar === "string" ? svar.trim() : "";

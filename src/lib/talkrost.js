@@ -116,8 +116,9 @@ export function arKlarfras(text) {
 /**
  * Det appens mottagare kan lösa till för att samtalet ska fortsätta med röst.
  * @typedef {object} Talkrost
- * @property {() => Promise<string>} svar Agentens svar på det personen nyss sade, som text. ⛔ Anropas bara när svaret ska läsas upp, så att
+ * @property {(opt?: { signal?: AbortSignal }) => Promise<string>} svar Agentens svar på det personen nyss sade, som text. ⛔ Anropas bara när svaret ska läsas upp, så att
  *   en app som alltid ger det inte prenumererar i onödan. Avvisas löftet, eller löser det till en tom text, säger fältet att svaret står i chatten.
+ *   `signal` avbryts när fältet slutat vänta (taket på 90 s, Klar, en ny fråga): den som prenumererar ska då stänga, annars lever lyssnaren kvar.
  * @property {(text: string) => Promise<Talkrost | void> | Talkrost | void} vidare Nästa sak personen säger, i SAMMA samtal. Löser den till en
  *   ny `Talkrost` fortsätter samtalet, annars stängs fältet som efter Agent.
  */
@@ -289,11 +290,16 @@ export function sparaUpplasningPa(pa) {
 /**
  * Väntar på svaret efter ett skickat meddelande: texten i första meddelandet efter `efter` som någon annan än `uid` skrev. I ett agentsamtal
  * är det agenten. Avvisar när källan inte kan prenumerera (då finns inget att vänta med) eller när prenumerationen faller.
- * @param {{ kalla: { prenumerera: (sid: string, l: { onData: (rader: any[]) => void, onError: (fel: Error) => void }) => (() => void) | null }, sid: string, uid: string, efter: { id: string } }} p
+ * ⛔ `signal` STÄNGER PRENUMERATIONEN. Utan den levde lyssnaren kvar när fältet slutat vänta (taket på 90 s): kom svaret aldrig, stängdes den aldrig.
+ * @param {{ kalla: { prenumerera: (sid: string, l: { onData: (rader: any[]) => void, onError: (fel: Error) => void }) => (() => void) | null }, sid: string, uid: string, efter: { id: string }, signal?: AbortSignal }} p
  * @returns {Promise<string>}
  */
-export function samtalssvar({ kalla, sid, uid, efter }) {
+export function samtalssvar({ kalla, sid, uid, efter, signal }) {
   return new Promise((losa, avvisa) => {
+    if (signal?.aborted) {
+      avvisa(new Error("Väntan på svaret avbröts."));
+      return;
+    }
     /** @type {(() => void) | null} */
     let stang = null;
     let klar = false;
@@ -326,7 +332,11 @@ export function samtalssvar({ kalla, sid, uid, efter }) {
       }
       return;
     }
-    if (!stang) sluta(() => avvisa(new Error("Samtalet går inte att följa här, så svaret kan inte väntas in.")));
+    if (!stang) {
+      sluta(() => avvisa(new Error("Samtalet går inte att följa här, så svaret kan inte väntas in.")));
+      return;
+    }
+    signal?.addEventListener("abort", () => sluta(() => avvisa(new Error("Väntan på svaret avbröts."))), { once: true });
   });
 }
 
@@ -344,7 +354,7 @@ export function vidareISamtal({ kalla, sid, uid, skicka }) {
   const vidare = async (text) => {
     const ny = await sand(text);
     if (!ny || typeof ny.id !== "string") throw new Error("vidareISamtal: det skickade meddelandet saknar id, så svaret kan inte kännas igen.");
-    return { svar: () => samtalssvar({ kalla, sid, uid, efter: ny }), vidare };
+    return { svar: (opt) => samtalssvar({ kalla, sid, uid, efter: ny, signal: opt?.signal }), vidare };
   };
   return vidare;
 }
