@@ -33,7 +33,15 @@ CP:s skärmbild från appen: i bladet Nytt projekt (`OpsModal` med `footer`) var
 
 Kontrollerat: ramverket sätter ingen `user-scalable=no` eller `maximum-scale`, och inget `touch-action` som stänger nypningen i HTML-vyn. Rutans eget skript tar nypningen (sedan 0.192.0). Mätt med Playwright vid 390 px i mobilläge: en nypning i dokumentet tog zoomen från 30 till 90 %, och appens egen skala stod kvar på 1. Safaris `gesture*`-väg går inte att mäta i Chromium.
 
-Prov: `pdfzoom` (nytt, 16) och `modal-bottenrad` (nytt, 5). Mot 0.234.0 är 10 av de 11 vyproven i `pdfzoom` röda (det engelska namnprovet var grönt redan), reglernas 5 prov röda för att modulen saknas, och alla 5 i `modal-bottenrad` röda.
+### Efter granskningen
+
+- **Bara sidor nära vyn har en canvas.** Den första versionen behöll canvasen för varje sida som någon gång visats, och efter en zoom ritades alla de sidorna om, samtidigt: vid 4x upp till 64 MB per sida. Nu släpper en sida som lämnar vyn (och skärmhöjden runt den) sin canvas och står kvar som en platshållare i sin storlek, och ritningarna köas, en i taget (`skapaRitko`).
+- **Punkten under fingret står kvar, mätt i sidan.** Ankaret räknade som om innehållet skalade från rutans övre vänstra hörn, vilket inte gäller den centrerade sidan i helskärmen eller luften mellan sidorna. Nu sparas punkten som andel av sidan under den (`andelISida`, `rullningTillAndel`). Mätt med Playwright: 0,3 px fel i höjdled vid 1280 px, och 2 px vid en nypning vid 390 px. I sidled står en sida som är smalare än rutan centrerad, och då finns ingen rullning att lägga punkten med.
+- **Safari på Mac:** nypningen med styrplattan (`gesturestart`, `gesturechange`, `gestureend`) zoomar ur `e.scale`. På en iPhone räknas samma gest bara ur fingrarna.
+- Zoomen i den rullande vyn börjar på hel bredd när helskärmen stängs. Blir + eller − avstängd vid gränsen får den andra knappen fokus (också i HTML-rutan). Ett ankare för ett värde som aldrig ritades ligger inte kvar.
+- **Remsan under bladet.** Bottenradens kant mellan en panel och raden hade panelernas färg (`canvas`) och började en pixel under panelen. Under ett blad (`raised`) i mörkt tema blev det ett mörkt streck, mätt med Playwright: bladet rgb(38, 45, 38), remsan rgb(24, 28, 24). Nu tar kanten bladets färg medan ett blad är öppet (`data-ops-blad-oppet` på <html>, regeln i `tokens.css`), den är en pixel högre, och bladet har ingen nedre kantlinje på telefonen.
+
+Prov: `pdfzoom` (nytt, 24) och `modal-bottenrad` (nytt, 7). Mot 0.234.0 är 10 av de första 11 vyproven i `pdfzoom` röda (det engelska namnprovet var grönt redan), reglernas 5 prov röda för att modulen saknas, och alla 5 första i `modal-bottenrad` röda. Granskningens 8 prov i `pdfzoom` är 7 röda mot den första versionen av zoomen (provet att en iPhone inte räknar nypningen två gånger var grönt redan), och granskningens 2 i `modal-bottenrad` är röda mot 0.234.0 (det om märket för kanten också mot den första versionen).
 
 **Att göra i appen:** inget krävs. Ett blad byggt på `OpsModal` slutar nu ovanför bottenraden på telefonen och dämpar radens flikar medan det är öppet. Kontrollera Nytt projekt i telefonen efter ompinningen.
 
