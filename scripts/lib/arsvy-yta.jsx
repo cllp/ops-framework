@@ -43,7 +43,7 @@ function Yta() {
   });
   return (
     <main className="mx-auto flex min-h-dvh max-w-6xl flex-col px-3 py-3">
-      <Ops.OpsCalendar ariaLabel="Kalender" today={new Date(2027, 2, 15, 12)} monthsBack={0} monthsForward={1} entries={POSTER} kalendrar={KALENDRAR} kalenderMinne="p:g" lagring={lagring} arsvy onOppnaHandelse={() => {}} />
+      <Ops.OpsCalendar ariaLabel="Kalender" today={new Date(2027, 2, 15, 12)} entries={POSTER} kalendrar={KALENDRAR} kalenderMinne="p:g" lagring={lagring} arsvy onOppnaHandelse={() => {}} />
     </main>
   );
 }

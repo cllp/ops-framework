@@ -25,6 +25,18 @@ anteckningar är en version ingen kan välja att hoppa över.
 - `arsband.test.js` (4) och `kalender-arsvy-874.test.jsx` (6). Röda utan ändringen: 4 av 6 i kalenderprovet faller mot a3a2a80^ (ingen knapp, inget lager), de två övriga provar den nya komponenten, som inte finns utan ändringen.
 - Skärmbilder i 390 och 1280 px, ljust och mörkt: `docs/bilder/0.237.0-arsvy/` (`scripts/arsvy-montage.mjs`). SessionStudio har ingen årsvy, så regel 12 kräver inget montage mot en förebild.
 
+### Granskningen före utgivningen
+
+En fristående granskare läste diffen. Det som ändrades, med ett prov per punkt (8 röda mot koden före, 17 gröna efter):
+
+- **Poster utan kalender försvann ur året** när gruppen saknar gruppkalender (`forvaldId` tomt). De står nu under `UTAN_KALENDER` ("Utan kalender"), sist, som månadsvyn visar dem.
+- **Förklaringen och banden kunde få olika färg** när `farg` saknas eller är en sträng. Båda använder nu `lagerFarg`.
+- **Fokus:** året är en dialog (`role="dialog"`, `aria-modal`) som tar fokus när det öppnas, Tab går runt inne i den, och fokus läggs tillbaka på "Visa året" när den stängs, hur den än stängs.
+- **Bandets plats bär betydelsen:** syns högst tre kalendrar har var och en en fast rad i varje dag, också de dagar den saknar band. Förut packades banden uppifrån, så att Skollov kunde stå på Barnens plats.
+- **Bara inlästa månader:** kalendern har poster för sitt fönster (`monthsBack`, `monthsForward`), inte för hela året. En månad utanför står som "Inte inläst", och året bläddrar bara till år med någon inläst månad. Förut stod "inget hela dagar" på dagar som bara inte var hämtade.
+- Förklaringens namn heter "Calendars" på engelska.
+- Proven mäter nu taket på tre band och "+N", vilket datum som väljs, och fokus.
+
 ## 0.236.0
 
 **Robs genomgång, första delen** (cllp/lifehub.app#870 och #871). Rob, ny i en grupp, kunde inte släppa en fil på Biblioteket, hittade inte vem som var inbjuden (inbjudningarna stod långt under medlemmarna, med ett formulär emellan), och fick skriva hela adressen till den han ville bjuda in fast personen redan fanns i en av hans grupper.

@@ -46,3 +46,17 @@ describe("arsband (#874)", () => {
     expect(arsband([], val).size).toBe(0);
   });
 });
+
+describe("⛔ arsband: poster utan kalender (granskningen av 0.237.0)", () => {
+  it("en heldag utan kalender och utan förvald kalender får ett band under UTAN_KALENDER, sist", async () => {
+    const { UTAN_KALENDER } = await import("../lib/arsband.js");
+    const ut = arsband(
+      [
+        { id: "x", date: "2027-05-01", allDay: true, title: "Utan" },
+        { id: "y", date: "2027-05-01", allDay: true, title: "Lov", kalender: kalendrar[1] },
+      ],
+      { kalendrar, forvaldId: "" },
+    );
+    expect(ut.get("2027-05-01")?.map((k) => k.id)).toEqual(["lov", UTAN_KALENDER]);
+  });
+});

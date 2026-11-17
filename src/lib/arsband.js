@@ -17,6 +17,9 @@ import { lagerFarg } from "./kalenderlager.js";
 /** Högst så många band ritas på en dag i årsvyn. Resten står som "+N", och dagpanelen visar alla med namn. */
 export const MAX_ARSBAND = 3;
 
+/** Id:t för band från poster som varken har en kalender eller en förvald att höra till. Anroparen sätter namnet. */
+export const UTAN_KALENDER = "";
+
 /**
  * Alla kalendrar med ett band per dag, i listans ordning, inte bara de som ritas.
  *
@@ -24,6 +27,8 @@ export const MAX_ARSBAND = 3;
  * @param {object} val
  * @param {ReadonlyArray<{ id: string, farg?: unknown, namn?: string }> | undefined} val.kalendrar Listans ordning avgör vem som står först.
  * @param {string} val.forvaldId Kalendern en post utan `kalender` hör till.
+ *   ⛔ Tom (gruppen har ingen gruppkalender) betyder inte att posten försvinner: den står under id `""` (`UTAN_KALENDER`), sist, precis som
+ *   `filtreraPoster` visar den i månadsvyn. Annars visade året "inget" på dagar som har något (regel 5, granskningen av 0.237.0).
  * @returns {Map<string, Array<{ id: string, namn: string, ton: 1|2|3|4|5|6 }>>} Dag (`YYYY-MM-DD`) till kalendrarna med band, först i listan först.
  */
 export function arsband(poster, { kalendrar, forvaldId }) {
@@ -34,8 +39,7 @@ export function arsband(poster, { kalendrar, forvaldId }) {
     if (!arBand(e)) continue;
     const id = e.kalender ? e.kalender.id : forvaldId;
     const rad = rader.get(id);
-    const kalla = /** @type {any} */ (rad ? rad.k : e.kalender);
-    if (!kalla) continue;
+    const kalla = /** @type {any} */ (rad ? rad.k : e.kalender || { id: UTAN_KALENDER });
     const plats = rad ? rad.plats : Number.MAX_SAFE_INTEGER;
     for (const dag of perDay([e]).keys()) {
       let dagens = perKalender.get(dag);

@@ -982,6 +982,7 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
  * @param {ReadonlyArray<{ namn: string, tomText?: string }> | undefined} props.kalendersektioner
  * @param {(() => void) | undefined} props.onHanteraKalendrar
  * @param {(() => void) | undefined} [props.onVisaAret] (cllp/lifehub.app#874) Visa året i helskärm. Utan den ingen knapp.
+ * @param {import("react").Ref<HTMLButtonElement>} [props.arKnapp] Knappen, så att fokus kan läggas tillbaka på den när året stängs.
  * @param {boolean} props.veckonummer
  * @param {() => void} props.onVeckonummer
  * @param {{ id: string, namn: string }[]} props.typer
@@ -995,7 +996,7 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
  * @param {(() => void) | undefined} props.onSkapa
  * @param {{ pa: boolean, onByt: (pa: boolean) => void } | undefined} props.tillganglighet
  */
-function Verktygsrad({ kalendrar, syn, sprak, kalendersektioner, onHanteraKalendrar, onVisaAret, veckonummer, onVeckonummer, typer, statusWords, typ, onTyp, status, onStatus, sokOppen, onSok, onSkapa, tillganglighet }) {
+function Verktygsrad({ kalendrar, syn, sprak, kalendersektioner, onHanteraKalendrar, onVisaAret, arKnapp, veckonummer, onVeckonummer, typer, statusWords, typ, onTyp, status, onStatus, sokOppen, onSok, onSkapa, tillganglighet }) {
   const statusar = Object.entries(statusWords);
   const harFilter = typer.length > 0 || statusar.length > 0;
   const synliga = (kalendrar || []).filter((k) => syn.arSynlig(k.id));
@@ -1070,7 +1071,7 @@ function Verktygsrad({ kalendrar, syn, sprak, kalendersektioner, onHanteraKalend
       ) : null}
 
       {onVisaAret ? (
-        <button type="button" aria-label={sprak === "en" ? "Show the year" : "Visa året"} title={sprak === "en" ? "Show the year" : "Visa året"} data-kalender-arsvy="" onClick={onVisaAret} className={verktygsklass(false)}>
+        <button ref={arKnapp} type="button" aria-label={sprak === "en" ? "Show the year" : "Visa året"} title={sprak === "en" ? "Show the year" : "Visa året"} data-kalender-arsvy="" onClick={onVisaAret} className={verktygsklass(false)}>
           <ArsvyIkon size={14} />
         </button>
       ) : null}
@@ -1549,6 +1550,7 @@ export function OpsCalendar({
   }, [ramDagar, dagdekor]);
   const allaPerDag = useMemo(() => perDay(entries), [entries]);
   const list = useMemo(() => months(franNyckel(todayDayKey), monthsBack, monthsForward), [todayDayKey, monthsBack, monthsForward]);
+  const inlastaManader = useMemo(() => new Set(list.map(({ ar, month }) => `${ar}-${String(month + 1).padStart(2, "0")}`)), [list]);
   const sokning = fraga.trim();
   const traffDagar = useMemo(() => {
     if (!sokning) return null;
@@ -1566,6 +1568,17 @@ export function OpsCalendar({
   const arRam = useRef(/** @type {HTMLDivElement | null} */ (null));
   const { lage: arLage, oppna: oppnaAr, avsluta: stangAr } = useHelskarm(arRam);
   const [arVisat, setArVisat] = useState(() => (today ?? new Date()).getFullYear());
+  const arKnapp = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  // ⛔ FOKUS TILLBAKA PÅ KNAPPEN NÄR ÅRET STÄNGS, hur det än stängs (krysset, Escape, webbläsarens egen helskärm, ett tryck på en dag). Annars hamnar det på
+  // `body`, eftersom innehållet som hade fokus försvinner (granskningen av 0.237.0).
+  const varOppet = useRef(false);
+  useEffect(() => {
+    if (arLage) varOppet.current = true;
+    else if (varOppet.current) {
+      varOppet.current = false;
+      arKnapp.current?.focus({ preventScroll: true });
+    }
+  }, [arLage]);
   const huvudRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const todayRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const panelRef = useRef(/** @type {HTMLDivElement | null} */ (null));
@@ -1897,6 +1910,7 @@ export function OpsCalendar({
               onVaxla={syn.vaxla}
               locale={locale}
               today={today}
+              inlasta={inlastaManader}
               onAr={setArVisat}
               onValjDag={(dag) => {
                 stangAr();
@@ -1919,6 +1933,7 @@ export function OpsCalendar({
           sprak={String(locale).toLowerCase().startsWith("en") ? "en" : undefined}
           kalendersektioner={kalendersektioner}
           onHanteraKalendrar={onHanteraKalendrar}
+          arKnapp={arKnapp}
           onVisaAret={arsvy ? () => { setArVisat((today ?? new Date()).getFullYear()); oppnaAr(); } : undefined}
           veckonummer={veckonummer}
           onVeckonummer={vaxlaVeckonummer}
