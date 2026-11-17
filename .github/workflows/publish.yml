@@ -179,8 +179,11 @@ jobs:
       # är den här filen. Den mäter CSS i en riktig webbläsare, alltså sådant som
       # jsdom aldrig ser. Samma installation som i `check.yml`: bara chromium, och
       # `npm run check` har redan byggt `dist`, som vakten kräver.
+      # ⛔ UTAN --with-deps PÅ EGNA RUNNERS (cllp/lifehub.app#880, 2026-11-18). Flaggan kör apt-get som root vid varje
+      # körning, och på Groks box (Debian) svarade apt med 500 från deb.debian.org, så steget föll. Chromiums
+      # systembibliotek installeras en gång på runnern av Grok, inte i varje jobb. Saknas de faller Chromium vid start.
       - if: steps.provad.outputs.kor != 'nej'
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
       - if: steps.provad.outputs.kor != 'nej'
         run: npm run check:skalyta
       # 0.94.0: brandfilen och lagren, samma skäl och samma installation som skalytevakten ovan.
