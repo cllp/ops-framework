@@ -189,6 +189,9 @@ jobs:
       # 0.136.0: typografin ritad mot SessionStudio, samma skäl och samma installation som ovan.
       - if: steps.provad.outputs.kor != 'nej'
         run: npm run check:typografimatning
+      # cllp/lifehub.app#873: textstorleken ritad, samma skäl och samma installation som ovan.
+      - if: steps.provad.outputs.kor != 'nej'
+        run: npm run check:textstorlek
 
       - name: Packa
         id: packa

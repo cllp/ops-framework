@@ -37,6 +37,7 @@ import { byggSkapare } from "./skapare.js";
 import { byggNamn } from "./sprak.js";
 import { SPRAK } from "./sprak.js";
 import { arGiltigGruppfarg } from "./gruppfarg.js";
+import { FORVALD_TEXTSTORLEK, TEXTSTORLEKAR, arTextstorlek } from "./textstorlek.js";
 import { HUVUDMENY_MAX, ORD_HUVUDMENY_FULL } from "./modulinstallningar.js";
 import { PROFILIKONER, PROFILFARGER, GRUPPIKONER, GRUPPINITIALER_FORM, KATALOGNAMN, arGiltigProfilikon } from "./markeformer.js";
 
@@ -106,6 +107,8 @@ export const MAX_GRUPPORT = 80;
  * @property {string} bild URL, eller tom sträng. Sedan #156 personens egen uppladdning.
  * @property {string} sprak Ur `SPRAK`.
  * @property {"system"|"ljust"|"morkt"} tema
+ * @property {import("./textstorlek.js").Textstorlek} textstorlek Personens textstorlek (cllp/lifehub.app#873), som temat ett
+ *   val per person och inte per hubb. En rad utan fältet läses som `mellan`, dagens storlek.
  * @property {string} telefon E.164 (`+46701234567`), eller tom sträng. #156.
  * @property {string} stad Fritext, eller tom sträng. #156.
  * @property {string} presentation Kort text om personen, max `MAX_PRESENTATION` tecken. #156.
@@ -262,7 +265,7 @@ const rensa = (v) => (typeof v === "string" ? v.trim() : "");
  * sådan lista är det heller inte vaktat, så en ny samling utan sin lista är ett
  * hål och inte en förenkling.
  */
-export const ANVANDARFALT = ["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar", "bildSokvag", "ikon", "farg"];
+export const ANVANDARFALT = ["id", "namn", "epost", "bild", "sprak", "tema", "textstorlek", "telefon", "stad", "presentation", "lankar", "bildSokvag", "ikon", "farg"];
 
 /*
  * ⛔ TVÅ LISTOR FÖR VAD EN KLIENT FÅR ÄNDRA PÅ EN GRUPP, OCH `GRUPPFALT` HÄRLEDS UR DEM (0.32.0, #180).
@@ -395,6 +398,12 @@ export function byggAnvandare(d, tillatnaPlattformar) {
     throw new Error(`users: temat "${tema}" för "${id}" finns inte. Giltiga: ${TEMAN.join(", ")}.`);
   }
 
+  // ⛔ cllp/lifehub.app#873: en rad skriven före textstorleken har inget fält och läses som förvalet, inte som ett fel.
+  const textstorlek = rensa(rad.textstorlek) || FORVALD_TEXTSTORLEK;
+  if (!arTextstorlek(textstorlek)) {
+    throw new Error(`users: textstorleken "${textstorlek}" för "${id}" finns inte. Giltiga: ${TEXTSTORLEKAR.join(", ")}.`);
+  }
+
   const telefon = rensa(rad.telefon);
   if (telefon && !E164_FORM.test(telefon)) {
     throw new Error(
@@ -434,6 +443,7 @@ export function byggAnvandare(d, tillatnaPlattformar) {
     bild: rensa(rad.bild),
     sprak,
     tema: /** @type {Anvandare["tema"]} */ (tema),
+    textstorlek,
     telefon,
     stad: rensa(rad.stad),
     presentation,

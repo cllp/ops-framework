@@ -50,7 +50,7 @@ import { byggAnvandare } from "./grupp.js";
  * är nyckeln, och `epost` är identiteten och kommer ur inloggningen (se
  * filhuvudet i `grupp.js`).
  */
-const PERSONFALT = ["sprak", "tema", "namn", "telefon", "stad", "presentation", "lankar", "bild", "bildSokvag", "ikon", "farg"];
+const PERSONFALT = ["sprak", "tema", "textstorlek", "namn", "telefon", "stad", "presentation", "lankar", "bild", "bildSokvag", "ikon", "farg"];
 
 /**
  * @typedef {object} Inloggad
@@ -131,7 +131,7 @@ export async function sakerstallAnvandare({ kalla, inloggad, samling = "users" }
  * @param {object} config
  * @param {import("../data/contract.js").DataSource<any>} config.kalla
  * @param {import("./grupp.js").Anvandare} config.anvandare
- * @param {{ sprak?: string, tema?: string, namn?: string, telefon?: string, stad?: string, presentation?: string, lankar?: { plattform: string, url: string }[], bild?: string, bildSokvag?: string }} config.andring
+ * @param {{ sprak?: string, tema?: string, textstorlek?: string, namn?: string, telefon?: string, stad?: string, presentation?: string, lankar?: { plattform: string, url: string }[], bild?: string, bildSokvag?: string }} config.andring
  * @param {string} [config.samling]
  * @param {ReadonlyArray<{ id: string }> | ReadonlyArray<string>} [config.tillatnaPlattformar] Vidarebefordras till `byggAnvandare` för `lankar`.
  * @returns {Promise<import("./grupp.js").Anvandare>}

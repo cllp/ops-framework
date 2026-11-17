@@ -35,6 +35,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { lasTokens } from "./check-kontrast.mjs";
 import { PAR } from "../src/lib/kontrastpar.js";
+import { FORVALD_TEXTSTORLEK, TEXTSKALOR, TEXTSTORLEK_ATTRIBUT } from "../src/lib/textstorlek.js";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixturVag = path.join(rot, "tokens", "sessionstudio-profil.json");
@@ -62,7 +63,58 @@ export const MARKORER = /** @type {const} */ ({
     start: "/* ── GENERERAT UR sessionstudio-profil.json, RÖR INTE (@layer base, publika roller) ── */",
     slut: "/* ── SLUT GENERERAT (@layer base, publika roller) ── */",
   },
+  // cllp/lifehub.app#873: textstorleken. Faktorerna ur `src/lib/textstorlek.js`, fältens golv på en pekskärm och brödtexten
+  // utan klass. Se `byggTextstorlek`.
+  textstorlek: {
+    start: "/* ── GENERERAT UR src/lib/textstorlek.js, RÖR INTE (textstorlek) ── */",
+    slut: "/* ── SLUT GENERERAT (textstorlek) ── */",
+  },
 });
+
+/**
+ * ⛔ TEXTSTORLEKEN (cllp/lifehub.app#873, CP 2026-11-17). Appens roller räknas som `calc(<storlek> * var(--textskala))`, och
+ * radhöjder i rem likadant, så att en rad vid Stor inte står med 16 px radhöjd för 16,1 px text. En enhetslös radhöjd
+ * (`var(--leading-tight)`, `1`) följer storleken av sig själv och rörs inte. De publika sidornas roller (`publik-*`) skalas
+ * inte: de har egna steg per brytpunkt och läses av den som inte är inloggad, alltså av någon som aldrig gjort valet.
+ * @param {string} varde
+ */
+function skalad(varde) {
+  return /^-?\d*\.?\d+rem$/.test(varde) ? `calc(${varde} * var(--textskala))` : varde;
+}
+
+/**
+ * Textstorlekens block: `--textskala` per läge, fältens golv på en pekskärm, och `body`.
+ *
+ * ⛔ FÄLTENS GOLV: iOS Safari zoomar in sidan när ett fält under 16 px får fokus. Fälten skriver `text-brod
+ * md:pointer-fine:text-etikett` (`faltKlass`), alltså 16 px på en pekskärm, och vid Liten hade det blivit 14,4. Golvet gäller
+ * en grov pekare (`pointer: coarse`), i alla tre lägen, och är `max(1rem, brödtexten)`: vid Stor växer fältet med texten.
+ * Ligger i `ops-ramverk`, som vinner över verktygsklasserna, eftersom det ska gälla också ett fält med en egen roll.
+ *
+ * ⛔ `body` FÅR STORLEKEN, i basskiktet: text utan klass ärver bodyns 16 px, och den ska följa valet som rollerna gör. Vid
+ * Mellan är det 1rem, alltså samma som webbläsarens förval.
+ * @returns {string}
+ */
+export function byggTextstorlek() {
+  const lagen = Object.entries(TEXTSKALOR).filter(([namn]) => namn !== FORVALD_TEXTSTORLEK);
+  return [
+    "@layer ops-ramverk {",
+    "  :root {",
+    `    --textskala: ${TEXTSKALOR[FORVALD_TEXTSTORLEK]};`,
+    "  }",
+    ...lagen.flatMap(([namn, faktor]) => [`  :root[${TEXTSTORLEK_ATTRIBUT}="${namn}"] {`, `    --textskala: ${faktor};`, "  }"]),
+    "  @media (pointer: coarse) {",
+    '    :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"]), textarea, select, [contenteditable]:not([contenteditable="false"])) {',
+    "      font-size: max(1rem, var(--text-brod));",
+    "    }",
+    "  }",
+    "}",
+    "@layer base {",
+    "  body {",
+    "    font-size: calc(1rem * var(--textskala));",
+    "  }",
+    "}",
+  ].join("\n");
+}
 
 /**
  * Radhöjderna och typografirollerna (#173) som tokens: `--leading-*` och
@@ -95,7 +147,9 @@ export function byggTypografiroller(typografi) {
  * @returns {string[]}
  */
 function rollRader(typografi, namn, r) {
-  const rader = [``, `  --text-${namn}: ${r.storlek};`, `  --text-${namn}--line-height: ${r.radhojd in typografi.radhojd ? `var(--leading-${r.radhojd})` : r.radhojd};`, `  --text-${namn}--font-weight: ${r.vikt};`];
+  // ⛔ cllp/lifehub.app#873: appens roller följer textstorleken (`skalad`), de publika gör det inte.
+  const s = namn.startsWith("publik-") ? (/** @type {string} */ v) => v : skalad;
+  const rader = [``, `  --text-${namn}: ${s(r.storlek)};`, `  --text-${namn}--line-height: ${r.radhojd in typografi.radhojd ? `var(--leading-${r.radhojd})` : s(r.radhojd)};`, `  --text-${namn}--font-weight: ${r.vikt};`];
   if (r.sparrning) rader.push(`  --text-${namn}--letter-spacing: ${r.sparrning};`);
   return rader;
 }
@@ -168,8 +222,8 @@ export function byggThemeBlock(f) {
     `  --radius-xl: ${radier.xl};`,
     `  --radius-card: ${radier.card};`,
     ``,
-    `  --text-sm: ${typografi.skala.sm};`,
-    `  --text-base: ${typografi.skala.base};`,
+    `  --text-sm: ${skalad(typografi.skala.sm)};`,
+    `  --text-base: ${skalad(typografi.skala.base)};`,
     ``,
     ...byggTypografiroller(typografi),
     ``,
@@ -284,7 +338,7 @@ export function byggStandardpalett(f, css) {
   ].join("\n");
 }
 
-/** @returns {{ fixtur: object, block: { theme: string, dark: string, ikonlager: string, publikSteg: string } }} */
+/** @returns {{ fixtur: object, block: { theme: string, dark: string, ikonlager: string, publikSteg: string, textstorlek: string } }} */
 export function generera() {
   if (!fs.existsSync(fixturVag)) {
     throw new Error(`generate-tokens: hittar inte fixturen ${fixturVag}.`);
@@ -297,6 +351,7 @@ export function generera() {
       dark: byggDarkBlock(fixtur),
       ikonlager: byggIkonlagerBlock(fixtur),
       publikSteg: byggPublikSteg(/** @type {any} */ (fixtur).typografi),
+      textstorlek: byggTextstorlek(),
     },
   };
 }
@@ -323,6 +378,7 @@ function main() {
   kalla = skrivMellanMarkorer(kalla, MARKORER.dark, block.dark);
   kalla = skrivMellanMarkorer(kalla, MARKORER.ikonlager, block.ikonlager);
   kalla = skrivMellanMarkorer(kalla, MARKORER.publikSteg, block.publikSteg);
+  kalla = skrivMellanMarkorer(kalla, MARKORER.textstorlek, block.textstorlek);
 
   const { fixtur } = generera();
   const palett = byggStandardpalett(fixtur, kalla);

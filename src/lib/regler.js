@@ -346,11 +346,11 @@ ${typavvikelserRegler()}
 ${
   val.kontoAgerPersonen
     ? `      // ⛔ KONTOT ÄGER PERSONEN (0.53.0, lifehub.app#32). Raden skrivs av appens server ur kontot vid inloggningen.
-      // Klienten ändrar bara temat, som är appens eget val, och skapar aldrig raden. Den skriver alltså aldrig \`epost\`,
+      // Klienten ändrar bara temat och textstorleken (cllp/lifehub.app#873), personens egna val, och skapar aldrig raden. Den skriver alltså aldrig \`epost\`,
       // och läget är oförändrat av #313: det som skriver adressen här är appens spegel, och den prövas inte av reglerna.
       allow create: if false;
       allow update: if opsInloggad() && request.auth.uid == uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["tema"]);`
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["tema", "textstorlek"]);`
     : `      allow create, update: if opsInloggad() && request.auth.uid == uid
         && request.resource.data.keys().hasOnly([${ANVANDARFALT.map((f) => `"${f}"`).join(", ")}])
         && opsProfilensEpost();`

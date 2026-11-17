@@ -17,7 +17,7 @@ describe("regelfragment, kontot äger personen", () => {
   it("klienten skapar aldrig raden och ändrar bara temat", () => {
     const regel = anvandarregeln(regelfragment({}, { kontoAgerPersonen: true }));
     expect(regel).toContain("allow create: if false;");
-    expect(regel).toContain('affectedKeys().hasOnly(["tema"])');
+    expect(regel).toContain('affectedKeys().hasOnly(["tema", "textstorlek"])');
     expect(regel).not.toContain('"telefon"');
   });
 

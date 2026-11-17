@@ -15,13 +15,13 @@ import tailwind from "@tailwindcss/postcss";
 import { distUtanKommentarer } from "./dist-text.mjs";
 
 /**
- * @param {{ rot: string, yta: string, namn: string, dist?: string }} val `yta` relativt `rot`, `namn` är arbetsmappens prefix. `dist` är en annan byggd version att fotografera (före-bilden mot origin/main).
+ * @param {{ rot: string, yta: string, namn: string, dist?: string, tokens?: string }} val `yta` relativt `rot`, `namn` är arbetsmappens prefix. `dist` är en annan byggd version att fotografera (före-bilden mot origin/main). `tokens` är en annan tokenfil (rött-beviset mot origin/main i `check-textstorlek`).
  * @returns {Promise<{ sida: string, stada: () => void }>}
  */
-export async function byggYta({ rot, yta, namn, dist: annanDist }) {
+export async function byggYta({ rot, yta, namn, dist: annanDist, tokens: annanTokenfil }) {
   const dist = annanDist ?? path.join(rot, "dist", "index.js");
   if (!fs.existsSync(dist)) throw new Error(`${namn}: dist/index.js saknas. Kör npm run build först.`);
-  const tokensFil = path.join(rot, "tokens", "tokens.css");
+  const tokensFil = annanTokenfil ?? path.join(rot, "tokens", "tokens.css");
   const arbetsmapp = fs.mkdtempSync(path.join(rot, `.ops-${namn}-`));
   const stada = () => fs.rmSync(arbetsmapp, { recursive: true, force: true });
   try {

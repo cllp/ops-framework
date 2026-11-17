@@ -154,55 +154,55 @@
   --radius-xl: 20px;
   --radius-card: 24px;
 
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
+  --text-sm: calc(0.875rem * var(--textskala));
+  --text-base: calc(1rem * var(--textskala));
 
   --leading-tight: 1.25;
   --leading-normal: 1.5;
   --leading-relaxed: 1.625;
 
-  --text-rubrik: 1rem;
+  --text-rubrik: calc(1rem * var(--textskala));
   --text-rubrik--line-height: var(--leading-tight);
   --text-rubrik--font-weight: 600;
 
-  --text-sektion: 0.75rem;
+  --text-sektion: calc(0.75rem * var(--textskala));
   --text-sektion--line-height: var(--leading-normal);
   --text-sektion--font-weight: 600;
   --text-sektion--letter-spacing: 0.05em;
 
-  --text-etikett: 0.875rem;
-  --text-etikett--line-height: 1.25rem;
+  --text-etikett: calc(0.875rem * var(--textskala));
+  --text-etikett--line-height: calc(1.25rem * var(--textskala));
   --text-etikett--font-weight: 400;
 
-  --text-meta: 0.75rem;
-  --text-meta--line-height: 1rem;
+  --text-meta: calc(0.75rem * var(--textskala));
+  --text-meta--line-height: calc(1rem * var(--textskala));
   --text-meta--font-weight: 400;
 
-  --text-brod: 1rem;
-  --text-brod--line-height: 1.5rem;
+  --text-brod: calc(1rem * var(--textskala));
+  --text-brod--line-height: calc(1.5rem * var(--textskala));
   --text-brod--font-weight: 400;
 
-  --text-titel: 1.125rem;
-  --text-titel--line-height: 1.75rem;
+  --text-titel: calc(1.125rem * var(--textskala));
+  --text-titel--line-height: calc(1.75rem * var(--textskala));
   --text-titel--font-weight: 600;
 
-  --text-sida: 1.25rem;
-  --text-sida--line-height: 1.75rem;
+  --text-sida: calc(1.25rem * var(--textskala));
+  --text-sida--line-height: calc(1.75rem * var(--textskala));
   --text-sida--font-weight: 600;
 
-  --text-hjalp: 0.6875rem;
+  --text-hjalp: calc(0.6875rem * var(--textskala));
   --text-hjalp--line-height: var(--leading-normal);
   --text-hjalp--font-weight: 400;
 
-  --text-liten: 0.625rem;
+  --text-liten: calc(0.625rem * var(--textskala));
   --text-liten--line-height: var(--leading-tight);
   --text-liten--font-weight: 500;
 
-  --text-mikro: 0.5rem;
+  --text-mikro: calc(0.5rem * var(--textskala));
   --text-mikro--line-height: var(--leading-tight);
   --text-mikro--font-weight: 700;
 
-  --text-raknare: 0.5625rem;
+  --text-raknare: calc(0.5625rem * var(--textskala));
   --text-raknare--line-height: 1;
   --text-raknare--font-weight: 700;
 
@@ -720,11 +720,12 @@
    * Tailwinds inbyggda tal rakt av (`text-sm` 0,875rem/14px, `text-base`
    * 1rem/16px). De två flyttade upp i det genererade blocket vid filens
    * topp, ur `tokens/sessionstudio-profil.json`. `--text-xs/md/lg/xl` är
-   * ramverkets egna mellansteg och står kvar här, oförändrade. */
-  --text-xs: 0.75rem;
-  --text-md: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.5rem;
+   * ramverkets egna mellansteg och står kvar här. Sedan cllp/lifehub.app#873 följer de textstorleken som rollerna
+   * (`--textskala`, se blocket "textstorlek" sist i filen). */
+  --text-xs: calc(0.75rem * var(--textskala));
+  --text-md: calc(1rem * var(--textskala));
+  --text-lg: calc(1.125rem * var(--textskala));
+  --text-xl: calc(1.5rem * var(--textskala));
 
   /* ─── Rörelse. En kurva per avsikt, inte en per komponent. ───────────── */
   --ease-standard: cubic-bezier(0.2, 0, 0.2, 1);
@@ -2266,3 +2267,29 @@
   }
 }
 /* ── SLUT GENERERAT (@layer base, publika roller) ── */
+
+/* Textstorleken (cllp/lifehub.app#873, CP 2026-11-17): Liten, Mellan och Stor. Faktorerna ägs av src/lib/textstorlek.js,
+ * blocket skrivs av scripts/generate-tokens.mjs. Rollerna i `@theme` räknas med `var(--textskala)`; här sätts den. */
+/* ── GENERERAT UR src/lib/textstorlek.js, RÖR INTE (textstorlek) ── */
+@layer ops-ramverk {
+  :root {
+    --textskala: 1;
+  }
+  :root[data-textstorlek="liten"] {
+    --textskala: 0.9;
+  }
+  :root[data-textstorlek="stor"] {
+    --textskala: 1.15;
+  }
+  @media (pointer: coarse) {
+    :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"]), textarea, select, [contenteditable]:not([contenteditable="false"])) {
+      font-size: max(1rem, var(--text-brod));
+    }
+  }
+}
+@layer base {
+  body {
+    font-size: calc(1rem * var(--textskala));
+  }
+}
+/* ── SLUT GENERERAT (textstorlek) ── */

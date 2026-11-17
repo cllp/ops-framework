@@ -718,7 +718,7 @@ describe("regelfragmentet: formen, inte beteendet", () => {
     const text = regelfragment();
     expect(text).toContain("allow read, delete: if opsInloggad() && request.auth.uid == uid;");
     // ⛔ Sedan 0.82.0 (#313) följs listan av adressvillkoret, i samma block för create och update.
-    expect(text).toContain('allow create, update: if opsInloggad() && request.auth.uid == uid\n        && request.resource.data.keys().hasOnly(["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar", "bildSokvag", "ikon", "farg"])\n        && opsProfilensEpost();');
+    expect(text).toContain('allow create, update: if opsInloggad() && request.auth.uid == uid\n        && request.resource.data.keys().hasOnly(["id", "namn", "epost", "bild", "sprak", "tema", "textstorlek", "telefon", "stad", "presentation", "lankar", "bildSokvag", "ikon", "farg"])\n        && opsProfilensEpost();');
   });
 });
 

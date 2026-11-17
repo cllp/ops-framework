@@ -137,6 +137,7 @@ export { OpsBanner } from "./components/OpsBanner.jsx";
 export { OpsToastProvider, useOpsToast } from "./components/OpsToast.jsx";
 export { OpsTooltip } from "./components/OpsTooltip.jsx";
 export { OpsThemeToggle } from "./components/OpsThemeToggle.jsx";
+export { OpsTextstorlek } from "./components/OpsTextstorlek.jsx";
 export { OpsFullscreenToggle } from "./components/OpsFullscreenToggle.jsx";
 export { OpsIconLink } from "./components/OpsIconLink.jsx";
 
@@ -166,6 +167,7 @@ export { OpsUtanMedlemskap } from "./components/OpsUtanMedlemskap.jsx";
 
 // ── Hjälpare ───────────────────────────────────────────────────────────────
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";
+export { getTextstorlek, setTextstorlek, initTextstorlek, TEXTSTORLEKAR, TEXTSKALOR, FORVALD_TEXTSTORLEK } from "./lib/textstorlek.js";
 export { identityTone, initials, IDENTITY_TONE_COUNT } from "./lib/identity.js";
 export { urgency, splitTodayUpcoming, daysBetween, daysUntil, collectEvents } from "./lib/events.js";
 export { dateKey, todayKey, months, monthGrid, perDay, kalenderfonster, isoVecka, datumOmfang, bandIVecka, filtreraPoster, kalenderNyckelForPost, arPostIDoldKalender, delaPosterPaSynlighet, forvaldKalenderId, EGNA_APPEN, appForTyp, apparFor } from "./lib/calendar.js";
