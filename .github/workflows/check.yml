@@ -206,6 +206,13 @@ jobs:
       # långt ifrån orsaken, och nästa person felsöker reglerna. Ubuntu-köraren
       # har Java förinstallerat; skulle den sluta ha det vill jag se det på
       # raden som heter Java. Samma steg och samma skäl som i bolag-ops.
+      # ⛔ JAVA INSTALLERAS AV ARBETSFLÖDET (cllp/lifehub.app#880, 2026-11-18). GitHubs Ubuntu-maskin hade Java förinstallerat,
+      # Groks box har det inte: första körningen där föll på `java: command not found`. Arbetsflödet säger själv vad det
+      # behöver, så att det går på vilken runner som helst. Steget Java finns nedan står kvar som kontroll.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
       - name: Java finns
         run: java -version
       - run: npm ci
