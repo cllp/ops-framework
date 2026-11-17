@@ -9,6 +9,34 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.237.0
+
+**Visa året** (cllp/lifehub.app#874, skiva 1). CP 2026-11-17: "fälla ut en årsvy i helskärm om man vill precis som man visar en karta eller pdf", med en knapp under kalendern som "får vara ganska liten, då panelen för kalender redan är ganska full", och en kalender per sak.
+
+### Tillagt
+
+- **`OpsCalendar arsvy`**: en liten ikonknapp, "Visa året", i kalenderns verktygsrad. Den fäller ut året i helskärm med `useHelskarm`, samma som kartan och PDF-vyn: webbläsarens helskärm där den finns, annars ett lager över hela fönstret. Escape och krysset stänger. ⛔ **På som förval** (CP 2026-11-17: "Den får vara på från början ... Ingen kommer att slå på den annars."): varje app med kalendern får knappen, och `arsvy={false}` tar bort den.
+- **`OpsKalenderAr`**: tolv månader i ett rutnät (två kolumner på telefon, tre till fyra på bredare skärm). Varje dag har ett band per kalender för det som är heldag eller flera dagar, i kalenderlistans ordning och i kalenderns färg, högst tre och sedan "+N". Möten med klockslag blir inga band: året visar perioder, inte tider. Idag är inringad. Kalenderlistan överst slår av och på kalendrar, samma val som i kalendern (`useKalenderSynlighet`). Ett tryck på en dag stänger året, väljer dagen och rullar dit. Ett tryck på en månads namn rullar till månaden.
+- **`arsband(poster, { kalendrar, forvaldId })`** och **`MAX_ARSBAND`** (`src/lib/arsband.js`): banden per dag, utan React, så att appen och agenten kan räkna samma sak.
+- **`ArsvyIkon`** i ikonlexikonet (Lucide `CalendarRange`).
+
+### Prov
+
+- `arsband.test.js` (4) och `kalender-arsvy-874.test.jsx` (6). Röda utan ändringen: 4 av 6 i kalenderprovet faller mot a3a2a80^ (ingen knapp, inget lager), de två övriga provar den nya komponenten, som inte finns utan ändringen.
+- Skärmbilder i 390 och 1280 px, ljust och mörkt: `docs/bilder/0.237.0-arsvy/` (`scripts/arsvy-montage.mjs`). SessionStudio har ingen årsvy, så regel 12 kräver inget montage mot en förebild.
+
+### Granskningen före utgivningen
+
+En fristående granskare läste diffen. Det som ändrades, med ett prov per punkt (8 röda mot koden före, 17 gröna efter):
+
+- **Poster utan kalender försvann ur året** när gruppen saknar gruppkalender (`forvaldId` tomt). De står nu under `UTAN_KALENDER` ("Utan kalender"), sist, som månadsvyn visar dem.
+- **Förklaringen och banden kunde få olika färg** när `farg` saknas eller är en sträng. Båda använder nu `lagerFarg`.
+- **Fokus:** året är en dialog (`role="dialog"`, `aria-modal`) som tar fokus när det öppnas, Tab går runt inne i den, och fokus läggs tillbaka på "Visa året" när den stängs, hur den än stängs.
+- **Bandets plats bär betydelsen:** syns högst tre kalendrar har var och en en fast rad i varje dag, också de dagar den saknar band. Förut packades banden uppifrån, så att Skollov kunde stå på Barnens plats.
+- **Bara inlästa månader:** kalendern har poster för sitt fönster (`monthsBack`, `monthsForward`), inte för hela året. En månad utanför står som "Inte inläst", och året bläddrar bara till år med någon inläst månad. Förut stod "inget hela dagar" på dagar som bara inte var hämtade.
+- Förklaringens namn heter "Calendars" på engelska.
+- Proven mäter nu taket på tre band och "+N", vilket datum som väljs, och fokus.
+
 ## 0.236.0
 
 **Robs genomgång, första delen** (cllp/lifehub.app#870 och #871). Rob, ny i en grupp, kunde inte släppa en fil på Biblioteket, hittade inte vem som var inbjuden (inbjudningarna stod långt under medlemmarna, med ett formulär emellan), och fick skriva hela adressen till den han ville bjuda in fast personen redan fanns i en av hans grupper.

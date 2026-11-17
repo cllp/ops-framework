@@ -5217,15 +5217,16 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       const ordning = synliga.map((v) => v.namn);
       const genom = (/** @type {string} */ c) => /^rgba\([^)]*,\s*0\)$/.test(c) || c === "transparent";
       if (telefon) {
-        krav(JSON.stringify(ordning) === JSON.stringify(["Sök i kalendern", "Veckonummer", "Typ och status", "Kalendrar"]), `${namn}: verktygen står ${JSON.stringify(ordning)} från vänster, väntat Sök, Veckonummer, Typ och status och sist kalenderpillret (SS-appens rad; Skapa är plusset).`);
-        const ikoner = synliga.slice(0, 3);
+        // "Visa året" efter sök sedan 0.237.0 (cllp/lifehub.app#874, på som förval).
+        krav(JSON.stringify(ordning) === JSON.stringify(["Sök i kalendern", "Visa året", "Veckonummer", "Typ och status", "Kalendrar"]), `${namn}: verktygen står ${JSON.stringify(ordning)} från vänster, väntat Sök, Visa året, Veckonummer, Typ och status och sist kalenderpillret (SS-appens rad; Skapa är plusset).`);
+        const ikoner = synliga.slice(0, 4);
         krav(ikoner.every((v) => (genom(v.kant) || v.kantB === 0) && genom(v.bg)), `${namn}: ikonerna har kant ${JSON.stringify(ikoner.map((v) => v.kant))} och yta ${JSON.stringify(ikoner.map((v) => v.bg))}, väntat rena ikoner utan ruta (CP 2026-09-30 mot SS-appen).`);
         krav(ikoner.every((v) => v.ikon >= 20), `${namn}: ikonerna är ${JSON.stringify(ikoner.map((v) => v.ikon))} px, väntat minst 20 (SS-appen ritar dem stora, utan ruta).`);
         const pill = synliga[synliga.length - 1];
         const radensHoger = await page.evaluate(() => { const r = document.querySelector("[data-kalender-verktyg]"); return r ? r.getBoundingClientRect().right : 0; });
         krav(!!pill && pill.namn === "Kalendrar" && pill.radie >= pill.h / 2 - 0.5 && /kalend/i.test(pill.text) && !genom(pill.kant) && pill.h2 >= radensHoger - 1, `${namn}: kalenderpillret ${JSON.stringify(pill)}, väntat en kapsel med text och kant som slutar vid radens högerkant ${radensHoger} (SS-appens "Musikkollektive..."-piller).`);
       } else {
-        krav(JSON.stringify(ordning) === JSON.stringify(["Kalendrar", "Veckonummer", "Typ och status", "Sök i kalendern", "Skapa"]), `${namn}: verktygens ordning är ${JSON.stringify(ordning)}, väntat Kalendrar, Veckonummer, Typ och status, Sök, Skapa (SS CalendarViewToolbar).`);
+        krav(JSON.stringify(ordning) === JSON.stringify(["Kalendrar", "Visa året", "Veckonummer", "Typ och status", "Sök i kalendern", "Skapa"]), `${namn}: verktygens ordning är ${JSON.stringify(ordning)}, väntat Kalendrar, Visa året, Veckonummer, Typ och status, Sök, Skapa (SS CalendarViewToolbar, plus årsvyn sedan 0.237.0).`);
       }
       const vantadH = telefon ? 44 : 32;
       krav(synliga.every((v) => Math.abs(v.h - vantadH) < 0.6), `${namn}: verktygens höjder ${JSON.stringify(synliga.map((v) => v.h))}, väntat ${vantadH} (SS w-8 h-8 från 768 px, 44 px träffyta under).`);

@@ -46,7 +46,9 @@ import {
   appfilterNyckel,
   lasDoldaAppar,
 } from "../lib/calendar.js";
-import { ChevronNedIkon, KalenderIkon, KryssIkon, PlusIkon, ReglageIkon, SokIkon, TillganglighetIkon, VeckonummerIkon } from "./icons.jsx";
+import { ArsvyIkon, ChevronNedIkon, KalenderIkon, KryssIkon, PlusIkon, ReglageIkon, SokIkon, TillganglighetIkon, VeckonummerIkon } from "./icons.jsx";
+import { OpsKalenderAr } from "./OpsKalenderAr.jsx";
+import { useHelskarm } from "./useHelskarm.js";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 import { OpsKalenderLista } from "./OpsKalenderLista.jsx";
 import { OpsExternPanel } from "./OpsExternPanel.jsx";
@@ -979,6 +981,8 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
  * @param {"en" | undefined} props.sprak (0.151.0) Engelska när kalenderns `locale` är engelsk; annars språket ur `OpsSprakProvider`. Listan Kalendrar följer det.
  * @param {ReadonlyArray<{ namn: string, tomText?: string }> | undefined} props.kalendersektioner
  * @param {(() => void) | undefined} props.onHanteraKalendrar
+ * @param {(() => void) | undefined} [props.onVisaAret] (cllp/lifehub.app#874) Visa året i helskärm. Utan den ingen knapp.
+ * @param {import("react").Ref<HTMLButtonElement>} [props.arKnapp] Knappen, så att fokus kan läggas tillbaka på den när året stängs.
  * @param {boolean} props.veckonummer
  * @param {() => void} props.onVeckonummer
  * @param {{ id: string, namn: string }[]} props.typer
@@ -992,7 +996,7 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
  * @param {(() => void) | undefined} props.onSkapa
  * @param {{ pa: boolean, onByt: (pa: boolean) => void } | undefined} props.tillganglighet
  */
-function Verktygsrad({ kalendrar, syn, sprak, kalendersektioner, onHanteraKalendrar, veckonummer, onVeckonummer, typer, statusWords, typ, onTyp, status, onStatus, sokOppen, onSok, onSkapa, tillganglighet }) {
+function Verktygsrad({ kalendrar, syn, sprak, kalendersektioner, onHanteraKalendrar, onVisaAret, arKnapp, veckonummer, onVeckonummer, typer, statusWords, typ, onTyp, status, onStatus, sokOppen, onSok, onSkapa, tillganglighet }) {
   const statusar = Object.entries(statusWords);
   const harFilter = typer.length > 0 || statusar.length > 0;
   const synliga = (kalendrar || []).filter((k) => syn.arSynlig(k.id));
@@ -1063,6 +1067,12 @@ function Verktygsrad({ kalendrar, syn, sprak, kalendersektioner, onHanteraKalend
           className={cx(VERKTYG, "max-md:order-first", tillganglighet.pa ? "bg-danger/20 text-danger md:border-danger md:bg-danger/14" : "text-ink-muted hover:text-ink-secondary md:border-line md:bg-surface")}
         >
           <TillganglighetIkon size={14} />
+        </button>
+      ) : null}
+
+      {onVisaAret ? (
+        <button ref={arKnapp} type="button" aria-label={sprak === "en" ? "Show the year" : "Visa året"} title={sprak === "en" ? "Show the year" : "Visa året"} data-kalender-arsvy="" onClick={onVisaAret} className={verktygsklass(false)}>
+          <ArsvyIkon size={14} />
         </button>
       ) : null}
 
@@ -1281,6 +1291,9 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  * @param {(manader: { forsta: string, sista: string }) => void} [props.onSynligaManader] (0.74.0, #284) Vilka månader som syns,
  *   som `YYYY-MM`, när rullningen har stannat (`SYNLIGA_MANADER_VILA_MS`) och en gång vid start. Aldrig medan rullningen pågår, och
  *   bara när intervallet ändrats. För en app som hämtar data för det synliga fönstret, så att den inte läser kalenderns DOM.
+ * @param {boolean} [props.arsvy] (0.237.0, cllp/lifehub.app#874) En liten knapp "Visa året" i verktygsraden som fäller ut året i helskärm, ett band
+ *   per kalender och dag för heldag och flera dagar. Ett tryck på en dag eller en månad stänger året och visar den här. ⛔ PÅ SOM FÖRVAL (CP 2026-11-17:
+ *   "Den får vara på från början ... Ingen kommer att slå på den annars."). `arsvy={false}` tar bort knappen.
  */
 export function OpsCalendar({
   entries = [],
@@ -1311,6 +1324,7 @@ export function OpsCalendar({
   onOppnaHandelse,
   filterMinne,
   onSynligaManader,
+  arsvy = true,
 }) {
   if (!ariaLabel) {
     throw new Error("OpsCalendar: ariaLabel krävs. Ett rutnät med tal är osynligt för den som inte ser det.");
@@ -1537,6 +1551,7 @@ export function OpsCalendar({
   }, [ramDagar, dagdekor]);
   const allaPerDag = useMemo(() => perDay(entries), [entries]);
   const list = useMemo(() => months(franNyckel(todayDayKey), monthsBack, monthsForward), [todayDayKey, monthsBack, monthsForward]);
+  const inlastaManader = useMemo(() => new Set(list.map(({ ar, month }) => `${ar}-${String(month + 1).padStart(2, "0")}`)), [list]);
   const sokning = fraga.trim();
   const traffDagar = useMemo(() => {
     if (!sokning) return null;
@@ -1547,6 +1562,24 @@ export function OpsCalendar({
   }, [byKey, sokning]);
 
   const rulleRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  /*
+   * ⛔ ÅRSVYN I HELSKÄRM (cllp/lifehub.app#874, CP 2026-11-17: "fälla ut en årsvy i helskärm ... precis som man visar en karta eller pdf"). Samma `useHelskarm` som kartan och PDF-vyn:
+   * webbläsarens helskärm där den finns, annars ett fast lager. Ytan finns alltid i trädet, eftersom helskärmen måste begäras på ett element som redan finns, i själva trycket.
+   */
+  const arRam = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const { lage: arLage, oppna: oppnaAr, avsluta: stangAr } = useHelskarm(arRam);
+  const [arVisat, setArVisat] = useState(() => (today ?? new Date()).getFullYear());
+  const arKnapp = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  // ⛔ FOKUS TILLBAKA PÅ KNAPPEN NÄR ÅRET STÄNGS, hur det än stängs (krysset, Escape, webbläsarens egen helskärm, ett tryck på en dag). Annars hamnar det på
+  // `body`, eftersom innehållet som hade fokus försvinner (granskningen av 0.237.0).
+  const varOppet = useRef(false);
+  useEffect(() => {
+    if (arLage) varOppet.current = true;
+    else if (varOppet.current) {
+      varOppet.current = false;
+      arKnapp.current?.focus({ preventScroll: true });
+    }
+  }, [arLage]);
   const huvudRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const todayRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const panelRef = useRef(/** @type {HTMLDivElement | null} */ (null));
@@ -1569,6 +1602,15 @@ export function OpsCalendar({
     if (!rulle || !month) return;
     const header = huvudRef.current ? huvudRef.current.offsetHeight : 0;
     rulle.scrollTo({ top: Math.max(0, month.offsetTop - header), behavior: beteende });
+  }, []);
+
+  /** Rullar till en månad (`ÅÅÅÅ-MM`), som `toToday`. Används när årsvyn stängs med ett tryck på en dag eller en månad (#874). Ligger månaden utanför fönstret händer ingenting. */
+  const visaManad = useCallback((/** @type {string} */ ym) => {
+    const rulle = rulleRef.current;
+    const el = rulle ? /** @type {HTMLElement | null} */ (rulle.querySelector(`[data-kalender-manad="${ym}"]`)) : null;
+    if (!rulle || !el) return;
+    const header = huvudRef.current ? huvudRef.current.offsetHeight : 0;
+    requestAnimationFrame(() => rulle.scrollTo({ top: Math.max(0, el.offsetTop - header), behavior: "auto" }));
   }, []);
 
   /*
@@ -1853,6 +1895,38 @@ export function OpsCalendar({
      * samma panel hade betytt två ställen att rätta.
      */
     <section aria-label={ariaLabel} data-ops-kalender="" className="relative flex flex-col lg:flex-row lg:items-start lg:gap-4">
+      {arsvy ? (
+        <div
+          ref={arRam}
+          data-kalender-arsvy-yta={arLage || undefined}
+          className={arLage === "fonster" ? "fixed inset-0 z-[1000] h-dvh bg-canvas pt-(--safe-top) pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left)" : arLage ? "h-full bg-canvas" : "hidden"}
+        >
+          {arLage ? (
+            <OpsKalenderAr
+              ar={arVisat}
+              poster={synligaPoster}
+              kalendrar={kalendrar || []}
+              forvaldId={forvaldId}
+              arSynlig={syn.arSynlig}
+              onVaxla={syn.vaxla}
+              locale={locale}
+              today={today}
+              inlasta={inlastaManader}
+              onAr={setArVisat}
+              onValjDag={(dag) => {
+                stangAr();
+                setValda([dag]);
+                visaManad(dag.slice(0, 7));
+              }}
+              onValjManad={(ar, month) => {
+                stangAr();
+                visaManad(`${ar}-${String(month + 1).padStart(2, "0")}`);
+              }}
+              onStang={stangAr}
+            />
+          ) : null}
+        </div>
+      ) : null}
       <div className="relative flex min-w-0 flex-1 flex-col">
         <Verktygsrad
           kalendrar={kalendrar}
@@ -1860,6 +1934,8 @@ export function OpsCalendar({
           sprak={String(locale).toLowerCase().startsWith("en") ? "en" : undefined}
           kalendersektioner={kalendersektioner}
           onHanteraKalendrar={onHanteraKalendrar}
+          arKnapp={arKnapp}
+          onVisaAret={arsvy ? () => { setArVisat((today ?? new Date()).getFullYear()); oppnaAr(); } : undefined}
           veckonummer={veckonummer}
           onVeckonummer={vaxlaVeckonummer}
           typer={synligaTyper}
