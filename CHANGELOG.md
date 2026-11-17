@@ -9,6 +9,19 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.237.1
+
+**Årsvyn hämtas först när den öppnas.** I 0.237.0 importerade `OpsCalendar` årsvyn (`OpsKalenderAr` och `arsband`) direkt, så den hamnade i appens startfil. lifehub.app:s `check:jsstorlek` mätte 3 119 byte gzip över taket vid ompinningen, mätt med källkartor: 5 378 byte okomprimerat från `OpsKalenderAr` och 586 från `arsband`.
+
+### Ändrat
+
+- `OpsCalendar` läser in årsvyn med en dynamisk import bakom `Suspense` och `LatGrans`, samma mönster som kartan, PDF-vyn och repot. Medan den hämtas står "Hämtar året." (`OpsVantar`), och går den inte att hämta står "Året gick inte att läsa in. Ladda om sidan.". Helskärmen (`useHelskarm`) och knappen står kvar i kalendern, eftersom helskärmen måste begäras i själva trycket.
+
+### Vakt
+
+- `check-delbarhet` mäter nu att `OpsKalenderAr` och `arsband` ligger i en egen bit när startfilen importerar `OpsCalendar`. Röd med 0.237.0:s direkta import (4 brott: golvet och tre träffar i startfilen), grön med ändringen.
+- `kalender-arsvy-874.test.jsx` väntar på att årsvyn ritas efter trycket, i stället för att anta att den redan finns.
+
 ## 0.237.0
 
 **Visa året** (cllp/lifehub.app#874, skiva 1). CP 2026-11-17: "fälla ut en årsvy i helskärm om man vill precis som man visar en karta eller pdf", med en knapp under kalendern som "får vara ganska liten, då panelen för kalender redan är ganska full", och en kalender per sak.

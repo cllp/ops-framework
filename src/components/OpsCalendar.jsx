@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
 import { kantKlass } from "../lib/kant.js";
@@ -47,7 +47,21 @@ import {
   lasDoldaAppar,
 } from "../lib/calendar.js";
 import { ArsvyIkon, ChevronNedIkon, KalenderIkon, KryssIkon, PlusIkon, ReglageIkon, SokIkon, TillganglighetIkon, VeckonummerIkon } from "./icons.jsx";
-import { OpsKalenderAr } from "./OpsKalenderAr.jsx";
+import { LatGrans } from "./LatGrans.jsx";
+import { OpsVantar } from "./OpsVantar.jsx";
+
+/**
+ * ⛔ ÅRSVYN HÄMTAS FÖRST NÄR DEN ÖPPNAS (0.237.1). I 0.237.0 importerades `OpsKalenderAr` direkt, och årsvyn med sina band (`arsband`) hamnade i appens
+ * startfil: lifehub.app:s `check:jsstorlek` mätte 3 119 byte gzip över taket vid ompinningen. Samma mönster som kartan, PDF-vyn och repot (`BibliotekRepoLat`):
+ * en dynamisk import bakom `Suspense` och `LatGrans`. Ytan för helskärmen (`useHelskarm`) står kvar i kalendern, eftersom helskärmen måste begäras i själva trycket.
+ */
+const OpsKalenderAr = lazy(() => import("./OpsKalenderAr.jsx").then((m) => ({ default: m.OpsKalenderAr })));
+
+/** Orden medan årsvyn hämtas, och om den inte går att hämta. */
+const ORD_ARSVY_LAT = {
+  hamtar: { sv: "Hämtar året.", en: "Loading the year." },
+  lasfel: { sv: "Året gick inte att läsa in. Ladda om sidan.", en: "The year could not be loaded. Reload the page." },
+};
 import { useHelskarm } from "./useHelskarm.js";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 import { OpsKalenderLista } from "./OpsKalenderLista.jsx";
@@ -1902,6 +1916,8 @@ export function OpsCalendar({
           className={arLage === "fonster" ? "fixed inset-0 z-[1000] h-dvh bg-canvas pt-(--safe-top) pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left)" : arLage ? "h-full bg-canvas" : "hidden"}
         >
           {arLage ? (
+            <LatGrans fel={<p role="alert" data-kalender-arsvy-lasfel="" className="m-0 p-4 text-etikett text-danger">{ORD_ARSVY_LAT.lasfel[String(locale).toLowerCase().startsWith("en") ? "en" : "sv"]}</p>}>
+              <Suspense fallback={<div data-kalender-arsvy-lage="hamtar" className="p-4"><OpsVantar text={ORD_ARSVY_LAT.hamtar[String(locale).toLowerCase().startsWith("en") ? "en" : "sv"]} /></div>}>
             <OpsKalenderAr
               ar={arVisat}
               poster={synligaPoster}
@@ -1924,6 +1940,8 @@ export function OpsCalendar({
               }}
               onStang={stangAr}
             />
+              </Suspense>
+            </LatGrans>
           ) : null}
         </div>
       ) : null}

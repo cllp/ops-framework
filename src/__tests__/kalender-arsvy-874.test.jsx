@@ -27,10 +27,11 @@ describe("⛔ Visa året i kalendern (#874)", () => {
     expect(screen.queryByRole("button", { name: "Visa året" })).toBeNull();
   });
 
-  it("öppnar året i ett lager över hela skärmen, och Stäng och Escape lägger tillbaka kalendern", () => {
+  it("öppnar året i ett lager över hela skärmen, och Stäng och Escape lägger tillbaka kalendern", async () => {
     render(<OpsCalendar ariaLabel="Kalender" today={IDAG} entries={POSTER} kalendrar={KALENDRAR} arsvy />);
     expect(document.querySelector("[data-ops-arsvy]")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Visa året" }));
+    await screen.findByRole("dialog", {}, { timeout: 5000 });
     const yta = /** @type {HTMLElement} */ (document.querySelector("[data-kalender-arsvy-yta]"));
     expect(yta.getAttribute("data-kalender-arsvy-yta")).toBe("fonster");
     expect(yta.className).toContain("fixed inset-0");
@@ -38,15 +39,17 @@ describe("⛔ Visa året i kalendern (#874)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stäng helskärm" }));
     expect(document.querySelector("[data-ops-arsvy]")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Visa året" }));
+    await screen.findByRole("dialog", {}, { timeout: 5000 });
     act(() => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     });
     expect(document.querySelector("[data-ops-arsvy]")).toBeNull();
   });
 
-  it("ett tryck på en dag stänger året och väljer dagen i kalendern", () => {
+  it("ett tryck på en dag stänger året och väljer dagen i kalendern", async () => {
     render(<OpsCalendar ariaLabel="Kalender" today={IDAG} entries={POSTER} kalendrar={KALENDRAR} arsvy />);
     fireEvent.click(screen.getByRole("button", { name: "Visa året" }));
+    await screen.findByRole("dialog", {}, { timeout: 5000 });
     fireEvent.click(/** @type {HTMLElement} */ (document.querySelector('[data-arsvy-dag="2027-07-06"]')));
     expect(document.querySelector("[data-ops-arsvy]")).toBeNull();
     const piller = document.querySelectorAll("[data-datumpiller]");
@@ -55,9 +58,10 @@ describe("⛔ Visa året i kalendern (#874)", () => {
     expect(piller[0].textContent?.toLowerCase()).toMatch(/jul/);
   });
 
-  it("en dold kalender försvinner ur året, och visas igen med ett tryck på den i listan", () => {
+  it("en dold kalender försvinner ur året, och visas igen med ett tryck på den i listan", async () => {
     render(<OpsCalendar ariaLabel="Kalender" today={IDAG} entries={POSTER} kalendrar={KALENDRAR} arsvy />);
     fireEvent.click(screen.getByRole("button", { name: "Visa året" }));
+    await screen.findByRole("dialog", {}, { timeout: 5000 });
     const dag = () => /** @type {HTMLElement} */ (document.querySelector('[data-arsvy-dag="2027-07-06"]'));
     expect(dag().getAttribute("aria-label")).toBe("6 juli: Barnen hos CP, Skollov");
     const lista = screen.getByRole("list", { name: "Kalendrar" });
@@ -138,14 +142,16 @@ describe("⛔ OpsKalenderAr (#874)", () => {
 });
 
 describe("⛔ fokus tillbaka på Visa året (granskningen av 0.237.0)", () => {
-  it("när året stängs med krysset eller Escape står fokus på knappen igen", () => {
+  it("när året stängs med krysset eller Escape står fokus på knappen igen", async () => {
     render(<OpsCalendar ariaLabel="Kalender" today={IDAG} entries={POSTER} kalendrar={KALENDRAR} arsvy />);
     const knapp = screen.getByRole("button", { name: "Visa året" });
     fireEvent.click(knapp);
+    await screen.findByRole("dialog", {}, { timeout: 5000 });
     expect(document.activeElement?.getAttribute("role")).toBe("dialog");
     fireEvent.click(screen.getByRole("button", { name: "Stäng helskärm" }));
     expect(document.activeElement).toBe(knapp);
     fireEvent.click(knapp);
+    await screen.findByRole("dialog", {}, { timeout: 5000 });
     act(() => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     });
