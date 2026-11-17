@@ -53,7 +53,7 @@ describe("textstorleken på enheten", () => {
   it("ett okänt sparat värde läses som Mellan, ett okänt val kastar", () => {
     localStorage.setItem("ops-textstorlek", "jattestor");
     expect(getTextstorlek()).toBe("mellan");
-    expect(() => setTextstorlek(/** @type {any} */ ("jattestor"))).toThrow(/okänt läge "jattestor"/);
+    expect(() => setTextstorlek(/** @type {any} */ ("jattestor"))).toThrow(/okänd textstorlek "jattestor"/);
   });
 
   it("⛔ blockerad lagring: förvalet vid läsning, och valet gäller ändå på sidan", () => {

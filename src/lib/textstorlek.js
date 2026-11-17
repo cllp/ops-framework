@@ -77,7 +77,7 @@ export function getTextstorlek() {
  */
 export function setTextstorlek(storlek) {
   if (!arTextstorlek(storlek)) {
-    throw new Error(`setTextstorlek: okänt läge "${storlek}". Giltiga: ${TEXTSTORLEKAR.join(", ")}.`);
+    throw new Error(`setTextstorlek: okänd textstorlek "${storlek}". Giltiga: ${TEXTSTORLEKAR.join(", ")}.`);
   }
   const rot = globalThis.document?.documentElement;
   if (rot) {
