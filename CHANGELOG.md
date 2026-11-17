@@ -23,6 +23,23 @@ anteckningar är en version ingen kan välja att hoppa över.
   Utan dem ser sidan ut som förut.
 - **`OpsInput` kan visa förslag medan man skriver** (#871): `forslag` (`{ id, etikett, under? }[]`, högst åtta visas) och `onValjForslag(id)`. Fältet blir en kombinationsruta (`role="combobox"`, `aria-expanded`, `aria-activedescendant`): pilarna markerar, Enter väljer, Escape stänger, ett tryck väljer. Listan är ett syskon till fältet och trycket tas på `mousedown`, så att fältet inte tappar fokus före valet. ⛔ Appen filtrerar och bestämmer vem som syns, fältet vet inget om varifrån listan kom. `forslag` utan `onValjForslag` kastar.
 
+### Granskningen före utgivningen
+
+En fristående granskare läste diffen. Det som ändrades:
+
+- **Ett andra släpp medan det första laddas upp** startade en egen omgång parallellt. Raden "x av y" växlade mellan dem och den som blev klar sist skrev över den förras fel. Nu går alla släpp genom samma kö, en fil i taget, och räknas in i samma "x av y".
+- **Escape i förslagslistan** stängde den tills fältet tappat och fått fokus igen. Nu öppnar nästa tecken eller ArrowDown den igen.
+- **Den som pilat till ett förslag och sedan skriver vidare** fick förslaget av Enter i stället för det som stod i fältet. Markeringen släpps när man skriver.
+- Listan har fältets etikett som namn (`aria-labelledby`).
+- Medlemmarnas rubrikrad är 44 px hög bara när `medlemsknapp` finns. Utan den är raden som förut. Ett långt namn trycker inte ut ⋯.
+- `rubrikUrFilnamn(namn, reserv)` i `lib/bibliotek.js` är ett hem för rubriken ur filnamnet. Formuläret, inspelningen och släppet frågar där. Släppet hade en egen kopia.
+- Beskeden efter ett släpp försvinner när en annan flik eller en post öppnas.
+- ⛔ `forslag` ska vara en lista, aldrig `undefined`, medan fältet används. Utanför ett skal med TALK monteras fältet annars om när listan dyker upp. Står i JSDoc.
+
+Granskarens punkt om .md stämde inte, mätt: `mimeForFil` gör redan `text/x-markdown` till `text/markdown`.
+
+**Kvar, medvetet:** skälen från `filInmatningsfel` är bara på svenska, som i formuläret sedan tidigare. Ett släpp utanför listan (sökraden, en öppen post) öppnar filen i webbläsaren, som före 0.236.0.
+
 ## 0.235.0
 
 **Zoom i PDF-vyn.** CP 2026-11-16: "Det går inte att zooma i pdf:er i biblioteket. Det vore bra om det funkade." och "Ja kör zoom på pdf". Raden hade − och + sedan 0.196.0, men i telefonen zoomar man med fingrarna, och där hände ingenting.

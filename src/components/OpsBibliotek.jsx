@@ -32,7 +32,7 @@ import { githubDokument } from "../lib/githubdokument.js";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
 import { ID_FORM } from "../lib/katalog.js";
-import { ARKIVTAGG, POSTIDFORM, arArkiverad, kortRubrik, avkodaTextfil, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeForFil, arKartfil, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
+import { ARKIVTAGG, POSTIDFORM, arArkiverad, kortRubrik, avkodaTextfil, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeForFil, arKartfil, filadressFel, filSort, filtreraBibliotek, rubrikUrFilnamn, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
 import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
 export { menyPilar, OpsTaggFilter as TaggFilter };
@@ -543,6 +543,16 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   /** Filer som släpps på listan (#870): om något dras över, vad som laddas upp nu, och beskeden efteråt. */
   const [drarFil, setDrarFil] = useState(false);
   const [slappLage, setSlappLage] = useState(/** @type {{ text: string, pagar: boolean, fel: string[] } | null} */ (null));
+  /**
+   * ⛔ EN I TAGET ÄVEN NÄR MAN SLÄPPER IGEN (granskningen av 0.236.0): ett andra släpp medan det första laddas upp startade en egen omgång
+   * parallellt, raden "x av y" växlade mellan dem och den som blev klar sist skrev över den förras fel. Nu går alla släpp genom samma kö.
+   */
+  const slappKo = useRef(/** @type {{ pagar: boolean, filer: File[], fel: string[], klara: number, totalt: number, forstaNamn: string }} */ ({ pagar: false, filer: [], fel: [], klara: 0, totalt: 0, forstaNamn: "" }));
+  // Beskeden efter ett släpp hör till listan som den såg ut då. En annan flik eller en öppnad post tar bort dem, men aldrig en pågående uppladdning.
+  const slappVald = vald?.id ?? null;
+  useEffect(() => {
+    setSlappLage((l) => (l && !l.pagar ? null : l));
+  }, [flik, slappVald]);
   const [laddarLjud, setLaddarLjud] = useState(false);
   const [ljus, setLjus] = useState("");
   const [sok, setSok] = useState("");
@@ -900,7 +910,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       setRostFel("Uppladdningen är inte kopplad. Filen är kvar på enheten.");
       return;
     }
-    const rubrik = (fil.name.replace(/\.[^.]+$/, "") || fil.name).trim().slice(0, MAX_BIBLIOTEKRUBRIK) || "Ljud";
+    const rubrik = rubrikUrFilnamn(fil.name, "Ljud");
     /** @param {unknown} e */
     const visa = (e) => {
       setLaddarLjud(false);
@@ -931,30 +941,51 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       setSlappLage({ text: "", pagar: false, fel: [lord("slappInteKopplad")] });
       return;
     }
-    /** @type {string[]} */
-    const fel = [];
-    const godkanda = filer.filter((fil) => {
+    const ko = slappKo.current;
+    // En ny omgång börjar med tomma besked. Pågår en uppladdning hamnar filerna sist i samma kö och räknas in i "x av y".
+    if (!ko.pagar) {
+      ko.fel = [];
+      ko.klara = 0;
+      ko.totalt = 0;
+      ko.forstaNamn = "";
+    }
+    for (const fil of filer) {
       const prov = filInmatningsfel({ namn: fil.name, mime: mimeForFil(fil.name, fil.type), byte: fil.size });
-      if (prov) fel.push(lord("slappFelFil").replace("{namn}", fil.name).replace("{fel}", prov));
-      return !prov;
-    });
-    let klara = 0;
-    for (const fil of godkanda) {
-      setSlappLage({
-        text: godkanda.length === 1 ? lord("laddarUppEn").replace("{namn}", fil.name) : lord("laddarUppFler").replace("{klar}", String(klara + 1)).replace("{antal}", String(godkanda.length)),
-        pagar: true,
-        fel,
-      });
-      const rubrik = (fil.name.replace(/\.[^.]+$/, "") || fil.name).trim().slice(0, MAX_BIBLIOTEKRUBRIK) || fil.name.slice(0, MAX_BIBLIOTEKRUBRIK);
-      try {
-        await onLaddaUpp({ rubrik, fil });
-        klara += 1;
-      } catch (e) {
-        fel.push(lord("slappFelFil").replace("{namn}", fil.name).replace("{fel}", e instanceof Error && e.message ? e.message : String(e)));
+      if (prov) {
+        ko.fel.push(lord("slappFelFil").replace("{namn}", fil.name).replace("{fel}", prov));
+      } else {
+        ko.filer.push(fil);
+        ko.totalt += 1;
+        if (!ko.forstaNamn) ko.forstaNamn = fil.name;
       }
     }
-    const klarText = klara === 0 ? "" : klara === 1 && godkanda.length === 1 ? lord("slappKlarEn").replace("{namn}", godkanda[0].name) : lord("slappKlar").replace("{antal}", String(klara));
-    setSlappLage({ text: klarText, pagar: false, fel: [...fel] });
+    if (ko.pagar) {
+      setSlappLage((l) => (l ? { ...l, fel: [...ko.fel] } : l));
+      return;
+    }
+    ko.pagar = true;
+    try {
+      let nr = 0;
+      while (ko.filer.length > 0) {
+        const fil = /** @type {File} */ (ko.filer.shift());
+        nr += 1;
+        setSlappLage({
+          text: ko.totalt === 1 ? lord("laddarUppEn").replace("{namn}", fil.name) : lord("laddarUppFler").replace("{klar}", String(nr)).replace("{antal}", String(ko.totalt)),
+          pagar: true,
+          fel: [...ko.fel],
+        });
+        try {
+          await onLaddaUpp({ rubrik: rubrikUrFilnamn(fil.name, fil.name.slice(0, MAX_BIBLIOTEKRUBRIK)), fil });
+          ko.klara += 1;
+        } catch (e) {
+          ko.fel.push(lord("slappFelFil").replace("{namn}", fil.name).replace("{fel}", e instanceof Error && e.message ? e.message : String(e)));
+        }
+      }
+    } finally {
+      ko.pagar = false;
+    }
+    const klarText = ko.klara === 0 ? "" : ko.klara === 1 && ko.totalt === 1 ? lord("slappKlarEn").replace("{namn}", ko.forstaNamn) : lord("slappKlar").replace("{antal}", String(ko.klara));
+    setSlappLage({ text: klarText, pagar: false, fel: [...ko.fel] });
   }
 
   /** Bara filer räknas som något att släppa: en markerad text eller länk som dras över listan ska inte rita ramen. */
@@ -1446,7 +1477,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
             {slappLage && !slappLage.pagar && slappLage.text ? <p role="status" data-bibliotek-slapp-klar="" className="m-0 text-etikett text-ink-muted">{slappLage.text}</p> : null}
             {slappLage && slappLage.fel.length > 0 ? (
               <ul role="alert" data-bibliotek-slapp-fel="" className="m-0 flex list-none flex-col gap-1 p-0 text-etikett text-warning">
-                {slappLage.fel.map((f) => <li key={f}>{f}</li>)}
+                {slappLage.fel.map((f, i) => <li key={i}>{f}</li>)}
               </ul>
             ) : null}
             {laddarLjud ? <div data-bibliotek-laddar-ljud=""><OpsVantar storlek="sm" text="Laddar upp ljudfilen." /></div> : null}
@@ -3301,7 +3332,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
               }
               setFormfel("");
               setValdFil(vald);
-              const urNamn = vald.name.replace(/\.[^.]+$/, "") || vald.name;
+              const urNamn = rubrikUrFilnamn(vald.name, vald.name);
               // En tom rubrik får filnamnet, som förut. För en .md också en rubrik som bara var förra filens förslag.
               if (!trimSomRegeln(rubrik) || (md && trimSomRegeln(rubrik) === mdAutoRubrik.current)) {
                 setRubrik(urNamn);

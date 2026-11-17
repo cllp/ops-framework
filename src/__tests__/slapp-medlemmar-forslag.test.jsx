@@ -41,7 +41,22 @@ function Bibliotek({ onLaddaUpp, jag = { uid: "uid-1", roll: "medlem" } }) {
 
 /** @param {File[]} filer */
 const filData = (filer) => ({ dataTransfer: { types: ["Files"], files: filer, dropEffect: "none" } });
-const slappyta = () => /** @type {HTMLElement} */ (document.querySelector("[data-bibliotek-panel] [role='tablist']")?.parentElement ?? document.querySelector("[data-bibliotek-slapp], [data-bibliotek-panel] div"));
+/** Listan själv, som användaren släpper på. Händelsen bubblar till flikroten, där släppet tas emot. */
+const slappyta = () => {
+  const panel = document.querySelector("[data-bibliotek-panel]");
+  if (!(panel instanceof HTMLElement)) throw new Error("Bibliotekets lista ritades inte.");
+  return panel;
+};
+
+/** Ett löfte som hålls tillbaka tills provet släpper det. */
+function tillbakahallen() {
+  /** @type {() => void} */
+  let slapp = () => {};
+  const lofte = new Promise((/** @type {(v?: unknown) => void} */ r) => {
+    slapp = () => r();
+  });
+  return { lofte, slapp: () => slapp() };
+}
 
 describe("Biblioteket: filer som släpps på listan (#870)", () => {
   it("⛔ två godkända filer laddas upp en i taget, med namnet utan ändelse som rubrik, och en fil i fel format står med namn och skäl", async () => {
@@ -65,6 +80,41 @@ describe("Biblioteket: filer som släpps på listan (#870)", () => {
     expect(fel.textContent).toMatch(/arkiv\.rar/);
     expect(fel.textContent).toMatch(/application\/x-rar-compressed/);
     expect(document.querySelector("[data-bibliotek-slapp='drar']")).toBeNull();
+  });
+
+  it("⛔ en i taget: den andra filen laddas upp först när den första är klar, och ett andra släpp under tiden hamnar i samma kö", async () => {
+    const vantande = [tillbakahallen(), tillbakahallen(), tillbakahallen()];
+    let n = 0;
+    const onLaddaUpp = vi.fn(() => vantande[n++].lofte);
+    render(<Bibliotek onLaddaUpp={onLaddaUpp} />);
+    const pdf = (/** @type {string} */ namn) => new File(["x"], namn, { type: "application/pdf" });
+    fireEvent.drop(slappyta(), filData([pdf("a.pdf"), pdf("b.pdf")]));
+    await waitFor(() => expect(onLaddaUpp).toHaveBeenCalledTimes(1));
+    expect(document.querySelector("[data-bibliotek-slapp-laddar]")?.textContent).toMatch(/1 av 2/);
+    // Ett andra släpp medan a laddas upp: ingen ny omgång, filen läggs sist och räknas in.
+    fireEvent.drop(slappyta(), filData([pdf("c.pdf"), new File(["x"], "d.rar", { type: "application/x-rar-compressed" })]));
+    await Promise.resolve();
+    expect(onLaddaUpp).toHaveBeenCalledTimes(1);
+    vantande[0].slapp();
+    await waitFor(() => expect(onLaddaUpp).toHaveBeenCalledTimes(2));
+    expect(document.querySelector("[data-bibliotek-slapp-laddar]")?.textContent).toMatch(/2 av 3/);
+    vantande[1].slapp();
+    await waitFor(() => expect(onLaddaUpp).toHaveBeenCalledTimes(3));
+    vantande[2].slapp();
+    await waitFor(() => expect(document.querySelector("[data-bibliotek-slapp-klar]")?.textContent).toMatch(/3 filer/));
+    expect(onLaddaUpp.mock.calls.map(([p]) => /** @type {any} */ (p).rubrik)).toEqual(["a", "b", "c"]);
+    // Det andra släppets fel finns kvar när kön är tom.
+    expect(document.querySelector("[data-bibliotek-slapp-fel]")?.textContent).toMatch(/d\.rar/);
+  });
+
+  // Ett skydd mot att det slutar gälla, inte ett prov på en ändring: `mimeForFil` gör redan text/x-markdown till text/markdown (mätt i
+  // granskningen av 0.236.0), så provet är grönt också före släppet fanns i den här formen.
+  it("en .md tas emot som i formuläret, också när webbläsaren kallar den text/x-markdown", async () => {
+    const onLaddaUpp = vi.fn(async () => {});
+    render(<Bibliotek onLaddaUpp={onLaddaUpp} />);
+    fireEvent.drop(slappyta(), filData([new File(["# Hej"], "Plan.md", { type: "text/x-markdown" })]));
+    await waitFor(() => expect(onLaddaUpp).toHaveBeenCalledTimes(1));
+    expect(/** @type {any} */ (onLaddaUpp.mock.calls[0])[0].rubrik).toBe("Plan");
   });
 
   it("en uppladdning som faller står med filens namn, och de andra laddas upp ändå", async () => {
@@ -189,6 +239,39 @@ describe("OpsInput: förslag medan man skriver (#871)", () => {
     expect(onValj).toHaveBeenCalledWith("u-ann");
     fireEvent.keyDown(falt, { key: "Escape" });
     expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("⛔ efter Escape öppnar nästa tecken listan igen, och ArrowDown också, utan att fältet lämnas", () => {
+    render(<Falt onValj={() => {}} />);
+    const falt = screen.getByRole("combobox", { name: "E-post" });
+    fireEvent.focus(falt);
+    fireEvent.keyDown(falt, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    fireEvent.change(falt, { target: { value: "a" } });
+    expect(screen.getByRole("listbox", { name: "E-post" })).toBeTruthy();
+    fireEvent.keyDown(falt, { key: "Escape" });
+    fireEvent.keyDown(falt, { key: "ArrowDown" });
+    const lista = screen.getByRole("listbox");
+    expect(falt.getAttribute("aria-activedescendant")).toBe(within(lista).getAllByRole("option")[0].id);
+  });
+
+  it("⛔ den som skriver vidare efter att ha pilat till ett förslag skickar det som står i fältet, inte förslaget", () => {
+    const onValj = vi.fn();
+    const onSubmit = vi.fn((/** @type {Event} */ e) => e.preventDefault());
+    render(
+      <form onSubmit={onSubmit}>
+        <Falt onValj={onValj} />
+      </form>,
+    );
+    const falt = screen.getByRole("combobox", { name: "E-post" });
+    fireEvent.focus(falt);
+    fireEvent.keyDown(falt, { key: "ArrowDown" });
+    fireEvent.change(falt, { target: { value: "egen@exempel.se" } });
+    expect(falt.getAttribute("aria-activedescendant")).toBeNull();
+    // Enter utan markering väljer inget förslag, och fältets standard (skicka formuläret) står kvar.
+    const enter = fireEvent.keyDown(falt, { key: "Enter" });
+    expect(enter).toBe(true);
+    expect(onValj).not.toHaveBeenCalled();
   });
 
   it("en tom lista ritar ingenting, och högst åtta förslag visas", () => {
