@@ -9,6 +9,20 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.237.1
+
+**Årsvyn hämtas först när den öppnas.** I 0.237.0 importerade `OpsCalendar` årsvyn (`OpsKalenderAr` och `arsband`) direkt, så den hamnade i appens startfil. lifehub.app:s `check:jsstorlek` mätte 3 119 byte gzip över taket vid ompinningen, mätt med källkartor: 5 378 byte okomprimerat från `OpsKalenderAr` och 586 från `arsband`.
+
+### Ändrat
+
+- `OpsCalendar` läser in årsvyn med en dynamisk import bakom `Suspense` och `LatGrans`, samma mönster som kartan, PDF-vyn och repot. Medan den hämtas står "Hämtar året." (`OpsVantar`), och går den inte att hämta står "Året gick inte att läsa in. Ladda om sidan.". Helskärmen (`useHelskarm`) och knappen står kvar i kalendern, eftersom helskärmen måste begäras i själva trycket.
+
+### Vakt
+
+- `check-delbarhet` mäter nu att `OpsKalenderAr` och `arsband` ligger i en egen bit när startfilen importerar `OpsCalendar`. Röd med 0.237.0:s direkta import (4 brott: golvet och tre träffar i startfilen), grön med ändringen.
+- `kalender-arsvy-874.test.jsx` väntar på årsvyn med namn ("Året 2027") efter trycket, och renderar kalendern med tre månader i stället för 25. Med 25 nådde det första provet vitests gräns på 5 s under CI:s last på PR 615, och nästa prov startade medan det väntade.
+- `karta-vy.test.jsx` väntar på kartan, inte bara på regionen. Regionen "Karta" ritas innan effekten har skapat kartan, och provet föll i CI under last på PR 615 (`reading 'opts'`). Med kartattrappens registrering ett varv senare: rött utan väntan (samma fel som i CI), grönt med.
+
 ## 0.237.0
 
 **Visa året** (cllp/lifehub.app#874, skiva 1). CP 2026-11-17: "fälla ut en årsvy i helskärm om man vill precis som man visar en karta eller pdf", med en knapp under kalendern som "får vara ganska liten, då panelen för kalender redan är ganska full", och en kalender per sak.

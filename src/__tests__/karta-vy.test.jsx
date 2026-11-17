@@ -103,6 +103,17 @@ vi.mock("maplibre-gl", () => {
   return { Map, Popup, NavigationControl, GeolocateControl, setWorkerUrl: vi.fn(), getWorkerUrl: () => "" };
 });
 
+/**
+ * Kartan, när den finns. ⛔ Regionen "Karta" ritas innan effekten har skapat kartan, så den syns före `new Map`. Ett prov som läste `__opsKartor` direkt efter regionen
+ * föll i CI under last (ops-framework PR 615, 2026-11-17: "Cannot read properties of undefined (reading 'opts')") och gick igenom lokalt. Provets villkor är kartan, inte regionen.
+ */
+const kartan = () =>
+  waitFor(() => {
+    const k = globalThis.__opsKartor.at(-1);
+    expect(k).toBeTruthy();
+    return k;
+  });
+
 function sattFarger() {
   for (const [namn, varde] of Object.entries(FALGER)) document.documentElement.style.setProperty(namn, varde);
 }
@@ -122,7 +133,7 @@ describe("OpsKarta ritar exemplet", () => {
     const { OpsKarta } = await import("../components/OpsKarta.jsx");
     render(<OpsKarta data={exempelkarta} />);
     expect(await screen.findByRole("region", { name: "Karta" })).toBeTruthy();
-    const karta = globalThis.__opsKartor[0];
+    const karta = await kartan();
     expect(karta.opts.style.layers.map((l) => l.id)).toEqual(expect.arrayContaining(["objekt-punkt", "objekt-linje", "objekt-yta"]));
     expect(karta.opts.attributionControl).toEqual({ compact: false });
     expect(karta.opts.cooperativeGestures).toBe(true);
@@ -137,7 +148,7 @@ describe("OpsKarta ritar exemplet", () => {
     const { OpsKarta } = await import("../components/OpsKarta.jsx");
     render(<OpsKarta data={{ type: "FeatureCollection", features: [{ type: "Feature", properties: { namn: "Ren" }, geometry: { type: "Point", coordinates: [1, 2] } }] }} />);
     await screen.findByRole("region", { name: "Karta" });
-    const karta = globalThis.__opsKartor.at(-1);
+    const karta = await kartan();
     karta.traff = [{ layer: { id: "objekt-punkt" }, properties: { namn: "<img src=x>", beskrivning: "ok" }, geometry: { type: "Point" } }];
     karta._on.click({ point: {}, lngLat: { lng: 1, lat: 2 } });
     expect(document.querySelector("img")).toBeNull();
@@ -148,7 +159,7 @@ describe("OpsKarta ritar exemplet", () => {
     const { OpsKarta } = await import("../components/OpsKarta.jsx");
     render(<OpsKarta data={exempelkarta} />);
     await screen.findByRole("region", { name: "Karta" });
-    const karta = globalThis.__opsKartor.at(-1);
+    const karta = await kartan();
     const fore = karta.passning;
     karta.paints = [];
     document.documentElement.style.setProperty("--color-karta-papper", "#010101");
@@ -162,7 +173,7 @@ describe("OpsKarta ritar exemplet", () => {
     const { OpsKarta } = await import("../components/OpsKarta.jsx");
     render(<OpsSprakProvider sprak="en"><OpsKarta data={exempelkarta} /></OpsSprakProvider>);
     expect(await screen.findByRole("region", { name: "Map" })).toBeTruthy();
-    expect(globalThis.__opsKartor.at(-1).opts.locale["NavigationControl.ZoomIn"]).toBe("Zoom in");
+    expect((await kartan()).opts.locale["NavigationControl.ZoomIn"]).toBe("Zoom in");
   });
 
   it("saknade färger sägs, och ingen karta skapas", async () => {

@@ -93,6 +93,8 @@ const SKALEN = [
   { skal: "OpsBibliotek", lata: ["markdownSomHtml", "markdownSomAnteckning"], via: "import(\"../lib/markdownhtml.js\") och import(\"../lib/anteckningsfil.js\")" },
   // (0.223.0, #570) MapLibre ritas bara när en karta visas. Startfilen importerar `OpsKarta`, inte vyn och inte paketet.
   { skal: "OpsKarta", lata: ["OpsKartaVy"], via: "OpsKarta", paket: ["maplibre-gl"] },
+  // 0.237.1: årsvyn (cllp/lifehub.app#874) hamnade i appens startfil i 0.237.0, 3 119 byte gzip över lifehub.app:s tak. Den hämtas när den öppnas.
+  { skal: "OpsCalendar", lata: ["OpsKalenderAr", "arsband"], via: "OpsCalendar" },
 ];
 
 /** En import av paketet (statisk eller dynamisk) i en bit. Ett namn i en kommentar eller en text räknas inte. @param {string} kod @param {string} paket */

@@ -8,6 +8,11 @@ import { OpsKalenderAr } from "../components/OpsKalenderAr.jsx";
  * ⛔ RÖTT UTAN ÄNDRINGEN: ingen knapp "Visa året" finns, och OpsKalenderAr finns inte.
  */
 
+/*
+ * ⛔ TRE MÅNADER, INTE 25 (granskningen av CI på PR 615). Kalendern renderar som förval tolv månader bakåt och tolv framåt, och under CI:s last nådde det
+ * första provet vitests gräns på 5 s, eftersom årsvyn dessutom hämtas lat. Juni till augusti 2027 räcker för allt proven trycker på, som de andra kalenderproven.
+ * Väntan gäller årsvyn med namn, inte vilken dialog som helst.
+ */
 const IDAG = new Date(2027, 6, 1);
 const KALENDRAR = [
   { id: "barn", namn: "Barnen hos CP", farg: 2 },
@@ -21,16 +26,17 @@ const POSTER = [
 
 describe("⛔ Visa året i kalendern (#874)", () => {
   it("⛔ knappen finns från början (CP 2026-11-17), och arsvy={false} tar bort den", () => {
-    const { rerender } = render(<OpsCalendar ariaLabel="Kalender" today={IDAG} entries={POSTER} kalendrar={KALENDRAR} />);
+    const { rerender } = render(<OpsCalendar ariaLabel="Kalender" today={IDAG} monthsBack={1} monthsForward={1} entries={POSTER} kalendrar={KALENDRAR} />);
     expect(screen.getByRole("button", { name: "Visa året" })).toBeTruthy();
-    rerender(<OpsCalendar ariaLabel="Kalender" today={IDAG} entries={POSTER} kalendrar={KALENDRAR} arsvy={false} />);
+    rerender(<OpsCalendar ariaLabel="Kalender" today={IDAG} monthsBack={1} monthsForward={1} entries={POSTER} kalendrar={KALENDRAR} arsvy={false} />);
     expect(screen.queryByRole("button", { name: "Visa året" })).toBeNull();
   });
 
-  it("öppnar året i ett lager över hela skärmen, och Stäng och Escape lägger tillbaka kalendern", () => {
-    render(<OpsCalendar ariaLabel="Kalender" today={IDAG} entries={POSTER} kalendrar={KALENDRAR} arsvy />);
+  it("öppnar året i ett lager över hela skärmen, och Stäng och Escape lägger tillbaka kalendern", async () => {
+    render(<OpsCalendar ariaLabel="Kalender" today={IDAG} monthsBack={1} monthsForward={1} entries={POSTER} kalendrar={KALENDRAR} arsvy />);
     expect(document.querySelector("[data-ops-arsvy]")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Visa året" }));
+    await screen.findByRole("dialog", { name: "Året 2027" }, { timeout: 5000 });
     const yta = /** @type {HTMLElement} */ (document.querySelector("[data-kalender-arsvy-yta]"));
     expect(yta.getAttribute("data-kalender-arsvy-yta")).toBe("fonster");
     expect(yta.className).toContain("fixed inset-0");
@@ -38,15 +44,17 @@ describe("⛔ Visa året i kalendern (#874)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stäng helskärm" }));
     expect(document.querySelector("[data-ops-arsvy]")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Visa året" }));
+    await screen.findByRole("dialog", { name: "Året 2027" }, { timeout: 5000 });
     act(() => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     });
     expect(document.querySelector("[data-ops-arsvy]")).toBeNull();
   });
 
-  it("ett tryck på en dag stänger året och väljer dagen i kalendern", () => {
-    render(<OpsCalendar ariaLabel="Kalender" today={IDAG} entries={POSTER} kalendrar={KALENDRAR} arsvy />);
+  it("ett tryck på en dag stänger året och väljer dagen i kalendern", async () => {
+    render(<OpsCalendar ariaLabel="Kalender" today={IDAG} monthsBack={1} monthsForward={1} entries={POSTER} kalendrar={KALENDRAR} arsvy />);
     fireEvent.click(screen.getByRole("button", { name: "Visa året" }));
+    await screen.findByRole("dialog", { name: "Året 2027" }, { timeout: 5000 });
     fireEvent.click(/** @type {HTMLElement} */ (document.querySelector('[data-arsvy-dag="2027-07-06"]')));
     expect(document.querySelector("[data-ops-arsvy]")).toBeNull();
     const piller = document.querySelectorAll("[data-datumpiller]");
@@ -55,9 +63,10 @@ describe("⛔ Visa året i kalendern (#874)", () => {
     expect(piller[0].textContent?.toLowerCase()).toMatch(/jul/);
   });
 
-  it("en dold kalender försvinner ur året, och visas igen med ett tryck på den i listan", () => {
-    render(<OpsCalendar ariaLabel="Kalender" today={IDAG} entries={POSTER} kalendrar={KALENDRAR} arsvy />);
+  it("en dold kalender försvinner ur året, och visas igen med ett tryck på den i listan", async () => {
+    render(<OpsCalendar ariaLabel="Kalender" today={IDAG} monthsBack={1} monthsForward={1} entries={POSTER} kalendrar={KALENDRAR} arsvy />);
     fireEvent.click(screen.getByRole("button", { name: "Visa året" }));
+    await screen.findByRole("dialog", { name: "Året 2027" }, { timeout: 5000 });
     const dag = () => /** @type {HTMLElement} */ (document.querySelector('[data-arsvy-dag="2027-07-06"]'));
     expect(dag().getAttribute("aria-label")).toBe("6 juli: Barnen hos CP, Skollov");
     const lista = screen.getByRole("list", { name: "Kalendrar" });
@@ -138,14 +147,16 @@ describe("⛔ OpsKalenderAr (#874)", () => {
 });
 
 describe("⛔ fokus tillbaka på Visa året (granskningen av 0.237.0)", () => {
-  it("när året stängs med krysset eller Escape står fokus på knappen igen", () => {
-    render(<OpsCalendar ariaLabel="Kalender" today={IDAG} entries={POSTER} kalendrar={KALENDRAR} arsvy />);
+  it("när året stängs med krysset eller Escape står fokus på knappen igen", async () => {
+    render(<OpsCalendar ariaLabel="Kalender" today={IDAG} monthsBack={1} monthsForward={1} entries={POSTER} kalendrar={KALENDRAR} arsvy />);
     const knapp = screen.getByRole("button", { name: "Visa året" });
     fireEvent.click(knapp);
+    await screen.findByRole("dialog", { name: "Året 2027" }, { timeout: 5000 });
     expect(document.activeElement?.getAttribute("role")).toBe("dialog");
     fireEvent.click(screen.getByRole("button", { name: "Stäng helskärm" }));
     expect(document.activeElement).toBe(knapp);
     fireEvent.click(knapp);
+    await screen.findByRole("dialog", { name: "Året 2027" }, { timeout: 5000 });
     act(() => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     });
