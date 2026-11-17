@@ -969,6 +969,22 @@ export function mimeUrFilnamn(namn) {
 }
 
 /**
+ * Rubriken en fil får när ingen har skrivit någon: filnamnet utan ändelse, trimmat och kapat vid `MAX_BIBLIOTEKRUBRIK`. Blir det tomt
+ * (namnet var bara en ändelse som ".md", eller bara mellanslag) blir det `reserv`.
+ *
+ * ⛔ ETT HEM (regel 2, granskningen av 0.236.0): formuläret Ny fil, inspelningen och filerna som släpps på listan frågar här. Släppet hade en
+ * egen kopia av inspelningens regel.
+ *
+ * @param {string} namn
+ * @param {string} [reserv]
+ * @returns {string}
+ */
+export function rubrikUrFilnamn(namn, reserv = "") {
+  const n = String(namn ?? "");
+  return (n.replace(/\.[^.]+$/, "") || n).trim().slice(0, MAX_BIBLIOTEKRUBRIK) || reserv;
+}
+
+/**
  * Filens MIME när den läggs in (0.228.0, cllp/lifehub.app#765). ⛔ ETT HEM (regel 2): varje ställe där en fils typ bestäms vid uppladdning går hit, så att Ny fil, källans
  * `laddaUppFil`, en ny HTML-version och ljudfilen inte kan svara olika om samma fil.
  *

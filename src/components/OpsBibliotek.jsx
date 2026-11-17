@@ -32,7 +32,7 @@ import { githubDokument } from "../lib/githubdokument.js";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
 import { ID_FORM } from "../lib/katalog.js";
-import { ARKIVTAGG, POSTIDFORM, arArkiverad, kortRubrik, avkodaTextfil, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeForFil, arKartfil, filadressFel, filSort, filtreraBibliotek, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
+import { ARKIVTAGG, POSTIDFORM, arArkiverad, kortRubrik, avkodaTextfil, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeForFil, arKartfil, filadressFel, filSort, filtreraBibliotek, rubrikUrFilnamn, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
 import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
 export { menyPilar, OpsTaggFilter as TaggFilter };
@@ -255,6 +255,15 @@ const ORD_BIBLIOTEKLISTA = {
   skapadNar: { sv: "Skapad {tid}.", en: "Created {tid}." },
   andradNar: { sv: "Ändrad {tid}.", en: "Changed {tid}." },
   utanNamn: { sv: "Författaren saknar namn.", en: "The author has no name." },
+  // ⛔ FILER SOM SLÄPPS PÅ LISTAN (cllp/lifehub.app#870, Rob 2026-11-17: "Kolla om filedrop funkar i bibliotek"). Mätt: Biblioteket hade inga
+  // `onDrop`, bara knappen. En fil som drogs dit öppnades av webbläsaren i stället, eller hände ingenting.
+  slappHar: { sv: "Släpp filerna för att lägga dem i biblioteket.", en: "Drop the files to add them to the library." },
+  laddarUppEn: { sv: "Laddar upp {namn}.", en: "Uploading {namn}." },
+  laddarUppFler: { sv: "Laddar upp {klar} av {antal} filer.", en: "Uploading {klar} of {antal} files." },
+  slappKlar: { sv: "{antal} filer är tillagda.", en: "{antal} files are added." },
+  slappKlarEn: { sv: "{namn} är tillagd.", en: "{namn} is added." },
+  slappFelFil: { sv: "{namn}: {fel}", en: "{namn}: {fel}" },
+  slappInteKopplad: { sv: "Uppladdningen är inte kopplad. Filerna är kvar på enheten.", en: "Uploading is not connected. The files are still on your device." },
 };
 
 /**
@@ -531,6 +540,19 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const laddar = levande ? levande.laddar : laddarProp;
   const [flik, setFlik] = useState(/** @type {Flik} */ ("alla"));
   const [rostFel, setRostFel] = useState("");
+  /** Filer som släpps på listan (#870): om något dras över, vad som laddas upp nu, och beskeden efteråt. */
+  const [drarFil, setDrarFil] = useState(false);
+  const [slappLage, setSlappLage] = useState(/** @type {{ text: string, pagar: boolean, fel: string[] } | null} */ (null));
+  /**
+   * ⛔ EN I TAGET ÄVEN NÄR MAN SLÄPPER IGEN (granskningen av 0.236.0): ett andra släpp medan det första laddas upp startade en egen omgång
+   * parallellt, raden "x av y" växlade mellan dem och den som blev klar sist skrev över den förras fel. Nu går alla släpp genom samma kö.
+   */
+  const slappKo = useRef(/** @type {{ pagar: boolean, filer: File[], fel: string[], klara: number, totalt: number, forstaNamn: string }} */ ({ pagar: false, filer: [], fel: [], klara: 0, totalt: 0, forstaNamn: "" }));
+  // Beskeden efter ett släpp hör till listan som den såg ut då. En annan flik eller en öppnad post tar bort dem, men aldrig en pågående uppladdning.
+  const slappVald = vald?.id ?? null;
+  useEffect(() => {
+    setSlappLage((l) => (l && !l.pagar ? null : l));
+  }, [flik, slappVald]);
   const [laddarLjud, setLaddarLjud] = useState(false);
   const [ljus, setLjus] = useState("");
   const [sok, setSok] = useState("");
@@ -888,7 +910,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       setRostFel("Uppladdningen är inte kopplad. Filen är kvar på enheten.");
       return;
     }
-    const rubrik = (fil.name.replace(/\.[^.]+$/, "") || fil.name).trim().slice(0, MAX_BIBLIOTEKRUBRIK) || "Ljud";
+    const rubrik = rubrikUrFilnamn(fil.name, "Ljud");
     /** @param {unknown} e */
     const visa = (e) => {
       setLaddarLjud(false);
@@ -903,6 +925,78 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       visa(e);
     }
   }
+
+  /**
+   * Filer som släpps på listan (cllp/lifehub.app#870). Varje fil prövas som i formuläret Ny fil (`filInmatningsfel`) och sparas av appens
+   * `onLaddaUpp` en i taget, med filnamnet utan ändelse som rubrik, samma väg som "+ Ny" under Ljud. En fil som inte tas emot står med namn
+   * och skäl; de andra laddas upp ändå.
+   *
+   * ⛔ EN I TAGET, INTE ALLA PÅ EN GÅNG: uppladdningen går mot lagringen och har en egen gräns per person, och raden "2 av 5" ska stämma.
+   *
+   * @param {ReadonlyArray<File>} filer
+   */
+  async function laddaUppSlappta(filer) {
+    if (filer.length === 0) return;
+    if (typeof onLaddaUpp !== "function") {
+      setSlappLage({ text: "", pagar: false, fel: [lord("slappInteKopplad")] });
+      return;
+    }
+    const ko = slappKo.current;
+    // En ny omgång börjar med tomma besked. Pågår en uppladdning hamnar filerna sist i samma kö och räknas in i "x av y".
+    if (!ko.pagar) {
+      ko.fel = [];
+      ko.klara = 0;
+      ko.totalt = 0;
+      ko.forstaNamn = "";
+    }
+    for (const fil of filer) {
+      const prov = filInmatningsfel({ namn: fil.name, mime: mimeForFil(fil.name, fil.type), byte: fil.size });
+      if (prov) {
+        ko.fel.push(lord("slappFelFil").replace("{namn}", fil.name).replace("{fel}", prov));
+      } else {
+        ko.filer.push(fil);
+        ko.totalt += 1;
+        if (!ko.forstaNamn) ko.forstaNamn = fil.name;
+      }
+    }
+    if (ko.pagar) {
+      setSlappLage((l) => (l ? { ...l, fel: [...ko.fel] } : l));
+      return;
+    }
+    ko.pagar = true;
+    try {
+      let nr = 0;
+      while (ko.filer.length > 0) {
+        const fil = /** @type {File} */ (ko.filer.shift());
+        nr += 1;
+        setSlappLage({
+          text: ko.totalt === 1 ? lord("laddarUppEn").replace("{namn}", fil.name) : lord("laddarUppFler").replace("{klar}", String(nr)).replace("{antal}", String(ko.totalt)),
+          pagar: true,
+          fel: [...ko.fel],
+        });
+        try {
+          await onLaddaUpp({ rubrik: rubrikUrFilnamn(fil.name, fil.name.slice(0, MAX_BIBLIOTEKRUBRIK)), fil });
+          ko.klara += 1;
+        } catch (e) {
+          ko.fel.push(lord("slappFelFil").replace("{namn}", fil.name).replace("{fel}", e instanceof Error && e.message ? e.message : String(e)));
+        }
+      }
+    } finally {
+      ko.pagar = false;
+    }
+    const klarText = ko.klara === 0 ? "" : ko.klara === 1 && ko.totalt === 1 ? lord("slappKlarEn").replace("{namn}", ko.forstaNamn) : lord("slappKlar").replace("{antal}", String(ko.klara));
+    setSlappLage({ text: klarText, pagar: false, fel: [...ko.fel] });
+  }
+
+  /** Bara filer räknas som något att släppa: en markerad text eller länk som dras över listan ska inte rita ramen. */
+  const kanSlappa = Boolean(jag) && !inbaddad;
+  /** @param {import("react").DragEvent} e */
+  const drarOver = (e) => {
+    if (!kanSlappa || !Array.from(e.dataTransfer?.types ?? []).includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    if (!drarFil) setDrarFil(true);
+  };
 
   /**
    * @param {string} id
@@ -1359,9 +1453,33 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
             </div>}
             {/* ⛔ APPENS EGEN RAD (0.187.0, cllp/ops-framework#517): under sök, "+ Ny" och Taggar, aldrig i samma rad. På en telefon krymper sökrutan till ett par bokstäver när en knapp till delar raden. */}
             {huvudRad ? <div data-bibliotek-huvudrad="" className="flex min-w-0 flex-wrap items-center gap-2">{huvudRad}</div> : null}
-            <Tabs.Root value={aktivFlik} onValueChange={(v) => setFlik(/** @type {Flik} */ (v))} className="flex min-w-0 flex-col gap-3">
+            <Tabs.Root
+              value={aktivFlik}
+              onValueChange={(v) => setFlik(/** @type {Flik} */ (v))}
+              onDragEnter={drarOver}
+              onDragOver={drarOver}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(/** @type {Node | null} */ (e.relatedTarget))) setDrarFil(false);
+              }}
+              onDrop={(e) => {
+                if (!kanSlappa || !Array.from(e.dataTransfer?.types ?? []).includes("Files")) return;
+                e.preventDefault();
+                setDrarFil(false);
+                void laddaUppSlappta(Array.from(e.dataTransfer.files ?? []));
+              }}
+              data-bibliotek-slapp={drarFil ? "drar" : undefined}
+              className={cx("flex min-w-0 flex-col gap-3", drarFil && "rounded-md outline-2 outline-offset-4 outline-dashed outline-accent")}
+            >
             {inbaddad ? null : <Flikar flikar={synligaFlikar} antal={antal} />}
             {rostFel ? <p role="alert">{rostFel}</p> : null}
+            {drarFil ? <p data-bibliotek-slapp-har="" className="m-0 text-etikett text-accent">{lord("slappHar")}</p> : null}
+            {slappLage?.pagar ? <div data-bibliotek-slapp-laddar=""><OpsVantar storlek="sm" text={slappLage.text} /></div> : null}
+            {slappLage && !slappLage.pagar && slappLage.text ? <p role="status" data-bibliotek-slapp-klar="" className="m-0 text-etikett text-ink-muted">{slappLage.text}</p> : null}
+            {slappLage && slappLage.fel.length > 0 ? (
+              <ul role="alert" data-bibliotek-slapp-fel="" className="m-0 flex list-none flex-col gap-1 p-0 text-etikett text-warning">
+                {slappLage.fel.map((f, i) => <li key={i}>{f}</li>)}
+              </ul>
+            ) : null}
             {laddarLjud ? <div data-bibliotek-laddar-ljud=""><OpsVantar storlek="sm" text="Laddar upp ljudfilen." /></div> : null}
             {trasiga.length > 0 ? (
               <div role="status" data-bibliotek-trasiga={trasiga.length} className="text-meta text-ink-muted">
@@ -3214,7 +3332,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
               }
               setFormfel("");
               setValdFil(vald);
-              const urNamn = vald.name.replace(/\.[^.]+$/, "") || vald.name;
+              const urNamn = rubrikUrFilnamn(vald.name, vald.name);
               // En tom rubrik får filnamnet, som förut. För en .md också en rubrik som bara var förra filens förslag.
               if (!trimSomRegeln(rubrik) || (md && trimSomRegeln(rubrik) === mdAutoRubrik.current)) {
                 setRubrik(urNamn);

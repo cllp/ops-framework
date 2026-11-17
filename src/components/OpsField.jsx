@@ -1,6 +1,6 @@
-import { createContext, useContext, useId, useRef } from "react";
+import { createContext, useContext, useId, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
-import { faltKlass } from "../lib/radKlass.js";
+import { faltKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { useTalkfalt } from "./useTalkfalt.js";
 
 /**
@@ -138,6 +138,13 @@ const TILLATNA_TYPER = ["text", "email", "search", "tel", "url", "password", "nu
  *   nästa större version. ⛔ `tal={true}` eller ett objekt kastar. Fältet är registrerat för TALK när det har `onChange`, inte är `disabled`
  *   eller `readOnly`, och inte är av en typ i `UTAN_TAL` (`password`, `email`, `number`, `search`, `tel`, `url`).
  * @param {"kant" | "fylld"} [props.yta] (0.196.0) `fylld`: ingen synlig kant, en fylld yta (se `faltKlass`). Gästens sida. Förval `kant`.
+ * @param {ReadonlyArray<{ id: string, etikett: string, under?: string }>} [props.forslag] (cllp/lifehub.app#871) Förslag under fältet medan man skriver,
+ *   till exempel personer man redan delar en grupp med. Fältet blir en kombinationsruta (`role="combobox"`): pilarna markerar, Enter väljer,
+ *   Escape stänger. ⛔ APPEN FILTRERAR, INTE FÄLTET: fältet visar listan det får och vet inget om varifrån den kom eller vem som får se den.
+ *   En tom lista ritar ingenting. Högst åtta visas. Skriv vidare och markeringen släpps, så att Enter skickar det som står i fältet.
+ *   ⛔ SKICKA EN LISTA, ALDRIG `undefined` MEDAN FÄLTET ANVÄNDS: utanför ett skal med TALK får fältet ett omslag först när `forslag` finns,
+ *   och ett träd som byter form monterar om fältet och tar fokus (samma fel som 0.232.0). Tom lista när inget passar.
+ * @param {(id: string) => void} [props.onValjForslag] Krävs med `forslag`: anropas med förslagets id när det väljs.
  */
 export function OpsInput({
   value,
@@ -152,7 +159,12 @@ export function OpsInput({
   ariaLabel,
   tal,
   yta = "kant",
+  forslag,
+  onValjForslag,
 }) {
+  if (forslag && typeof onValjForslag !== "function") {
+    throw new Error("OpsInput: forslag kräver onValjForslag. Ett förslag som inte går att välja är en lista som lovar något som inte händer.");
+  }
   if (!TILLATNA_TYPER.includes(type)) {
     throw new Error(
       `OpsInput: typen "${type}" är inte tillåten. Giltiga: ${TILLATNA_TYPER.join(", ")}. ` +
@@ -163,6 +175,47 @@ export function OpsInput({
   avvisaTal(tal, "OpsInput");
   const ruta = useRef(/** @type {HTMLInputElement | null} */ (null));
   const talk = useTalkfalt(ruta, { slag: "input", typ: type, value, onChange, disabled, readOnly, maxLength, etikett: f.etikett, ariaLabel, placeholder });
+  const listId = useId();
+  const medForslag = Boolean(forslag);
+  const [fokus, setFokus] = useState(false);
+  // ⛔ STÄNGD ÄR INTE SAMMA SAK SOM UTAN FOKUS (granskningen av 0.236.0): Escape stänger listan men fältet har kvar fokus. Med en egen flagga
+  // öppnar nästa tecken eller ArrowDown listan igen, utan att man måste lämna fältet och komma tillbaka.
+  const [stangd, setStangd] = useState(false);
+  const [markerat, setMarkerat] = useState(-1);
+  const synliga = (forslag ?? []).slice(0, 8);
+  const visaLista = Boolean(forslag) && fokus && !stangd && synliga.length > 0 && !disabled && !readOnly;
+  const markeratNu = markerat < synliga.length ? markerat : -1;
+  /** @param {string} id */
+  const valj = (id) => {
+    setMarkerat(-1);
+    onValjForslag?.(id);
+  };
+  /** @param {import("react").KeyboardEvent<HTMLInputElement>} e */
+  const tangent = (e) => {
+    if (!visaLista) {
+      // Stängd med Escape: ArrowDown öppnar igen och markerar det första.
+      if (e.key === "ArrowDown" && stangd && synliga.length > 0 && !disabled && !readOnly) {
+        e.preventDefault();
+        setStangd(false);
+        setMarkerat(0);
+      }
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setMarkerat((m) => (m + 1) % synliga.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setMarkerat((m) => (m <= 0 ? synliga.length - 1 : m - 1));
+    } else if (e.key === "Enter" && markeratNu >= 0) {
+      e.preventDefault();
+      valj(synliga[markeratNu].id);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setStangd(true);
+      setMarkerat(-1);
+    }
+  };
   const falt = (
     <input
       ref={ruta}
@@ -170,7 +223,19 @@ export function OpsInput({
       className={cx(faltKlass({ invalid: f.invalid, yta }), talk.medOmslag && "block", talk.medMik && "pe-12")}
       type={type}
       value={value}
-      onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+      onChange={
+        onChange
+          ? (e) => {
+              // ⛔ (granskningen av 0.236.0) Den som skriver vidare har lämnat förslaget: markeringen släpps, annars väljer Enter en person
+              // i stället för att skicka det som står i fältet, och en lista som filtrerats om pekar på någon annan.
+              if (medForslag) {
+                setMarkerat(-1);
+                setStangd(false);
+              }
+              onChange(e.target.value);
+            }
+          : undefined
+      }
       placeholder={placeholder}
       name={name}
       autoComplete={autoComplete}
@@ -181,8 +246,57 @@ export function OpsInput({
       aria-label={ariaLabel}
       aria-invalid={f.invalid || undefined}
       aria-describedby={f.describedBy}
+      {...(medForslag
+        ? {
+            role: "combobox",
+            "aria-autocomplete": /** @type {"list"} */ ("list"),
+            "aria-expanded": visaLista,
+            "aria-controls": listId,
+            "aria-activedescendant": visaLista && markeratNu >= 0 ? `${listId}-${markeratNu}` : undefined,
+            onFocus: () => {
+              setFokus(true);
+              setStangd(false);
+            },
+            onBlur: () => {
+              setFokus(false);
+              setMarkerat(-1);
+            },
+            onKeyDown: tangent,
+          }
+        : {})}
     />
   );
+  // ⛔ LISTAN ÄR ETT SYSKON TILL FÄLTET, INTE ETT BARN, och trycket på ett förslag tar `onMouseDown` med preventDefault: annars tappar fältet
+  // fokus före klicket, listan stängs och klicket landar ingenstans.
+  const lista = visaLista ? (
+    <ul id={listId} role="listbox" aria-labelledby={f.etikett ? f.etikettId : undefined} aria-label={f.etikett ? undefined : ariaLabel} data-falt-forslag="" className={cx("absolute top-full right-0 left-0 z-(--z-dropdown) mt-1 flex list-none flex-col p-1", radBehallare())}>
+      {synliga.map((fs, i) => (
+        <li
+          key={fs.id}
+          id={`${listId}-${i}`}
+          role="option"
+          aria-selected={i === markeratNu}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            valj(fs.id);
+          }}
+          className={cx(radKlass({ active: i === markeratNu }), "flex min-w-0 flex-col items-start")}
+        >
+          <span className="max-w-full truncate text-etikett text-ink">{fs.etikett}</span>
+          {fs.under ? <span className="max-w-full truncate text-meta text-ink-muted">{fs.under}</span> : null}
+        </li>
+      ))}
+    </ul>
+  ) : null;
+  if (medForslag) {
+    return (
+      <div data-falt-omslag="" className="relative w-full min-w-0">
+        {falt}
+        {talk.medOmslag ? talk.mik("rad-falt") : null}
+        {lista}
+      </div>
+    );
+  }
   if (!talk.medOmslag) return falt;
   // ⛔ (0.232.0) Ett omslag bara i ett skal med TALK: `w-full` som fältet självt, så att en rad där fältet stod direkt som flex-barn behåller
   // sin bredd. Utanför ett skal (tam, gästen) är fältet exakt som förut. ⛔ (granskningen av PR 605) Omslaget står där OAVSETT om fältet går

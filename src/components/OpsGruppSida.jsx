@@ -5,6 +5,7 @@ import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsSwitch } from "./OpsToggle.jsx";
 import { usePersonnamn } from "./usePersonnamn.js";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
+import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { AgentIkon, AndraIkon, MeddelandeIkon, PersonIkon, PlatsIkon } from "./icons.jsx";
 
 /**
@@ -55,9 +56,16 @@ import { AgentIkon, AndraIkon, MeddelandeIkon, PersonIkon, PlatsIkon } from "./i
  *   prick på avataren med `aria-label` "<namn> online", och listan sorteras online först, sedan ägare, admin, medlem, och inom varje
  *   grupp på namn. ⛔ Utan propen är ordningen och utseendet som förut: ordningen ur `medlemmar`, ingen prick. En tom mängd är ett svar
  *   ("ingen är online"): sorteringen gäller då ändå, och ingen prick ritas. Agenter har ingen närvaro här och står sist som förut.
+ * @param {(m: import("../lib/gruppmedlemmar.js").Gruppmedlem) => ReadonlyArray<import("./OpsAtgardsblad.jsx").Atgard>} [props.medlemsAtgarder]
+ *   (cllp/lifehub.app#870 punkt 13) Åtgärderna för en medlem, till exempel Ta bort. Med en icke-tom lista får raden ⋯ (`OpsAtgardsblad`, bara knappen:
+ *   inget långtryck, för raden är redan en knapp som öppnar medlemmen). En tom lista ger ingen knapp, så appen avgör per rad vem som får göra vad.
+ * @param {import("react").ReactNode} [props.medlemsknapp] (#870 punkt 13) En knapp i medlemmarnas rubrikrad, till exempel Bjud in.
+ * @param {import("react").ReactNode} [props.underMedlemmar] (#870 punkt 13) Det som hör till medlemmarna och ska stå direkt under dem, inne i samma
+ *   sektion: väntande inbjudningar och gäster. ⛔ Rob 2026-11-17: "Inbjudningarna och medlemmar hamnar för långt ifrån varandra." `children`
+ *   står kvar efter sektionen, för det som inte är medlemmar.
  * @param {import("react").ReactNode} [props.children] Appens egna sektioner under medlemmarna.
  */
-export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [], onTillbaka, onRedigera, onVisaMedlem, onVaxlaAgent, onSkrivTillAgent, agenterHref, onNavigate, sprak, etiketter, fore, online, children }) {
+export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [], onTillbaka, onRedigera, onVisaMedlem, onVaxlaAgent, onSkrivTillAgent, agenterHref, onNavigate, sprak, etiketter, fore, online, medlemsAtgarder, medlemsknapp, underMedlemmar, children }) {
   const personnamn = usePersonnamn();
   if (!grupp || typeof grupp.id !== "string" || !grupp.id) {
     throw new Error("OpsGruppSida: grupp krävs, med id och namn. En detaljsida utan grupp är en tom sida.");
@@ -137,10 +145,13 @@ export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [
       {fore ? <div className="mb-6 min-w-0" data-gruppsida-fore="">{fore}</div> : null}
 
       <section className="mb-6" aria-labelledby="gruppsida-medlemmar" data-gruppsida-medlemmar="">
-        <h2 id="gruppsida-medlemmar" className="m-0 mb-2 flex items-center gap-1.5 text-sektion uppercase text-ink-muted">
-          <PersonIkon size={14} />
-          {`${t.medlemmar} (${medlemmar.length + agenter.length})`}
-        </h2>
+        <div className={cx("mb-2 flex items-center justify-between gap-3", medlemsknapp ? "min-h-11" : null)}>
+          <h2 id="gruppsida-medlemmar" className="m-0 flex items-center gap-1.5 text-sektion uppercase text-ink-muted">
+            <PersonIkon size={14} />
+            {`${t.medlemmar} (${medlemmar.length + agenter.length})`}
+          </h2>
+          {medlemsknapp ? <div data-gruppsida-medlemsknapp="" className="shrink-0">{medlemsknapp}</div> : null}
+        </div>
         {medlemmar.length + agenter.length === 0 ? (
           <p className="m-0 text-etikett text-ink-muted">{t.inga}</p>
         ) : (
@@ -168,19 +179,21 @@ export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [
                   </span>
                 </>
               );
+              const atgarder = medlemsAtgarder ? medlemsAtgarder(m) : [];
               return (
-                <li key={m.id}>
+                <li key={m.id} className={atgarder.length > 0 ? "flex items-center gap-1" : undefined} data-medlemsrad={m.id}>
                   {onVisaMedlem ? (
                     <button
                       type="button"
                       onClick={() => onVisaMedlem(m.id)}
-                      className={cx("flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-base p-2 text-left transition-colors hover:bg-raised", "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent")}
+                      className={cx("flex min-h-11 w-full min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-base p-2 text-left transition-colors hover:bg-raised", "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent")}
                     >
                       {rad}
                     </button>
                   ) : (
-                    <div className="flex min-h-11 w-full items-center gap-3 rounded-base p-2">{rad}</div>
+                    <div className="flex min-h-11 w-full min-w-0 flex-1 items-center gap-3 rounded-base p-2">{rad}</div>
                   )}
+                  {atgarder.length > 0 ? <OpsAtgardsblad baraKnapp namn={visat} poster={atgarder} /> : null}
                 </li>
               );
             })}
@@ -218,6 +231,7 @@ export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [
             })}
           </ul>
         )}
+        {underMedlemmar ? <div data-gruppsida-under-medlemmar="" className="mt-3 flex min-w-0 flex-col gap-3">{underMedlemmar}</div> : null}
       </section>
       {agenterHref ? (
         <a

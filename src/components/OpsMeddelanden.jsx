@@ -8,7 +8,7 @@ import { readAttachment } from "../lib/file.js";
 import { arGastId } from "../lib/gast.js";
 import { arRelativAppadress } from "../lib/applank.js";
 import { AGENTSTATUS_MAX_ALDER, MAX_ALTERNATIV, MAX_ALTERNATIVTEXT, MAX_ALTERNATIV_VID_START, MAX_FRAGA, MAX_MEDDELANDE, MAX_TRADNAMN, MIN_ALTERNATIV_VID_START, RAKNARE_FRAN, REAKTIONSKODER, agentstatus, vackerAgenten, arDelatSamtal, projekttaggUr, jamforbar, summeraOmrostning, amnesrubrik, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
-import { useSamtal } from "../data/useSamtal.jsx";
+import { SVARAR_INTE, useSamtal } from "../data/useSamtal.jsx";
 import { harAmnen, harBilagor, harCitat, harFasta, harOmnamnanden, harOmrostningar, harProjekt, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
 import { BilagaVisning } from "./BilagaVisning.jsx";
 import { KopieraBilagaKnapp } from "./BilageKopiering.jsx";
@@ -17,6 +17,7 @@ import { OpsTooltip } from "./OpsTooltip.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { splitInline, utanLankar } from "../lib/markdown.js";
 import { OpsBanner } from "./OpsBanner.jsx";
+import { OpsButton } from "./OpsButton.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { namnMedVia } from "../lib/skapare.js";
@@ -128,6 +129,8 @@ import { OpsVantar } from "./OpsVantar.jsx";
  * @property {string} [du] Förval "Du".
  * @property {string} [olastaText] Substantivet efter räknarens siffra. Förval "olästa".
  * @property {string} [fel] Förval "Meddelandena kunde inte hämtas".
+ * @property {string} [svararInte] (0.236.0) Rubriken när inkorgen inte svarat inom tidsgränsen. Förval "Meddelandena svarar inte".
+ * @property {string} [svararInteText] (0.236.0) Raden under. @property {string} [forsokerIgen] (0.236.0) Förval "Försöker igen…".
  * @property {string} [skickaFel] (0.107.0) Rubriken när ett meddelande inte gick att skicka. Förval "Meddelandet kunde inte skickas".
  * @property {string} [till] Mottagarväljarens etikett i läget "nytt". Förval "Till".
  * @property {string} [valjMottagare] Felet när man skickar i läget "nytt" utan att ha valt någon. Förval "Välj vem meddelandet ska till.".
@@ -342,6 +345,9 @@ const ORD_MEDDELANDEN = {
   du: { sv: "Du", en: "You" },
   olastaText: { sv: "olästa", en: "unread" },
   fel: { sv: "Meddelandena kunde inte hämtas", en: "The messages could not be loaded" },
+  svararInte: { sv: "Meddelandena svarar inte", en: "The messages are not responding" },
+  svararInteText: { sv: "Anslutningen kan ha somnat. Försök igen, eller ladda om sidan om det inte hjälper.", en: "The connection may have gone to sleep. Try again, or reload the page if that does not help." },
+  forsokerIgen: { sv: "Försöker igen…", en: "Trying again…" },
   skickaFel: { sv: "Meddelandet kunde inte skickas", en: "The message could not be sent" },
   till: { sv: "Till", en: "To" },
   valjMottagare: { sv: "Välj vem meddelandet ska till.", en: "Choose who the message is for." },
@@ -1204,7 +1210,17 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, projektnamn, me
           </label>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
-          {fel ? (
+          {fel && /** @type {any} */ (fel).kod === SVARAR_INTE ? (
+            // ⛔ (0.236.0) Inkorgen fick inget svar inom tidsgränsen (`INKORG_TIDSGRANS_MS`). Förut stod "…" kvar för alltid, och nu finns en väg vidare.
+            <div data-inkorg-svarar-inte="" className="flex flex-col items-start gap-2">
+              <OpsBanner tone="warning" title={t.svararInte}>
+                {t.svararInteText}
+              </OpsBanner>
+              <OpsButton size="sm" onClick={() => lasOm()} busyLabel={t.forsokerIgen}>
+                {t.forsokIgen}
+              </OpsButton>
+            </div>
+          ) : fel ? (
             <OpsBanner tone="danger" title={t.fel}>
               {fel.message}
             </OpsBanner>

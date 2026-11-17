@@ -9,6 +9,45 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.236.0
+
+**Robs genomgång, första delen** (cllp/lifehub.app#870 och #871). Rob, ny i en grupp, kunde inte släppa en fil på Biblioteket, hittade inte vem som var inbjuden (inbjudningarna stod långt under medlemmarna, med ett formulär emellan), och fick skriva hela adressen till den han ville bjuda in fast personen redan fanns i en av hans grupper.
+
+### Tillagt
+
+- **Filer som släpps på bibliotekets lista laddas upp** (`OpsBibliotek`). Varje fil prövas som i formuläret Ny fil (`filInmatningsfel`) och sparas av appens `onLaddaUpp`, en i taget, med filnamnet utan ändelse som rubrik. Medan filerna dras över listan står en streckad ram och raden "Släpp filerna för att lägga dem i biblioteket.". Under uppladdningen visas "Laddar upp 2 av 5 filer." med en snurra, sedan "5 filer är tillagda.". En fil som inte tas emot (fel format, för stor) eller vars uppladdning faller står med namn och skäl, och de andra laddas upp ändå. Utan `onLaddaUpp` säger listan att uppladdningen inte är kopplad, i stället för att släppet försvinner tyst. Bara filer räknas: markerad text eller en länk som dras över ritar ingen ram. Inget släpp i den inbäddade listan och inget utan inloggning.
+- **`OpsGruppSida` kan samla medlemmar och inbjudna i en sektion** (#870 punkt 13), med tre nya props, alla valfria:
+  - `medlemsknapp`: en knapp i medlemmarnas rubrikrad, till exempel Bjud in.
+  - `medlemsAtgarder(m)`: åtgärderna för en medlem. Ger den poster står ⋯ (`OpsAtgardsblad`) sist på raden, med medlemmens namn i knappens etikett. En tom lista ger ingen ⋯.
+  - `underMedlemmar`: det som står direkt under listan, inne i samma sektion, till exempel väntande inbjudningar och gäster.
+  Utan dem ser sidan ut som förut.
+- **`OpsInput` kan visa förslag medan man skriver** (#871): `forslag` (`{ id, etikett, under? }[]`, högst åtta visas) och `onValjForslag(id)`. Fältet blir en kombinationsruta (`role="combobox"`, `aria-expanded`, `aria-activedescendant`): pilarna markerar, Enter väljer, Escape stänger, ett tryck väljer. Listan är ett syskon till fältet och trycket tas på `mousedown`, så att fältet inte tappar fokus före valet. ⛔ Appen filtrerar och bestämmer vem som syns, fältet vet inget om varifrån listan kom. `forslag` utan `onValjForslag` kastar.
+
+### Inkorgen fastnar inte på "…"
+
+CP 2026-11-17, med en skärmbild från SessionStudio-hubben: Meddelanden stod på "…" och "fastnar såhär" när han klickade runt. Mätt: "…" är inkorgens laddläge i `useSamtal`, och läsningen hade ingen tidsgräns. Ett anrop som aldrig svarade blev varken rader eller fel, så Sentry såg ingenting. Varför anropet hängde är en **hypotes**: anslutningen till Firestore har somnat efter att datorn sovit.
+
+- **Tidsgräns:** har inkorgen inget svar efter `INKORG_TIDSGRANS_MS` (15 s) blir laddläget ett fel med koden `SVARAR_INTE`. `OpsMeddelanden` ritar "Meddelandena svarar inte" med en rad om vad man kan göra, och knappen Försök igen. Felet rapporteras via `rapporteraFel`, så att det går att räkna hur ofta det händer. Kommer svaret senare ritas listan som vanligt och felet försvinner. En omläsning som hänger när listan redan står ersätter inte listan, den rapporteras bara.
+- **Omläsning:** inkorgen läses också om när sidan blir synlig igen (`visibilitychange`) och när nätet kommer tillbaka (`online`), inte bara vid fokus. De tre delar ett mellanrum på 2 s, så att de inte läser var för sig.
+- Prov: `inkorg-tidsgrans.test.jsx` (3). Röda mot caf29fc, gröna med ändringen.
+
+### Granskningen före utgivningen
+
+En fristående granskare läste diffen. Det som ändrades:
+
+- **Ett andra släpp medan det första laddas upp** startade en egen omgång parallellt. Raden "x av y" växlade mellan dem och den som blev klar sist skrev över den förras fel. Nu går alla släpp genom samma kö, en fil i taget, och räknas in i samma "x av y".
+- **Escape i förslagslistan** stängde den tills fältet tappat och fått fokus igen. Nu öppnar nästa tecken eller ArrowDown den igen.
+- **Den som pilat till ett förslag och sedan skriver vidare** fick förslaget av Enter i stället för det som stod i fältet. Markeringen släpps när man skriver.
+- Listan har fältets etikett som namn (`aria-labelledby`).
+- Medlemmarnas rubrikrad är 44 px hög bara när `medlemsknapp` finns. Utan den är raden som förut. Ett långt namn trycker inte ut ⋯.
+- `rubrikUrFilnamn(namn, reserv)` i `lib/bibliotek.js` är ett hem för rubriken ur filnamnet. Formuläret, inspelningen och släppet frågar där. Släppet hade en egen kopia.
+- Beskeden efter ett släpp försvinner när en annan flik eller en post öppnas.
+- ⛔ `forslag` ska vara en lista, aldrig `undefined`, medan fältet används. Utanför ett skal med TALK monteras fältet annars om när listan dyker upp. Står i JSDoc.
+
+Granskarens punkt om .md stämde inte, mätt: `mimeForFil` gör redan `text/x-markdown` till `text/markdown`.
+
+**Kvar, medvetet:** skälen från `filInmatningsfel` är bara på svenska, som i formuläret sedan tidigare. Ett släpp utanför listan (sökraden, en öppen post) öppnar filen i webbläsaren, som före 0.236.0.
+
 ## 0.235.0
 
 **Zoom i PDF-vyn.** CP 2026-11-16: "Det går inte att zooma i pdf:er i biblioteket. Det vore bra om det funkade." och "Ja kör zoom på pdf". Raden hade − och + sedan 0.196.0, men i telefonen zoomar man med fingrarna, och där hände ingenting.
