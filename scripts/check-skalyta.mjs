@@ -43,6 +43,7 @@
  *       node scripts/check-skalyta.mjs --bara-chatt      bara avsnitt 29g, chattens nattskiva (#273), för en snabb körning
  *       node scripts/check-skalyta.mjs --bara-spelrad    bara avsnitt 24, spelraden mot mikrofonknappen och ytan (0.176.0, cllp/lifehub.app#417)
  *       node scripts/check-skalyta.mjs --bara-appar      bara Appar-hyllan mot plusknappen (0.90.6)
+ *       node scripts/check-skalyta.mjs --bara-kalenderrader  bara avsnitt 52f, kalendermenyns rader och knapparna under dem ligger inte i varandra, 390 och 1280 px mörkt (0.241.0)
  *       node scripts/check-skalyta.mjs --bara-verktyg    bara avsnitt 52e, Alla verktyg överst i Verktyg-menyn vid 390 px, ljust och mörkt (0.234.0)
  *       node scripts/check-skalyta.mjs --bara-textfalt   bara avsnitt 45, TALK och mikrofonen i textfälten (0.104.0, 0.233.0)
  *       node scripts/check-skalyta.mjs --bara-talkval    bara avsnitt 46, valen efter talet och förslagen i chatten (0.105.0)
@@ -1223,6 +1224,14 @@ if (argv.includes("--bara-0127")) {
   await kalenderPreliminar();
   await nyHandelseTillagg();
   await bibliotekVideo();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-kalenderrader`: bara avsnitt 52f, kalendermenyns rader ligger inte i varandra (0.241.0). Hela körningen kör det också.
+if (argv.includes("--bara-kalenderrader")) {
+  await kalenderRader();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -7803,6 +7812,45 @@ async function verktygMeny() {
   }
 }
 
+/**
+ * Avsnitt 52f (0.241.0): kalendermenyns rader ligger inte i varandra. CP 2026-11-18 23.10, med en skärmbild av menyn i mörkt läge: "Hover i kalendrars meny
+ * överlappar varandras ramar. Ser lite grötigt ut." Raden "Visas som Händelser" under en kalender var dragen 6 px upp (`-mt-1.5`) in i kalenderradens tonade
+ * yta, så två rundade ytor låg på varandra så fort båda var tonade (vald rad och hovring). Mätningen: varje yta som kan tonas i listan (kalenderradens yta,
+ * knappen Visas som och Visa bara den här) slutar innan nästa börjar, i den ordning de står. Golv: minst fyra ytor och minst en knapp under en rad.
+ */
+async function kalenderRader() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `kalendermenyns rader ${vp.width}`;
+    const { page, context } = await oppna("kalender", vp, "dark");
+    try {
+      await page.getByRole("button", { name: /^Kalendrar:/ }).click();
+      await page.waitForSelector("[data-radix-popper-content-wrapper] [data-kalenderrad]", { timeout: 4000 });
+      await page.waitForTimeout(250);
+      const m = await page.evaluate(() => {
+        const lista = document.querySelector("[data-radix-popper-content-wrapper] [data-kalenderlista]");
+        if (!lista) return { ytor: 0, under: 0, brott: ["ingen kalenderlista i menyn"] };
+        const ytor = [...lista.querySelectorAll("[data-kalenderrad-yta], [data-kalendervisning-knapp], [data-visa-bara]")].filter((e) => e.getBoundingClientRect().height > 0);
+        const brott = [];
+        for (let i = 1; i < ytor.length; i += 1) {
+          const a = ytor[i - 1].getBoundingClientRect();
+          const b = ytor[i].getBoundingClientRect();
+          const etikett = (/** @type {Element} */ e) => (e.textContent || "").trim().slice(0, 30);
+          if (b.top < a.bottom - 0.5) brott.push(`"${etikett(ytor[i])}" börjar ${(a.bottom - b.top).toFixed(1)} px inne i "${etikett(ytor[i - 1])}"`);
+        }
+        return { ytor: ytor.length, under: ytor.filter((e) => !e.hasAttribute("data-kalenderrad-yta")).length, brott };
+      });
+      matt.push(`${namn}: ${m.ytor} ytor, ${m.under} knappar under en rad, ${m.brott.length} överlapp`);
+      krav(m.ytor >= 4 && m.under >= 1, `${namn}: ${m.ytor} ytor och ${m.under} knappar under en rad, väntat minst 4 och 1 (golv).`);
+      krav(m.brott.length === 0, `${namn}: ytorna ligger i varandra: ${m.brott.join("; ")}.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kalendermenyn-rader-${vp.width}.png`) });
+    } catch (e) {
+      krav(false, `${namn}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      await context.close();
+    }
+  }
+}
+
 async function bibliotekKarta() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const namn = `karta i biblioteket ${vp.width}`;
@@ -9828,6 +9876,7 @@ await nyHandelseTillagg();
 await bibliotekVideo();
 await bibliotekKarta();
 await verktygMeny();
+await kalenderRader();
 await gruppVantar();
 await kategoriFormular();
 await gastVyer();
