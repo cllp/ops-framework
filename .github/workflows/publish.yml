@@ -66,7 +66,7 @@ permissions:
 
 jobs:
   publish:
-    runs-on: ${{ vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || 'ubuntu-latest' }}
+    runs-on: ${{ vars.LIFEHUB_RUNNER == 'github' && 'ubuntu-latest' || vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || fromJSON('["self-hosted", "macOS", "mbp2017"]') }}
     steps:
       - uses: actions/checkout@v7
         # ⛔ TAGGARNA BEHÖVS (0.82.0, granskningen av PR 314). `check-changelog-taggar` kräver en rubrik i CHANGELOG

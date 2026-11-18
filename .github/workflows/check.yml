@@ -87,7 +87,7 @@ jobs:
   check:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ${{ vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || 'ubuntu-latest' }}
+    runs-on: ${{ vars.LIFEHUB_RUNNER == 'github' && 'ubuntu-latest' || vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || fromJSON('["self-hosted", "macOS", "mbp2017"]') }}
     steps:
       - uses: actions/checkout@v7
         # ⛔ TAGGARNA BEHÖVS (0.82.0, granskningen av PR 314). `check-changelog-taggar` kräver en rubrik i CHANGELOG
@@ -128,7 +128,7 @@ jobs:
   scaffold:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ${{ vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || 'ubuntu-latest' }}
+    runs-on: ${{ vars.LIFEHUB_RUNNER == 'github' && 'ubuntu-latest' || vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || fromJSON('["self-hosted", "macOS", "mbp2017"]') }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -174,7 +174,7 @@ jobs:
   paket:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ${{ vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || 'ubuntu-latest' }}
+    runs-on: ${{ vars.LIFEHUB_RUNNER == 'github' && 'ubuntu-latest' || vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || fromJSON('["self-hosted", "macOS", "mbp2017"]') }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -201,7 +201,7 @@ jobs:
   regelprov:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ${{ vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || 'ubuntu-latest' }}
+    runs-on: ${{ vars.LIFEHUB_RUNNER == 'github' && 'ubuntu-latest' || vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || fromJSON('["self-hosted", "macOS", "mbp2017"]') }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -236,11 +236,13 @@ jobs:
   #
   # ⛔ UNDANTAGET ÄR STRÖMBRYTAREN, OCH BARA DEN (CP 2026-11-18 05.30: "Kör på github eller grok så vi kommer vidare"). Boxen är
   # en virtuell maskin som fryses och återupptas, och varje frysning dödade jobbet som körde: fem gånger mellan 02.13 och 05.18,
-  # utan logg (cllp/lifehub.app#880). Jobben här går därför på `vars.LIFEHUB_RUNNER`: värdet `boxen` kör dem på de egna runnerna,
-  # allt annat, även tomt, på GitHubs. Tillbaka till boxen är en variabel i repots inställningar, inte en kodändring.
+  # utan logg (cllp/lifehub.app#880). Jobben här går därför på `vars.LIFEHUB_RUNNER`: `boxen` kör dem på Groks box, `github` på
+  # GitHubs maskiner, och tomt på 2017-Macen (`[self-hosted, macOS, mbp2017]`). Macen är förval, för GitHubs minuter tog slut
+  # 06.03 ("spending limit needs to be increased") och CP 06.10: "Om github är helt slut så kör via 2017 eller grok". Byte är en
+  # variabel i repots inställningar, inte en kodändring.
   egna-runners:
     name: egna runners
-    runs-on: ${{ vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || 'ubuntu-latest' }}
+    runs-on: ${{ vars.LIFEHUB_RUNNER == 'github' && 'ubuntu-latest' || vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || fromJSON('["self-hosted", "macOS", "mbp2017"]') }}
     steps:
       - uses: actions/checkout@v7
         with:
