@@ -163,7 +163,7 @@ jobs:
       # oföränderlig i praktiken: den som installerat den har den, och en
       # tillbakadragen version är värre än en som aldrig fanns.
       - if: steps.provad.outputs.kor != 'nej'
-        run: npm run check
+        run: flock -w 3600 /tmp/lifehub-tung.lock npm run check
       # Paketet byggs ur dist också när sviten hoppas över.
       - if: steps.provad.outputs.kor == 'nej'
         run: npm run build
