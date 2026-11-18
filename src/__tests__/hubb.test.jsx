@@ -337,8 +337,8 @@ describe("OpsGruppHubb: ritad", () => {
     const rutor = within(lista).getAllByRole("link");
     expect(rutor).toHaveLength(1);
     expect(rutor[0].getAttribute("href")).toBe("/ekonomi");
-    // ⛔ 0.239.0: rutan har ingen infolinje. `info` tas emot (appen skickar den) men ritas inte på den här sidan.
-    expect(document.body.textContent).not.toContain("Skatten förfaller 12 oktober");
+    // ⛔ 0.241.0: läget står på kortet, under namnet (CP 2026-11-18: korten som gruppkorten). 0.239.0 ritade det inte alls.
+    expect(rutor[0].querySelector("[data-verktyg-rad]")?.textContent).toBe("Skatten förfaller 12 oktober");
     // Delarna nås inne i verktyget, inte här.
     expect(screen.queryByRole("link", { name: "Inkomster" })).toBeNull();
     fireEvent.click(rutor[0]);
@@ -541,10 +541,11 @@ describe("OpsGruppHubb: verktyg som rutor (0.239.0)", () => {
     expect(knappar.map((k) => k.getAttribute("aria-label"))).toEqual(["Lägg till Resor", "Lägg till Bokning"]);
     // Sedan 0.240.0 har varje streckad ruta också en (i), stängd från början.
     expect(within(valbara).getAllByRole("button", { name: /^Om / }).map((k) => k.getAttribute("aria-expanded"))).toEqual(["false", "false"]);
-    // Streckad och nedtonad: plattan bär en streckad kant, namnet den dämpade textfärgen.
-    for (const k of knappar) {
-      expect(k.querySelector(".border-dashed")).not.toBeNull();
-      expect(k.querySelector(".text-ink-secondary")).not.toBeNull();
+    // ⛔ 0.241.0: KORTET är streckat, och ikonrutan i det. Lägg till är en egen knapp på kortet, aldrig inuti (i)-delen.
+    for (const om of within(valbara).getAllByRole("button", { name: /^Om / })) {
+      expect(om.className.split(/\s+/)).toContain("border-dashed");
+      expect(om.querySelector('[aria-hidden="true"].border-dashed')).not.toBeNull();
+      expect(om.querySelector("button")).toBeNull();
     }
     fireEvent.click(within(valbara).getByRole("button", { name: "Lägg till Bokning" }));
     expect(klick).toHaveBeenCalledTimes(1);
@@ -949,14 +950,14 @@ describe("OpsGruppHubb: ringen och de som kan läggas till (0.240.0)", () => {
   const BESKRIVEN = () => ({ ...EKONOMI(), beskrivning: { sv: "Bolagets pengar: inkomster, kostnader och fakturor.", en: "The company's money." } });
   const mods = () => validateModuler([BESKRIVEN(), RESOR(), INKORG()]);
 
-  it("⛔ den öppna rutan förblir en rund ring: en ring runt plattan, ingen ruta bakom", () => {
+  // ⛔ 0.241.0 ersätter ringen med kort (CP 2026-11-18 21.48 och 22.20: "kort ... ungefär som grupp korten", "två på en rad").
+  it("⛔ det öppna kortet markeras med en ring i accentfärgen, och korten står två på en rad", () => {
     render(<OpsGruppHubb grupp={G(["ekonomi", "resor"])} moduler={mods()} />);
     const lank = screen.getByRole("link", { name: "Ekonomi" });
-    const platta = /** @type {HTMLElement} */ (lank.querySelector('[aria-hidden="true"].rounded-full'));
-    expect(platta.className).not.toContain("ring-accent");
+    expect(lank.className).not.toContain("ring-accent");
     fireEvent.click(screen.getByRole("button", { name: "Om Ekonomi" }));
-    expect(platta.className).toContain("ring-accent");
-    expect(lank.className.split(/\s+/)).not.toContain("bg-surface");
+    expect(lank.className).toContain("ring-accent");
+    expect(screen.getByRole("list", { name: "Verktyg i Claes Philip Staiger AB" }).className.split(/\s+/)).toContain("grid-cols-2");
   });
 
   it("⛔ en streckad ruta har (i): panelen säger vad verktyget är, vilka delar det har, och Lägg till går samma väg", async () => {

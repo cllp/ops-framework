@@ -2347,8 +2347,8 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
       if (antal === 1) {
         const k = await kort.evaluate((a) => ({ href: a.getAttribute("href"), text: /** @type {HTMLElement} */ (a).innerText.replace(/\s+/g, " ").trim(), h: a.getBoundingClientRect().height, w: a.getBoundingClientRect().width }));
         matt.push(`Hubben per grupp ${namn} (a): ${JSON.stringify(k)}`);
-        // ⛔ 0.239.0: rutan är ikonen och namnet. Infolinjen ritas inte på sidan (appen skickar den ändå, scenen också).
-        krav(k.href === "/ekonomi" && k.text === "Ekonomi", `Hubben per grupp ${namn} (a): rutan ${JSON.stringify(k)}, väntat bara namnet Ekonomi och länken /ekonomi.`);
+        // ⛔ 0.241.0: kortet är ikonen, namnet och läget under (CP 2026-11-18: korten som gruppkorten). 0.239.0 ritade bara namnet.
+        krav(k.href === "/ekonomi" && k.text.startsWith("Ekonomi"), `Hubben per grupp ${namn} (a): kortet ${JSON.stringify(k)}, väntat namnet Ekonomi först och länken /ekonomi.`);
         krav(k.h >= 44 && k.w >= 44, `Hubben per grupp ${namn} (a): rutan är ${k.w} x ${k.h} px, under tumkravet 44.`);
         // ⛔ 0.240.0: (i) FÄLLER UT EN PANEL UNDER RADEN (CP 2026-11-18). Det enda som fälls ut är (i)-knappen, en per ruta, och den är stängd
         // när sidan öppnas. Före 0.240.0 stod här "väntat inga": rutorna fälldes inte ut alls.
@@ -2363,7 +2363,8 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
           const p = await panel.evaluate((li) => {
             const ul = /** @type {HTMLElement} */ (li.parentElement);
             const ruta = /** @type {HTMLElement} */ (ul.querySelector('[data-verktyg="ekonomi"]'));
-            const platta = ruta.querySelector("a > span");
+            // ⛔ 0.241.0: ringen sitter på det öppna kortet (länken), inte på en platta i det.
+            const platta = ruta.querySelector("a");
             const r = li.getBoundingClientRect();
             return {
               under: Math.round(r.top - ruta.getBoundingClientRect().bottom),
@@ -2374,7 +2375,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
             };
           });
           matt.push(`Hubben per grupp ${namn} (a, i): ${JSON.stringify(p)}`);
-          krav(p.under >= 0 && Math.abs(p.bredd - p.listbredd) <= 1 && p.oppna && p.ring, `Hubben per grupp ${namn} (a, i): panelen ${JSON.stringify(p)}, väntat under rutan, i rutnätets hela bredd, med Öppna Ekonomi, och en ring runt den öppna rutans platta.`);
+          krav(p.under >= 0 && Math.abs(p.bredd - p.listbredd) <= 1 && p.oppna && p.ring, `Hubben per grupp ${namn} (a, i): panelen ${JSON.stringify(p)}, väntat under rutan, i rutnätets hela bredd, med Öppna Ekonomi, och en ring runt det öppna kortet.`);
           krav((await info.getAttribute("aria-expanded")) === "true", `Hubben per grupp ${namn} (a, i): (i) säger inte att panelen är öppen.`);
           krav((await over(page)) <= 0, `Hubben per grupp ${namn} (a, i): sidan flödar ${await over(page)} px i sidled med panelen öppen.`);
           if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `grupphubb-info-${vp.width}.png`) });
@@ -2418,7 +2419,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
       krav((await rubrik.count()) === 1 && (await rubrik.isVisible()), `Hubben per grupp ${namn} (b): rubriken "Gruppen har inga verktyg ännu" syns inte i gruppen utan moduler.`);
       krav((await rad.count()) === 1 && (await rad.isVisible()), `Hubben per grupp ${namn} (b): raden med gruppens namn syns inte.`);
       const namnIListan = await valbara.locator("li").allTextContents();
-      krav(namnIListan.includes("Ekonomi"), `Hubben per grupp ${namn} (b): listan är ${JSON.stringify(namnIListan)}, väntat Ekonomi bland apparna som kan läggas till.`);
+      krav(namnIListan.some((t) => t.startsWith("Ekonomi")), `Hubben per grupp ${namn} (b): listan är ${JSON.stringify(namnIListan)}, väntat Ekonomi bland apparna som kan läggas till.`);
       const lankar = await main.locator("a").count();
       krav(lankar === 0, `Hubben per grupp ${namn} (b): ${lankar} länkar i hubben för en grupp utan moduler (scenen skickar ingen väg till valet).`);
       krav((await over(page)) <= 0, `Hubben per grupp ${namn} (b): sidan flödar i sidled.`);
