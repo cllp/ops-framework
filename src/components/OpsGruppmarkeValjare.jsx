@@ -7,7 +7,7 @@ import { gruppikonEtikett } from "../lib/gruppikonnamn.js";
 import { gruppikonKomponent, gruppikonNamn } from "../lib/gruppikoner.js";
 import { lasSenasteGruppikoner, sparaSenasteGruppikon } from "../lib/gruppikonsenaste.js";
 import { VANLIGA_GRUPPIKONER, forslagUrGruppnamn, sokGruppikoner } from "../lib/gruppikonsok.js";
-import { OpsFargval } from "./OpsFargval.jsx";
+import { OpsFargvalLat } from "./OpsFargvalLat.jsx";
 import { OpsField } from "./OpsField.jsx";
 
 /**
@@ -125,7 +125,7 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
           och kalendrarna. Snabbvalen, reglaget och återställningen ligger i rutan. */}
       <div data-gruppfarg="">
         <OpsField label={t.farg} hint={t.kulorHint}>
-          <OpsFargval slag="kulor" value={farg} onChange={onFarg} standard={standardKulor} aterstall={t.kulorAterstall} />
+          <OpsFargvalLat slag="kulor" value={farg} onChange={onFarg} standard={standardKulor} aterstall={t.kulorAterstall} />
         </OpsField>
       </div>
 

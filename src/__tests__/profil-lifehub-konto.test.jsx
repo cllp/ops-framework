@@ -104,12 +104,12 @@ describe("OpsProfil med Life Hub-kontot", () => {
 
 describe("OpsProfil utan konto (bolag-ops läge): orört", () => {
   // Flyttat ur profil-kompakt-813.test.jsx, som togs bort med läget det provade (arket Redigera profil).
-  it("fälten och Spara står direkt på sidan, utan växlare eller kontoknapp", () => {
+  it("fälten och Spara står direkt på sidan, utan växlare eller kontoknapp", async () => {
     render(<OpsProfil anvandare={ANV} onSpara={() => {}} />);
     expect(screen.getByRole("button", { name: "Spara" })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Presentation" })).toBeTruthy();
-    // Färgen är ett fält med ramverkets färgväljare (0.238.0, cllp/lifehub.app#882), inte en grupp rutor.
-    expect(screen.getByRole("button", { name: "Färg" })).toBeTruthy();
+    // Färgen är ett fält med ramverkets färgväljare (0.238.0, cllp/lifehub.app#882), inte en grupp rutor. Den läses in när den ritas (0.238.2, `OpsFargvalLat`).
+    expect(await screen.findByRole("button", { name: "Färg" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: /Life Hub-konto/ })).toBeNull();
     expect(screen.queryByRole("tab", { name: "EN" })).toBeNull();
   });
