@@ -20,14 +20,14 @@ function Scen() {
   if (scen === "grupp") {
     return <Ops.OpsGruppFormular formId="f" grupp={{ id: "korens-grupp", namn: "Kören", farg: "kulor:195", ikon: "music" }} onSkapa={ingenting} onSpara={ingenting} onSkapad={() => {}} onKlar={() => {}} />;
   }
-  if (scen === "profil") return <Ops.OpsProfil anvandare={{ id: "uid-anna", namn: "Anna Ek", epost: "anna@exempel.se", farg: "kulor:15", ikon: "leaf" }} onSpara={ingenting} />;
+  if (scen === "profil") return <Ops.OpsProfil anvandare={{ id: "uid-anna", namn: "Anna Ek", epost: "anna@exempel.se", bild: "", sprak: "sv", tema: "system", telefon: "", stad: "Visby", presentation: "", lankar: [], bildSokvag: "", farg: "kulor:15", ikon: "leaf" }} onSpara={ingenting} />;
   if (scen === "kalender") return <Ops.OpsKalendrar gruppens={[]} mina={MINA} groupId="" kanAndraGruppens={false} onSparaGruppens={ingenting} onSparaMina={ingenting} />;
   return <Ops.OpsKatalogInstallning kategorier={KATEGORIER} ikoner={["check", "bell"]} kanAndra onSpara={ingenting} onArkivera={ingenting} groupId="kor" />;
 }
 
 createRoot(/** @type {HTMLElement} */ (document.getElementById("root"))).render(
   <Ops.OpsSprakProvider sprak="sv">
-    <main className="mx-auto max-w-xl p-4">
+    <main className="mx-auto max-w-xl p-4" data-fargval-scen={scen}>
       <Scen />
     </main>
   </Ops.OpsSprakProvider>,

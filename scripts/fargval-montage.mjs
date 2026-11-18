@@ -56,16 +56,20 @@ try {
             const context = await browser.newContext({ viewport: { width: bredd, height: bredd < 768 ? 844 : 900 }, deviceScaleFactor: 2, colorScheme: lage, hasTouch: bredd < 768 });
             const page = await context.newPage();
             page.on("pageerror", (e) => fel.push(`${v.namn} ${scen} ${bredd} ${lage}: sidfel: ${e.message}`));
-            await page.addInitScript((s) => {
-              /** @type {any} */ (window).__fargvalScen = s;
-            }, scen);
-            await page.setContent(sida, { waitUntil: "load" });
+            // ⛔ Scenen skrivs in i sidan före ytans skript: `addInitScript` körs inte för `setContent`, och då ritades gruppen i alla fyra scenerna.
+            await page.setContent(sida.replace('<div id="root"></div>', `<script>window.__fargvalScen = ${JSON.stringify(scen)};</script><div id="root"></div>`), { waitUntil: "load" });
+            krav((await page.locator("[data-fargval-scen]").getAttribute("data-fargval-scen")) === scen, `${v.namn} ${scen}: ytan ritade inte scenen`);
             await page.waitForTimeout(300);
             await tillFargen(page, scen);
             const namn = `${v.namn}-${scen}-${bredd}-${lage === "light" ? "ljust" : "morkt"}`;
             if (v.namn === "efter") {
               const falt = page.getByRole("button", { name: "Färg", exact: true });
-              krav((await falt.count()) === 1, `${namn}: fältet Färg saknas`);
+              const antal = await falt.count();
+              krav(antal === 1, `${namn}: fältet Färg finns ${antal} gånger, väntat en`);
+              if (antal !== 1) {
+                await context.close();
+                continue;
+              }
               const ruta = await falt.locator("[data-fargval-ruta]").evaluate((e) => getComputedStyle(e).backgroundColor);
               krav(ruta !== "rgba(0, 0, 0, 0)" && ruta !== "", `${namn}: fältets ruta har ingen färg (${ruta})`);
               const h = await falt.evaluate((e) => e.getBoundingClientRect().height);
