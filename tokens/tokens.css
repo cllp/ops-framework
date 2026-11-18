@@ -154,55 +154,55 @@
   --radius-xl: 20px;
   --radius-card: 24px;
 
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
+  --text-sm: calc(0.875rem * var(--textskala));
+  --text-base: calc(1rem * var(--textskala));
 
   --leading-tight: 1.25;
   --leading-normal: 1.5;
   --leading-relaxed: 1.625;
 
-  --text-rubrik: 1rem;
+  --text-rubrik: calc(1rem * var(--textskala));
   --text-rubrik--line-height: var(--leading-tight);
   --text-rubrik--font-weight: 600;
 
-  --text-sektion: 0.75rem;
+  --text-sektion: calc(0.75rem * var(--textskala));
   --text-sektion--line-height: var(--leading-normal);
   --text-sektion--font-weight: 600;
   --text-sektion--letter-spacing: 0.05em;
 
-  --text-etikett: 0.875rem;
-  --text-etikett--line-height: 1.25rem;
+  --text-etikett: calc(0.875rem * var(--textskala));
+  --text-etikett--line-height: calc(1.25rem * var(--textskala));
   --text-etikett--font-weight: 400;
 
-  --text-meta: 0.75rem;
-  --text-meta--line-height: 1rem;
+  --text-meta: calc(0.75rem * var(--textskala));
+  --text-meta--line-height: calc(1rem * var(--textskala));
   --text-meta--font-weight: 400;
 
-  --text-brod: 1rem;
-  --text-brod--line-height: 1.5rem;
+  --text-brod: calc(1rem * var(--textskala));
+  --text-brod--line-height: calc(1.5rem * var(--textskala));
   --text-brod--font-weight: 400;
 
-  --text-titel: 1.125rem;
-  --text-titel--line-height: 1.75rem;
+  --text-titel: calc(1.125rem * var(--textskala));
+  --text-titel--line-height: calc(1.75rem * var(--textskala));
   --text-titel--font-weight: 600;
 
-  --text-sida: 1.25rem;
-  --text-sida--line-height: 1.75rem;
+  --text-sida: calc(1.25rem * var(--textskala));
+  --text-sida--line-height: calc(1.75rem * var(--textskala));
   --text-sida--font-weight: 600;
 
-  --text-hjalp: 0.6875rem;
+  --text-hjalp: calc(0.6875rem * var(--textskala));
   --text-hjalp--line-height: var(--leading-normal);
   --text-hjalp--font-weight: 400;
 
-  --text-liten: 0.625rem;
+  --text-liten: calc(0.625rem * var(--textskala));
   --text-liten--line-height: var(--leading-tight);
   --text-liten--font-weight: 500;
 
-  --text-mikro: 0.5rem;
+  --text-mikro: calc(0.5rem * var(--textskala));
   --text-mikro--line-height: var(--leading-tight);
   --text-mikro--font-weight: 700;
 
-  --text-raknare: 0.5625rem;
+  --text-raknare: calc(0.5625rem * var(--textskala));
   --text-raknare--line-height: 1;
   --text-raknare--font-weight: 700;
 
@@ -394,10 +394,13 @@
    * Talen är inte färger och har därför inget `--color-`-prefix: de är
    * OKLCH-ljushet och mättnad som kulören sätts in i.
    * ──────────────────────────────────────────────────────────────────────── */
-  --gruppmarke-ikon-l: 0.47;
-  --gruppmarke-ikon-c: 0.13;
-  --gruppmarke-platta-l: 0.93;
-  --gruppmarke-platta-c: 0.045;
+  /* ⛔ Talen för ljust läge står som `--ljust-gruppmarke-*` i ramverkets `:root` (0.238.0, cllp/lifehub.app#882), bredvid
+     `--dark-gruppmarke-*`: färgväljarens förhandsvisning ritar kulören i BÅDA lägena samtidigt, och i mörkt läge pekar
+     de här namnen på de mörka talen. Ett tal, ett ställe; här står bara pekaren. */
+  --gruppmarke-ikon-l: var(--ljust-gruppmarke-ikon-l);
+  --gruppmarke-ikon-c: var(--ljust-gruppmarke-ikon-c);
+  --gruppmarke-platta-l: var(--ljust-gruppmarke-platta-l);
+  --gruppmarke-platta-c: var(--ljust-gruppmarke-platta-c);
 
   /* ─── Slag ───────────────────────────────────────────────────────────────
    * Vad en post ÄR, när samma svar ska synas på flera ytor samtidigt: ett
@@ -720,11 +723,12 @@
    * Tailwinds inbyggda tal rakt av (`text-sm` 0,875rem/14px, `text-base`
    * 1rem/16px). De två flyttade upp i det genererade blocket vid filens
    * topp, ur `tokens/sessionstudio-profil.json`. `--text-xs/md/lg/xl` är
-   * ramverkets egna mellansteg och står kvar här, oförändrade. */
-  --text-xs: 0.75rem;
-  --text-md: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.5rem;
+   * ramverkets egna mellansteg och står kvar här. Sedan cllp/lifehub.app#873 följer de textstorleken som rollerna
+   * (`--textskala`, se blocket "textstorlek" sist i filen). */
+  --text-xs: calc(0.75rem * var(--textskala));
+  --text-md: calc(1rem * var(--textskala));
+  --text-lg: calc(1.125rem * var(--textskala));
+  --text-xl: calc(1.5rem * var(--textskala));
 
   /* ─── Rörelse. En kurva per avsikt, inte en per komponent. ───────────── */
   --ease-standard: cubic-bezier(0.2, 0, 0.2, 1);
@@ -1045,6 +1049,12 @@
   --dark-identity-4: #6fa3c4;
   --dark-identity-5: #b08fa6;
   --dark-identity-6: #9aa08a;
+
+  /* Gruppmärket i ljust läge (0.65.0, #265; eget namn sedan 0.238.0). Se `--gruppmarke-ikon-l` i @theme. */
+  --ljust-gruppmarke-ikon-l: 0.47;
+  --ljust-gruppmarke-ikon-c: 0.13;
+  --ljust-gruppmarke-platta-l: 0.93;
+  --ljust-gruppmarke-platta-c: 0.045;
 
   /* Gruppmärket i mörkt läge (0.65.0, #265). Se `--gruppmarke-ikon-l` i @theme. */
   --dark-gruppmarke-ikon-l: 0.82;
@@ -1821,8 +1831,48 @@
     background-color: oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) var(--grupp-kulor) / 0.06);
   }
   /* En kulörruta i formulärets väljare: en fylld cirkel i märkets ikonfärg. */
-  .ops-grupp-kulorruta {
+  .ops-grupp-kulorruta,
+  .ops-kulor-prick {
     background-color: oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) var(--grupp-kulor));
+  }
+
+  /*
+   * Kalenderns färg som kulör (0.238.0, cllp/lifehub.app#882): pricken ovan, vänsterkanten, en hel kant (preliminär post
+   * och dagens ram) och tonen under bandets text (20 procent) och i dagrutan (15 procent). Samma ljushet och mättnad som
+   * märket, alltså samma kulör i båda lägena, och samma `--grupp-kulor` (`kulorStil` i `lib/gruppfarg.js`).
+   *
+   * ⛔ MÄTT, INTE ANTAGET: `scripts/check-gruppfarg.mjs` räknar varje kulör som prick och kant mot ytorna (golv 3:1) och
+   * bandets text (`--color-ink`) mot ytan med tonen ovanpå (golv 4,5:1), i båda lägena.
+   */
+  .ops-kulor-kant {
+    border-left-color: oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) var(--grupp-kulor));
+  }
+  .ops-kulor-ring {
+    border-color: oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) var(--grupp-kulor));
+  }
+  .ops-kulor-ton {
+    background-color: oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) var(--grupp-kulor) / 0.2);
+  }
+  .ops-kulor-dagton {
+    background-color: oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) var(--grupp-kulor) / 0.15);
+  }
+
+  /*
+   * Färgväljarens förhandsvisning i kulörläge (0.238.0, `OpsFargval slag="kulor"`): märket i ljust OCH mörkt läge,
+   * oavsett vilket som är påslaget. Därför de råa talen (`--ljust-*`, `--dark-*`) och inte `--gruppmarke-*`, som
+   * pekar på det påslagna lägets tal.
+   */
+  .ops-kulor-forhand-ljust {
+    background-color: oklch(var(--ljust-gruppmarke-platta-l) var(--ljust-gruppmarke-platta-c) var(--grupp-kulor));
+    color: oklch(var(--ljust-gruppmarke-ikon-l) var(--ljust-gruppmarke-ikon-c) var(--grupp-kulor));
+  }
+  /* Kulörreglagets skala i kulörläget: alla kulörer med det påslagna lägets ljushet och mättnad, var 30:e grad. */
+  .ops-kulor-skala {
+    background-image: linear-gradient(to right, oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 0), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 30), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 60), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 90), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 120), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 150), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 180), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 210), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 240), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 270), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 300), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 330), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 360));
+  }
+  .ops-kulor-forhand-morkt {
+    background-color: oklch(var(--dark-gruppmarke-platta-l) var(--dark-gruppmarke-platta-c) var(--grupp-kulor));
+    color: oklch(var(--dark-gruppmarke-ikon-l) var(--dark-gruppmarke-ikon-c) var(--grupp-kulor));
   }
 
   /*
@@ -2266,3 +2316,29 @@
   }
 }
 /* ── SLUT GENERERAT (@layer base, publika roller) ── */
+
+/* Textstorleken (cllp/lifehub.app#873, CP 2026-11-17): Liten, Mellan och Stor. Faktorerna ägs av src/lib/textstorlek.js,
+ * blocket skrivs av scripts/generate-tokens.mjs. Rollerna i `@theme` räknas med `var(--textskala)`; här sätts den. */
+/* ── GENERERAT UR src/lib/textstorlek.js, RÖR INTE (textstorlek) ── */
+@layer ops-ramverk {
+  :root {
+    --textskala: 1;
+  }
+  :root[data-textstorlek="liten"] {
+    --textskala: 0.9;
+  }
+  :root[data-textstorlek="stor"] {
+    --textskala: 1.15;
+  }
+  @media (pointer: coarse) {
+    :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"]), textarea, select, [contenteditable]:not([contenteditable="false"])) {
+      font-size: max(1rem, var(--text-brod));
+    }
+  }
+}
+@layer base {
+  body {
+    font-size: calc(1rem * var(--textskala));
+  }
+}
+/* ── SLUT GENERERAT (textstorlek) ── */

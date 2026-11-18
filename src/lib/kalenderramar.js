@@ -1,5 +1,5 @@
 import { perDay } from "./calendar.js";
-import { lagerFarg } from "./kalenderlager.js";
+import { kalenderKulor } from "./kalenderfarg.js";
 import { forvalda } from "./ord.js";
 
 /**
@@ -56,13 +56,13 @@ export function ramarEfterText(n, sprak) {
  * @param {ReadonlyArray<{ id: string, farg?: unknown, namn?: string }> | undefined} val.kalendrar Listans ordning avgör vem som är ytterst.
  * @param {string} val.forvaldId Kalendern en post utan `kalender` hör till.
  * @param {(post: CalendarEntry) => string} val.visningAv "handelser", "ram" eller "bada" för postens kalender.
- * @returns {Map<string, Array<{ id: string, namn: string, ton: 1|2|3|4|5|6 }>>} Dag (`YYYY-MM-DD`) till kalendrarna med ram, ytterst först.
+ * @returns {Map<string, Array<{ id: string, namn: string, kulor: number }>>} Dag (`YYYY-MM-DD`) till kalendrarna med ram, ytterst först.
  */
 export function kalenderRamarAlla(poster, { kalendrar, forvaldId, visningAv }) {
-  /** @type {Map<string, Array<{ id: string, namn: string, ton: 1|2|3|4|5|6 }>>} */
+  /** @type {Map<string, Array<{ id: string, namn: string, kulor: number }>>} */
   const ut = new Map();
   const rader = new Map((kalendrar || []).map((k, i) => [k.id, { k, plats: i }]));
-  /** @type {Map<string, Map<string, { plats: number, id: string, namn: string, ton: 1|2|3|4|5|6 }>>} Dag till kalender till plats och ton. */
+  /** @type {Map<string, Map<string, { plats: number, id: string, namn: string, kulor: number }>>} Dag till kalender till plats och ton. */
   const perKalender = new Map();
   for (const e of poster) {
     const v = visningAv(e);
@@ -75,26 +75,26 @@ export function kalenderRamarAlla(poster, { kalendrar, forvaldId, visningAv }) {
     for (const dag of perDay([e]).keys()) {
       let dagens = perKalender.get(dag);
       if (!dagens) perKalender.set(dag, (dagens = new Map()));
-      if (!dagens.has(kalla.id)) dagens.set(kalla.id, { plats, id: kalla.id, namn: typeof kalla.namn === "string" ? kalla.namn : kalla.id, ton: lagerFarg(kalla) });
+      if (!dagens.has(kalla.id)) dagens.set(kalla.id, { plats, id: kalla.id, namn: typeof kalla.namn === "string" ? kalla.namn : kalla.id, kulor: kalenderKulor(kalla) });
     }
   }
   for (const [dag, dagens] of perKalender) {
     // `sort` är stabil: kalendrar utanför listan (samma plats) behåller den ordning posterna kom i.
-    ut.set(dag, [...dagens.values()].sort((a, b) => a.plats - b.plats).map(({ id, namn, ton }) => ({ id, namn, ton })));
+    ut.set(dag, [...dagens.values()].sort((a, b) => a.plats - b.plats).map(({ id, namn, kulor }) => ({ id, namn, kulor })));
   }
   return ut;
 }
 
 /**
- * Tonerna för ramarna som RITAS: de två första. Se `kalenderRamarAlla` för resten.
+ * Kulörerna för ramarna som RITAS: de två första (0.238.0: kulören i grader, `kalenderKulor`; före 0.238.0 en ton 1 till 6). Se `kalenderRamarAlla` för resten.
  *
  * @param {readonly CalendarEntry[]} poster
  * @param {Parameters<typeof kalenderRamarAlla>[1]} val
- * @returns {Map<string, Array<1|2|3|4|5|6>>} Dag till 1 eller 2 toner, ytterst först. Dagar utan ram står inte i kartan.
+ * @returns {Map<string, Array<number>>} Dag till 1 eller 2 kulörer, ytterst först. Dagar utan ram står inte i kartan.
  */
 export function kalenderRamar(poster, val) {
-  /** @type {Map<string, Array<1|2|3|4|5|6>>} */
+  /** @type {Map<string, Array<number>>} */
   const ut = new Map();
-  for (const [dag, alla] of kalenderRamarAlla(poster, val)) ut.set(dag, alla.slice(0, MAX_KALENDERRAMAR).map((k) => k.ton));
+  for (const [dag, alla] of kalenderRamarAlla(poster, val)) ut.set(dag, alla.slice(0, MAX_KALENDERRAMAR).map((k) => k.kulor));
   return ut;
 }

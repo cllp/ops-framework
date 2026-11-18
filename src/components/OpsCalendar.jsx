@@ -7,7 +7,8 @@ import { FULL_HEIGHT_CLASSES, useFullHeight } from "../lib/fullHeight.js";
 import { radBehallare, radKlass, radRubrikKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { STANDARD_TIDSZON, idagI, kontrolleraTidszon } from "../lib/kalendrar.js";
-import { KALENDERPRICK, postklasser, prickklass } from "../lib/kalenderfarg.js";
+import { KULORKLASS, kalenderfargKulor, postklasser, prickklass, prickstil } from "../lib/kalenderfarg.js";
+import { kulorStil } from "../lib/gruppfarg.js";
 import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
 import { MAX_KALENDERRAMAR, ORD_KALENDERRAMAR, kalenderRamarAlla } from "../lib/kalenderramar.js";
 import { forvalda } from "../lib/ord.js";
@@ -337,15 +338,16 @@ function Postkort({ dayKey, entry, statusWords, order, locale, oppna, oppnaExter
    * Båda finns kvar eftersom en app kan vilja ha båda. Anges båda vinner
    * slaget, av just det skälet: pricken kan bara visa ett av dem.
    */
-  const kanten =
-    slagKant(entry.slag, entry.slagLabel, "OpsCalendar") ||
-    kantKlass(entry.edge, entry.edgeLabel, "OpsCalendar") ||
-    (entry.kalender ? kantKlass(entry.kalender.farg, entry.kalender.namn, "OpsCalendar") : null);
+  const slagEllerEdge = slagKant(entry.slag, entry.slagLabel, "OpsCalendar") || kantKlass(entry.edge, entry.edgeLabel, "OpsCalendar");
+  // ⛔ Kalenderns kant är dess kulör (0.238.0, cllp/lifehub.app#882), samma väg som pricken och bandet (`postklasser`).
+  const kalenderfarg = !slagEllerEdge && entry.kalender ? postklasser({ ...entry, slag: undefined }) : null;
+  const kanten = slagEllerEdge || (kalenderfarg && kalenderfarg.stil ? kalenderfarg.kant : null);
+  const kantstil = !slagEllerEdge && kalenderfarg ? kalenderfarg.stil : undefined;
   const kantord = entry.slagLabel || entry.edgeLabel || (entry.kalender ? entry.kalender.namn : "");
 
   return (
     <div
-      style={{ animationDelay: `${order * SVEPSTEG}ms` }}
+      style={{ animationDelay: `${order * SVEPSTEG}ms`, ...kantstil }}
       data-postrad=""
       {...(arPreliminar(entry) ? { "data-preliminar": "" } : {})}
       className={cx("animate-svep py-2 pr-1 pl-2.5", (oppnaId || oppnaLas) && "relative", kanten && cx("border-l-4", kanten), arPreliminar(entry) && "border-dashed")}
@@ -402,7 +404,7 @@ function Postkort({ dayKey, entry, statusWords, order, locale, oppna, oppnaExter
               och i en panel med tre kalendrar är namnet det man letar efter. */}
           {entry.kalender ? (
             <p data-kalendernamn="" className="m-0 flex items-center gap-1.5 text-meta text-ink-secondary">
-              <span aria-hidden="true" className={cx("size-2 shrink-0 rounded-full", KALENDERPRICK[entry.kalender.farg] || "bg-accent")} />
+              <span aria-hidden="true" className={cx("size-2 shrink-0 rounded-full", kalenderfargKulor(entry.kalender.farg) === null ? "bg-accent" : KULORKLASS.prick)} style={kulorStil(kalenderfargKulor(entry.kalender.farg))} />
               {entry.kalender.namn}
             </p>
           ) : null}
@@ -521,7 +523,7 @@ const DAGPANEL_TAK = 0.75;
  *
  * ⛔ TOMT ÄR ETT SVAR (punkt 5). En vald dag utan poster säger "Inga poster", och antalet står som noll.
  *
- * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void, onSkapa?: () => void, locale: string, arMin: (e: import("../lib/calendar.js").CalendarEntry) => boolean, lager?: import("react").ReactNode, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void, lasbara: ReadonlySet<string>, ramarForDag: (dayKey: string) => ReadonlyArray<{ id: string, namn: string, ton: 1|2|3|4|5|6 }> | undefined }} props
+ * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void, onSkapa?: () => void, locale: string, arMin: (e: import("../lib/calendar.js").CalendarEntry) => boolean, lager?: import("react").ReactNode, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void, lasbara: ReadonlySet<string>, ramarForDag: (dayKey: string) => ReadonlyArray<{ id: string, namn: string, kulor: number }> | undefined }} props
  */
 function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin, lager, oppna, oppnaExtern, lasbara, ramarForDag }) {
   const flera = days.length > 1;
@@ -681,7 +683,7 @@ function ExternLank({ onOppna, children }) {
  * Raden "Kalendrar med ram" (0.151.0, CP 2026-10-28): vilka kalendrar som har ram en dag när några av dem inte får plats (dagrutan ritar högst två, och lagerbrickan säger "+N"). Ett tryck på
  * dagen öppnar dagpanelen eller snabbtitten, och där ska det gå att se VILKA. Ordningen är listans, den första ytterst på dagen. Bara på en dag med ramar som inte får plats: en rad som alltid stod
  * där hade varit brus. ⛔ Dagpanelen och snabbtitten visar redan posterna med kalenderns namn; den här raden är det som säger vilka som är ram och inte bara en post.
- * @param {{ lista: ReadonlyArray<{ id: string, namn: string, ton: 1|2|3|4|5|6 }>, sprak: string, dag?: string }} props
+ * @param {{ lista: ReadonlyArray<{ id: string, namn: string, kulor: number }>, sprak: string, dag?: string }} props
  */
 function RamarRad({ lista, sprak, dag }) {
   const o = forvalda(ORD_KALENDERRAMAR, sprak);
@@ -690,7 +692,7 @@ function RamarRad({ lista, sprak, dag }) {
       <span className="font-medium">{dag ? `${dag}: ${o.rad}` : o.rad}:</span>
       {lista.map((k) => (
         <span key={k.id} className="inline-flex items-center gap-1">
-          <span aria-hidden="true" data-ramar-prick={k.ton} className={cx("size-2 shrink-0 rounded-full", KALENDERPRICK[k.ton])} />
+          <span aria-hidden="true" data-ramar-prick={k.kulor} className={cx("size-2 shrink-0 rounded-full", KULORKLASS.prick)} style={kulorStil(k.kulor)} />
           {k.namn}
         </span>
       ))}
@@ -718,7 +720,7 @@ function RamarRad({ lista, sprak, dag }) {
  * innehållet, "Dold" och vägarna ut. Det som stryks: positionsuträkningen (`ankare.x`, `ankare.y`, kläm mot fönstret),
  * som bara fanns för att bubblan flöt. Dagpanelen vid ett vanligt tryck är orörd.
  *
- * @param {{ dayKey: string, alla: import("../lib/calendar.js").CalendarEntry[], synliga: Set<string>, onClose: () => void, locale: string, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void, lasbara: ReadonlySet<string>, ramar?: ReadonlyArray<{ id: string, namn: string, ton: 1|2|3|4|5|6 }> }} props
+ * @param {{ dayKey: string, alla: import("../lib/calendar.js").CalendarEntry[], synliga: Set<string>, onClose: () => void, locale: string, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void, lasbara: ReadonlySet<string>, ramar?: ReadonlyArray<{ id: string, namn: string, kulor: number }> }} props
  */
 function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna, oppnaExtern, lasbara, ramar }) {
   const ref = useRef(/** @type {HTMLDivElement | null} */ (null));
@@ -769,7 +771,7 @@ function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna, oppnaExtern,
           const dold = !synliga.has(e.id);
           return (
             <li key={e.id} data-titt-rad={dold ? "dold" : "synlig"} className={cx("flex items-start gap-2 rounded-md px-1 py-1", ((e.handelseId && oppna) || (!e.handelseId && lasbara.has(e.id))) && "relative", dold && DOLD_RAD_KLASS)}>
-              <span aria-hidden="true" {...(arPreliminar(e) ? { "data-preliminar": "" } : {})} className={cx("mt-1 size-2 shrink-0 rounded-full", prickklass(e))} />
+              <span aria-hidden="true" {...(arPreliminar(e) ? { "data-preliminar": "" } : {})} className={cx("mt-1 size-2 shrink-0 rounded-full", prickklass(e))} style={prickstil(e)} />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1 text-meta font-semibold">
                   {e.kindIcon ? (
@@ -971,7 +973,7 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
  * @typedef {object} KalenderVal
  * @property {string} id
  * @property {string} namn
- * @property {1|2|3|4|5|6} farg
+ * @property {1|2|3|4|5|6|string} farg En kulör (`kulor:<grader>`, 0.238.0) eller en äldre ton.
  * @property {boolean} [grupp] Gruppens kalender (annars en av mina).
  * @property {boolean} [forvald] Den som en post utan `kalender` hör till.
  * @property {string} [sektion] (0.134.0) Rubriken kalendern står under i listan Kalendrar, till exempel "Från Mitt konto" eller "Ärenden". Saknas den står en gruppkalender under "Gruppens kalendrar" och
@@ -1196,7 +1198,7 @@ function Band({ bitar, veckonummer }) {
           <span
             key={`${b.entry.id}-${b.startCol}`}
             data-bandbit={b.entry.id}
-            style={{ gridColumn: `${b.startCol + 1} / span ${b.colSpan}`, gridRow: b.fil + 1, marginLeft: b.borjar ? BANDKANT_AVSLUT : BANDKANT_FORTSATTER, marginRight: b.slutar ? BANDKANT_AVSLUT : BANDKANT_FORTSATTER }}
+            style={{ gridColumn: `${b.startCol + 1} / span ${b.colSpan}`, gridRow: b.fil + 1, marginLeft: b.borjar ? BANDKANT_AVSLUT : BANDKANT_FORTSATTER, marginRight: b.slutar ? BANDKANT_AVSLUT : BANDKANT_FORTSATTER, ...postklasser(b.entry).stil }}
             className={cx(
               "relative isolate flex min-w-0 items-center truncate bg-surface px-1.5 text-liten text-ink",
               b.borjar ? cx("rounded-l-md border-l-3", postklasser(b.entry).kant) : "",
@@ -1271,7 +1273,7 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  *   ännu."). Utan den: "Gruppens kalendrar" (bara med rader) och "Mina kalendrar", sedan övriga i den ordning raderna kommer. En sektion utan rader och utan `tomText` ritas inte.
  * @param {(ids: string[]) => void} [props.onSynligaKalendrar] (0.134.0) Id:n på kalendrarna som syns, i listans ordning, en gång vid start och varje gång mängden ändras. För en vy
  *   som ska följa samma val (Idag) utan en egen lagring. En vy som inte är monterad samtidigt läser i stället samma minne med `useKalenderSynlighet({ minne, kalendrar })`.
- * @param {ReadonlyArray<{ id: string, namn: string, farg?: 1|2|3|4|5|6 }>} [props.kopieraTill] (0.134.0) Kalendrarna personen får skapa i, för "Kopiera till…" i läspanelen för en
+ * @param {ReadonlyArray<{ id: string, namn: string, farg?: 1|2|3|4|5|6|string }>} [props.kopieraTill] (0.134.0) Kalendrarna personen får skapa i, för "Kopiera till…" i läspanelen för en
  *   extern händelse (`CalendarEntry.extern`). Appen skickar samma lista till `OpsHandelsePanel kopieraTill` för sina egna händelser.
  * @param {(arg: { handelse: import("./OpsHandelsePanel.jsx").HandelseVy, malKalenderId: string }) => void | Promise<void>} [props.onKopiera] (0.134.0) Anropas när personen valt en
  *   kalender. ⛔ Ramverket öppnar inget formulär: appen öppnar Ny händelse ifylld eller skapar kopian.
@@ -1541,14 +1543,14 @@ export function OpsCalendar({
   /**
    * Dagens ramar (0.151.0): kalendrarna som har en post med Ram eller Båda den dagen. De två första i listans ordning ritas, den första ytterst (till 0.150.0 var det EN ram, den första kalenderns).
    * Resten (0.151.0, CP 2026-10-28) räknas ur SAMMA uppräkning: lagerbrickan visar "+N", knappnamnet säger det, och dagpanelen och snabbtitten listar kalendrarna med ram.
-   * @type {Map<string, { dekor: { ramar: Array<1|2|3|4|5|6>, ramarEfter: number }, alla: Array<{ id: string, namn: string, ton: 1|2|3|4|5|6 }> }>}
+   * @type {Map<string, { dekor: { kalenderramar: Array<number>, ramarEfter: number }, alla: Array<{ id: string, namn: string, kulor: number }> }>}
    */
   const ramDagar = useMemo(() => {
     const ut = new Map();
     if (Object.keys(syn.visningar).length === 0) return ut;
     for (const [dag, alla] of kalenderRamarAlla(synligaPoster, { kalendrar, forvaldId, visningAv })) {
       const efter = Math.max(0, alla.length - MAX_KALENDERRAMAR);
-      ut.set(dag, { dekor: { ramar: alla.slice(0, MAX_KALENDERRAMAR).map((k) => k.ton), ramarEfter: efter }, alla });
+      ut.set(dag, { dekor: { kalenderramar: alla.slice(0, MAX_KALENDERRAMAR).map((k) => k.kulor), ramarEfter: efter }, alla });
     }
     return ut;
   }, [synligaPoster, visningAv, kalendrar, forvaldId, syn.visningar]);

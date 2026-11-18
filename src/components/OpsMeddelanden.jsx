@@ -1,4 +1,4 @@
-import { cloneElement, isValidElement, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { cloneElement, isValidElement, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { OpsSprakProvider, useOpsSprak } from "./OpsSprak.jsx";
 import { forvalda, ordet } from "../lib/ord.js";
 import { cx } from "../lib/cx.js";
@@ -30,7 +30,9 @@ import { OpsHubTillbaka, OpsVyAtgard, VYHUVUD_KLASS, VYIKON_KLASS, VYRUBRIK_KLAS
 import { OpsMottagare } from "./OpsMottagare.jsx";
 import { OpsSkapaRubrik } from "./OpsSkapaRubrik.jsx";
 import { OpsCountBadge } from "./counter.jsx";
-import { useTalkfalt } from "./useTalkfalt.js";
+import { TalkfaltKontext, useTalkfalt } from "./useTalkfalt.js";
+import { talkOrd } from "../lib/talk.js";
+import { vidareISamtal } from "../lib/talkrost.js";
 import { REAKTIONSVY, reaktionsnamnPa } from "./reaktionsvy.js";
 import { OpsForslag } from "./OpsForslag.jsx";
 import { forslagUrData } from "../lib/forslag.js";
@@ -38,7 +40,7 @@ import { rapporteraFel } from "../lib/felrapport.js";
 import { useTangentbordTackt } from "../lib/tangentbord.js";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { LANGTRYCK_KLASS, useLangtryck } from "./useLangtryck.js";
-import { AgentIkon, AndraIkon, BockIkon, KopieraIkon, OmrostningIkon, ArkiveraIkon, TaFramIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
+import { AgentIkon, AndraIkon, BockIkon, KopieraIkon, OmrostningIkon, ArkiveraIkon, TaFramIkon, BildIkon, FastIkon, FilIkon, KameraIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, LjudvagIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 import { OpsVantar } from "./OpsVantar.jsx";
 
 /**
@@ -1854,7 +1856,7 @@ const SKILJETECKEN = /^[.,:;!?)\]}…]$/u;
  *
  * `onSkicka` får `{ namner }` (de omnämnda) och skickar fältets text.
  *
- * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[] }) => void | Promise<void>, texter: Required<Meddelandetexter>, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, onOmrostning?: () => void, franBiblioteket?: Franbiblioteket, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void, maxTecken?: number, ram?: boolean }} props
+ * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[] }) => void | Promise<void>, texter: Required<Meddelandetexter>, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, onOmrostning?: () => void, franBiblioteket?: Franbiblioteket, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void, maxTecken?: number, ram?: boolean, onRostSamtal?: () => void, rostUpptagen?: boolean }} props `onRostSamtal` (CP 2026-11-18): vågikonen, ett röstsamtal med agenten. Bara i ett agentsamtal i ett skal med TALK.
  *   `onOmrostning` (cllp/lifehub.app#438): raden "Omröstning" i pluset. Med den ritas pluset också utan `onBifoga`.
  *   `maxTecken` (0.132.0): taket i tecken. Förval `MAX_MEDDELANDE`; en gäst har ett lägre (`GASTSKRIV_MAX_TECKEN`). Räknaren och spärren på Skicka följer det.
  *   ⛔ EXPORTERAD FRÅN FILEN FÖR `OpsGastChatt`, INTE UR RAMVERKET (`src/index.js`): gästens skrivfält är chattens utan bilagor, mikrofon, omnämnanden och agent.
@@ -1863,7 +1865,8 @@ const SKILJETECKEN = /^[.,:;!?)\]}…]$/u;
  *   skärmbilder av gästens chatt: "Du kan ta bort ett streck mellan här också vid chatten. avdelaren." och från telefonen: "Även i telefon finns det extra horisontella strecket som
  *   inte behövs. Sedan kanske skrivfältet kan vara lika brett som chattramen?"
  */
-export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onBifoga, onOmrostning, franBiblioteket, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent, maxTecken = MAX_MEDDELANDE, ram = true }) {
+export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onBifoga, onOmrostning, franBiblioteket, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent, maxTecken = MAX_MEDDELANDE, ram = true, onRostSamtal, rostUpptagen = false }) {
+  const rostSprak = useOpsSprak();
   const ruta = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const listId = useId();
   const raknarId = useId();
@@ -2094,6 +2097,26 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus =
         className="min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-3xl bg-transparent px-3.5 py-2.5 text-brod text-ink outline-none placeholder:text-ink-muted md:text-etikett"
       />
       {talkFalt.mik("plats")}
+      {/* ⛔ VÅGIKONEN (CP 2026-11-18): ett röstsamtal med agenten i det här samtalet. `aria-disabled` och inte `disabled` medan en omgång pågår,
+          så att fokus inte försvinner, som fältets mikrofon. */}
+      {onRostSamtal ? (
+        <OpsTooltip content={talkOrd("rostSamtalTips", rostSprak)}>
+          <button
+            type="button"
+            data-rost-samtal=""
+            aria-label={talkOrd("rostSamtal", rostSprak)}
+            aria-disabled={rostUpptagen || undefined}
+            onClick={() => {
+              if (!rostUpptagen) onRostSamtal();
+            }}
+            className="group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-secondary hover:text-ink focus-visible:outline-none aria-disabled:cursor-default aria-disabled:opacity-40"
+          >
+            <span className="inline-flex size-9 items-center justify-center rounded-full group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent">
+              <LjudvagIkon size={20} />
+            </span>
+          </button>
+        </OpsTooltip>
+      ) : null}
       {visaStopp ? (
         <button
           type="button"
@@ -2800,6 +2823,34 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
   };
 
   const agent = samtal.slag === "agent";
+  /*
+   * ⛔ VÅGIKONEN I AGENTENS CHATT (CP 2026-11-18): ett tryck börjar ett röstsamtal i det här samtalet, i skalets TALK. Det personen säger skickas
+   * som hens meddelande här, och svaret läses upp när det kommit (`vidareISamtal`). AGENTSAMTALET KÄNNS IGEN PÅ `samtal.slag === "agent"`, samma
+   * fält som platstexten och huvudet läser. Bara i ett skal med TALK och en agent (`TalkfaltKontext.rostSamtal`), och inte i ett nytt ämne som
+   * ännu inte finns: där finns inget samtal att följa förrän första meddelandet skapat det.
+   */
+  const talkKontext = useContext(TalkfaltKontext);
+  const rostSamtal = talkKontext?.rostSamtal;
+  const onRostSamtal =
+    agent && !arNy && typeof rostSamtal === "function" && typeof kalla.prenumerera === "function"
+      ? () => {
+          rostSamtal(
+            vidareISamtal({
+              kalla,
+              sid: samtal.id,
+              uid,
+              skicka: async (text) => {
+                const d = { text, av: uid };
+                const sant = await kalla.skicka(samtal.id, d);
+                // ⛔ Samma som Skicka: "Agenten vaknar" direkt, och inkorgens rad får det sagda utan att vänta på en läsning.
+                vakna.skickat(d);
+                if (sant && typeof sant.tid === "number") onSkickat?.(/** @type {any} */ (sant));
+                return sant;
+              },
+            }),
+          );
+        }
+      : undefined;
   const privatRad = samtal.slag === "grupp" ? t.gruppRad : samtal.slag === "projekt" ? t.projektRad : agent ? t.agentRad : t.privatRad;
   const agentId = agent && onVisaAgent ? agentDeltagare(samtal, uid, medlemmar) : "";
 
@@ -3052,6 +3103,8 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
         kamera={bilage.kamera}
         agentArbetar={agentArbetar(agentlage)}
         onStoppaAgent={onStoppaAgent ? () => onStoppaAgent(samtal.id) : undefined}
+        onRostSamtal={onRostSamtal}
+        rostUpptagen={Boolean(talkKontext?.upptagen)}
       />
       </div>
       {info ? (

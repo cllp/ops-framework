@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
+import { ARV_TON_KULOR, GRUPPKULORFORSLAG, narmasteKulornamn } from "../lib/gruppfarg.js";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OpsAppShell, useOppnaSkapa } from "../components/OpsAppShell.jsx";
@@ -372,11 +373,49 @@ describe("OpsKalendrar (F2)", () => {
     const sektion = screen.getByRole("region", { name: "Mina kalendrar" });
     fireEvent.click(within(sektion).getByRole("button", { name: "Ny kalender" }));
     fireEvent.change(within(sektion).getByRole("textbox"), { target: { value: "Träning" } });
-    fireEvent.click(within(sektion).getByRole("button", { name: "Färg 5" }));
+    // ⛔ Färgen väljs i ramverkets färgväljare i kulörläge (0.238.0, cllp/lifehub.app#882): fältet öppnar rutan, och snabbvalet ger `kulor:<grader>`.
+    fireEvent.click(within(sektion).getByRole("button", { name: "Färg" }));
+    fireEvent.click(screen.getByRole("button", { name: "Violett" }));
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
     fireEvent.click(within(sektion).getByRole("button", { name: "Stjärna" }));
     fireEvent.click(within(sektion).getByRole("button", { name: "Skapa kalender" }));
     await waitFor(() => expect(mina).toHaveLength(1));
-    expect(mina[0]).toEqual([{ id: "traning", namn: "Träning", farg: 5, ikon: "stjarna", ordning: 10, forvald: false, iFlodet: false, arkiverad: false }]);
+    expect(mina[0]).toEqual([{ id: "traning", namn: "Träning", farg: "kulor:315", ikon: "stjarna", ordning: 10, forvald: false, iFlodet: false, arkiverad: false }]);
+  });
+
+  it("⛔ en ny kalender får nästa snabbval som kulör, och färgen sparas som kulor:<grader> (0.238.0)", async () => {
+    const { mina } = visa();
+    const sektion = screen.getByRole("region", { name: "Mina kalendrar" });
+    fireEvent.click(within(sektion).getByRole("button", { name: "Ny kalender" }));
+    fireEvent.change(within(sektion).getByRole("textbox"), { target: { value: "Träning" } });
+    const falt = within(sektion).getByRole("button", { name: "Färg" }).textContent ?? "";
+    fireEvent.click(within(sektion).getByRole("button", { name: "Skapa kalender" }));
+    await waitFor(() => expect(mina).toHaveLength(1));
+    const farg = String(mina[0][0].farg);
+    expect(farg).toMatch(/^kulor:\d+$/);
+    // Ett av snabbvalen, och det fältet visade.
+    expect(GRUPPKULORFORSLAG.map((f) => `kulor:${f.kulor}`)).toContain(farg);
+    expect(falt).toContain(`${farg.slice(6)} grader`);
+  });
+
+  it("⛔ en kalender med en äldre ton visas med tonens kulör och behåller tonen när färgen inte ändras, och reglaget ger kulor:<grader> (0.238.0)", async () => {
+    const { mina } = visa({ mina: [mk("privat")] });
+    const sektion = screen.getByRole("region", { name: "Mina kalendrar" });
+    fireEvent.click(within(sektion).getByRole("button", { name: "Redigera Privat" }));
+    expect(within(sektion).getByRole("button", { name: "Färg" }).textContent).toContain(`${ARV_TON_KULOR[2]} grader`);
+    fireEvent.click(within(sektion).getByRole("button", { name: "Spara ändringar" }));
+    await waitFor(() => expect(mina).toHaveLength(1));
+    expect(mina[0][0].farg).toBe(2);
+
+    fireEvent.click(within(sektion).getByRole("button", { name: "Redigera Privat" }));
+    fireEvent.click(within(sektion).getByRole("button", { name: "Färg" }));
+    const reglage = screen.getByRole("slider", { name: "Kulör" });
+    expect(reglage.getAttribute("aria-valuetext")).toBe(`${ARV_TON_KULOR[2]} grader, ${narmasteKulornamn(ARV_TON_KULOR[2])}`);
+    fireEvent.change(reglage, { target: { value: "203" } });
+    fireEvent.keyDown(reglage, { key: "Escape" });
+    fireEvent.click(within(sektion).getByRole("button", { name: "Spara ändringar" }));
+    await waitFor(() => expect(mina).toHaveLength(2));
+    expect(mina[1][0].farg).toBe("kulor:203");
   });
 
   it("⛔ en ikon som ramverket inte känner ritas med reservikonen och står kvar när kalendern sparas (granskningen av PR 464)", async () => {

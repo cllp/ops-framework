@@ -13,6 +13,7 @@ import { OpsDisclosure } from "./OpsDisclosure.jsx";
 import { formatDateTime } from "../lib/format.js";
 import { AndraIkon, ArkiveraIkon, TaFramIkon } from "./icons.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
+import { OpsFargval } from "./OpsFargval.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
@@ -227,7 +228,7 @@ export function OpsKatalogInstallning({
       id: kategori.id,
       sv: kategori.namn.sv,
       en: kategori.namn.en || "",
-      farg: kategori.farg || TOMT.farg,
+      farg: /** @type {number} */ (kategori.farg) || TOMT.farg,
       ikon: kategori.ikon,
       fas: kategori.fas || TOMT.fas,
       ordning: kategori.ordning,
@@ -363,7 +364,7 @@ export function OpsKatalogInstallning({
           {/* ⛔ Ordet skickas med: `slagPrick` vägrar en prick utan det, eftersom en färg utan ord inte går att läsa upp och betyder ingenting för den som inte lärt sig koden.
               ⛔ Och ingen prick alls i en katalog utan färger: `slagPrick` kastar på en plats som inte finns, och en grå prick hade sagt att kategorin har en färg som inte laddat. */}
           {kategori.farg ? (
-            <span className={cx("size-2 shrink-0 rounded-full", slagPrick(kategori.farg, text(kategori.namn, sprak), "OpsKatalogInstallning"))} aria-hidden="true" />
+            <span className={cx("size-2 shrink-0 rounded-full", slagPrick(/** @type {number} */ (kategori.farg), text(kategori.namn, sprak), "OpsKatalogInstallning"))} aria-hidden="true" />
           ) : null}
           <span className="min-w-0 break-words text-etikett font-medium text-ink">{text(kategori.namn, sprak)}</span>
           {ikonRitare ? <span className="inline-flex shrink-0 text-ink-muted">{ikonRitare(kategori.ikon)}</span> : null}
@@ -461,11 +462,15 @@ export function OpsKatalogInstallning({
               har tre platser, så en katalog med fler kategorier än så kan inte
               ge dem var sin, och en väljare som tvingar fram dubbletter är
               värre än ingen. */}
+          {/* ⛔ RAMVERKETS ENDA FÄRGVÄLJARE, I PALETTLÄGE (0.238.0, cllp/lifehub.app#882): samma fält och ruta som Hubbens färger, grupperna och
+              kalendrarna, men platserna och inget reglage. Kulörvägen mättes och håller kontrasten, men inte slagpalettens andra golv: prickarna
+              ska gå att skilja åt utan ord (delta E 15), och två kulörer med fast ljushet skiljs bara av vinkeln. Se `OpsFargval.jsx`. */}
           {farger ? (
-            <OpsField label="Färg" hint="En plats i paletten, inte en färgkod. Platserna är mätta mot kontrastgolvet i både ljust och mörkt tema.">
-              <OpsSelect
-                options={SLAGPLATSER.map((n) => ({ value: String(n), label: `Plats ${n}` }))}
-                value={String(utkast.farg)}
+            <OpsField label="Färg" hint="En plats i paletten, inte en färgkod. Platserna är mätta mot kontrastgolvet i både ljust och mörkt tema, och går att skilja åt utan ord.">
+              <OpsFargval
+                slag="palett"
+                platser={SLAGPLATSER.map((n) => ({ varde: n, namn: `Plats ${n}`, klass: /** @type {string} */ (slagPrick(n, `Plats ${n}`, "OpsKatalogInstallning")) }))}
+                value={utkast.farg}
                 onChange={(v) => setUtkast({ ...utkast, farg: Number(v) })}
               />
             </OpsField>

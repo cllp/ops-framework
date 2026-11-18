@@ -189,7 +189,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow read, delete: if opsInloggad() && request.auth.uid == uid;
       allow create, update: if opsInloggad() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar", "bildSokvag", "ikon", "farg"])
+        && request.resource.data.keys().hasOnly(["id", "namn", "epost", "bild", "sprak", "tema", "textstorlek", "telefon", "stad", "presentation", "lankar", "bildSokvag", "ikon", "farg"])
         && opsProfilensEpost();
     }
 

@@ -2,22 +2,23 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { initials } from "../lib/identity.js";
 import { GRUPPINITIALER_FORM } from "../lib/grupp.js";
-import { GRUPPKULORFORSLAG, fargTillKulor, gruppKulor, kulorTillFarg, narmasteKulornamn } from "../lib/gruppfarg.js";
+import { gruppKulor } from "../lib/gruppfarg.js";
 import { gruppikonEtikett } from "../lib/gruppikonnamn.js";
 import { gruppikonKomponent, gruppikonNamn } from "../lib/gruppikoner.js";
 import { lasSenasteGruppikoner, sparaSenasteGruppikon } from "../lib/gruppikonsenaste.js";
 import { VANLIGA_GRUPPIKONER, forslagUrGruppnamn, sokGruppikoner } from "../lib/gruppikonsok.js";
-import { OpsSlider } from "./OpsSlider.jsx";
-import { BockIkon } from "./icons.jsx";
+import { OpsFargval } from "./OpsFargval.jsx";
+import { OpsField } from "./OpsField.jsx";
 
 /**
  * Gruppens kulör och ikon (0.65.0, #265): det som fälls ut under "Färg och ikon" i `OpsGruppFormular`.
  *
  * ══ ⛔ KULÖR, INTE FÄRG ═══════════════════════════════════════════════════════════════════════════════════════════
  *
- * Tolv snabbval och ett reglage för alla 360 kulörer. Ljusheten och mättnaden väljs aldrig här: de står i temat
- * (`--gruppmarke-*` i tokens.css) för ljust och mörkt läge, och vakten `check-gruppfarg` mäter kontrasten för varje
- * kulör. Valet och skälet står i `src/lib/gruppfarg.js`.
+ * Tolv snabbval och ett reglage för alla 360 kulörer, i `OpsFargval slag="kulor"` sedan 0.238.0 (cllp/lifehub.app#882: en
+ * färgväljare överallt). Ljusheten och mättnaden väljs aldrig här: de står i temat (`--gruppmarke-*` i tokens.css) för ljust
+ * och mörkt läge, och vakten `check-gruppfarg` mäter kontrasten för varje kulör. Valet och skälet står i `src/lib/gruppfarg.js`.
+ * ⛔ `t.kulorExakt` och `t.kulorGrader` läses inte sedan 0.238.0: reglaget heter "Kulör" och säger graderna själv, som i Hubbens färger.
  *
  * ══ ⛔ IKONEN: SÖKBAR, ETT SET, SPARAD SOM NAMN ═══════════════════════════════════════════════════════════════════
  *
@@ -52,7 +53,6 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
   const [senaste, setSenaste] = useState(/** @type {string[]} */ ([]));
   useEffect(() => setSenaste(lasSenasteGruppikoner()), []);
 
-  const kulor = fargTillKulor(farg) ?? gruppKulor(null, seed);
   const standardKulor = gruppKulor(null, seed);
   const valtNamn = gruppikonNamn(ikon);
   const initialerAktiva = ikon === "" || GRUPPINITIALER_FORM.test(ikon);
@@ -121,47 +121,12 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
 
   return (
     <>
-      <div data-kulorvaljare="">
-        <p className="m-0 mb-2 text-meta font-medium text-ink-secondary" id={`${idPrefix}-kulor`}>
-          {t.farg}
-        </p>
-        <div className="flex flex-wrap gap-1" role="group" aria-labelledby={`${idPrefix}-kulor`}>
-          {GRUPPKULORFORSLAG.map((f) => {
-            const vald = fargTillKulor(farg) === f.kulor;
-            return (
-              <button
-                key={f.kulor}
-                type="button"
-                onClick={() => onFarg(kulorTillFarg(f.kulor))}
-                aria-label={sprak === "en" ? f.en : f.sv}
-                title={sprak === "en" ? f.en : f.sv}
-                aria-pressed={vald}
-                data-kulor={f.kulor}
-                className="flex size-11 cursor-pointer items-center justify-center rounded-full focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-              >
-                <span
-                  className={cx("ops-grupp-kulorruta flex size-9 items-center justify-center rounded-full text-ink-inverse transition-all", vald && "scale-105 ring-2 ring-accent ring-offset-2 ring-offset-canvas")}
-                  style={/** @type {import("react").CSSProperties} */ ({ "--grupp-kulor": f.kulor })}
-                >
-                  {vald ? <BockIkon size={16} /> : null}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="mt-2">
-          <OpsSlider
-            label={t.kulorExakt}
-            value={kulor}
-            min={0}
-            max={359}
-            zero={standardKulor}
-            onChange={(v) => onFarg(kulorTillFarg(Math.round(v)))}
-            formatValue={(v) => `${Math.round(v)} ${t.kulorGrader}, ${narmasteKulornamn(Math.round(v), sprak)}`}
-            resetLabel={t.kulorAterstall}
-          />
-        </div>
-        <p className="m-0 mt-1 text-hjalp text-ink-muted">{t.kulorHint}</p>
+      {/* ⛔ FÄRGEN VÄLJS I RAMVERKETS ENDA FÄRGVÄLJARE (0.238.0, cllp/lifehub.app#882), i kulörläge: samma fält och ruta som Hubbens färger
+          och kalendrarna. Snabbvalen, reglaget och återställningen ligger i rutan. */}
+      <div data-gruppfarg="">
+        <OpsField label={t.farg} hint={t.kulorHint}>
+          <OpsFargval slag="kulor" value={farg} onChange={onFarg} standard={standardKulor} aterstall={t.kulorAterstall} />
+        </OpsField>
       </div>
 
       <div data-ikonvaljare="">

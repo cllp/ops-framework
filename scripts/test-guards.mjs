@@ -1788,7 +1788,7 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   // `grupp = false`. KATEGORIFALT bär fortfarande groupId, alltså är steg 4 grönt, och bara beteendet fäller.
   kravRott(
     "gruppnyckel: en kategori utan groupId byggs med förvalet (grupp = false)",
-    [nyckelvakt, libkopia("gn6", (k) => k.replace("farger = true, grupp = true } = {}) {", "farger = true, grupp = false } = {}) {"), "katalog.js")],
+    [nyckelvakt, libkopia("gn6", (k) => k.replace("farger = true, grupp = true, kulorer = false } = {}) {", "farger = true, grupp = false, kulorer = false } = {}) {"), "katalog.js")],
     "byggKategori byggde en kategori utan groupId",
   );
 
@@ -2268,10 +2268,14 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     return ut;
   };
   kravGront("gruppfärg: tokens.css som den står", [fargvakt, tokenfil]);
-  kravRott("gruppfärg: ljus ikon för nära plattan (L 0,62)", [fargvakt, fargfil("ljus", (c) => c.replace("--gruppmarke-ikon-l: 0.47;", "--gruppmarke-ikon-l: 0.62;"))], "ikonen mot plattan");
+  kravRott("gruppfärg: ljus ikon för nära plattan (L 0,62)", [fargvakt, fargfil("ljus", (c) => c.replace("--ljust-gruppmarke-ikon-l: 0.47;", "--ljust-gruppmarke-ikon-l: 0.62;"))], "ikonen mot plattan");
   kravRott("gruppfärg: mörk platta för ljus (L 0,6)", [fargvakt, fargfil("mork", (c) => c.replace("--dark-gruppmarke-platta-l: 0.33;", "--dark-gruppmarke-platta-l: 0.6;"))], "morkt, kulör");
-  kravRott("gruppfärg golv: mättnad 0, alla kulörer gråa", [fargvakt, fargfil("gra", (c) => c.replace("--gruppmarke-ikon-c: 0.13;", "--gruppmarke-ikon-c: 0;"))], "olika ikonfärger");
-  kravRott("gruppfärg golv: talen saknas", [fargvakt, fargfil("tom", (c) => c.replace(/--gruppmarke-ikon-l: [^;]+;/, ""))], "saknas i");
+  kravRott("gruppfärg golv: mättnad 0, alla kulörer gråa", [fargvakt, fargfil("gra", (c) => c.replace("--ljust-gruppmarke-ikon-c: 0.13;", "--ljust-gruppmarke-ikon-c: 0;"))], "olika ikonfärger");
+  kravRott("gruppfärg golv: talen saknas", [fargvakt, fargfil("tom", (c) => c.replace(/--ljust-gruppmarke-ikon-l: [^;]+;/, ""))], "saknas i");
+  // ⛔ Kalenderbandets text på tonen (0.238.0, cllp/lifehub.app#882): med ett mörkt bläck i mörkt läge faller titeln mot tonen, och
+  // pricken och kanten (ikonen mot ytan) är oförändrade. Rött här och bara här visar att vakten mäter texten och inte bara ikonen.
+  kravRott("kalenderkulör: mörkt bläck i mörkt läge, bandets text mot tonen", [fargvakt, fargfil("band", (c) => c.replace("--dark-ink: #e8ece6;", "--dark-ink: #5c665c;"))], "kalenderbandets text mot tonen");
+  kravRott("kalenderkulör golv: bläcket saknas", [fargvakt, fargfil("utanblack", (c) => c.replace(/--dark-ink: #e8ece6;/, ""))], "saknas");
 }
 
 // ── Märket utan React (0.70.0, lifehub.identity#27): `ops-framework/gruppmarke` når aldrig ett paket ──

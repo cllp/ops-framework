@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { KALENDERPRICK } from "../lib/kalenderfarg.js";
+import { fargprick } from "../lib/kalenderfarg.js";
 import { cx } from "../lib/cx.js";
 import { KalenderIkon } from "./icons.jsx";
 import { OpsButton } from "./OpsButton.jsx";
@@ -121,7 +121,7 @@ export function HandelseFlytta({ mal, onFlytta, titel, ord }) {
                     key={`${m.groupId ?? ""}|${m.id}`}
                     chosen={false}
                     stor
-                    ikon={<span className={cx("size-2 rounded-full", KALENDERPRICK[m.farg] || "bg-accent")} />}
+                    ikon={<span className={cx("size-2 rounded-full", fargprick(m.farg).klass)} style={fargprick(m.farg).stil} />}
                     onClick={() => (m.atgard === "konvertera" ? setValt(m) : utfor(m))}
                   >
                     {m.namn}

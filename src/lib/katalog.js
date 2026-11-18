@@ -43,6 +43,7 @@
  * ett fel för den som ändrade, och felet säger vilken katalog och vilket fält.
  */
 
+import { GRUPPKULOR_FORM } from "./gruppfarg.js";
 import { SLAGPLATSER } from "./slag.js";
 import { byggNamn, text } from "./sprak.js";
 
@@ -111,7 +112,7 @@ export const AVSLUTADE_FASER = /** @type {const} */ (["klar", "avskriven"]);
  * @typedef {object} Kategori
  * @property {string} id Maskinnyckeln. Ändras aldrig.
  * @property {import("./sprak.js").Namn} namn Det som visas.
- * @property {number|null} farg Palettplats ur `SLAGPLATSER`, aldrig hex. `null` i en katalog utan färger.
+ * @property {number|string|null} farg Palettplats ur `SLAGPLATSER`, aldrig hex. `null` i en katalog utan färger. En kulör, `kulor:<grader>`, bara i en katalog med `kulorer` (gruppkalendrarna, 0.238.0).
  * @property {string} ikon Namn ur katalogens tillåtelselista.
  * @property {"ny"|"aktiv"|"vantar"|"klar"|"avskriven"|null} fas `null` i en sortkatalog, se noten i `byggKategori`.
  * @property {number} ordning Lägre först.
@@ -239,13 +240,16 @@ export function slugUrNamn(namn, max) {
  * och inte data, samma regel som resten av ramverket.
  *
  * @param {Record<string, any>} d
- * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean, grupp?: boolean }} [config]
+ * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean, grupp?: boolean, kulorer?: boolean }} [config]
+ *   `kulorer` (0.238.0, cllp/lifehub.app#882, förval `false`): färgen får också vara en KULÖR, `kulor:<grader>` (`GRUPPKULOR_FORM`),
+ *   utöver platserna. Bara gruppkalendrarna, som väljer kulör sedan 0.238.0 och vars äldre toner (platserna 1 till 6) läses vidare.
+ *   Slagpalettens kategorier har det inte: deras platser ska gå att skilja åt utan ord (`OpsFargval.jsx`, palettläget).
  *   `grupp` (#162, förval `true` sedan 0.33.0): kategorin är en grupps egen och kräver `groupId`.
  *   `false` bara för en mall (standardvärden före seedningen) eller en moduls kodkatalog. Se noten
  *   vid `KATEGORIFALT`.
  * @returns {Kategori}
  */
-export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "katalog", textnycklar, faser = true, farger = true, grupp = true } = {}) {
+export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "katalog", textnycklar, faser = true, farger = true, grupp = true, kulorer = false } = {}) {
   const var_ = (/** @type {string} */ falt, /** @type {string} */ skal) =>
     new Error(`${katalog}: ${falt} ${skal}`);
 
@@ -301,11 +305,13 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
     );
   }
 
-  const farg = Number(d.farg);
-  if (farger && !platser.includes(farg)) {
+  // ⛔ En kulör (`kulorer`) sparas som den står, i sin enda form: `kulor:7`, aldrig `kulor:007` (`GRUPPKULOR_FORM`).
+  const kulor = kulorer && typeof d.farg === "string" && GRUPPKULOR_FORM.test(d.farg) ? d.farg : null;
+  const farg = kulor ?? Number(d.farg);
+  if (farger && kulor === null && !platser.includes(/** @type {number} */ (farg))) {
     throw var_(
       `farg för "${id}"`,
-      `måste vara en palettplats (${platser.join(", ")}), inte ${JSON.stringify(d.farg)}. En hex i konfigurationen följer inte med när mörkt läge eller en ny identitet kommer.`,
+      `måste vara en palettplats (${platser.join(", ")})${kulorer ? " eller en kulör, kulor:0 till kulor:359" : ""}, inte ${JSON.stringify(d.farg)}. En hex i konfigurationen följer inte med när mörkt läge eller en ny identitet kommer.`,
     );
   }
 
@@ -510,7 +516,7 @@ export function texten(kategori, nyckel, sprak = "sv") {
  * kvar men inte dess verkan.
  *
  * @param {unknown} kategorier
- * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean, grupp?: boolean }} [config]
+ * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean, grupp?: boolean, kulorer?: boolean }} [config]
  * @returns {Kategori[]}
  */
 export function validateKatalog(kategorier, config = {}) {

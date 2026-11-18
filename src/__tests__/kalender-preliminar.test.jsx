@@ -4,6 +4,7 @@ import { OpsCalendar } from "../components/OpsCalendar.jsx";
 import { LANGTRYCK_MS } from "../lib/talk.js";
 import { arPreliminar, perDay, preliminarFel } from "../lib/calendar.js";
 import { postklasser, prickklass } from "../lib/kalenderfarg.js";
+import { ARV_TON_KULOR } from "../lib/gruppfarg.js";
 
 /**
  * Preliminära poster i kalendern (0.127.0, cllp/lifehub.app#383): en händelse vars datum inte är satt ritas på varje FÖRESLAGEN dag, streckad.
@@ -155,7 +156,10 @@ describe("⛔ ett förslag är en dag", () => {
     expect(postklasser(slag).ring).toBe("border-slag-2");
     expect(postklasser(slag).prick).toBe("bg-slag-2");
     const kal = { id: "b", date: "2026-10-12", title: "B", kalender: { id: "k", namn: "Rep", farg: /** @type {const} */ (3) }, preliminar: true };
-    expect(postklasser(kal).ring).toBe("border-identity-3");
+    // Kalenderns färg är en kulör (0.238.0): ringen är kulörklassen, och tonen 3 läses som sin kulör.
+    expect(postklasser(kal).ring).toBe("ops-kulor-ring");
+    expect(postklasser(kal).stil).toEqual({ "--grupp-kulor": ARV_TON_KULOR[3] });
+    expect(postklasser({ ...kal, kalender: { ...kal.kalender, farg: /** @type {any} */ ("kulor:210") } }).stil).toEqual({ "--grupp-kulor": 210 });
     expect(postklasser({ id: "c", date: "2026-10-12", title: "C", preliminar: true }).ring).toBe("border-accent");
     // I en vald ruta är fyllningen rutans textfärg: pricken blir en ring i samma färg, inte i postens.
     expect(prickklass(slag, true)).toBe("border border-ink bg-transparent");

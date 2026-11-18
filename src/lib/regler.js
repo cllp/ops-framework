@@ -49,6 +49,7 @@ import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { VERSIONSFALT } from "./htmldokument.js";
 import { KALENDERVALFALT, KALENDERVALNYCKEL_FORM, KALENDERVISNINGAR, MAX_KALENDERVAL, MAX_KALENDERVALGRUPP } from "./kalendersynlighet.js";
 import { DELNINGSUID_FORM, KALENDERDELNINGFALT, KALENDERDELNING_AVGRANSARE, KALENDERDELNING_GRUPP, KALENDERDELNING_PERSON, MAX_DELNINGSGRUPP } from "./kalenderdelning.js";
+import { GRUPPKULOR_FORM } from "./gruppfarg.js";
 import { AVVECKLADE_KALENDERFALT, DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERID, MAX_KALENDERIKON, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
 import { AMNESFALT, AMNES_REGEL, BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, MAX_ALTERNATIVTEXT, MAX_AMNESRUBRIK, MAX_FRAGA, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, OMROSTNINGFALT, OMROSTNINGSROSTFALT, OMROSTNINGSVALFALT, OMROSTNINGSVAL_REGEL, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, PROJEKTSAMTAL, undersamlingskrock } from "./samtal.js";
@@ -346,11 +347,11 @@ ${typavvikelserRegler()}
 ${
   val.kontoAgerPersonen
     ? `      // ⛔ KONTOT ÄGER PERSONEN (0.53.0, lifehub.app#32). Raden skrivs av appens server ur kontot vid inloggningen.
-      // Klienten ändrar bara temat, som är appens eget val, och skapar aldrig raden. Den skriver alltså aldrig \`epost\`,
+      // Klienten ändrar bara temat och textstorleken (cllp/lifehub.app#873), personens egna val, och skapar aldrig raden. Den skriver alltså aldrig \`epost\`,
       // och läget är oförändrat av #313: det som skriver adressen här är appens spegel, och den prövas inte av reglerna.
       allow create: if false;
       allow update: if opsInloggad() && request.auth.uid == uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["tema"]);`
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["tema", "textstorlek"]);`
     : `      allow create, update: if opsInloggad() && request.auth.uid == uid
         && request.resource.data.keys().hasOnly([${ANVANDARFALT.map((f) => `"${f}"`).join(", ")}])
         && opsProfilensEpost();`
@@ -1824,12 +1825,14 @@ ${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KA
     // \`ikon\` på 900 kB släpptes in, och ett fält av fel sort (en lista i \`beskrivning\`, vars \`size()\` är antalet element) gick förbi längdprövningen. Ingenting läcker, men en person kunde fylla sina
     // egna dokument utan gräns. Id:t prövas bara vid \`create\`: ett dokument som redan finns kan inte byta id, och ett nej på dess ändring hade låst ute ägaren. De valfria fälten prövas bara när de finns
     // (\`!('x' in d) || ...\`): byggaren fyller i \`false\` för ett sanningsvärde som utelämnas, men en rad skriven på annat sätt kan sakna dem, och ett utvärderingsfel på ett saknat fält är ett nej.
+    // ⛔ FÄRGEN ÄR EN KULÖR ELLER EN ÄLDRE TON (0.238.0, cllp/lifehub.app#882): \`kulor:0\` till \`kulor:359\` utan inledande nollor, samma mönster som
+    // \`GRUPPKULOR_FORM\` i ramverket, eller en av de sex tonerna som tal. Tonerna läses vidare och skrivs aldrig om.
     function opsMinKalenderGiltig(d) {
       return d.keys().hasOnly([${lista(utanId(MINKALENDERFALT))}])
         && d.namn is string
         && d.namn.size() > 0
         && d.namn.size() <= ${MAX_KALENDERNAMN}
-        && d.farg in [${lista(KALENDERFARGER)}]
+        && (d.farg in [${lista(KALENDERFARGER)}] || (d.farg is string && d.farg.matches('${regelRegex(GRUPPKULOR_FORM)}')))
         && (!('ikon' in d) || (d.ikon is string && d.ikon.size() <= ${MAX_KALENDERIKON} && d.ikon.matches('${idMonster}')))
         && (!('ordning' in d) || d.ordning is number)
         && (!('forvald' in d) || d.forvald is bool)

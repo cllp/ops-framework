@@ -159,6 +159,9 @@ jobs:
       # ⛔ Typografin RITAD (0.136.0, CP 2026-10-21: "tjockt och stort"): ramverkets komponenter mäts i Chromium mot det SessionStudio
       # ritar för samma element. Kräver en byggd `dist` (steget ovan) och kör sina egna röda bevis (`--bevisa`).
       - run: flock -w 3600 /tmp/boxen-tung.lock npm run check:typografimatning
+      # ⛔ Textstorleken RITAD (cllp/lifehub.app#873): Liten, Mellan och Stor skalar rollerna, radhöjden och body, och ett fält är minst
+      # 16 px på en pekskärm i alla tre lägen. Kör sina egna röda bevis (`--bevisa`).
+      - run: flock -w 3600 /tmp/boxen-tung.lock npm run check:textstorlek
 
   # ⛔ PACKNINGEN MÅSTE PROVAS PÅ VARJE PR, INTE FÖRST VID TAGGEN.
   #

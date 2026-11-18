@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_ARSBAND, arsband } from "../lib/arsband.js";
+import { ARV_TON_KULOR } from "../lib/gruppfarg.js";
 
 /* cllp/lifehub.app#874: årsvyns band. Bara heldag och flera dagar blir band, ett per kalender och dag, i listans ordning. */
 
@@ -21,7 +22,7 @@ describe("arsband (#874)", () => {
       val,
     );
     expect([...ut.keys()].sort()).toEqual(["2027-07-05", "2027-07-06", "2027-07-07", "2027-07-10"]);
-    expect(ut.get("2027-07-06")).toEqual([{ id: "barn", namn: "Barnen hos CP", ton: 2 }]);
+    expect(ut.get("2027-07-06")).toEqual([{ id: "barn", namn: "Barnen hos CP", kulor: ARV_TON_KULOR[2] }]);
   });
 
   it("⛔ två kalendrar samma dag står i listans ordning, inte i postordning, och en kalender står en gång", () => {

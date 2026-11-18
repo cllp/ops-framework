@@ -11,9 +11,11 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * `tala(el)` startar skalets omgång med fältet `el` som mål och svarar `true` om den startade. Utanför ett skal (`tam`, gästens sida) och i ett
  * skal utan valen är värdet `null`, och då ritas ingen mikrofon: en knapp utan någon som lyssnar hade varit död. Se `src/lib/talkfalt.js`, punkt 5.
  * `upptagen` (granskningen av PR 605): en omgång pågår, och mikrofonen bär `aria-disabled`.
- * @type {import("react").Context<{ tala: (el: Element) => boolean, upptagen: boolean } | null>}
+ * (CP 2026-11-18) `rostSamtal(vidare)` börjar ett röstsamtal i skalets TALK: vågikonen i agentens chatt ger det sagda till `vidare`
+ * (`vidareISamtal` i `src/lib/talkrost.js`), och svaret läses upp. Samma villkor som `tala`: bara när TALK har valen.
+ * @type {import("react").Context<{ tala: (el: Element) => boolean, upptagen: boolean, rostSamtal?: (vidare: import("../lib/talkrost.js").Talkrost["vidare"]) => boolean } | null>}
  */
-export const TalkfaltKontext = createContext(/** @type {{ tala: (el: Element) => boolean, upptagen: boolean } | null} */ (null));
+export const TalkfaltKontext = createContext(/** @type {{ tala: (el: Element) => boolean, upptagen: boolean, rostSamtal?: (vidare: import("../lib/talkrost.js").Talkrost["vidare"]) => boolean } | null} */ (null));
 
 /**
  * Registrerar ett textfält som ett fält TALK kan skriva i (0.230.0, cllp/ops-framework#602). Se `src/lib/talkfalt.js` för hela flödet.

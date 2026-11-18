@@ -137,6 +137,7 @@ export { OpsBanner } from "./components/OpsBanner.jsx";
 export { OpsToastProvider, useOpsToast } from "./components/OpsToast.jsx";
 export { OpsTooltip } from "./components/OpsTooltip.jsx";
 export { OpsThemeToggle } from "./components/OpsThemeToggle.jsx";
+export { OpsTextstorlek } from "./components/OpsTextstorlek.jsx";
 export { OpsFullscreenToggle } from "./components/OpsFullscreenToggle.jsx";
 export { OpsIconLink } from "./components/OpsIconLink.jsx";
 
@@ -166,6 +167,7 @@ export { OpsUtanMedlemskap } from "./components/OpsUtanMedlemskap.jsx";
 
 // ── Hjälpare ───────────────────────────────────────────────────────────────
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";
+export { getTextstorlek, setTextstorlek, initTextstorlek, TEXTSTORLEKAR, TEXTSKALOR, FORVALD_TEXTSTORLEK } from "./lib/textstorlek.js";
 export { identityTone, initials, IDENTITY_TONE_COUNT } from "./lib/identity.js";
 export { urgency, splitTodayUpcoming, daysBetween, daysUntil, collectEvents } from "./lib/events.js";
 export { dateKey, todayKey, months, monthGrid, perDay, kalenderfonster, isoVecka, datumOmfang, bandIVecka, filtreraPoster, kalenderNyckelForPost, arPostIDoldKalender, delaPosterPaSynlighet, forvaldKalenderId, EGNA_APPEN, appForTyp, apparFor } from "./lib/calendar.js";
@@ -279,7 +281,7 @@ export { mejlregelfragment, EPOSTFORM, epostFel } from "./lib/mejl.js";
  * ⛔ KALENDRARNA (0.36.0, #179 F0): gruppens kalendrar (en katalog på typernas motor), mina kalendrar och posterna i
  * dem. Formerna och tidszonen är rena funktioner, och samlingsnamnen skickar appen in till `kalenderregelfragment`.
  */
-export { KALENDERFARGER, KALENDERIKONER, KALENDERFALT, MINKALENDERFALT, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTTITEL, MAX_POSTBESKRIVNING, MAX_POSTPLATS, STANDARD_TIDSZON, byggGruppkalender, STANDARDKALENDER_ID, STANDARDKALENDER_NAMN, standardGruppkalender, validateGruppkalendrar, forvaldKalender, gruppkalendernyckel, byggMinKalender, validateMinaKalendrar, lasMinKalender, lasMinaKalendrar, lasKalenderpost, kalenderformFel, kalenderformMatning, kalenderformSlutkod, MAX_KALENDERID, MAX_KALENDERIKON, byggKalenderpost, postTillRad, KALENDERPOST_HANDELSEPREFIX, postHandelseId, postIdUrHandelseId, postTillHandelse, kontrolleraTidszon, idagI, ORDNINGSSTEG, kalenderIdUrNamn, nastaOrdning, flyttaKalender, valjForvald, arkiveraKalender, kalenderval } from "./lib/kalendrar.js";
+export { KALENDERFARGER, arGiltigKalenderfarg, KALENDERIKONER, KALENDERFALT, MINKALENDERFALT, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTTITEL, MAX_POSTBESKRIVNING, MAX_POSTPLATS, STANDARD_TIDSZON, byggGruppkalender, STANDARDKALENDER_ID, STANDARDKALENDER_NAMN, standardGruppkalender, validateGruppkalendrar, forvaldKalender, gruppkalendernyckel, byggMinKalender, validateMinaKalendrar, lasMinKalender, lasMinaKalendrar, lasKalenderpost, kalenderformFel, kalenderformMatning, kalenderformSlutkod, MAX_KALENDERID, MAX_KALENDERIKON, byggKalenderpost, postTillRad, KALENDERPOST_HANDELSEPREFIX, postHandelseId, postIdUrHandelseId, postTillHandelse, kontrolleraTidszon, idagI, ORDNINGSSTEG, kalenderIdUrNamn, nastaOrdning, flyttaKalender, valjForvald, arkiveraKalender, kalenderval } from "./lib/kalendrar.js";
 /*
  * ⛔ FLYTTA EN POST ELLER EN HÄNDELSE TILL EN ANNAN KALENDER (0.123.0, cllp/lifehub.app#371). `flyttmal` svarar på vart något får flyttas och
  * `postensTidsfalt` är postens tid som en händelses fält. Själva flytten är serverns (`createFlyttaService` i `ops-framework/node`).

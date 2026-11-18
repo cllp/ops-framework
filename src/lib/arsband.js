@@ -1,5 +1,5 @@
 import { arBand, perDay } from "./calendar.js";
-import { lagerFarg } from "./kalenderlager.js";
+import { kalenderKulor } from "./kalenderfarg.js";
 
 /**
  * Årsvyns band (cllp/lifehub.app#874): vilka kalendrar som har ett band en viss dag, i listans ordning.
@@ -29,11 +29,11 @@ export const UTAN_KALENDER = "";
  * @param {string} val.forvaldId Kalendern en post utan `kalender` hör till.
  *   ⛔ Tom (gruppen har ingen gruppkalender) betyder inte att posten försvinner: den står under id `""` (`UTAN_KALENDER`), sist, precis som
  *   `filtreraPoster` visar den i månadsvyn. Annars visade året "inget" på dagar som har något (regel 5, granskningen av 0.237.0).
- * @returns {Map<string, Array<{ id: string, namn: string, ton: 1|2|3|4|5|6 }>>} Dag (`YYYY-MM-DD`) till kalendrarna med band, först i listan först.
+ * @returns {Map<string, Array<{ id: string, namn: string, kulor: number }>>} Dag (`YYYY-MM-DD`) till kalendrarna med band, först i listan först.
  */
 export function arsband(poster, { kalendrar, forvaldId }) {
   const rader = new Map((kalendrar || []).map((k, i) => [k.id, { k, plats: i }]));
-  /** @type {Map<string, Map<string, { plats: number, id: string, namn: string, ton: 1|2|3|4|5|6 }>>} */
+  /** @type {Map<string, Map<string, { plats: number, id: string, namn: string, kulor: number }>>} */
   const perKalender = new Map();
   for (const e of poster || []) {
     if (!arBand(e)) continue;
@@ -44,11 +44,11 @@ export function arsband(poster, { kalendrar, forvaldId }) {
     for (const dag of perDay([e]).keys()) {
       let dagens = perKalender.get(dag);
       if (!dagens) perKalender.set(dag, (dagens = new Map()));
-      if (!dagens.has(kalla.id)) dagens.set(kalla.id, { plats, id: kalla.id, namn: typeof kalla.namn === "string" ? kalla.namn : kalla.id, ton: lagerFarg(kalla) });
+      if (!dagens.has(kalla.id)) dagens.set(kalla.id, { plats, id: kalla.id, namn: typeof kalla.namn === "string" ? kalla.namn : kalla.id, kulor: kalenderKulor(kalla) });
     }
   }
-  /** @type {Map<string, Array<{ id: string, namn: string, ton: 1|2|3|4|5|6 }>>} */
+  /** @type {Map<string, Array<{ id: string, namn: string, kulor: number }>>} */
   const ut = new Map();
-  for (const [dag, dagens] of perKalender) ut.set(dag, [...dagens.values()].sort((a, b) => a.plats - b.plats).map(({ id, namn, ton }) => ({ id, namn, ton })));
+  for (const [dag, dagens] of perKalender) ut.set(dag, [...dagens.values()].sort((a, b) => a.plats - b.plats).map(({ id, namn, kulor }) => ({ id, namn, kulor })));
   return ut;
 }

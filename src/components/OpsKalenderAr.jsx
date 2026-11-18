@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { dateKey, monthGrid, monthNames, todayKey, weekdayNames } from "../lib/calendar.js";
 import { MAX_ARSBAND, UTAN_KALENDER, arsband } from "../lib/arsband.js";
-import { lagerFarg } from "../lib/kalenderlager.js";
+import { KULORKLASS, kalenderKulor } from "../lib/kalenderfarg.js";
+import { kulorStil } from "../lib/gruppfarg.js";
 import { ORD_HELSKARM } from "../lib/helskarmord.js";
 import { forvalda } from "../lib/ord.js";
 import { cx } from "../lib/cx.js";
@@ -36,8 +37,6 @@ export const ORD_ARSVY = {
   inteInlast: { sv: "Inte inläst", en: "Not loaded" },
   stang: ORD_HELSKARM.avsluta,
 };
-
-const BAND = { 1: "bg-identity-1", 2: "bg-identity-2", 3: "bg-identity-3", 4: "bg-identity-4", 5: "bg-identity-5", 6: "bg-identity-6" };
 
 /**
  * @param {object} props
@@ -103,7 +102,7 @@ export function OpsKalenderAr({ ar, poster, kalendrar, forvaldId, arSynlig, onVa
         <ul aria-label={o.kalendrar} className="order-last m-0 flex w-full list-none flex-wrap gap-1.5 p-0 md:order-none md:ml-auto md:w-auto">
           {kalendrar.map((k) => {
             const pa = arSynlig(k.id);
-            const ton = lagerFarg(/** @type {any} */ (k));
+            const kulor = kalenderKulor(/** @type {any} */ (k));
             const etikett = typeof k.namn === "string" ? k.namn : k.id;
             return (
               <li key={k.id}>
@@ -115,7 +114,7 @@ export function OpsKalenderAr({ ar, poster, kalendrar, forvaldId, arSynlig, onVa
                   onClick={() => onVaxla?.(k.id)}
                   className={cx("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-meta", pa ? "border-line text-ink" : "border-transparent text-ink-muted line-through")}
                 >
-                  <span aria-hidden="true" className={cx("h-1.5 w-4 rounded-full", BAND[ton], pa ? "" : "opacity-40")} />
+                  <span aria-hidden="true" data-arsvy-kulor={kulor} className={cx("h-1.5 w-4 rounded-full", KULORKLASS.prick, pa ? "" : "opacity-40")} style={kulorStil(kulor)} />
                   {etikett}
                 </button>
               </li>
@@ -153,7 +152,7 @@ export function OpsKalenderAr({ ar, poster, kalendrar, forvaldId, arSynlig, onVa
                     if (dag === null) return <span key={`t${i}`} />;
                     const nyckel = dateKey(ar, month, dag);
                     const alla = band.get(nyckel) ?? [];
-                    /** @type {Array<{ id: string, ton: 1|2|3|4|5|6 } | null>} */
+                    /** @type {Array<{ id: string, kulor: number } | null>} */
                     const rader = fastaRader ? fastaRader.map((id) => alla.find((k) => k.id === id) ?? null) : alla.slice(0, MAX_ARSBAND);
                     const efter = alla.length - rader.filter(Boolean).length;
                     const etikett = `${dag} ${namn[month]}${alla.length ? `: ${alla.map(namnPa).join(", ")}` : `, ${o.inget}`}`;
@@ -161,7 +160,7 @@ export function OpsKalenderAr({ ar, poster, kalendrar, forvaldId, arSynlig, onVa
                       <button key={nyckel} type="button" aria-label={etikett} data-arsvy-dag={nyckel} onClick={() => onValjDag(nyckel)} className={cx("flex min-h-8 flex-col items-stretch gap-px rounded px-px pt-0.5 text-center hover:bg-surface-2", nyckel === idag && "ring-1 ring-accent")}>
                         <span className="text-hjalp leading-none text-ink-secondary">{dag}</span>
                         {rader.map((k, r) => (
-                          <span key={k ? k.id : `tom${r}`} aria-hidden="true" data-arsvy-band={k ? k.id : undefined} className={cx("h-1 rounded-full", k ? BAND[k.ton] : "")} />
+                          <span key={k ? k.id : `tom${r}`} aria-hidden="true" data-arsvy-band={k ? k.id : undefined} data-arsvy-kulor={k ? k.kulor : undefined} className={cx("h-1 rounded-full", k ? KULORKLASS.prick : "")} style={k ? kulorStil(k.kulor) : undefined} />
                         ))}
                         {efter > 0 ? <span aria-hidden="true" data-arsvy-fler="" className="text-hjalp leading-none text-ink-muted">{o.fler.replace("{n}", String(efter))}</span> : null}
                       </button>

@@ -68,6 +68,10 @@ export function synligaLager(lista, dolda) {
 
 /**
  * Lagrets ton, 1 till 6. En giltig `farg` vinner. Annat (saknad, 0, 7, en kulörsträng) räknas ur id.
+ *
+ * ⛔ SEDAN 0.238.0 (cllp/lifehub.app#882) LÄSER RAMVERKET INTE DEN HÄR: kalendrarna väljer kulör (`kulor:<grader>`), och en kulör är ingen ton.
+ * Ramverkets ytor ritar med `kalenderKulor` (`lib/kalenderfarg.js`), som läser både kulören och tonerna. Funktionen står kvar för en app som
+ * fortfarande läser den, och ger för en kalender med kulör tonen ur id, alltså inte kalenderns färg.
  * @param {Kalenderlager | null | undefined} lager
  * @returns {1|2|3|4|5|6}
  */

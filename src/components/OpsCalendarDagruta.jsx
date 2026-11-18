@@ -3,7 +3,8 @@ import { forvalda } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { arPreliminar, markorlayout } from "../lib/calendar.js";
-import { postklasser, prickklass } from "../lib/kalenderfarg.js";
+import { KULORKLASS, postklasser, prickklass, prickstil } from "../lib/kalenderfarg.js";
+import { kulorStil } from "../lib/gruppfarg.js";
 import { MAX_KALENDERRAMAR, ramarEfterText } from "../lib/kalenderramar.js";
 import { BortaIkon, LagerIkon } from "./icons.jsx";
 
@@ -173,11 +174,11 @@ function DagrutaRitad({ day, dayKey, entries, markerade, spann, enkla, isToday, 
           plats är desamma med och utan lager: en `border-2` på rutan hade flyttat siffran och prickarna en pixel. På en dag
           som varit tonas ramen med rutan (förebild 7: ramen den 23 september är blekare än den 7 oktober). Ingen ram på den valda rutan, som SS (`!picked && layerBorderColor`). Från 640 px som SS webb (`MonthGrid.jsx:421`):
           2 px innanför kanten (`inset-0.5`), rundning 8 och 70 procents täckning. */}
-      {ramar.length > 0 && !vald ? <span aria-hidden="true" data-dagram={ramar[0]} className={cx("pointer-events-none absolute -inset-px z-1 rounded-base border-2 sm:inset-0.5 sm:rounded-sm sm:opacity-70", DAGRAM[ramar[0]])} /> : null}
+      {ramar.length > 0 && !vald ? <span aria-hidden="true" data-dagram={ramar[0].varde} className={cx("pointer-events-none absolute -inset-px z-1 rounded-base border-2 sm:inset-0.5 sm:rounded-sm sm:opacity-70", ramar[0].klass)} style={ramar[0].stil} /> : null}
       {/* ⛔ DEN ANDRA RAMEN LIGGER INUTI DEN FÖRSTA (0.151.0, CP 2026-10-28), en pixel luft emellan så att båda syns som egna linjer: `inset` 3 px längre in än den yttre. Under 640 px är dess linje 1 px och
           från 640 px 2 px som den yttre. Mätt (`scripts/kalenderramar-matt.mjs`, pixel för pixel mot en bild utan ramar): med 2 px och 1 px luft under 640 px gick den inre ramens rundade hörn över "1" i "12" vid 320 px
           (3 pixlar bläck), eftersom rutan är 41 px bred där och siffran börjar där paddingen slutar. Inre rundning = yttre minus avståndet. Utan ramar i rutan, eller med bara en, ritas den inte, och rutan ser ut exakt som förut. */}
-      {ramar.length > 1 && !vald ? <span aria-hidden="true" data-dagram-inre={ramar[1]} className={cx("pointer-events-none absolute inset-0.5 z-1 rounded-[calc(var(--radius-base)-3px)] border sm:inset-[5px] sm:border-2 sm:rounded-[calc(var(--radius-sm)-3px)] sm:opacity-70", DAGRAM[ramar[1]])} /> : null}
+      {ramar.length > 1 && !vald ? <span aria-hidden="true" data-dagram-inre={ramar[1].varde} className={cx("pointer-events-none absolute inset-0.5 z-1 rounded-[calc(var(--radius-base)-3px)] border sm:inset-[5px] sm:border-2 sm:rounded-[calc(var(--radius-sm)-3px)] sm:opacity-70", ramar[1].klass)} style={ramar[1].stil} /> : null}
       <Dagnummer day={day} isToday={isToday} vald={vald}>
         {borta > 0 || lager > 0 || narvaro ? <Indikatorrad borta={borta} lager={lager} lagerText={lagerText} narvaro={narvaro} vald={vald} /> : null}
       </Dagnummer>
@@ -261,7 +262,10 @@ export const Dagruta = memo(DagrutaRitad, samma);
  * @typedef {object} Dagdekor
  * @property {1|2|3|4|5|6} [ton] En ton ur identitetspaletten som bakgrund på rutan (SS lagrets `tint`).
  * @property {1|2|3|4|5|6} [ram] (0.61.0) En ram på 2 px i identitetspalettens färg runt rutan (SS lagrets `borderColor`). Appens egen: den vinner över `ramar`.
- * @property {ReadonlyArray<1|2|3|4|5|6>} [ramar] (0.151.0) Kalendrarnas ramar, ytterst först, högst två (`MAX_KALENDERRAMAR`): den andra ritas inuti den första. `OpsCalendar` sätter dem ur kalendrarnas visning (Ram eller Båda).
+ * @property {ReadonlyArray<1|2|3|4|5|6>} [ramar] (0.151.0) Ramar ur identitetspaletten, ytterst först, högst två (`MAX_KALENDERRAMAR`): den andra ritas inuti den första. En app får skicka dem.
+ * @property {ReadonlyArray<number>} [kalenderramar] (0.238.0, cllp/lifehub.app#882) Kalendrarnas ramar som KULÖRER i grader (`kalenderKulor`), ytterst först, högst två. `OpsCalendar`
+ *   sätter dem ur kalendrarnas visning (Ram eller Båda); till 0.237.0 satte den `ramar` med kalenderns ton. ⛔ Ett eget fält och inte `ramar`, eftersom en app kan skicka `ramar` med
+ *   toner, och en ton och en kulör är olika tal: `ramar: [2]` är tonen 2, inte kulören 2 grader. Ordningen: `ram`, sedan `kalenderramar`, sedan `ramar`.
  * @property {number} [ramarEfter] (0.151.0) Så många kalendrar med ram som inte får plats (de ritas högst två): lagerbrickan visar "+N". Sätts av `OpsCalendar`, ur samma underlag som `ramar`; appen skickar den inte.
  * @property {{ antal: number }} [borta] (0.61.0) Så många är borta eller upptagna den dagen (`bortaAntal`). Brickan med
  *   `UserX` i hörnet, räknaren från 2, och "N borta" i knappens namn. 0 eller utelämnad ritar ingenting.
@@ -302,16 +306,20 @@ export function aterstallHornmarkenVarning() {
   lagerKrockVarnad = false;
 }
 
+/** @typedef {{ varde: number, klass: string, stil: import("react").CSSProperties | undefined }} Ritram */
+
 /**
- * Ramarna en ruta ritar: appens egen `ram` (en, som förut), annars kalendrarnas `ramar`, högst två.
- * @param {Dagdekor | undefined} dekor @returns {ReadonlyArray<1|2|3|4|5|6>}
+ * Ramarna en ruta ritar: appens egen `ram` (en, som förut, en identitetston), annars kalendrarnas `kalenderramar` (kulörer, 0.238.0), annars `ramar` (toner), högst två.
+ * `varde` är det som står i `data-dagram`: tonen för en ram ur identitetspaletten, kulören i grader för en kalenders.
+ * @param {Dagdekor | undefined} dekor @returns {ReadonlyArray<Ritram>}
  */
 function ramarAv(dekor) {
   if (!dekor) return TOMMA_RAMAR;
-  if (dekor.ram) return [dekor.ram];
-  return dekor.ramar && dekor.ramar.length > 0 ? dekor.ramar.slice(0, MAX_KALENDERRAMAR) : TOMMA_RAMAR;
+  if (dekor.ram) return [{ varde: dekor.ram, klass: DAGRAM[dekor.ram], stil: undefined }];
+  if (dekor.kalenderramar && dekor.kalenderramar.length > 0) return dekor.kalenderramar.slice(0, MAX_KALENDERRAMAR).map((k) => ({ varde: k, klass: KULORKLASS.ring, stil: kulorStil(k) }));
+  return dekor.ramar && dekor.ramar.length > 0 ? dekor.ramar.slice(0, MAX_KALENDERRAMAR).map((t) => ({ varde: t, klass: DAGRAM[t], stil: undefined })) : TOMMA_RAMAR;
 }
-/** @type {ReadonlyArray<1|2|3|4|5|6>} */
+/** @type {ReadonlyArray<Ritram>} */
 const TOMMA_RAMAR = Object.freeze([]);
 
 /** @param {string} text */
@@ -414,12 +422,12 @@ function Markorrad({ spann, enkla, vald }) {
   const farg = (/** @type {import("../lib/calendar.js").CalendarEntry} */ p) => prickklass(p, vald);
   // ⛔ EN PRELIMINÄR POST (0.127.0, "Datum ej satt") ÄR EN IHÅLIG PRICK: en ring i postens färg. Ett streck på 6 px rymmer ingen streckad kant, så på telefon bär
   // ringen det som kanten bär i pillret och kortet. `data-preliminar` finns för mätningen i en riktig webbläsare (`check-skalyta`).
-  const prick = (/** @type {import("../lib/calendar.js").CalendarEntry} */ p) => <span key={p.id} data-prick={p.id} {...(arPreliminar(p) ? { "data-preliminar": "" } : {})} className={cx("size-1.5 shrink-0 rounded-full", farg(p))} />;
+  const prick = (/** @type {import("../lib/calendar.js").CalendarEntry} */ p) => <span key={p.id} data-prick={p.id} {...(arPreliminar(p) ? { "data-preliminar": "" } : {})} className={cx("size-1.5 shrink-0 rounded-full", farg(p))} style={prickstil(p, vald)} />;
   return (
     <span aria-hidden="true" data-kalender-marken="" className="mt-0.75 flex h-4 flex-col items-center gap-0.5 sm:hidden">
       <span className="flex min-h-1.75 items-center justify-center gap-0.75">
         {streck.map((p) => (
-          <span key={p.id} data-streck={p.id} className={cx("h-1 w-2.5 shrink-0 rounded-full", farg(p))} />
+          <span key={p.id} data-streck={p.id} className={cx("h-1 w-2.5 shrink-0 rounded-full", farg(p))} style={prickstil(p, vald)} />
         ))}
         {ovre.map(prick)}
       </span>
@@ -446,6 +454,7 @@ function Pillerrad({ markerade, vald }) {
       {markerade.slice(0, PILLER).map((p) => (
         <span
           key={p.id}
+          style={prickstil(p, vald)}
           {...(arPreliminar(p) ? { "data-preliminar": "" } : {})}
           className={cx(
             "block min-w-0 truncate rounded-md pr-1 pl-1 text-liten",

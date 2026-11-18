@@ -9,6 +9,42 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.238.0
+
+Tre saker från natten mot 2026-11-18, alla i lifehub.app: TALK pratar tillbaka (#870 skiva 4), textstorlek per person (#873) och en färgväljare överallt (#882). Inget brytande.
+
+### Tillagt
+
+- **TALK pratar tillbaka** (CP 2026-11-18: vågikon i TALK-fältets översta rad och bredvid agentchattens skrivfält, och en högtalarknapp). Löser appens `onAgent`, eller samtalets `onText`, till en `Talkrost` (`{ svar, vidare }`), står fältet kvar i läget röst. Det väntar på svaret, läser upp det med webbläsarens `speechSynthesis` och lyssnar igen. Det som sägs går till `vidare` när det blivit tyst, utan meny. Samtalet slutar på Klar, på en avslutande fras (klar, tack, det var allt), när inget hörs och efter åtta varv. Varje slut som personen inte valde säger varför, och svaret står alltid i chatten.
+  - Vågikonen medan man pratar gör det sagda till den första frågan och lämnar det direkt till `onAgent`. I agentens chatt (`samtal.slag === "agent"`) börjar ikonen ett röstsamtal i samma samtal, med `vidareISamtal` och `samtalssvar` i `src/lib/talkrost.js` (exporterade).
+  - Högtalarknappen slår av uppläsningen, och valet sparas per enhet under `ops.talk.upplasning`. Saknas uppläsningen eller faller den, fortsätter samtalet som text med en rad om varför.
+  - Textfältens mikrofon, mittknappens flöde och bottenraden är oförändrade.
+- **Textstorlek: Liten, Mellan och Stor** (`OpsTextstorlek`, en `OpsSegmented`). Rollerna räknas som `calc(<storlek> * var(--textskala))`, och radhöjderna i rem på samma sätt. `<html data-textstorlek>` byter faktorn (0,9, 1 och 1,15, i `src/lib/textstorlek.js`). Ett fält är minst 16 px på en pekskärm i alla tre lägen. Valet minns per enhet som temat, och `users.textstorlek` bär det per person: `byggAnvandare`, `sparaInstallningar` och reglerna (också `kontoAgerPersonen`) släpper in fältet. `initTextstorlek` och `setTextstorlek` är exporterade.
+- **En färgväljare överallt** (CP 2026-11-18: "Kan vi ha en colorpicker som vi använder överallt" och "Överallt där vi har color pocket"). `OpsFargval` får `slag`:
+  - `fri`: Hubbens färger, oförändrat.
+  - `kulor`: grupp, profil och kalender. Bara kulören, tolv förslag, förhandsvisning i ljust och mörkt, och återställning.
+  - `palett`: kategorierna, med slagpalettens platser.
+  - `OpsGruppmarkeValjare` använder kulörläget. Kalendrarna väljer kulör (`kulor:<0-359>`) och ritas med märkets ljushet och mättnad (`.ops-kulor-*`). De sex äldre tonerna läses och sparas vidare (`ARV_TON_KULOR`). `byggMinKalender`, `byggGruppkalender`, `kalenderformFel` och `opsMinKalenderGiltig` tar emot formen. `GRUPPKULOR_FORM` bär nu den övre gränsen, och regeln läser samma mönster.
+
+### Ändrat
+
+- Kategorierna behåller palettplatserna. Kontrasten håller med kulör, men platserna ska gå att skilja åt utan ord (delta E 15).
+
+### Rättat
+
+- Granskningen av TALK skiva 4: när svaret dröjde över taket på 90 s gav fältet upp, men `samtalssvar` höll prenumerationen öppen så länge sidan levde. `svar()` får nu en `AbortSignal` som fältet avbryter när väntan är över, och `samtalssvar` stänger på den. Två röda prov utan rättningen, gröna med.
+
+### Vakt
+
+- `check-textstorlek` mäter i Chromium: röd mot förra versionens tokens (114 brott), grön med ändringen (87 mätningar), med fyra röda bevis. Montaget `scripts/textstorlek-montage.mjs` mäter 0 nya klipp eller radbrytningar vid Stor, och Mellan är oförändrat.
+- `check-gruppfarg` mäter kalenderbandets text mot tonen, med två röda prov. Montaget `scripts/fargval-montage.mjs` ger 152 mätningar och 0 fel (bilder i `docs/jamforelser/fargval-882`). TALK-montaget `scripts/talk-rost-montage.mjs` ger 22 mätningar och 0 fel (`docs/jamforelser/talk-rost-870`).
+
+### Uppgradera i appen
+
+- Regler före klient: `users.textstorlek` och kalenderns `kulor:`-form står i regelfragmenten. Kör `check-regelfragment --skriv`, deploya reglerna och först därefter klienten.
+- Lägg `OpsTextstorlek` där appen har temat, och kör `initTextstorlek` vid start.
+- Låt `onAgent` ge `{ svar, vidare }` (via `samtalssvar` och `vidareISamtal`) för att TALK ska kunna samtala.
+
 ## 0.237.1
 
 **Årsvyn hämtas först när den öppnas.** I 0.237.0 importerade `OpsCalendar` årsvyn (`OpsKalenderAr` och `arsband`) direkt, så den hamnade i appens startfil. lifehub.app:s `check:jsstorlek` mätte 3 119 byte gzip över taket vid ompinningen, mätt med källkartor: 5 378 byte okomprimerat från `OpsKalenderAr` och 586 från `arsband`.

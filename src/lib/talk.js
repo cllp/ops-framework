@@ -49,6 +49,7 @@ export const ORD_TALKKNAPP = {
   sparar: { sv: "TALK, sparar", en: "TALK, saving" },
   sparat: { sv: "TALK, sparat", en: "TALK, saved" },
   hort: { sv: "TALK, välj vad som ska hända", en: "TALK, choose what happens" },
+  rost: { sv: "TALK, agenten svarar", en: "TALK, the agent answers" },
 };
 
 /**
@@ -134,6 +135,24 @@ export const ORD_TALK = {
   ingetTal: { sv: "Inget tal hördes i inspelningen, bara tystnad. Ingenting skickades. Tryck på Spela in igen och prata närmare mikrofonen.", en: "No speech was heard in the recording, only silence. Nothing was sent. Press Record again and speak closer to the microphone." },
   ingetLjud: { sv: "Mikrofonen gav inget ljud, och inget hördes som text. Ingenting skickades. Tryck på Spela in igen och prata en gång till.", en: "The microphone gave no audio, and nothing was heard as text. Nothing was sent. Press Record again and speak once more." },
   textFel: { sv: "Texten kan inte visas just nu. Det du säger spelas in ändå och sparas som ljud.", en: "The text can't be shown right now. What you say is still recorded and saved as audio." },
+  // ⛔ TALK PRATAR TILLBAKA (lifehub.app#870 skiva 4, `src/lib/talkrost.js`). Väntan syns (skills/interaktionsdesign avsnitt 7), och varje
+  // slut på samtalet säger varför, lugnt och med att svaret står i chatten: uppläsningen är ett tillägg till texten, aldrig i stället för den.
+  rostVantar: { sv: "Väntar på svaret…", en: "Waiting for the answer…" },
+  rostLaser: { sv: "Läser upp…", en: "Reading aloud…" },
+  rostLyssnar: { sv: "Lyssnar… Säg klar när du är klar.", en: "Listening… Say done when you are done." },
+  rostStoppa: { sv: "Stoppa uppläsningen", en: "Stop reading" },
+  rostKlarNamn: { sv: "Klar, avsluta samtalet", en: "Done, end the conversation" },
+  rostUtanUpplasning: { sv: "Svaret kan inte läsas upp här, så det visas som text.", en: "The answer can't be read aloud here, so it is shown as text." },
+  rostSvarDrojer: { sv: "Svaret dröjer. Det kommer som text i chatten.", en: "The answer is taking a while. It will come as text in the chat." },
+  rostKundeInteLasas: { sv: "Svaret gick inte att läsa upp, så det visas som text.", en: "The answer could not be read aloud, so it is shown as text." },
+  rostSvarSaknas: { sv: "Svaret kunde inte hämtas hit. Det står i chatten när det kommer.", en: "The answer could not be fetched here. It will be in the chat when it comes." },
+  // (CP 2026-11-18) Vågikonen och högtalarknappen.
+  rostSamtal: { sv: "Samtal med agenten", en: "Conversation with the agent" },
+  rostSamtalTips: { sv: "Samtal med agenten: svaret läses upp, och du kan svara direkt", en: "Conversation with the agent: the answer is read aloud, and you can reply right away" },
+  rostUpplasning: { sv: "Läs upp svaren", en: "Read the answers aloud" },
+  rostSvaret: { sv: "Svaret", en: "The answer" },
+  rostIngetHordes: { sv: "Inget mer hördes, så samtalet är avslutat. Tryck på mikrofonen för att fortsätta.", en: "Nothing more was heard, so the conversation has ended. Press the microphone to continue." },
+  rostTak: { sv: "Samtalet pausas här. Tryck på mikrofonen för att fortsätta.", en: "The conversation pauses here. Press the microphone to continue." },
 };
 
 /**
@@ -152,7 +171,8 @@ export function talkOrd(nyckel, sprak, varden) {
  * @property {boolean} direkt `true`: tråden står öppen, och Klar lämnar det sagda hit utan meny. `false`: appen minns ett nyligt samtal, och
  *   valet "Fortsätt med {namn}" står först i menyn.
  * @property {string} [etikett] Raden medan man pratar i direktläget. Förval "Till {namn}".
- * @property {(text: string) => void | Promise<void>} onText Mottagaren av det sagda.
+ * @property {(text: string) => void | import("./talkrost.js").Talkrost | Promise<void | import("./talkrost.js").Talkrost>} onText Mottagaren av det sagda.
+ *   (lifehub.app#870 skiva 4) Löser den till en `Talkrost` läser fältet upp svaret och lyssnar igen, som för `onAgent`.
  */
 
 /**
@@ -212,7 +232,7 @@ export const TALK_PRATA_IN = ORD_TALKKNAPP.prataIn.sv;
  * @returns {string}
  */
 export function talkKnappNamn(lage, sprak = "sv") {
-  const nyckel = lage === "haller" || lage === "lyssnar" ? "lyssnar" : lage === "skickar" ? "sparar" : lage === "sparat" ? "sparat" : lage === "hort" ? "hort" : "prataIn";
+  const nyckel = lage === "haller" || lage === "lyssnar" ? "lyssnar" : lage === "skickar" ? "sparar" : lage === "sparat" ? "sparat" : lage === "hort" ? "hort" : lage === "rost" ? "rost" : "prataIn";
   return ordet(ORD_TALKKNAPP, nyckel, sprak);
 }
 
@@ -394,7 +414,7 @@ export function talkForifyllt(text, tak = TALK_RUBRIK_MAX) {
 export const MAX_SEKUNDER = 120;
 
 /**
- * @typedef {"vila" | "trycker" | "haller" | "lyssnar" | "skickar" | "hort" | "sparat" | "fel"} Talklage
+ * @typedef {"vila" | "trycker" | "haller" | "lyssnar" | "skickar" | "hort" | "rost" | "sparat" | "fel"} Talklage
  * - `vila`: inget pågår.
  * - `trycker`: fingret är nere men långtrycket har inte inträffat. Ett släpp här är ett vanligt klick.
  * - `haller`: långtrycket har inträffat och inspelningen pågår medan fingret ligger kvar. Knappen visar TALK.
@@ -405,11 +425,14 @@ export const MAX_SEKUNDER = 120;
  *   ingen text hördes: valen står då ändå, med statusen "Skriver ut…" om appen gav `tillText`, och ett val väntar på texten.
  * - `sparat`: appen tog emot ljudet. Fältet säger Sparat en kort stund, sedan vila. Med ett kvitto (0.97.0) står kvittot kvar
  *   med Ångra och Stäng tills personen stänger det, och efter en lyckad Ångra står "Ångrat" en kort stund.
+ * - `rost` (lifehub.app#870 skiva 4): agenten har fått det sagda och appen gav ett svar att läsa upp (`Talkrost`, `src/lib/talkrost.js`).
+ *   Fältet väntar på svaret och läser upp det, och mikrofonen lyssnar sedan igen (`direkt`). Klar och Avbryt avslutar (`avbryt`), och ett
+ *   besked (svaret dröjer, uppläsningen saknas) står som ett kvitto (`rostSlut`).
  * - `fel`: mikrofonen gick inte att öppna, eller appen svarade med ett fel. Fältet säger varför.
  */
 
 /**
- * @typedef {{ typ: "ner" } | { typ: "direkt" } | { typ: "langtryck" } | { typ: "upp" } | { typ: "skicka" } | { typ: "igen" } | { typ: "avbryt" } | { typ: "klar" } | { typ: "dolj" } | { typ: "fel", text: string } | { typ: "tak" } | { typ: "hort" } | { typ: "agent" } | { typ: "agentFel", text: string } | { typ: "anteckning" } | { typ: "anteckningFel", text: string } | { typ: "samtalet" } | { typ: "samtaletFel", text: string } | { typ: "lamnat" }} Talkhandelse
+ * @typedef {{ typ: "ner" } | { typ: "direkt" } | { typ: "langtryck" } | { typ: "upp" } | { typ: "skicka" } | { typ: "igen" } | { typ: "avbryt" } | { typ: "klar" } | { typ: "dolj" } | { typ: "fel", text: string } | { typ: "tak" } | { typ: "hort" } | { typ: "agent" } | { typ: "agentFel", text: string } | { typ: "anteckning" } | { typ: "anteckningFel", text: string } | { typ: "samtalet" } | { typ: "samtaletFel", text: string } | { typ: "lamnat" } | { typ: "rost" } | { typ: "rostSlut" }} Talkhandelse
  */
 
 /**
@@ -454,6 +477,8 @@ export function talkNasta(nu, h) {
       return bli("haller");
     case "lyssnar":
       if (h.typ === "skicka" || h.typ === "tak") return bli("skickar", "skicka");
+      // ⛔ (lifehub.app#870 skiva 4) Ett varv i samtalet där inget hördes: mikrofonen stängs och beskedet står som kvitto.
+      if (h.typ === "rostSlut") return bli("sparat", "kasta");
       if (h.typ === "avbryt") return bli("vila", "kasta");
       if (h.typ === "fel") return bli("fel", "kasta", h.text);
       return bli("lyssnar");
@@ -463,6 +488,9 @@ export function talkNasta(nu, h) {
       if (h.typ === "hort") return bli("hort");
       // Agenten tog emot det sagda och appen tog över (chatten öppnades): fältet har inget mer att visa.
       if (h.typ === "lamnat") return bli("vila", "kasta");
+      // ⛔ (lifehub.app#870 skiva 4) Agenten fick det sagda och appen gav ett svar att läsa upp: fältet står kvar och pratar tillbaka.
+      if (h.typ === "rost") return bli("rost");
+      if (h.typ === "rostSlut") return bli("sparat");
       if (h.typ === "agentFel" || h.typ === "anteckningFel" || h.typ === "samtaletFel") return bli("hort", null, h.text);
       if (h.typ === "fel") return bli("fel", null, h.text);
       return bli("skickar");
@@ -476,6 +504,12 @@ export function talkNasta(nu, h) {
       if (h.typ === "ner") return bli("trycker");
       if (h.typ === "fel") return bli("fel", null, h.text);
       return bli("hort", null, nu.fel);
+    case "rost":
+      // Nästa varv: mikrofonen lyssnar igen när uppläsningen är slut, eller när personen stoppade den för att prata.
+      if (h.typ === "direkt") return bli("lyssnar", "starta");
+      if (h.typ === "avbryt") return bli("vila", "kasta");
+      if (h.typ === "rostSlut") return bli("sparat");
+      return bli("rost");
     case "sparat":
       if (h.typ === "dolj" || h.typ === "avbryt") return bli("vila");
       // Bekräftelsen låser inte nästa inspelning. Ett nytt tryck på mikrofonen får börja direkt.

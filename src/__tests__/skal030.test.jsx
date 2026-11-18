@@ -387,7 +387,8 @@ describe("D: typografin på ETT ställe (#173)", () => {
     const roller = Object.keys(fixtur.typografi.roller).filter((n) => !n.startsWith("_"));
     expect(roller.sort()).toEqual(["brod", "etikett", "hjalp", "liten", "meta", "mikro", "raknare", "rubrik", "sektion", "sida", "titel"]);
     for (const r of roller) {
-      expect(css).toContain(`--text-${r}: ${fixtur.typografi.roller[r].storlek};`);
+      // cllp/lifehub.app#873: storleken räknas med textstorleken, och talet inuti är fortfarande fixturens.
+      expect(css).toContain(`--text-${r}: calc(${fixtur.typografi.roller[r].storlek} * var(--textskala));`);
       expect(css).toContain(`--text-${r}--font-weight: ${fixtur.typografi.roller[r].vikt};`);
     }
     expect(css).toContain("--leading-tight: 1.25;");
