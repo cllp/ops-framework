@@ -15,7 +15,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ### Ändrat
 
-- `OpsGruppmarkeValjare` ritar färgväljaren genom `OpsFargvalLat`, som hämtar `OpsFargval` med en dynamisk import när väljaren ritas. Medan biten hämtas står en ruta i fältets form med en snurra och "Hämtar färgväljaren" (`aria-busy`), och går den inte att hämta står en mening i stället (`LatGrans`).
+- `OpsGruppmarkeValjare` ritar färgväljaren genom `OpsFargvalLat`, som hämtar `OpsFargval` med en dynamisk import när väljaren ritas. Medan biten hämtas står en ruta i fältets form med ramverkets väntan (`OpsVantar`) och "Hämtar färgväljaren" (`aria-busy`), och går den inte att hämta står en mening i stället (`LatGrans`).
 
 ### Tillagt
 

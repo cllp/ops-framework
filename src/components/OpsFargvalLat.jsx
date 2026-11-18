@@ -1,6 +1,6 @@
 import { Suspense, lazy } from "react";
 import { LatGrans } from "./LatGrans.jsx";
-import { OpsSpinner } from "./OpsSpinner.jsx";
+import { OpsVantar } from "./OpsVantar.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { ordet } from "../lib/ord.js";
 import { faltTriggerKlass } from "../lib/radKlass.js";
@@ -21,7 +21,7 @@ import { faltTriggerKlass } from "../lib/radKlass.js";
  *
  * ══ ⛔ VÄNTAN SYNS, OCH FÄLTET HOPPAR INTE ════════════════════════════════════
  *
- * Medan biten hämtas står en ruta i fältets form med en snurra och orden "Hämtar färgväljaren" (`aria-busy`), inte ett tomrum som fylls en stund senare
+ * Medan biten hämtas står en ruta i fältets form med ramverkets väntan (`OpsVantar`) och orden "Hämtar färgväljaren" (`aria-busy`), inte ett tomrum som fylls en stund senare
  * (interaktionsdesignens avsnitt 7). Går biten inte att hämta står en mening i stället (`LatGrans`), aldrig ett tyst tomt fält.
  *
  * Samma props som `OpsFargval`.
@@ -48,10 +48,9 @@ export function OpsFargvalLat(props) {
     >
       <Suspense
         fallback={
-          <span role="status" aria-busy="true" data-fargval-hamtar="" className={`${faltTriggerKlass()} flex items-center gap-2 text-ink-secondary`}>
-            <OpsSpinner size="sm" decorative />
-            {t("hamtar")}
-          </span>
+          <div aria-busy="true" data-fargval-hamtar="" className={`${faltTriggerKlass()} flex items-center text-meta text-ink-secondary`}>
+            <OpsVantar storlek="sm" text={t("hamtar")} />
+          </div>
         }
       >
         <Fargval {...props} />
