@@ -9,6 +9,24 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.238.2
+
+**Färgväljaren lämnar appens startfil** (cllp/lifehub.app#883). 0.238.0 gav gruppens kulör ramverkets enda färgväljare, och `OpsGruppmarkeValjare` importerade `OpsFargval` statiskt. Väljaren följer med `OpsGruppFormular` och `OpsProfil` in i startfilen, och med den reglagen, paletten, omfångsräkningen och kontrastparen. Mätt vid lifehub.app:s ompinning till 0.238.1, 2026-11-18: `check:jsstorlek` röd med 14 419 byte gzip över taket. Källkartor mot ett bygge av appens main (minifierade byte i App-biten): `OpsFargval` +11 158, `palett.js` +5 958, `palettomfang.js` +4 854, `kontrastpar.js` +3 432. Före 0.238.0 låg samma kod bara i Hubbens färger, som redan är en egen bit.
+
+### Ändrat
+
+- `OpsGruppmarkeValjare` ritar färgväljaren genom `OpsFargvalLat`, som hämtar `OpsFargval` med en dynamisk import när väljaren ritas. Medan biten hämtas står en ruta i fältets form med ramverkets väntan (`OpsVantar`) och "Hämtar färgväljaren" (`aria-busy`), och går den inte att hämta står en mening i stället (`LatGrans`).
+
+### Tillagt
+
+- `OpsFargvalLat` och `ORD_OPSFARGVAL_LAT` ur `ops-framework`, för en app som ritar färgväljaren i en vy som hör till startfilen.
+
+### Vakt
+
+- `check:delbarhet`: `OpsFargval` och `hallbarLjushet` ligger i en egen bit, inte i den som `OpsGruppmarkeValjare` ger startfilen.
+- `fargval-lat.test.jsx` mäter beteendet: att importera `OpsGruppmarkeValjare` utvärderar inte `OpsFargval.jsx`, och när väljaren ritas syns väntan och sedan färgväljaren. Rött med den statiska importen (2 fel), grönt med den lata.
+- Mätt i lifehub.app med det här bygget: från 14 419 till 5 565 byte gzip över taket. Resten är TALK:s röstslinga från 0.238.0 (`OpsTalk` +7 057, `talkrost.js` +4 137 och `talk.js` +1 937 minifierade byte) och textstorleken, som appen redovisar i sitt tak.
+
 ## 0.238.1
 
 **Röstsamtalets byggstenar finns i huvudingången** (cllp/lifehub.app#870, skiva 4). 0.238.0 bad appen låta `onAgent` ge en `Talkrost` byggd med `samtalssvar` och `vidareISamtal`, men ingen av dem exporterades. Mätt vid lifehub.app:s ompinning 2026-11-18: appen kunde inte importera dem, och den enda andra vägen hade varit en egen kopia av logiken (regel 2).

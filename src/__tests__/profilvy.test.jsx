@@ -186,10 +186,10 @@ describe("OpsProfil", () => {
      * direkt vid tryck; nu tolv kulörer, reglaget för alla 360 och ikonkatalogen, i utkastet och med Spara. Rött mot 0.217.0 (sex
      * prickar, inget reglage, ingen sökning), grönt efter.
      */
-    it("⛔ #786: tolv kulörer, reglaget och ikonsökningen, utan förslag ur namnet och utan egna initialer", () => {
+    it("⛔ #786: tolv kulörer, reglaget och ikonsökningen, utan förslag ur namnet och utan egna initialer", async () => {
       render(<OpsProfil anvandare={ANV} onSpara={() => {}} />);
       // ⛔ Färgen väljs i ramverkets färgväljare i kulörläge (0.238.0, cllp/lifehub.app#882): fältet öppnar rutan med snabbvalen och reglaget.
-      fireEvent.click(screen.getByRole("button", { name: "Färg" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Färg" }));
       const kulorer = screen.getByRole("group", { name: "Förslag" });
       expect(within(kulorer).getAllByRole("button")).toHaveLength(12);
       expect(screen.getByRole("slider", { name: "Kulör" })).toBeTruthy();
@@ -227,7 +227,7 @@ describe("OpsProfil", () => {
     it("⛔ #786, utan falt: ett färgval sparas DIREKT och rör inte ikon eller bild, som förut", async () => {
       const onSpara = vi.fn(async () => {});
       render(<OpsProfil anvandare={{ ...ANV, ikon: "krona" }} onSpara={onSpara} />);
-      fireEvent.click(screen.getByRole("button", { name: "Färg" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Färg" }));
       fireEvent.click(screen.getByRole("button", { name: "Hallon" }));
       await waitFor(() => expect(onSpara).toHaveBeenCalledWith({ farg: "kulor:15" }));
     });
@@ -235,7 +235,7 @@ describe("OpsProfil", () => {
     it("⛔ #786: en kulör står i utkastet och skickas som kulor:N med Spara, och rör inte ikon eller bild", async () => {
       const onSpara = vi.fn(async () => {});
       render(<OpsProfil anvandare={{ ...ANV, ikon: "krona" }} onSpara={onSpara} falt={["ikon", "farg", "bild"]} />);
-      fireEvent.click(screen.getByRole("button", { name: "Färg" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Färg" }));
       fireEvent.click(screen.getByRole("button", { name: "Hallon" }));
       expect(onSpara).not.toHaveBeenCalled();
       fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
@@ -1018,7 +1018,7 @@ describe("OpsProfil: ett nej från onSpara (#786, punkt 1)", () => {
       throw avslag("resource-exhausted", "tak");
     });
     render(<OpsProfil anvandare={ANV} onSpara={onSpara} sparaFelText="Vänta en minut." />);
-    fireEvent.click(screen.getByRole("button", { name: "Färg" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Färg" }));
     fireEvent.click(screen.getByRole("button", { name: "Hallon" }));
     expect((await screen.findByRole("alert")).textContent).toBe("Vänta en minut.");
   });

@@ -95,7 +95,7 @@ describe("⛔ visuell identitet: förhandsvisning, färg, ikon, initialer", () =
     await user.type(screen.getByLabelText(/Gruppnamn/), "Kören");
     await user.click(screen.getByRole("button", { name: /Färg och ikon/ }));
     // ⛔ Färgen väljs i ramverkets färgväljare i kulörläge (0.238.0, cllp/lifehub.app#882): fältet öppnar rutan med snabbvalen.
-    await user.click(screen.getByRole("button", { name: "Färg" }));
+    await user.click(await screen.findByRole("button", { name: "Färg" }));
     await user.click(screen.getByRole("button", { name: "Petrol" }));
     expect(marke()).toHaveClass("ops-gruppmarke");
     expect(marke()).toHaveAttribute("data-grupp-kulor", "195");
@@ -111,7 +111,7 @@ describe("⛔ visuell identitet: förhandsvisning, färg, ikon, initialer", () =
     rita();
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /Färg och ikon/ }));
-    await user.click(screen.getByRole("button", { name: "Färg" }));
+    await user.click(await screen.findByRole("button", { name: "Färg" }));
     expect(document.querySelector('input[type="color"]')).toBeNull();
     expect(document.querySelectorAll("[data-kulorvaljare] [data-kulor]").length).toBeGreaterThanOrEqual(12);
     expect(screen.getByRole("slider", { name: "Kulör" })).toBeInTheDocument();
@@ -166,7 +166,7 @@ describe("⛔ visuell identitet: förhandsvisning, färg, ikon, initialer", () =
     rita();
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /Färg och ikon/ }));
-    await user.click(screen.getByRole("button", { name: "Färg" }));
+    await user.click(await screen.findByRole("button", { name: "Färg" }));
     await user.click(screen.getByRole("button", { name: "Turkos" }));
     expect(screen.getByRole("slider", { name: "Kulör" })).toHaveAttribute("aria-valuetext", "225 grader, Turkos");
   });
