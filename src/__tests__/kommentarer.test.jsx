@@ -170,7 +170,7 @@ describe("OpsKommentarsrad och panelens slot", () => {
     render(<OpsKommentarsrad titel="Höstfest" olasta={1} namn="" text="Hej" href="?handelse=h1" />);
     const lank = screen.getByRole("link", { name: /Höstfest/ });
     expect(lank).toHaveAttribute("href", "?handelse=h1");
-    expect(lank).toHaveTextContent("1 ny kommentar · Namn saknas: Hej");
+    expect(lank).toHaveTextContent("1 ny kommentar · Okänd person: Hej");
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(() => render(<OpsKommentarsrad titel="X" olasta={1} namn="" text="" />)).toThrow(/href eller onOppna/);
     spy.mockRestore();

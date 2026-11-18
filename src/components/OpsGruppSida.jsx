@@ -52,6 +52,8 @@ import { AgentIkon, AndraIkon, MeddelandeIkon, PersonIkon, PlatsIkon } from "./i
  * @param {{ tillbaka?: string, redigera?: string, redigeraGrupp?: string, medlemmar?: string, inga?: string, agare?: string, admin?: string, ort?: string, ai?: string, avstangd?: string, agentPa?: string, agentPaHjalp?: string, skrivTill?: string, agenter?: string, online?: string }} [props.etiketter]
  * @param {import("react").ReactNode} [props.fore] (0.114.0) Ritas efter snabbvalen och FÖRE medlemslistan, så att appen kan visa gruppens läge överst.
  *   `children` ligger kvar under medlemmarna som förut. Utelämnad: ingenting ritas, och sidan är som förut.
+ * @param {boolean} [props.namnLaddas] (0.240.0) Sant medan appen hämtar namn eller adresser till medlemmarna. En rad som ännu saknar båda säger då
+ *   "Hämtar namn …" i stället för reserven. CP 2026-11-18: "Namn Saknas skall aldrig finnas inte ens under progress."
  * @param {ReadonlySet<string>} [props.online] (0.114.0) Vilka medlemmar (userId) som är online. Med den får varje online-medlem en grön
  *   prick på avataren med `aria-label` "<namn> online", och listan sorteras online först, sedan ägare, admin, medlem, och inom varje
  *   grupp på namn. ⛔ Utan propen är ordningen och utseendet som förut: ordningen ur `medlemmar`, ingen prick. En tom mängd är ett svar
@@ -65,7 +67,7 @@ import { AgentIkon, AndraIkon, MeddelandeIkon, PersonIkon, PlatsIkon } from "./i
  *   står kvar efter sektionen, för det som inte är medlemmar.
  * @param {import("react").ReactNode} [props.children] Appens egna sektioner under medlemmarna.
  */
-export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [], onTillbaka, onRedigera, onVisaMedlem, onVaxlaAgent, onSkrivTillAgent, agenterHref, onNavigate, sprak, etiketter, fore, online, medlemsAtgarder, medlemsknapp, underMedlemmar, children }) {
+export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [], onTillbaka, onRedigera, onVisaMedlem, onVaxlaAgent, onSkrivTillAgent, agenterHref, onNavigate, sprak, etiketter, fore, online, namnLaddas = false, medlemsAtgarder, medlemsknapp, underMedlemmar, children }) {
   const personnamn = usePersonnamn();
   if (!grupp || typeof grupp.id !== "string" || !grupp.id) {
     throw new Error("OpsGruppSida: grupp krävs, med id och namn. En detaljsida utan grupp är en tom sida.");
@@ -87,7 +89,7 @@ export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [
   const ROLLORDNING = { agare: 0, admin: 1, medlem: 2 };
   const medlemsrader = online
     ? medlemmar
-        .map((m) => ({ m, visat: personnamn(m.namn, m.id, m.epost).text, ar: online.has(m.id) }))
+        .map((m) => ({ m, visat: personnamn(m.namn, m.id, m.epost, namnLaddas).text, ar: online.has(m.id) }))
         .sort((a, b) => Number(b.ar) - Number(a.ar) || (ROLLORDNING[a.m.roll] ?? 2) - (ROLLORDNING[b.m.roll] ?? 2) || a.visat.localeCompare(b.visat, "sv"))
         .map((x) => x.m)
     : medlemmar;
@@ -157,8 +159,9 @@ export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [
         ) : (
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {medlemsrader.map((m) => {
-              // ⛔ ALDRIG ETT ID SOM NAMN (#218): medlemskapets namn, den inloggades eget, annars adressen (0.234.0, lifehub.app#861), annars "Namn saknas".
-              const { text: visat, saknas } = personnamn(m.namn, m.id, m.epost);
+              // ⛔ ALDRIG ETT ID SOM NAMN (#218): medlemskapets namn, den inloggades eget, annars adressen (0.234.0, lifehub.app#861), "Hämtar namn …" medan
+              // appen hämtar (`namnLaddas`, 0.240.0), annars "Okänd person". Aldrig "Namn saknas" (CP 2026-11-18).
+              const { text: visat, saknas, laddar } = personnamn(m.namn, m.id, m.epost, namnLaddas);
               const rad = (
                 <>
                   {online ? (
@@ -172,7 +175,7 @@ export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [
                     <OpsIdentity name={visat} seed={m.id} imageUrl={m.bild || undefined} size="medlem" />
                   )}
                   <span className="min-w-0 flex-1">
-                    <span className="text-etikett text-ink" data-namn-saknas={saknas ? "" : undefined}>{visat}</span>
+                    <span className={cx("text-etikett", laddar ? "text-ink-muted" : "text-ink")} data-namn-saknas={saknas && !laddar ? "" : undefined} data-namn-laddas={laddar ? "" : undefined}>{visat}</span>
                     {m.roll === "agare" || m.roll === "admin" ? (
                       <span className="ml-2 text-liten uppercase tracking-wide text-ink-muted">{m.roll === "agare" ? t.agare : t.admin}</span>
                     ) : null}

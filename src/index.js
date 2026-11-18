@@ -274,7 +274,7 @@ export { GRUPPIKON_SVENSKA, gruppikonEtikett } from "./lib/gruppikonnamn.js";
 export { GRUPPIKONKATALOG } from "./lib/gruppikonkatalog.generated.js";
 export { sokGruppikoner, forslagUrGruppnamn, VANLIGA_GRUPPIKONER } from "./lib/gruppikonsok.js";
 export { medlemsinfo } from "./lib/gruppmedlemmar.js";
-export { personnamn, NAMN_SAKNAS } from "./lib/personnamn.js";
+export { personnamn, NAMN_SAKNAS, NAMN_LADDAS, NAMN_RESERV } from "./lib/personnamn.js";
 export { OpsGruppSida } from "./components/OpsGruppSida.jsx";
 export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, konfigloggregelfragment, samtalsregelfragment, kalenderregelfragment, kalendervalsregelfragment, handelseregelfragment, bibliotekregelfragment, versionsregelfragment, platsregelfragment, minnesregelfragment, modulinstallningsregelfragment, beskrivenappdataregelfragment, beskrivningsregelfragment, delningsregelfragment, gastregelfragment } from "./lib/regler.js";
 /*

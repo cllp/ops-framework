@@ -1,3 +1,4 @@
+import { cx } from "../lib/cx.js";
 import { useState } from "react";
 import { normaliseraGastepost } from "../lib/gast.js";
 import { ROLLER } from "../lib/grupp.js";
@@ -38,6 +39,7 @@ import { usePersonnamn } from "./usePersonnamn.js";
  *
  * @param {object} props
  * @param {{ medlemskap: import("../lib/grupp.js").Medlemskap, namn?: string, epost?: string }[]} props.medlemmar
+ * @param {boolean} [props.namnLaddas] (0.240.0) Sant medan appen hämtar namn eller adresser: en rad utan båda säger då "Hämtar namn …".
  *   ⛔ `namn` och `epost` är VALFRIA och behövs inte längre: medlemskapet bär
  *   själv `namn` och `bild` sedan #138, och `epost` sedan 0.234.0
  *   (cllp/lifehub.app#861). Fälten står kvar för den som redan har uppgifterna
@@ -80,6 +82,7 @@ export function OpsMedlemmar({
   medlemmar,
   inbjudningar = [],
   migUid,
+  namnLaddas = false,
   kanAndra = false,
   onBjudIn,
   onAndraRoll,
@@ -192,10 +195,11 @@ export function OpsMedlemmar({
              * bredvid ett namn som finns.
              *
              * ⛔ UID:T VISAS ALDRIG (#218, CP 2026-10-01: "Bra om användarnamnet
-             * inte är Guid"). Sista utvägen, när varken namn eller adress finns,
-             * är "Namn saknas", märkt med `data-namn-saknas`.
+             * inte är Guid"). Medan appen hämtar namnen (`namnLaddas`) står
+             * "Hämtar namn …". Sista utvägen, när varken namn eller adress finns,
+             * är "Okänd person" (0.240.0, förut "Namn saknas"), märkt med `data-namn-saknas`.
              */
-            const { text: visningsnamn, saknas } = personnamn(medlemskap.namn || namn, medlemskap.userId, medlemskap.epost || medlemsEpost);
+            const { text: visningsnamn, saknas, laddar } = personnamn(medlemskap.namn || namn, medlemskap.userId, medlemskap.epost || medlemsEpost, namnLaddas);
             /*
              * ⛔ EN AGENT HAR INGEN ROLL ATT ÄNDRA OCH INGEN TA BORT (lifehub.app#47). Den stängs av av ägaren
              * (`createAgentService`), och ett borttaget medlemskap hade kommit tillbaka med nästa engångssteg.
@@ -204,7 +208,7 @@ export function OpsMedlemmar({
             return (
               <OpsListRow key={medlemskap.id}>
                 <OpsIdentity name={visningsnamn} seed={medlemskap.userId} imageUrl={medlemskap.bild || undefined} size="sm" />
-                <span className="min-w-0 flex-1 truncate text-ink" data-namn-saknas={saknas ? "" : undefined}>
+                <span className={cx("min-w-0 flex-1 truncate", laddar ? "text-ink-muted" : "text-ink")} data-namn-saknas={saknas && !laddar ? "" : undefined} data-namn-laddas={laddar ? "" : undefined}>
                   {visningsnamn}
                 </span>
                 {jag ? <OpsPill tone="neutral">{duEtikett}</OpsPill> : null}

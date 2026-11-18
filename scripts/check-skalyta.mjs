@@ -2318,8 +2318,9 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
 // ══ 9c. HUBBEN PER GRUPP OCH MODULENS INSIDA (0.37.0, #184) ════════════════════
 // CP 2026-09-30: "Ekonomi är EN modul. Inte massa moduler med komponenter." Hubben visar den aktiva gruppens moduler och inget
 // annat, och en modul har en egen insida med sin egen navigation. Mått vid 390 och 1280:
-//   (a) en grupp med Ekonomi: EN ruta, en länk till /ekonomi med namnet och ingen infolinje, inga delar och inget som fälls ut
-//       på sidan (0.239.0, rutorna; före det ett kort med chevron, 0.83.0), minst 44 px hög och bred, klick navigerar;
+//   (a) en grupp med Ekonomi: EN ruta, en länk till /ekonomi med namnet och ingen infolinje och inga delar på rutan (0.239.0,
+//       rutorna; före det ett kort med chevron, 0.83.0), minst 44 px hög och bred, klick navigerar; (i) är det enda som fälls ut
+//       (0.240.0): panelen hamnar under rutan i rutnätets hela bredd, rutan får en ring, och Escape stänger med fokus tillbaka;
 //       på dator listar toppradens rullgardin bara modulen (inga chevronrader, inga delar).
 //   (b) en grupp utan moduler: rubriken och en rad med gruppens namn, inga kort, ingen tom yta.
 //   (c) en grupp med en modul appen inte registrerat: kortet för Ekonomi OCH en synlig rad som säger vilken som inte visas.
@@ -2349,8 +2350,39 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
         // ⛔ 0.239.0: rutan är ikonen och namnet. Infolinjen ritas inte på sidan (appen skickar den ändå, scenen också).
         krav(k.href === "/ekonomi" && k.text === "Ekonomi", `Hubben per grupp ${namn} (a): rutan ${JSON.stringify(k)}, väntat bara namnet Ekonomi och länken /ekonomi.`);
         krav(k.h >= 44 && k.w >= 44, `Hubben per grupp ${namn} (a): rutan är ${k.w} x ${k.h} px, under tumkravet 44.`);
+        // ⛔ 0.240.0: (i) FÄLLER UT EN PANEL UNDER RADEN (CP 2026-11-18). Det enda som fälls ut är (i)-knappen, en per ruta, och den är stängd
+        // när sidan öppnas. Före 0.240.0 stod här "väntat inga": rutorna fälldes inte ut alls.
         const utfallbara = await page.locator("main [aria-expanded]").count();
-        krav(utfallbara === 0, `Hubben per grupp ${namn} (a): ${utfallbara} element med aria-expanded på sidan Verktyg, väntat inga (rutorna fälls inte ut).`);
+        const info = page.locator('main [data-verktyg-info="ekonomi"]');
+        krav(utfallbara === 1 && (await info.count()) === 1 && (await info.getAttribute("aria-expanded")) === "false", `Hubben per grupp ${namn} (a): ${utfallbara} element med aria-expanded på sidan Verktyg, väntat bara (i) för Ekonomi, stängd.`);
+        if ((await info.count()) === 1) {
+          const ib = await info.boundingBox();
+          krav(Boolean(ib) && /** @type {any} */ (ib).width >= 44 && /** @type {any} */ (ib).height >= 44, `Hubben per grupp ${namn} (a): (i) är ${JSON.stringify(ib)}, under tumkravet 44.`);
+          await info.click();
+          const panel = page.locator('main [data-verktygspanel="ekonomi"]');
+          const p = await panel.evaluate((li) => {
+            const ul = /** @type {HTMLElement} */ (li.parentElement);
+            const ruta = /** @type {HTMLElement} */ (ul.querySelector('[data-verktyg="ekonomi"]'));
+            const platta = ruta.querySelector("a > span");
+            const r = li.getBoundingClientRect();
+            return {
+              under: Math.round(r.top - ruta.getBoundingClientRect().bottom),
+              bredd: Math.round(r.width),
+              listbredd: Math.round(ul.getBoundingClientRect().width),
+              oppna: [...li.querySelectorAll("a")].some((a) => (a.textContent || "").trim() === "Öppna Ekonomi"),
+              ring: platta ? getComputedStyle(platta).boxShadow !== "none" : false,
+            };
+          });
+          matt.push(`Hubben per grupp ${namn} (a, i): ${JSON.stringify(p)}`);
+          krav(p.under >= 0 && Math.abs(p.bredd - p.listbredd) <= 1 && p.oppna && p.ring, `Hubben per grupp ${namn} (a, i): panelen ${JSON.stringify(p)}, väntat under rutan, i rutnätets hela bredd, med Öppna Ekonomi, och en ring runt den öppna rutans platta.`);
+          krav((await info.getAttribute("aria-expanded")) === "true", `Hubben per grupp ${namn} (a, i): (i) säger inte att panelen är öppen.`);
+          krav((await over(page)) <= 0, `Hubben per grupp ${namn} (a, i): sidan flödar ${await over(page)} px i sidled med panelen öppen.`);
+          if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `grupphubb-info-${vp.width}.png`) });
+          await page.keyboard.press("Escape");
+          const stangd = (await panel.count()) === 0;
+          const fokus = await page.evaluate(() => document.activeElement?.getAttribute("data-verktyg-info"));
+          krav(stangd && fokus === "ekonomi", `Hubben per grupp ${namn} (a, i): Escape stängde ${stangd ? "panelen" : "inte panelen"}, fokus på ${JSON.stringify(fokus)}, väntat (i) för Ekonomi.`);
+        }
         krav(!(await page.locator("main").innerText()).includes("Inkomster"), `Hubben per grupp ${namn} (a): en del av Ekonomi står i hubben.`);
         await kort.click();
         const gick = await page.evaluate(() => window.__gick);
