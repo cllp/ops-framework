@@ -1,11 +1,12 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsSpinner } from "./OpsSpinner.jsx";
-import { ChevronNedIkon, HubIkon, PlusIkon } from "./icons.jsx";
+import { ChevronNedIkon, HubIkon, InfoIkon, KryssIkon, PlusIkon } from "./icons.jsx";
+import { knappKlass } from "./OpsButton.jsx";
 import { useLofteVantan } from "../lib/useLofteVantan.js";
 import { OpsView, OpsViewHeader } from "./OpsView.jsx";
 import { radKlass } from "../lib/radKlass.js";
@@ -107,7 +108,7 @@ export function OpsHub({
   return ram ? <OpsView>{innehall}</OpsView> : innehall;
 }
 
-/** @type {Record<"sv"|"en", { rubrik: string, tomRubrik: string, tomText: (namn: string, medVag: boolean) => string, valbara: string, ingaValbara: string, installera: string, agarenInstallerar: string, tillaggRubrik: string, synsPa: string, synsPaEgenYta: string, synsPaIngenting: string, ingaRitbara: string, ingaRitbaraText: string, saknadRubrik: string, interegistrerad: (id: string) => string, ingetKort: (id: string) => string, moduler: (namn: string) => string }>} */
+/** @type {Record<"sv"|"en", { rubrik: string, tomRubrik: string, tomText: (namn: string, medVag: boolean) => string, valbara: string, ingaValbara: string, installera: string, agarenInstallerar: string, tillaggRubrik: string, synsPa: string, synsPaEgenYta: string, synsPaIngenting: string, ingaRitbara: string, ingaRitbaraText: string, saknadRubrik: string, interegistrerad: (id: string) => string, ingetKort: (id: string) => string, moduler: (namn: string) => string, om: (namn: string) => string, oppna: (namn: string) => string, stang: string, delar: string, ingetNytt: string, delarText: string }>} */
 const GRUPPHUBB_TEXT = {
   sv: {
     tomRubrik: "Gruppen har inga verktyg ännu",
@@ -129,6 +130,12 @@ const GRUPPHUBB_TEXT = {
     interegistrerad: (id) => `Verktyget "${id}" visas inte: det finns inte här.`,
     ingetKort: (id) => `Verktyget "${id}" visas inte: det har inget kort under Verktyg (hubb: null).`,
     moduler: (namn) => `Verktyg i ${namn}`,
+    om: (namn) => `Om ${namn}`,
+    oppna: (namn) => `Öppna ${namn}`,
+    stang: "Stäng",
+    delar: "Delar",
+    ingetNytt: "Inget nytt",
+    delarText: "Delar",
   },
   en: {
     tomRubrik: "The group has no tools yet",
@@ -150,6 +157,12 @@ const GRUPPHUBB_TEXT = {
     interegistrerad: (id) => `The tool "${id}" is not shown: it does not exist here.`,
     ingetKort: (id) => `The tool "${id}" is not shown: it has no card under Tools (hubb: null).`,
     moduler: (namn) => `Tools in ${namn}`,
+    om: (namn) => `About ${namn}`,
+    oppna: (namn) => `Open ${namn}`,
+    stang: "Close",
+    delar: "Parts",
+    ingetNytt: "Nothing new",
+    delarText: "Parts",
   },
 };
 
@@ -179,10 +192,32 @@ function tillaggText(m, t, sprak) {
  * förut) i stället för en knapp "Installera" per rad.
  *
  * Före 0.239.0 var varje installerat verktyg ett kort med en chevron som fällde ut delarna, en infolinje och räknaren (0.83.0, CP
- * 2026-10-08: "Varje app/modul borde kunna expanderas med chevron"). Det beslutet gäller inte längre på den här sidan: delarna nås inne
- * i verktyget (`OpsModulSida`), och sidan svarar bara på frågan "vilka verktyg finns, och vilka kan jag lägga till". Ett tryck på en
- * ruta öppnar verktyget, och ingenting fälls ut. Räknaren står kvar som ett litet märke på plattan, så att det man behöver se inte
- * försvinner. `OpsHub` (appens egen lista) har kvar korten och chevronen.
+ * 2026-10-08: "Varje app/modul borde kunna expanderas med chevron"). 0.239.0 tog bort både infolinjen och delarna, och då försvann
+ * till exempel raden "2 obetalda kundfakturor, nästa förfaller ..." ur appen helt. `OpsHub` (appens egen lista) har kvar korten.
+ *
+ * ══ ⛔ (i) FÄLLER UT EN PANEL ÖVER HELA RADEN (0.240.0, CP 2026-11-18) ══════════════════════════════════════════════════════════
+ *
+ * CP: "man skall kunna expandera ett verktyg för att läsa mer om verktyget ... Kanske en (i) eller info som visar status på grejer i
+ * projektet. Eller om det kan finnas ett snyggt sätt att fälla ut ett kort så att det blir stort och brett över andra kort och fälla in
+ * det igen." Och om förslaget nedan: "Perfekt".
+ *
+ * - Ett tryck på RUTAN öppnar verktyget, som förut. Ett tryck på (i) i rutans övre vänstra hörn fäller ut en panel i full bredd direkt
+ *   under raden rutan står på: läget (`info`, "Inget nytt" när appen skickar `null`), delarna som länkar, och "Öppna <verktyg>".
+ * - En panel åt gången. Den stängs med (i) igen, med Stäng i panelen eller med Escape, och fokus går då tillbaka till (i).
+ * - ⛔ PANELEN SKJUTER NED RADERNA UNDER, DEN LÄGGER SIG INTE OVANPÅ. En panel ovanpå hade dolt de andra verktygen, varit svår att
+ *   stänga på telefonen och svår att läsa för en skärmläsare. Det var invändningen till CP, och skälet till mönstret: en utfällbar rad.
+ * - ⛔ HUR PANELEN HAMNAR UNDER RADEN UTAN ATT VI RÄKNAR KOLUMNER: panelen står i DOM direkt efter sin ruta och spänner hela
+ *   bredden (`col-span-full`), och rutnätet packas `grid-flow-row-dense`. Rutorna efter panelen fyller då hålet till höger om den
+ *   öppnade rutan, och panelen hamnar på raden under, vid 3, 4, 5 eller 6 kolumner. Ingen mätning i JS och ingen kolumnräkning som
+ *   kan glida isär från CSS:en.
+ * - (i) är en egen knapp bredvid länken, aldrig inuti den: en knapp i en länk är två mål i ett, och ett tryck skulle göra båda.
+ *   Träffytan är 44 px (rutan är 44 px hög som minst), ikonen 16 px.
+ * - ⛔ RUTAN FÖRBLIR EN RUND RING NÄR DEN ÄR UTFÄLLD. CP om första skärmbilden: "Men ekonomi skall ju också vara en rund ring tills
+ *   man fäller ut den eller hur?" Den öppna rutan fick en ljus rektangel bakom sig, och rutnätet slutade se ut som ringar. Nu
+ *   markeras den öppna med en ring i accentfärgen runt plattan, och inget annat ändras på rutan.
+ * - ⛔ DE SOM KAN LÄGGAS TILL HAR OCKSÅ (i). CP samma gång: "de som inte är installerade vill man kunna veta mer om innan man
+ *   installerar". Panelen säger vad verktyget är (manifestets `beskrivning`), vilka delar det har och var det syns, och har knappen
+ *   "Lägg till <verktyg>" med samma väg och samma väntan som rutan. En panel åt gången över båda rutnäten.
  *
  * ⛔ RAMVERKETS TOKENS, INGA EGNA FÄRGER. Plattan är `bg-surface` med `border-line` och `shadow-sm`, den streckade är platt med
  * `border-dashed` i `ink-muted` till hälften, dämpad ikon och dämpad text. Mätt i en skärmbild vid 390 px i ljust tema: med
@@ -190,39 +225,57 @@ function tillaggText(m, t, sprak) {
  * Namnet är rollen `meta` med `font-medium` (skillen interaktionsdesign, avsnitt 5: en etikett på en flik). Rutan är minst 44 px hög (plattan är 56 px), och den som trycker träffar hela rutan, inte bara plattan.
  */
 const RUTNAT = "m-0 grid list-none grid-cols-3 gap-x-1 gap-y-3 p-0 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6";
+/** De installerades rutnät packas tätt, så att en utfälld panel (`col-span-full`) hamnar på raden under sin ruta. Se ovan. */
+const RUTNAT_TATT = `${RUTNAT} grid-flow-row-dense`;
+/** Den öppna rutans markering: en ring runt den runda plattan, aldrig en ruta bakom den (CP 2026-11-18). */
+const OPPEN_RING = "ring-2 ring-accent ring-offset-2 ring-offset-canvas";
 const RUTA =
   "flex h-full min-h-11 w-full flex-col items-center gap-2 rounded-card px-0.5 py-2 text-center transition-colors duration-(--duration-fast) ease-standard";
 const PLATTA = "relative flex size-14 shrink-0 items-center justify-center rounded-full [&_svg]:size-6";
 const RUTNAMN = "line-clamp-2 w-full break-words hyphens-auto text-meta font-medium";
 
 /**
- * De installerade verktygen som rutor: en länk per verktyg, till verktygets startsida (0.239.0).
+ * De installerade verktygen som rutor: en länk per verktyg, till verktygets startsida (0.239.0), och en (i) som fäller ut en panel
+ * med läget och delarna (0.240.0). Se blocket ovan.
  *
- * ⛔ RUTAN ÄR EN LÄNK OCH INGET ANNAT. Ingen knapp i den och ingen utfällning: trycket öppnar verktyget, precis som kortets länk
- * gjorde före 0.239.0. Länkens namn är verktygets namn och räknarens skärmläsartext ("Ekonomi 3 nya"), eftersom plattan är dold
- * för skärmläsaren och märket bär sin egen text.
+ * ⛔ RUTAN ÄR EN LÄNK. (i) står bredvid den, inte i den. Länkens namn är verktygets namn och räknarens skärmläsartext ("Ekonomi 3
+ * nya"), eftersom plattan är dold för skärmläsaren och märket bär sin egen text.
  *
  * @param {object} props
- * @param {ReadonlyArray<{ id: string, href: string, label: string, icon?: import("react").ReactNode, badge?: number }>} props.poster
+ * @param {ReadonlyArray<VerktygPost>} props.poster
  * @param {string} props.activeHref
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {string} props.ariaLabel
  * @param {string} props.badgeText
+ * @param {"sv"|"en"} props.sprak
+ * @param {(typeof GRUPPHUBB_TEXT)["sv"]} props.t
+ * @param {string | null} props.oppen Nyckeln för den öppna panelen, delad med de streckade rutorna: en panel åt gången på sidan.
+ * @param {(nyckel: string | null) => void} props.setOppen
  */
-function VerktygRutor({ poster, activeHref, onNavigate, ariaLabel, badgeText }) {
+function VerktygRutor({ poster, activeHref, onNavigate, ariaLabel, badgeText, sprak, t, oppen, setOppen }) {
+  const basId = useId();
+  /** @type {import("react").MutableRefObject<Record<string, HTMLButtonElement | null>>} */
+  const knappar = useRef({});
+  /** @param {string} href */
+  const stang = (href) => {
+    setOppen(null);
+    knappar.current[href]?.focus();
+  };
   return (
-    <ul aria-label={ariaLabel} data-verktygsrutor="" className={RUTNAT}>
-      {poster.map((m) => {
+    <ul aria-label={ariaLabel} data-verktygsrutor="" className={RUTNAT_TATT}>
+      {poster.flatMap((m, i) => {
         const aktiv = m.href === activeHref;
-        return (
-          <li key={m.href} data-verktyg={m.id} className="min-w-0">
+        const ar = oppen === `v:${m.href}`;
+        const panelId = `${basId}-panel-${i}`;
+        const ruta = (
+          <li key={m.href} data-verktyg={m.id} className="relative min-w-0">
             <a
               href={m.href}
               onClick={(e) => onNavigate?.(m.href, e)}
               aria-current={aktiv ? "page" : undefined}
               className={cx(RUTA, "relative text-ink hover:bg-surface", KORT_FOKUS, aktiv && "ring-2 ring-accent")}
             >
-              <span aria-hidden="true" className={cx(PLATTA, "border border-line bg-surface text-ink shadow-sm")}>
+              <span aria-hidden="true" className={cx(PLATTA, "border border-line bg-surface text-ink shadow-sm", ar && OPPEN_RING)}>
                 {m.icon ?? <HubIkon size={24} />}
               </span>
               <span className={RUTNAMN}>{m.label}</span>
@@ -235,10 +288,128 @@ function VerktygRutor({ poster, activeHref, onNavigate, ariaLabel, badgeText }) 
                 </span>
               ) : null}
             </a>
+            {/* ⛔ ÖVRE VÄNSTRA HÖRNET: märket sitter på plattans övre högra hörn, och (i) ska inte skymma det. */}
+            <button
+              type="button"
+              ref={(el) => {
+                knappar.current[m.href] = el;
+              }}
+              data-verktyg-info={m.id}
+              aria-label={t.om(m.label)}
+              aria-expanded={ar}
+              aria-controls={ar ? panelId : undefined}
+              onClick={() => setOppen(ar ? null : `v:${m.href}`)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && ar) {
+                  e.preventDefault();
+                  setOppen(null);
+                }
+              }}
+              className={cx(
+                "absolute top-0 left-0 flex size-11 items-center justify-center rounded-full",
+                KORT_FOKUS,
+                ar ? "text-accent" : "text-ink-muted hover:text-ink",
+              )}
+            >
+              <InfoIkon size={16} />
+            </button>
           </li>
         );
+        if (!ar) return [ruta];
+        return [ruta, <VerktygPanel key={`${m.href}#panel`} id={panelId} post={m} sprak={sprak} t={t} onNavigate={onNavigate} onStang={() => stang(m.href)} />];
       })}
     </ul>
+  );
+}
+
+/**
+ * @typedef {object} VerktygPost
+ * @property {string} id
+ * @property {string} href
+ * @property {string} label
+ * @property {import("react").ReactNode} [icon]
+ * @property {number} [badge]
+ * @property {string | { sv: string, en?: string } | null} [info]
+ * @property {ReadonlyArray<{ href: string, label: string, icon?: import("react").ReactNode }>} [children]
+ * @property {import("../lib/sprak.js").Namn | null} [beskrivning]
+ */
+
+/**
+ * Den utfällda panelen under en ruta (0.240.0): läget, delarna och "Öppna <verktyg>". Spänner hela raden (`col-span-full`).
+ *
+ * ⛔ LÄGET ÄR APPENS `info`, SAMMA KARTA SOM FÖRUT. `null` är ett svar och ritas som "Inget nytt" (regel 5); saknas nyckeln
+ * (`undefined`) har verktyget ingen lägesrad, och då står ingen rad.
+ *
+ * @param {object} props
+ * @param {string} props.id
+ * @param {VerktygPost} props.post
+ * @param {"sv"|"en"} props.sprak
+ * @param {(typeof GRUPPHUBB_TEXT)["sv"]} props.t
+ * @param {(href: string, event: any) => void} [props.onNavigate]
+ * @param {() => void} props.onStang
+ */
+function VerktygPanel({ id, post, sprak, t, onNavigate, onStang }) {
+  const rubrikId = `${id}-rubrik`;
+  const beskrivning = post.beskrivning ? text(post.beskrivning, sprak) : "";
+  const lage = post.info === undefined ? null : post.info === null ? t.ingetNytt : text(post.info, sprak);
+  const delar = post.children ?? [];
+  return (
+    <li className="col-span-full min-w-0" data-verktygspanel={post.id}>
+      <section
+        id={id}
+        aria-labelledby={rubrikId}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onStang();
+          }
+        }}
+        className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-sm"
+      >
+        <div className="flex min-h-11 items-center gap-2.5">
+          {post.icon ? (
+            <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-5">
+              {post.icon}
+            </span>
+          ) : null}
+          <h3 id={rubrikId} className="m-0 min-w-0 flex-1 truncate text-etikett font-medium text-ink">
+            {post.label}
+          </h3>
+          <button type="button" onClick={onStang} aria-label={t.stang} className={knappKlass({ variant: "ghost", iconOnly: true })}>
+            <KryssIkon size={16} />
+          </button>
+        </div>
+        {beskrivning ? <p data-verktyg-beskrivning="" className="m-0 max-w-prose text-etikett text-ink-secondary">{beskrivning}</p> : null}
+        {lage !== null ? (
+          <p data-verktyg-lage="" className={cx("m-0 text-etikett", post.info === null ? "text-ink-secondary" : "text-ink")}>
+            {lage}
+          </p>
+        ) : null}
+        {delar.length > 0 ? (
+          <nav aria-label={`${t.delar}: ${post.label}`}>
+            <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
+              {delar.map((d) => (
+                <li key={d.href}>
+                  <a href={d.href} onClick={(e) => onNavigate?.(d.href, e)} className={knappKlass({ variant: "secondary", size: "sm" })}>
+                    {d.icon ? (
+                      <span aria-hidden="true" className="flex items-center [&_svg]:size-4">
+                        {d.icon}
+                      </span>
+                    ) : null}
+                    {d.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ) : null}
+        <div>
+          <a href={post.href} onClick={(e) => onNavigate?.(post.href, e)} className={knappKlass({ variant: "primary", size: "sm" })}>
+            {t.oppna(post.label)}
+          </a>
+        </div>
+      </section>
+    </li>
   );
 }
 
@@ -269,17 +440,27 @@ function VerktygRutor({ poster, activeHref, onNavigate, ariaLabel, badgeText }) 
  * @param {{ href?: string, onClick?: (id?: string) => void | Promise<unknown>, onInstallera?: (id: string) => void | Promise<unknown>, etikett?: string } | undefined} props.installera
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {boolean} [props.visaAgarRad] Sant när rutorna står bredvid redan installerade verktyg och den som tittar inte får installera.
+ * @param {string | null} props.oppen Nyckeln för den öppna panelen, delad med de installerade (en panel åt gången på sidan).
+ * @param {(nyckel: string | null) => void} props.setOppen
  */
-function ValbaraRutor({ moduler, sprak, t, installera, onNavigate, visaAgarRad = false }) {
+function ValbaraRutor({ moduler, sprak, t, installera, onNavigate, visaAgarRad = false, oppen, setOppen }) {
   const medVag = Boolean(installera && (installera.href || installera.onClick || installera.onInstallera));
   return (
     <section className="flex w-full flex-col gap-2 text-left">
       <h2 className="m-0 text-etikett font-medium text-ink">{t.valbara}</h2>
-      <ul aria-label={t.valbara} data-hubb-valbara="" className={RUTNAT}>
+      <ul aria-label={t.valbara} data-hubb-valbara="" className={RUTNAT_TATT}>
         {moduler.map((m) => (
-          <li key={m.id} data-hubb-valbar={m.id} className="min-w-0">
-            <ValbarRuta modul={m} sprak={sprak} t={t} installera={medVag ? installera : undefined} onNavigate={onNavigate} />
-          </li>
+          <ValbarPost
+            key={m.id}
+            modul={m}
+            sprak={sprak}
+            t={t}
+            installera={medVag ? installera : undefined}
+            onNavigate={onNavigate}
+            visaAgarRad={!medVag}
+            ar={oppen === `l:${m.id}`}
+            onVaxla={(ny) => setOppen(ny ? `l:${m.id}` : null)}
+          />
         ))}
       </ul>
       {!medVag && visaAgarRad ? <p className="m-0 text-hjalp text-ink-secondary">{t.agarenInstallerar}</p> : null}
@@ -288,16 +469,24 @@ function ValbaraRutor({ moduler, sprak, t, installera, onNavigate, visaAgarRad =
 }
 
 /**
- * En streckad ruta: en länk till `installera.href`, en knapp som installerar, eller (utan väg) bara verktyget att se.
+ * En streckad ruta och, när dess (i) är öppen, panelen under raden (0.240.0). Rutan är en länk till `installera.href`, en knapp som
+ * installerar, eller (utan väg) bara verktyget att se. Panelens "Lägg till" går samma väg och delar rutans väntan (`useLofteVantan`):
+ * ett tryck på den ena gör båda upptagna, så ingen kan lägga till samma verktyg två gånger.
+ *
  * @param {object} props
  * @param {import("../lib/modul.js").Modul} props.modul
  * @param {string} props.sprak
  * @param {(typeof GRUPPHUBB_TEXT)["sv"]} props.t
  * @param {{ href?: string, onClick?: (id?: string) => void | Promise<unknown>, onInstallera?: (id: string) => void | Promise<unknown>, etikett?: string } | undefined} props.installera
  * @param {(href: string, event: any) => void} [props.onNavigate]
+ * @param {boolean} props.visaAgarRad Sant när den som tittar inte får lägga till: panelen säger då att ägaren gör det.
+ * @param {boolean} props.ar Panelen är öppen.
+ * @param {(oppna: boolean) => void} props.onVaxla
  */
-function ValbarRuta({ modul: m, sprak, t, installera, onNavigate }) {
+function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, ar, onVaxla }) {
   const synsId = useId();
+  const panelId = useId();
+  const infoRef = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const direkt = typeof installera?.onInstallera === "function";
   const viaKlick = !direkt && typeof installera?.onClick === "function";
   // ⛔ Svaret lämnas tillbaka (0.129.0, cllp/lifehub.app#217): ett löfte ur appen gör rutan upptagen tills det är klart.
@@ -308,7 +497,7 @@ function ValbarRuta({ modul: m, sprak, t, installera, onNavigate }) {
   const href = installera?.href ?? "";
   const innehall = (
     <>
-      <span className={cx(PLATTA, "border-2 border-dashed border-ink-muted/50 text-ink-muted")}>
+      <span className={cx(PLATTA, "border-2 border-dashed border-ink-muted/50 text-ink-muted", ar && OPPEN_RING)}>
         <span aria-hidden="true" className="flex items-center">
           {upptagen ? <OpsSpinner size="sm" decorative /> : m.hubb?.ikon ? /** @type {import("react").ReactNode} */ (m.hubb.ikon) : <PlusIkon size={24} />}
         </span>
@@ -323,8 +512,10 @@ function ValbarRuta({ modul: m, sprak, t, installera, onNavigate }) {
   );
   const describedBy = syns ? synsId : undefined;
   const klass = cx(RUTA, "cursor-pointer hover:bg-surface", KORT_FOKUS);
+  /** @type {import("react").ReactNode} */
+  let ruta;
   if (direkt || viaKlick) {
-    return (
+    ruta = (
       <button
         type="button"
         aria-label={etikett}
@@ -338,18 +529,109 @@ function ValbarRuta({ modul: m, sprak, t, installera, onNavigate }) {
         {innehall}
       </button>
     );
-  }
-  if (href !== "") {
-    return (
+  } else if (href !== "") {
+    ruta = (
       <a href={href} aria-label={etikett} aria-describedby={describedBy} data-valbar-ruta="" onClick={(e) => onNavigate?.(href, e)} className={klass}>
         {innehall}
       </a>
     );
+  } else {
+    ruta = (
+      <div data-valbar-ruta="" className={RUTA}>
+        {innehall}
+      </div>
+    );
   }
+  const stang = () => {
+    onVaxla(false);
+    infoRef.current?.focus();
+  };
+  const beskrivning = m.beskrivning ? text(m.beskrivning, sprak) : "";
+  const delar = m.hubb?.delar ?? [];
+  const rubrikId = `${panelId}-rubrik`;
   return (
-    <div data-valbar-ruta="" className={RUTA}>
-      {innehall}
-    </div>
+    <>
+      <li data-hubb-valbar={m.id} className="relative min-w-0">
+        {ruta}
+        <button
+          ref={infoRef}
+          type="button"
+          data-valbar-info={m.id}
+          aria-label={t.om(namn)}
+          aria-expanded={ar}
+          aria-controls={ar ? panelId : undefined}
+          onClick={() => onVaxla(!ar)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && ar) {
+              e.preventDefault();
+              onVaxla(false);
+            }
+          }}
+          className={cx("absolute top-0 left-0 flex size-11 items-center justify-center rounded-full", KORT_FOKUS, ar ? "text-accent" : "text-ink-muted hover:text-ink")}
+        >
+          <InfoIkon size={16} />
+        </button>
+      </li>
+      {ar ? (
+        <li className="col-span-full min-w-0" data-valbarpanel={m.id}>
+          <section
+            id={panelId}
+            aria-labelledby={rubrikId}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.preventDefault();
+                stang();
+              }
+            }}
+            className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-sm"
+          >
+            <div className="flex min-h-11 items-center gap-2.5">
+              {m.hubb?.ikon ? (
+                <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-5">
+                  {/** @type {import("react").ReactNode} */ (m.hubb.ikon)}
+                </span>
+              ) : null}
+              <h3 id={rubrikId} className="m-0 min-w-0 flex-1 truncate text-etikett font-medium text-ink">
+                {namn}
+              </h3>
+              <button type="button" onClick={stang} aria-label={t.stang} className={knappKlass({ variant: "ghost", iconOnly: true })}>
+                <KryssIkon size={16} />
+              </button>
+            </div>
+            {beskrivning ? <p data-verktyg-beskrivning="" className="m-0 max-w-prose text-etikett text-ink">{beskrivning}</p> : null}
+            {/* ⛔ DELARNA SOM TEXT, INTE LÄNKAR: verktyget är inte installerat, och en länk dit hade lett till en sida gruppen inte har. */}
+            {delar.length > 1 ? (
+              <p data-verktyg-delar="" className="m-0 text-etikett text-ink-secondary">
+                {t.delarText}: {delar.map((d) => text(d.namn, sprak)).join(", ")}
+              </p>
+            ) : null}
+            {syns ? <p className="m-0 text-etikett text-ink-secondary">{syns}</p> : null}
+            {direkt || viaKlick ? (
+              <div>
+                <button
+                  type="button"
+                  aria-busy={upptagen || undefined}
+                  disabled={upptagen}
+                  onClick={() => anropa()}
+                  className={cx(knappKlass({ variant: "primary", size: "sm" }), "disabled:cursor-wait")}
+                >
+                  {upptagen ? <OpsSpinner size="sm" decorative /> : null}
+                  {etikett}
+                </button>
+              </div>
+            ) : href !== "" ? (
+              <div>
+                <a href={href} onClick={(e) => onNavigate?.(href, e)} className={knappKlass({ variant: "primary", size: "sm" })}>
+                  {etikett}
+                </a>
+              </div>
+            ) : visaAgarRad ? (
+              <p className="m-0 text-hjalp text-ink-secondary">{t.agarenInstallerar}</p>
+            ) : null}
+          </section>
+        </li>
+      ) : null}
+    </>
   );
 }
 
@@ -373,8 +655,8 @@ function ValbarRuta({ modul: m, sprak, t, installera, onNavigate }) {
  * "Varje app/modul borde kunna expanderas med chevron"). Det beslutet är ersatt för den här sidan: en ruta öppnar verktyget, och
  * delarna nås inne i det. Toppradens rullgardin har aldrig visat delarna och gör det inte nu heller.
  *
- * ⛔ `info` TAS FORTFARANDE EMOT, MEN RITAS INTE HÄR (0.239.0). Rutan har ingen infolinje. Appen kan skicka samma karta som förut,
- * till exempel för att samma `info` ger raden under namnet i toppradens rullgardin (`hubbPoster`), och ingenting går sönder.
+ * ⛔ `info` RITAS I (i)-PANELEN (0.240.0). 0.239.0 tog emot den utan att rita den, och raden om till exempel obetalda kundfakturor
+ * försvann ur appen. Nu är den läget i panelen under rutan.
  *
  * @param {object} props
  * @param {{ id: string, namn: import("../lib/sprak.js").Namn, moduler: ReadonlyArray<string> }} props.grupp Den aktiva gruppen.
@@ -382,22 +664,24 @@ function ValbarRuta({ modul: m, sprak, t, installera, onNavigate }) {
  * @param {string} [props.activeHref]
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {"sv"|"en"} [props.sprak]
- * @param {Readonly<Record<string, string | { sv: string, en?: string } | null>>} [props.info] Tas emot men ritas inte sedan 0.239.0: rutan har ingen infolinje. Behålls så att en app som skickar den inte går sönder.
+ * @param {Readonly<Record<string, string | { sv: string, en?: string } | null>>} [props.info] Läget per modul-id, i (i)-panelen under rutan (0.240.0). `null` ritas som Inget nytt; saknas nyckeln står ingen lägesrad.
  * @param {Readonly<Record<string, number>>} [props.badge] Räknaren per modul-id, ett litet märke på rutans platta.
  * @param {string} [props.badgeText] Skärmläsarordet efter räknaren. Förval "nya" (sv), "new" (en).
  * @param {boolean} [props.ram] Ritas i `OpsView`. Förval sant.
  * @param {{ href?: string, onClick?: (id?: string) => void | Promise<unknown>, onInstallera?: (id: string) => void | Promise<unknown>, etikett?: string }} [props.installera] Vägen till modulvalet. Appen skickar den bara för den som får välja appar: ägaren, och sedan 0.128.0 en admin (0.87.0, lifehub.app#129). Ett tryck på en streckad ruta anropar `onInstallera` med appens id, annars `onClick` med appens id, eller så öppnas `href`. Ett löfte ur appen gör rutan upptagen tills det är klart. `etikett` är första ordet i rutans namn, förval "Lägg till" (sv), "Add" (en).
  * @param {import("react").ReactNode} [props.atgard] (0.103.0) Åtgärden i sidans huvud, till exempel `<OpsVyAtgard>Skapa app</OpsVyAtgard>`.
  */
-export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak: sprakProp, badge, badgeText, ram = true, installera, atgard }) {
+export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak: sprakProp, info, badge, badgeText, ram = true, installera, atgard }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
   const { kort, saknade } = hubbForGrupp({ grupp, moduler });
   const t = GRUPPHUBB_TEXT[sprak === "en" ? "en" : "sv"];
   const gruppnamn = text(grupp.namn, sprak);
-  // ⛔ 0.239.0: rutorna har varken delar eller infolinje. Samma `hubbPoster` som toppradens rullgardin, så namn, ikon och räknare är desamma.
-  const poster = hubbPoster(kort, { sprak, badge }).map((p, i) => ({ ...p, id: kort[i].id }));
+  // ⛔ 0.240.0: läget (`info`) och delarna följer med till (i)-panelen. Samma `hubbPoster` som toppradens rullgardin, så namn, ikon och räknare är desamma.
+  const poster = hubbPoster(kort, { sprak, badge, info: info ?? {}, delar: true }).map((p, i) => ({ ...p, id: kort[i].id, beskrivning: kort[i].beskrivning }));
+  // ⛔ EN PANEL ÅT GÅNGEN PÅ HELA SIDAN, över de installerade och de som kan läggas till: `v:<href>` eller `l:<id>`.
+  const [oppen, setOppen] = useState(/** @type {string | null} */ (null));
   // Appar med ett kort som gruppen inte har. En modul utan kort (hubb: null) blir ingen ruta här: den syns inte i hubben.
   // ⛔ En kärnmodul står aldrig här (0.106.0, #386): den är alltid installerad, och `medKarna` räknar den så.
   const installerade = medKarna(grupp.moduler, moduler);
@@ -410,7 +694,7 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
   // ⛔ 0.239.0: rutorna som kan läggas till står UNDER tomläget, inte i det. Tomlägets yta centrerar sitt innehåll och krymper det till
   // sin bredd, och ett rutnät med tre kolumner i en krympt ruta blev en kolumn av avkortade namn. Samma sektion som i en grupp med verktyg.
   const valbarSektion = tillaggningsbara.length > 0 ? (
-    <ValbaraRutor moduler={tillaggningsbara} sprak={sprak} t={t} installera={installera} onNavigate={onNavigate} visaAgarRad={harInnehall} />
+    <ValbaraRutor moduler={tillaggningsbara} sprak={sprak} t={t} installera={installera} onNavigate={onNavigate} visaAgarRad={harInnehall} oppen={oppen} setOppen={setOppen} />
   ) : null;
   const innehall = (
     <div className="flex flex-col gap-4" data-grupphubb={grupp.id}>
@@ -418,7 +702,7 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
           Skapa app kan få vara enligt samma princip i header som meddelanden." Förut började sidan direkt med korten. */}
       <OpsViewHeader title={t.rubrik} ikon={<HubIkon size={18} />} actions={atgard ?? undefined} />
       {poster.length > 0 ? (
-        <VerktygRutor poster={poster} activeHref={activeHref} onNavigate={onNavigate} ariaLabel={t.moduler(gruppnamn)} badgeText={badgeText ?? (sprak === "en" ? "new" : "nya")} />
+        <VerktygRutor poster={poster} activeHref={activeHref} onNavigate={onNavigate} ariaLabel={t.moduler(gruppnamn)} badgeText={badgeText ?? (sprak === "en" ? "new" : "nya")} sprak={sprak === "en" ? "en" : "sv"} t={t} oppen={oppen} setOppen={setOppen} />
       ) : tillaggsmoduler.length > 0 ? null : saknade.length > 0 ? (
         <OpsEmpty title={t.ingaRitbara} description={t.ingaRitbaraText} />
       ) : (

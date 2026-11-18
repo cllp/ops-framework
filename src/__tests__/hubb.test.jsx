@@ -356,7 +356,8 @@ describe("OpsGruppHubb: ritad", () => {
     expect(within(lista).queryByText("Inkorg")).toBeNull();
     // Utan väg till valet är rutorna inget att trycka på.
     expect(within(lista).queryAllByRole("link")).toHaveLength(0);
-    expect(within(lista).queryAllByRole("button")).toHaveLength(0);
+    // Inget att lägga till med. Sedan 0.240.0 har varje ruta en (i) som bara visar mer, och den är ingen väg att installera.
+    expect(within(lista).queryAllByRole("button").filter((k) => !/^Om /.test(k.getAttribute("aria-label") ?? ""))).toHaveLength(0);
   });
 
   it("⛔ ägarens väg är en länk eller en knapp per app, och den byter meningen", () => {
@@ -486,23 +487,25 @@ describe("OpsGruppHubb: verktyg som rutor (0.239.0)", () => {
   const BOKNING = () => ({ id: "bokning", namn: { sv: "Bokning", en: "Booking" }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [], hubb: { ikon: I("bok"), rutt: "/bokning", startsida: "idag", delar: [{ id: "idag", namn: { sv: "Idag" }, ikon: I("i"), rutt: "/bokning/idag" }] } });
   const fyra = () => validateModuler([EKONOMI(), RESOR(), INKORG(), BOKNING()]);
 
-  it("varje installerat verktyg är EN länk som öppnar verktyget, i gruppens ordning, och sidan har inget som fälls ut", () => {
+  it("varje installerat verktyg är EN länk som öppnar verktyget, i gruppens ordning, och en stängd (i) bredvid (0.240.0)", () => {
     const nav = vi.fn((_h, e) => e.preventDefault());
     render(<OpsGruppHubb grupp={G(["resor", "ekonomi"])} moduler={fyra()} onNavigate={nav} installera={{ onInstallera: () => {} }} />);
     const lista = screen.getByRole("list", { name: "Verktyg i Claes Philip Staiger AB" });
     const rader = within(lista).getAllByRole("listitem");
     expect(rader).toHaveLength(2);
-    // En ruta, ett tryckbart element: länken. Ingen knapp bredvid den (förut chevronen).
+    // En ruta: länken, och sedan 0.240.0 en (i) bredvid den, aldrig i den. Ingen chevron.
     for (const rad of rader) {
       expect(within(rad).getAllByRole("link")).toHaveLength(1);
-      expect(within(rad).queryAllByRole("button")).toHaveLength(0);
+      expect(within(rad).getAllByRole("button")).toHaveLength(1);
+      expect(within(rad).getByRole("link").querySelector("button")).toBeNull();
     }
     const rutor = within(lista).getAllByRole("link");
     expect(rutor.map((a) => a.getAttribute("href"))).toEqual(["/resor", "/ekonomi"]);
     expect(rutor.map((a) => a.textContent)).toEqual(["Resor", "Ekonomi"]);
     // Ikonen står på rutan och är dold för skärmläsaren: namnet är rutans namn.
     expect(rutor[1].querySelector('[aria-hidden="true"] svg[data-ikon="wallet"]')).not.toBeNull();
-    expect(document.querySelector("[aria-expanded]")).toBeNull();
+    // (i) är stängd från början: ingen panel och inga delar på sidan förrän den trycks.
+    expect([...lista.querySelectorAll("[aria-expanded]")].map((e) => e.getAttribute("aria-expanded"))).toEqual(["false", "false"]);
     expect(screen.queryByRole("button", { name: /Visa delarna/ })).toBeNull();
     fireEvent.click(rutor[1]);
     expect(nav).toHaveBeenCalledTimes(1);
@@ -534,8 +537,10 @@ describe("OpsGruppHubb: verktyg som rutor (0.239.0)", () => {
     // Ordningen: de installerade först, sedan rubriken och de som kan läggas till.
     expect(installerade.compareDocumentPosition(valbara) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Verktyg som kan läggas till" }).compareDocumentPosition(valbara) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const knappar = within(valbara).getAllByRole("button");
+    const knappar = within(valbara).getAllByRole("button", { name: /^Lägg till / });
     expect(knappar.map((k) => k.getAttribute("aria-label"))).toEqual(["Lägg till Resor", "Lägg till Bokning"]);
+    // Sedan 0.240.0 har varje streckad ruta också en (i), stängd från början.
+    expect(within(valbara).getAllByRole("button", { name: /^Om / }).map((k) => k.getAttribute("aria-expanded"))).toEqual(["false", "false"]);
     // Streckad och nedtonad: plattan bär en streckad kant, namnet den dämpade textfärgen.
     for (const k of knappar) {
       expect(k.querySelector(".border-dashed")).not.toBeNull();
@@ -855,5 +860,161 @@ describe("⛔ en ensam del och modulens egen åtgärd (0.160.0, CP 2026-10-30)",
       </OpsModulSida>,
     );
     expect(screen.queryByRole("button", { name: "Nytt" })).toBeNull();
+  });
+});
+
+/*
+ * ⛔ 0.240.0: CP 2026-11-18, "man skall kunna expandera ett verktyg för att läsa mer om verktyget ... Kanske en (i) eller info som
+ * visar status", och om förslaget: "Perfekt". (i) på rutan fäller ut en panel i full bredd under raden: läget (`info`), delarna och
+ * Öppna. En åt gången, och den stängs med (i), Stäng eller Escape. Röda mot 0.239.0, där rutan inte hade någon (i).
+ */
+describe("OpsGruppHubb: (i) fäller ut ett verktyg (0.240.0)", () => {
+  const G = (/** @type {string[]} */ ids) => ({ id: "bolaget", namn: { sv: "Claes Philip Staiger AB" }, moduler: ids });
+  const tva = () => validateModuler([EKONOMI(), RESOR(), INKORG()]);
+  const INFO = { ekonomi: "2 obetalda kundfakturor, nästa förfaller 2026-10-05", resor: null };
+
+  it("⛔ (i) öppnar en panel med läget, delarna och Öppna, direkt efter rutan och över hela raden", () => {
+    const nav = vi.fn((_h, e) => e.preventDefault());
+    render(<OpsGruppHubb grupp={G(["ekonomi", "resor"])} moduler={tva()} info={INFO} onNavigate={nav} />);
+    const info = screen.getByRole("button", { name: "Om Ekonomi" });
+    expect(info.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(info);
+    expect(info.getAttribute("aria-expanded")).toBe("true");
+    const panel = screen.getByRole("region", { name: "Ekonomi" });
+    expect(info.getAttribute("aria-controls")).toBe(panel.id);
+    // Läget är appens info, ordagrant.
+    expect(within(panel).getByText("2 obetalda kundfakturor, nästa förfaller 2026-10-05")).toBeTruthy();
+    // Delarna som länkar, i manifestets ordning, och Öppna till verktygets start.
+    const delar = within(within(panel).getByRole("navigation", { name: "Delar: Ekonomi" })).getAllByRole("link");
+    expect(delar.map((a) => a.getAttribute("href"))).toEqual(DELAR.map(([id]) => `/ekonomi/${id}`));
+    expect(within(panel).getByRole("link", { name: "Öppna Ekonomi" }).getAttribute("href")).toBe("/ekonomi");
+    fireEvent.click(delar[1]);
+    expect(nav).toHaveBeenCalledWith(`/ekonomi/${DELAR[1][0]}`, expect.anything());
+    // ⛔ Panelen står direkt efter sin ruta och spänner hela raden; rutnätet packas tätt så att den hamnar på raden under.
+    const panelRad = /** @type {HTMLElement} */ (panel.closest("li"));
+    const ruta = /** @type {HTMLElement} */ (info.closest("li"));
+    expect(ruta.nextElementSibling).toBe(panelRad);
+    expect(panelRad.className).toContain("col-span-full");
+    expect(screen.getByRole("list", { name: "Verktyg i Claes Philip Staiger AB" }).className).toContain("grid-flow-row-dense");
+  });
+
+  it("en panel åt gången, och (i) igen stänger", () => {
+    render(<OpsGruppHubb grupp={G(["ekonomi", "resor"])} moduler={tva()} info={INFO} />);
+    fireEvent.click(screen.getByRole("button", { name: "Om Ekonomi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Om Resor" }));
+    expect(screen.queryByRole("region", { name: "Ekonomi" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Resor" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Om Resor" }));
+    expect(screen.queryByRole("region", { name: "Resor" })).toBeNull();
+    expect(document.querySelector("[data-verktygspanel]")).toBeNull();
+  });
+
+  it("⛔ Stäng och Escape stänger, och fokus går tillbaka till (i)", () => {
+    render(<OpsGruppHubb grupp={G(["ekonomi", "resor"])} moduler={tva()} info={INFO} />);
+    const info = screen.getByRole("button", { name: "Om Ekonomi" });
+    fireEvent.click(info);
+    fireEvent.click(within(screen.getByRole("region", { name: "Ekonomi" })).getByRole("button", { name: "Stäng" }));
+    expect(screen.queryByRole("region", { name: "Ekonomi" })).toBeNull();
+    expect(document.activeElement).toBe(info);
+    fireEvent.click(info);
+    fireEvent.keyDown(within(screen.getByRole("region", { name: "Ekonomi" })).getByRole("link", { name: "Öppna Ekonomi" }), { key: "Escape" });
+    expect(screen.queryByRole("region", { name: "Ekonomi" })).toBeNull();
+    expect(document.activeElement).toBe(info);
+  });
+
+  it("⛔ info null är ett svar och ritas som Inget nytt; saknas nyckeln står ingen lägesrad (regel 5)", () => {
+    render(<OpsGruppHubb grupp={G(["ekonomi", "resor"])} moduler={tva()} info={{ resor: null }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Om Resor" }));
+    expect(within(screen.getByRole("region", { name: "Resor" })).getByText("Inget nytt")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Om Ekonomi" }));
+    expect(screen.getByRole("region", { name: "Ekonomi" }).querySelector("[data-verktyg-lage]")).toBeNull();
+  });
+
+  it("på engelska: About, Open, Close och Nothing new", () => {
+    render(<OpsGruppHubb grupp={G(["ekonomi", "resor"])} moduler={tva()} info={{ ekonomi: null }} sprak="en" />);
+    fireEvent.click(screen.getByRole("button", { name: "About Finance" }));
+    const panel = screen.getByRole("region", { name: "Finance" });
+    expect(within(panel).getByText("Nothing new")).toBeTruthy();
+    expect(within(panel).getByRole("link", { name: "Open Finance" })).toBeTruthy();
+    expect(within(panel).getByRole("button", { name: "Close" })).toBeTruthy();
+  });
+});
+
+/*
+ * ⛔ 0.240.0, CP om första skärmbilden: "Men ekonomi skall ju också vara en rund ring tills man fäller ut den eller hur? Och de som
+ * inte är installerade vill man kunna veta mer om innan man installerar." Och: "Så att det blir som förslaget."
+ */
+describe("OpsGruppHubb: ringen och de som kan läggas till (0.240.0)", () => {
+  const G = (/** @type {string[]} */ ids) => ({ id: "bolaget", namn: { sv: "Claes Philip Staiger AB" }, moduler: ids });
+  const BESKRIVEN = () => ({ ...EKONOMI(), beskrivning: { sv: "Bolagets pengar: inkomster, kostnader och fakturor.", en: "The company's money." } });
+  const mods = () => validateModuler([BESKRIVEN(), RESOR(), INKORG()]);
+
+  it("⛔ den öppna rutan förblir en rund ring: en ring runt plattan, ingen ruta bakom", () => {
+    render(<OpsGruppHubb grupp={G(["ekonomi", "resor"])} moduler={mods()} />);
+    const lank = screen.getByRole("link", { name: "Ekonomi" });
+    const platta = /** @type {HTMLElement} */ (lank.querySelector('[aria-hidden="true"].rounded-full'));
+    expect(platta.className).not.toContain("ring-accent");
+    fireEvent.click(screen.getByRole("button", { name: "Om Ekonomi" }));
+    expect(platta.className).toContain("ring-accent");
+    expect(lank.className.split(/\s+/)).not.toContain("bg-surface");
+  });
+
+  it("⛔ en streckad ruta har (i): panelen säger vad verktyget är, vilka delar det har, och Lägg till går samma väg", async () => {
+    let slapp = () => {};
+    const installera = vi.fn(() => new Promise((klar) => { slapp = () => klar(undefined); }));
+    render(<OpsGruppHubb grupp={G(["resor"])} moduler={mods()} installera={{ onInstallera: installera }} />);
+    const valbara = screen.getByRole("list", { name: "Verktyg som kan läggas till" });
+    fireEvent.click(within(valbara).getByRole("button", { name: "Om Ekonomi" }));
+    const panel = screen.getByRole("region", { name: "Ekonomi" });
+    expect(within(panel).getByText("Bolagets pengar: inkomster, kostnader och fakturor.")).toBeTruthy();
+    expect(panel.querySelector("[data-verktyg-delar]")?.textContent).toBe(`Delar: ${DELAR.map(([, sv]) => sv).join(", ")}`);
+    // Inte installerat: inga länkar in i verktyget.
+    expect(within(panel).queryAllByRole("link")).toHaveLength(0);
+    // Panelen står direkt efter sin ruta och spänner raden.
+    const rad = /** @type {HTMLElement} */ (panel.closest("li"));
+    expect(/** @type {HTMLElement} */ (within(valbara).getByRole("button", { name: "Om Ekonomi" }).closest("li")).nextElementSibling).toBe(rad);
+    expect(rad.className).toContain("col-span-full");
+    expect(valbara.className).toContain("grid-flow-row-dense");
+    // Lägg till i panelen anropar appen med verktygets id och delar rutans väntan.
+    fireEvent.click(within(panel).getByRole("button", { name: "Lägg till Ekonomi" }));
+    expect(installera).toHaveBeenCalledWith("ekonomi");
+    // Panelen står i samma lista som rutorna, så rutan hämtas med sitt eget märke.
+    const ruta = /** @type {HTMLElement} */ (valbara.querySelector('[data-hubb-valbar="ekonomi"] [data-valbar-ruta]'));
+    await waitFor(() => expect(ruta.getAttribute("aria-busy")).toBe("true"));
+    expect(within(panel).getByRole("button", { name: "Lägg till Ekonomi" }).getAttribute("aria-busy")).toBe("true");
+    await act(async () => slapp());
+    expect(installera).toHaveBeenCalledTimes(1);
+  });
+
+  it("en medlem får läsa men inte lägga till: panelen säger att ägaren gör det", () => {
+    render(<OpsGruppHubb grupp={G(["resor"])} moduler={mods()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Om Ekonomi" }));
+    const panel = screen.getByRole("region", { name: "Ekonomi" });
+    expect(within(panel).queryByRole("button", { name: /^Lägg till/ })).toBeNull();
+    expect(within(panel).getByText("Ägaren installerar dem i gruppens inställningar.")).toBeTruthy();
+  });
+
+  it("⛔ en panel åt gången på hela sidan, över de installerade och de som kan läggas till", () => {
+    render(<OpsGruppHubb grupp={G(["resor"])} moduler={mods()} installera={{ onInstallera: () => {} }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Om Resor" }));
+    expect(screen.getByRole("region", { name: "Resor" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Om Ekonomi" }));
+    expect(screen.queryByRole("region", { name: "Resor" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Ekonomi" })).toBeTruthy();
+    expect(document.querySelectorAll("[data-verktygspanel], [data-valbarpanel]")).toHaveLength(1);
+  });
+
+  it("beskrivningen står också i den installerades panel, och saknas den står ingen rad", () => {
+    render(<OpsGruppHubb grupp={G(["ekonomi", "resor"])} moduler={mods()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Om Ekonomi" }));
+    expect(within(screen.getByRole("region", { name: "Ekonomi" })).getByText("Bolagets pengar: inkomster, kostnader och fakturor.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Om Resor" }));
+    expect(screen.getByRole("region", { name: "Resor" }).querySelector("[data-verktyg-beskrivning]")).toBeNull();
+  });
+
+  it("⛔ beskrivning i manifestet är { sv, en }, null när den saknas, och en sträng avvisas", () => {
+    expect(defineModule(BESKRIVEN()).beskrivning).toEqual({ sv: "Bolagets pengar: inkomster, kostnader och fakturor.", en: "The company's money." });
+    expect(defineModule(RESOR()).beskrivning).toBeNull();
+    expect(() => defineModule({ ...RESOR(), beskrivning: "Resor" })).toThrow(/beskrivning är en sträng/);
   });
 });

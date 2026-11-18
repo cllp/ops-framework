@@ -57,7 +57,7 @@ import { PLATSER } from "./tillagg.js";
  * saknas. Ett `ikoner`-fält som byggaren skrev högst upp och som ramverket
  * slängde utan ett ljud blir en modul som ser hel ut och saknar sin halva.
  */
-const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar", "hubb", "typer", "tillagg", "installningar", "kopplingar", "hjalp", "karna"];
+const MODULFALT = ["id", "namn", "beskrivning", "nav", "routes", "samlingar", "kallor", "skapar", "hubb", "typer", "tillagg", "installningar", "kopplingar", "hjalp", "karna"];
 
 /**
  * Fälten ett tillägg får bära (0.60.0, #251). Allt annat avvisas, av samma skäl som `MODULFALT`.
@@ -125,6 +125,7 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
  * @typedef {object} Modul
  * @property {string} id Maskinnyckeln. Samma form som ett kategori-id.
  * @property {import("./sprak.js").Namn} namn Det som visas.
+ * @property {import("./sprak.js").Namn | null} beskrivning (0.240.0) En mening om vad verktyget gör, i (i)-panelen på sidan Verktyg. ⛔ `null` när manifestet utelämnade fältet.
  * @property {ReadonlyArray<import("./nav.js").NavPost>} nav Nav-poster, EN nivå barn.
  * @property {ReadonlyArray<ModulRoute>} routes Vyerna modulen bidrar med.
  * @property {ReadonlyArray<Samling>} samlingar Samlingarna modulen äger. ⛔ Alltid i utskriven form, även när manifestet skrev en sträng.
@@ -483,12 +484,30 @@ export function defineModule(manifest) {
   const karna = d.karna === true;
 
   /*
+   * ⛔ BESKRIVNINGEN ÄR VALFRI, `null` NÄR DEN SAKNAS (0.240.0, CP 2026-11-18: "de som inte är installerade vill man kunna veta mer
+   * om innan man installerar"). En mening om vad verktyget gör, i (i)-panelen på sidan Verktyg. Ett namn som `namn`: { sv, en? },
+   * aldrig en sträng, av samma skäl som namnet.
+   */
+  if (typeof d.beskrivning === "string") {
+    throw var_("beskrivning", 'är en sträng. En beskrivning är { sv, en }, alltså beskrivning: { sv: "..." }, som namnet.');
+  }
+  let beskrivning = null;
+  if (d.beskrivning !== undefined && d.beskrivning !== null) {
+    try {
+      beskrivning = byggNamn(typeof d.beskrivning === "object" ? d.beskrivning : {});
+    } catch (fel) {
+      throw var_("beskrivning", fel instanceof Error ? fel.message.replace(/^byggNamn: /, "") : String(fel));
+    }
+  }
+
+  /*
    * ⛔ FRYST, av samma skäl som katalogen: ett manifest som går att ändra efter
    * uppstart är ett manifest valideringen inte längre uttalar sig om.
    */
   return Object.freeze({
     id,
     namn,
+    beskrivning,
     /*
      * ⛔ EN KOPIA OCH INTE ANROPARENS LISTA. Fryser vi listan vi fick tillbaka
      * fryser vi något som fortfarande ligger i anroparens modulfil, och den
