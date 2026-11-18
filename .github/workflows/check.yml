@@ -80,6 +80,10 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  # ⛔ TUNGA SVITER I FÖLJD PÅ BOXEN (arbetsreglernas regel 14, cllp/lifehub.app#880). Fyra repons runners delar en maskin, och
+  # webbläsarproven har tidsgränser på 3 till 4 sekunder per element. När appens deploy byggde samtidigt föll skalytevakten på
+  # "tillägg i Ny händelse 1280: page.waitForSelector: Timeout 4000ms exceeded" (körning 44200641326) fast sidan var rätt. Låset
+  # /tmp/boxen-tung.lock tas av varje tungt steg (bygge och webbläsarprov) i alla fyra repona, så att de körs ett i taget.
   check:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
@@ -98,7 +102,7 @@ jobs:
       # och då kan grinden köra mot andra versioner än utvecklaren gjorde. En
       # grön körning mot en annan uppsättning beroenden bevisar fel sak.
       - run: npm ci
-      - run: npm run check
+      - run: flock -w 3600 /tmp/boxen-tung.lock npm run check
 
   # ⛔ DEN ENDA VAKT SOM SER CSS KÖRDES ALDRIG AV NÅGON MASKIN, OCH DET ÄR MÄTT.
   #
@@ -134,25 +138,27 @@ jobs:
       - run: npm ci
       # ⛔ Bara chromium och bara dess systemberoenden. Tre webbläsare hade tagit
       # tre gånger tiden för samma svar: mätningen körs i en av dem.
+      # MED --with-deps (cllp/lifehub.app#880, 2026-11-18): jobben går på GitHubs maskiner igen, och där saknas Chromiums
+      # systembibliotek tills flaggan installerar dem. Den togs bort en natt då jobben gick på Groks box, där apt svarade 500.
       - run: npx playwright install --with-deps chromium
       # ⛔ Provaren FÖRE vakten den provar. Är mätningen trasig är ett grönt
       # `check-scaffold` inte ett bevis, och då vill jag veta det först.
-      - run: npm run check:viewport-guard
-      - run: npm run check:scaffold
+      - run: flock -w 3600 /tmp/boxen-tung.lock npm run check:viewport-guard
+      - run: flock -w 3600 /tmp/boxen-tung.lock npm run check:scaffold
       # ⛔ Skalets yta (0.30.0, #173) är också CSS som ingen jsdom-svit ser: en linje för mycket i menyn, en knapp som
       # sitter en pixel för högt, en inställningsvy som flödar ut vid 390 px. Kräver en byggd `dist` och en webbläsare,
       # alltså hör den hemma här och inte i `check`.
       - run: npm run build
-      - run: npm run check:skalyta
+      - run: flock -w 3600 /tmp/boxen-tung.lock npm run check:skalyta
       # ⛔ Rullningslistens tumme och väljarens listbredd (0.95.1). jsdom ritar ingen list och räknar ingen bredd, och
       # Playwright döljer listerna som standard, så vakten startar Chromium utan `--hide-scrollbars`.
-      - run: npm run check:kontrollyta
+      - run: flock -w 3600 /tmp/boxen-tung.lock npm run check:kontrollyta
       # ⛔ Brandfilen och egen CSS (0.94.0): en instans ska kunna branda ramverket i en fil och lägga på CSS som vinner utan
       # `!important`. Det är påståenden om beräknad stil, så jsdom ser dem inte. Kör sina egna röda bevis (`--bevisa`).
-      - run: npm run check:brand
+      - run: flock -w 3600 /tmp/boxen-tung.lock npm run check:brand
       # ⛔ Typografin RITAD (0.136.0, CP 2026-10-21: "tjockt och stort"): ramverkets komponenter mäts i Chromium mot det SessionStudio
       # ritar för samma element. Kräver en byggd `dist` (steget ovan) och kör sina egna röda bevis (`--bevisa`).
-      - run: npm run check:typografimatning
+      - run: flock -w 3600 /tmp/boxen-tung.lock npm run check:typografimatning
 
   # ⛔ PACKNINGEN MÅSTE PROVAS PÅ VARJE PR, INTE FÖRST VID TAGGEN.
   #
@@ -206,7 +212,44 @@ jobs:
       # långt ifrån orsaken, och nästa person felsöker reglerna. Ubuntu-köraren
       # har Java förinstallerat; skulle den sluta ha det vill jag se det på
       # raden som heter Java. Samma steg och samma skäl som i bolag-ops.
+      # ⛔ JAVA INSTALLERAS AV ARBETSFLÖDET (cllp/lifehub.app#880, 2026-11-18). GitHubs Ubuntu-maskin hade Java förinstallerat,
+      # Groks box har det inte: första körningen där föll på `java: command not found`. Arbetsflödet säger själv vad det
+      # behöver, så att det går på vilken runner som helst. Steget Java finns nedan står kvar som kontroll.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
       - name: Java finns
         run: java -version
       - run: npm ci
-      - run: npm run test:rules
+      # ⛔ ETT EMULATORPROV I TAGET PÅ BOXEN (cllp/lifehub.app#880). De egna runnerna för fyra repon delar en maskin och dess portar, och
+      # Firestore-emulatorn står på 8080 i alla. Ramverkets regelprov föll på "port taken" medan appens kördes (körning 44197961443).
+      # Låset på maskinen gör att de körs i följd i stället (arbetsreglernas regel 14). Väntar högst 30 minuter.
+      # Innanför låset stänger scripts/ci/emulatorn-ensam.sh en emulator som blivit kvar när boxen frös mitt i ett jobb.
+      - run: flock -w 1800 /tmp/lifehub-firebase-emulator.lock bash scripts/ci/emulatorn-ensam.sh npm run test:rules
+
+  egna-runners:
+    name: runners
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # ⛔ INGA JOBB PÅ BOXEN (CP 2026-11-18 05.59, cllp/lifehub.app#880). Groks box är en virtuell maskin som fryses och återupptas,
+      # och varje frysning dödade jobbet som körde: fem gånger mellan 02.13 och 05.18 samma natt, utan logg, så ingen PR blev grön och
+      # ingen deploy gick klart. Linux-jobben går därför på GitHubs maskiner (ubuntu-latest), och bara macOS-jobb på 2017-Macen
+      # ([self-hosted, macOS, mbp2017]). Vakten är röd för varje runs-on som pekar på boxens etikett. Etiketten står delad, så att
+      # raden inte träffar sig själv.
+      #
+      # Historik: kvällen innan (CP 2026-11-17 23.24) gällde det omvända, alla jobb på egna runners, eftersom Actions-minuterna slog
+      # i taket 23.38. Den regeln höll inte när boxen frös, och den ersattes samma natt.
+      - name: Inga jobb på boxen
+        run: |
+          BOXEN="self-hosted, Linux, lif""ehub"
+          ANTAL="$(ls .github/workflows/*.yml | wc -l)"
+          if [ "$ANTAL" -lt 2 ]; then echo "::error::Bara $ANTAL arbetsflöden lästa, golvet är 2."; exit 1; fi
+          if grep -nF "$BOXEN" .github/workflows/*.yml | grep "runs-on:"; then
+            echo "::error::Arbetsflöden ovan kör på Groks box, som fryses. Använd runs-on: ubuntu-latest, eller [self-hosted, macOS, mbp2017] för macOS-jobb (#880)."
+            exit 1
+          fi
+          echo "Inget av $ANTAL arbetsflöden kör på boxen."

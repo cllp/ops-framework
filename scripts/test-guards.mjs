@@ -2618,7 +2618,20 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     const { createServer } = await import("node:net");
     const mapp = underlag("ia-last", {});
     const uttag = createServer();
-    await new Promise((klar) => uttag.listen(path.join(mapp, "uttag.sock"), klar));
+    // ⛔ RELATIV SÖKVÄG (cllp/lifehub.app#880). Ett uttags adress får vara högst 107 tecken, och Node kortar en längre adress utan
+    // att säga något. På den egna runnern är arbetsmappen djupare (131 tecken), så uttaget hamnade utanför `mapp` och vakten
+    // var grön av fel skäl. Därför binds uttaget från mappen själv, och provet kräver att det finns där innan vakten körs.
+    const forra = process.cwd();
+    process.chdir(mapp);
+    try {
+      await new Promise((klar, fel) => {
+        uttag.once("error", fel);
+        uttag.listen("uttag.sock", klar);
+      });
+    } finally {
+      process.chdir(forra);
+    }
+    if (!fs.existsSync(path.join(mapp, "uttag.sock"))) throw new Error(`ingen-appdata: uttaget skapades inte i ${mapp}, provet mäter ingenting`);
     kravRott("ingen-appdata: en fil som inte gick att läsa är inte rent", [vakt, mapp], "uttag.sock kunde inte läsas");
     uttag.close();
   }
