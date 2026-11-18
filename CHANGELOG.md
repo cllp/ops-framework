@@ -9,6 +9,16 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.241.0
+
+**Helskärm för HTML-dokument i Biblioteket** (CP 2026-11-18 21.43, med en skärmbild av statussidan på 22 % i telefonen: "HTM har fortfarande ingen full screen"). PDF-vyn, kartan och årsvyn hade den. HTML-dokumentet hade bara zoom.
+
+### Nytt
+
+- **Helskärm i HTML-dokumentets rad** (`OpsHtmlDokument`), bredvid Spara som PDF. Samma `useHelskarm` som PDF-vyn och kartan (regel 2): webbläsarens helskärm där den finns, annars ett fast lager över hela skärmen, eftersom iPhone inte ger ett element helskärm. Raden följer med in, så zoomen, Spara som PDF och Stäng helskärm finns kvar. Rutan tar resten av höjden i stället för 70 procent av fönstret. Escape stänger lagret.
+- Öppna i eget fönster döljs medan dokumentet är i helskärm: det finns redan en väg ut, och en länk till en ny flik mitt i helskärmen är en knapp för mycket.
+- Prov: `htmldokument-helskarm.test.jsx`, rött utan ändringen (3 av 3), grönt med.
+
 ## 0.240.0
 
 **(i) fäller ut ett verktyg på sidan Verktyg** (CP 2026-11-18: "man skall kunna expandera ett verktyg för att läsa mer om verktyget ... Kanske en (i) eller info som visar status på grejer i projektet. Eller om det kan finnas ett snyggt sätt att fälla ut ett kort så att det blir stort och brett över andra kort och fälla in det igen", och om förslaget: "Perfekt"). 0.239.0 tog bort infolinjen och delarna från rutorna, och då försvann till exempel raden "2 obetalda kundfakturor, nästa förfaller ..." ur appen helt.

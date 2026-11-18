@@ -6,7 +6,9 @@ import { blobBytes } from "../lib/blobbytes.js";
 import { HTML_SANDBOX, HTML_UTSKRIFTSMEDDELANDE, externLankAdress } from "../lib/htmldokument.js";
 import { HTML_ZOOMMEDDELANDE, byggSrcdoc, tolkaRutmeddelande } from "../lib/htmlruta.js";
 import { cx } from "../lib/cx.js";
-import { ExternLankIkon } from "./icons.jsx";
+import { ExternLankIkon, HelskarmAvIkon, HelskarmIkon } from "./icons.jsx";
+import { useHelskarm } from "./useHelskarm.js";
+import { ORD_HELSKARM } from "../lib/helskarmord.js";
 import { useHtmlZoom } from "./htmlZoom.jsx";
 import { DokumentKnapp, Dokumentrad } from "./Dokumentrad.jsx";
 import { ordet } from "../lib/ord.js";
@@ -40,6 +42,11 @@ export function OpsHtmlDokument({ html, namn, skapadAv, fonster }) {
   const sprak = useOpsSprak();
   const o = (/** @type {keyof typeof ORD_HTMLDOKUMENT} */ k) => ordet(ORD_HTMLDOKUMENT, k, sprak);
   const ram = useRef(/** @type {HTMLIFrameElement | null} */ (null));
+  // ⛔ HELSKÄRM SOM PDF-VYN, KARTAN OCH ÅRSVYN (0.241.0, CP 2026-11-18 21.43: "HTM har fortfarande ingen full screen"). Samma `useHelskarm`
+  // (regel 2): webbläsarens helskärm där den finns, annars ett fast lager över hela skärmen, eftersom iPhone inte ger ett element helskärm.
+  // Raden följer med in, så att zoomen, Spara som PDF och vägen ut finns kvar i helskärmen.
+  const yta = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const { lage: helskarm, oppna: oppnaHelskarm, avsluta: stangHelskarm } = useHelskarm(yta);
   const zoom = useHtmlZoom();
   const srcDoc = useMemo(() => byggSrcdoc(html), [html]);
   const vem = skapadAv ? skaparensNamn(skapadAv, sprak) : "";
@@ -54,22 +61,38 @@ export function OpsHtmlDokument({ html, namn, skapadAv, fonster }) {
         {markning}
       </p>
       {/* ⛔ SAMMA RAD SOM PDF-VYN (0.196.0, `Dokumentrad`), OVANFÖR RUTAN: zoomen till vänster, knapparna till höger, utan egen bakgrund. Två dokument i samma Bibliotek har sina knappar på samma ställe. */}
-      <Dokumentrad mark="data-html-dokument-verktyg" etikett={o("verktyg")} zoom={zoom} sprak={sprak}>
-        <span data-html-dokument-pdf-knapp="" className="inline-flex">
-          <OpsButton variant="ghost" size="sm" title={o("pdfHjalp")} onClick={skrivUt}>
-            {o("pdf")}
-          </OpsButton>
-        </span>
-        {fonster ? <DokumentKnapp mark="data-html-dokument-fonster" ikon={ExternLankIkon} etikett={o("fonster")} href={fonster} /> : null}
-      </Dokumentrad>
-      <HtmlRuta
-        ref={ram}
-        mark="data-html-dokument-ruta"
-        title={o("etikett").replace("{namn}", namn)}
-        srcDoc={srcDoc}
-        zoom={zoom}
-        className="block h-[70vh] min-h-72 w-full rounded-lg border border-line"
-      />
+      <div
+        ref={yta}
+        data-html-dokument-helskarm={helskarm || undefined}
+        className={cx(
+          "flex min-w-0 flex-col gap-2",
+          helskarm && "h-dvh w-full bg-surface p-2",
+          helskarm === "fonster" && "fixed inset-0 z-[1000] pt-(--safe-top) pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left)",
+        )}
+      >
+        <Dokumentrad mark="data-html-dokument-verktyg" etikett={o("verktyg")} zoom={zoom} sprak={sprak}>
+          <span data-html-dokument-pdf-knapp="" className="inline-flex">
+            <OpsButton variant="ghost" size="sm" title={o("pdfHjalp")} onClick={skrivUt}>
+              {o("pdf")}
+            </OpsButton>
+          </span>
+          <DokumentKnapp
+            mark="data-html-dokument-helskarm-knapp"
+            ikon={helskarm ? HelskarmAvIkon : HelskarmIkon}
+            etikett={helskarm ? o("avsluta") : o("helskarm")}
+            onClick={() => (helskarm ? stangHelskarm() : oppnaHelskarm())}
+          />
+          {fonster && !helskarm ? <DokumentKnapp mark="data-html-dokument-fonster" ikon={ExternLankIkon} etikett={o("fonster")} href={fonster} /> : null}
+        </Dokumentrad>
+        <HtmlRuta
+          ref={ram}
+          mark="data-html-dokument-ruta"
+          title={o("etikett").replace("{namn}", namn)}
+          srcDoc={srcDoc}
+          zoom={zoom}
+          className={cx("block w-full rounded-lg border border-line", helskarm ? "min-h-0 flex-1" : "h-[70vh] min-h-72")}
+        />
+      </div>
       <p data-html-dokument-pdf-hjalp="" className="m-0 text-meta text-ink-muted">{o("pdfHjalp")}</p>
     </section>
   );
@@ -207,6 +230,8 @@ const SKYDD = {
 
 /** @type {import("../lib/ord.js").Ordbok} */
 export const ORD_HTMLDOKUMENT = {
+  helskarm: ORD_HELSKARM.helskarm,
+  avsluta: ORD_HELSKARM.avsluta,
   etikett: { sv: "HTML-dokument: {namn}", en: "HTML document: {namn}" },
   vyEtikett: { sv: "HTML-dokument i helt fönster: {namn}", en: "HTML document, full window: {namn}" },
   markningMed: {
