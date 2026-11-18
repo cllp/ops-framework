@@ -9,6 +9,20 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.238.1
+
+**Röstsamtalets byggstenar finns i huvudingången** (cllp/lifehub.app#870, skiva 4). 0.238.0 bad appen låta `onAgent` ge en `Talkrost` byggd med `samtalssvar` och `vidareISamtal`, men ingen av dem exporterades. Mätt vid lifehub.app:s ompinning 2026-11-18: appen kunde inte importera dem, och den enda andra vägen hade varit en egen kopia av logiken (regel 2).
+
+### Tillagt
+
+- `samtalssvar`, `vidareISamtal` och `talkrostUr` ur `ops-framework`, samma funktioner som agentchatten använder.
+- `kalenderKulor` och `kalenderfargKulor` (cllp/lifehub.app#882). Sedan 0.238.0 bär dagrutans ram kalenderns kulör, och appens prov för ramen kunde inte räkna fram den: det jämförde med `lagerFarg` (ton 6) och fick kulören (119).
+
+### Vakt
+
+- `talkrost-ingang-870.test.js` kräver att de fem finns i huvudingången och är samma funktioner som i sina moduler. Rött utan exportraderna (3 och 2 fel), grönt med.
+- `check-docs` fällde den första versionen i CI (3 odokumenterade). README har nu en rad för varje.
+
 ## 0.238.0
 
 Tre saker från natten mot 2026-11-18, alla i lifehub.app: TALK pratar tillbaka (#870 skiva 4), textstorlek per person (#873) och en färgväljare överallt (#882). Inget brytande.

@@ -17,6 +17,12 @@ export { OpsTalk, OpsInspelning, useTalk, TALK_PRICKAR } from "./components/OpsT
 export { OpsForslag } from "./components/OpsForslag.jsx";
 export { FORSLAG_IKONER, MAX_FORSLAG, MAX_FORSLAG_ETIKETT, MAX_FORSLAG_TEXT, forslagUrData, forslagetsFel, kontrolleraForslag, forslagssvar } from "./lib/forslag.js";
 export { LANGTRYCK_MS, TALK_ORD, MAX_SEKUNDER, LJUDFORMAT, MIKROFON_SPARRAD_AV_SIDAN, mikrofonenTillatenAvSidan, kanBeOmMikrofon, talkNasta, valjFormat, talkFeltext, webblasarensInspelare } from "./lib/talk.js";
+// ⛔ RÖSTSAMTALET BYGGS AV APPEN (0.238.1, cllp/lifehub.app#870): `onAgent` löser till en `Talkrost`, och appen bygger den med samma två
+// byggstenar som agentchatten. Utan exporten hade appen fått kopiera logiken (regel 2).
+export { samtalssvar, vidareISamtal, talkrostUr } from "./lib/talkrost.js";
+// ⛔ KALENDERNS KULÖR (0.238.1, cllp/lifehub.app#882): sedan 0.238.0 ritas kalenderns ram och prick med kulören, inte tonen (`lagerFarg`). En app som
+// visar eller provar samma färg räknar den med samma funktion, annars en egen kopia av reserven ur id (regel 2).
+export { kalenderKulor, kalenderfargKulor } from "./lib/kalenderfarg.js";
 export { OpsHub, OpsHubModul, OpsHubTillbaka, OpsGruppHubb } from "./components/OpsHub.jsx";
 export { OpsVyAtgard } from "./components/OpsTillbaka.jsx";
 export { OpsModulSida } from "./components/OpsModulSida.jsx";
