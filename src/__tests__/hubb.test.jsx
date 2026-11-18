@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { defineModule, validateModuler } from "../lib/modul.js";
 import { byggOmdirigeringar, hubbForGrupp, hubbPoster, huvudmenyPoster, kontrolleraOmdirigeringar, modulLage, omdirigera, valbaraModuler } from "../lib/hubb.js";
 import { OpsGruppHubb } from "../components/OpsHub.jsx";
@@ -330,17 +330,18 @@ describe("gamla adresser: omdirigeringarna", () => {
 describe("OpsGruppHubb: ritad", () => {
   const G = (/** @type {string[]} */ ids) => ({ id: "bolaget", namn: { sv: "Claes Philip Staiger AB" }, moduler: ids });
 
-  it("en grupp med Ekonomi har ETT kort, och det leder till modulen", () => {
+  it("en grupp med Ekonomi har EN ruta, och den leder till modulen", () => {
     const nav = vi.fn((_h, e) => e.preventDefault());
     render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} onNavigate={nav} info={{ ekonomi: "Skatten förfaller 12 oktober" }} />);
     const lista = screen.getByRole("list", { name: "Verktyg i Claes Philip Staiger AB" });
-    const kort = within(lista).getAllByRole("link");
-    expect(kort).toHaveLength(1);
-    expect(kort[0].getAttribute("href")).toBe("/ekonomi");
-    expect(kort[0].textContent).toContain("Skatten förfaller 12 oktober");
-    // ⛔ 0.83.0: delarna finns bakom chevronen och syns inte förrän den fälls ut (förut stod de inte i hubben alls).
+    const rutor = within(lista).getAllByRole("link");
+    expect(rutor).toHaveLength(1);
+    expect(rutor[0].getAttribute("href")).toBe("/ekonomi");
+    // ⛔ 0.239.0: rutan har ingen infolinje. `info` tas emot (appen skickar den) men ritas inte på den här sidan.
+    expect(document.body.textContent).not.toContain("Skatten förfaller 12 oktober");
+    // Delarna nås inne i verktyget, inte här.
     expect(screen.queryByRole("link", { name: "Inkomster" })).toBeNull();
-    fireEvent.click(kort[0]);
+    fireEvent.click(rutor[0]);
     expect(nav).toHaveBeenCalledWith("/ekonomi", expect.anything());
   });
 
@@ -353,22 +354,23 @@ describe("OpsGruppHubb: ritad", () => {
     expect(within(lista).getByText("Resor")).toBeTruthy();
     // Inkorg har hubb: null och blir inget kort. Den står inte i listan.
     expect(within(lista).queryByText("Inkorg")).toBeNull();
-    expect(screen.queryByRole("link", { name: /Installera/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Installera/ })).toBeNull();
+    // Utan väg till valet är rutorna inget att trycka på.
+    expect(within(lista).queryAllByRole("link")).toHaveLength(0);
+    expect(within(lista).queryAllByRole("button")).toHaveLength(0);
   });
 
   it("⛔ ägarens väg är en länk eller en knapp per app, och den byter meningen", () => {
     const gick = vi.fn();
     const { unmount } = render(<OpsGruppHubb grupp={G([])} moduler={moduler()} installera={{ href: "/installningar" }} onNavigate={gick} />);
     expect(screen.getByText(/Välj vilka som ska finnas här/)).toBeTruthy();
-    const lank = screen.getByRole("link", { name: "Installera Ekonomi" });
+    const lank = screen.getByRole("link", { name: "Lägg till Ekonomi" });
     expect(lank.getAttribute("href")).toBe("/installningar");
     fireEvent.click(lank);
     expect(gick).toHaveBeenCalledWith("/installningar", expect.anything());
     unmount();
     const klick = vi.fn();
     render(<OpsGruppHubb grupp={G([])} moduler={moduler()} installera={{ onClick: klick }} />);
-    fireEvent.click(screen.getByRole("button", { name: "Installera Resor" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till Resor" }));
     expect(klick).toHaveBeenCalledWith("resor");
   });
 
@@ -380,13 +382,13 @@ describe("OpsGruppHubb: ritad", () => {
     expect(within(lista).getByText("Resor")).toBeTruthy();
     expect(within(lista).queryByText("Ekonomi")).toBeNull();
     expect(within(lista).queryByText("Inkorg")).toBeNull();
-    fireEvent.click(within(lista).getByRole("button", { name: "Installera Resor" }));
+    fireEvent.click(within(lista).getByRole("button", { name: "Lägg till Resor" }));
     expect(klick).toHaveBeenCalledTimes(1);
     expect(klick).toHaveBeenCalledWith("resor");
     unmount();
     render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} />);
     expect(screen.getByText("Resor")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Installera/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Lägg till/ })).toBeNull();
     expect(screen.getByText("Ägaren installerar dem i gruppens inställningar.")).toBeTruthy();
   });
 
@@ -424,7 +426,7 @@ describe("OpsGruppHubb: en modul som bara är ett tillägg (0.124.0)", () => {
   });
   const alla = () => validateModuler([EKONOMI(), INKORG(), OMROSTNING()]);
 
-  it("⛔ erbjuds under Appar med Installera, och knappen installerar just den", () => {
+  it("⛔ erbjuds under Verktyg som kan läggas till, och rutan installerar just den", () => {
     const klick = vi.fn();
     render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={alla()} installera={{ onInstallera: klick }} />);
     const lista = screen.getByRole("list", { name: "Verktyg som kan läggas till" });
@@ -433,7 +435,7 @@ describe("OpsGruppHubb: en modul som bara är ett tillägg (0.124.0)", () => {
     expect(within(lista).getByText("Rösta på datum · Syns på: Händelser")).toBeTruthy();
     // En modul utan kort och utan tillägg erbjuds fortfarande inte.
     expect(within(lista).queryByText("Inkorg")).toBeNull();
-    fireEvent.click(within(lista).getByRole("button", { name: "Installera Datumomröstning" }));
+    fireEvent.click(within(lista).getByRole("button", { name: "Lägg till Datumomröstning" }));
     expect(klick).toHaveBeenCalledTimes(1);
     expect(klick).toHaveBeenCalledWith("datumomrostning");
   });
@@ -453,7 +455,7 @@ describe("OpsGruppHubb: en modul som bara är ett tillägg (0.124.0)", () => {
     // Ingen knapp och ingen länk: den har ingen egen sida, och den är redan på.
     expect(within(sektion).queryByRole("button")).toBeNull();
     expect(within(sektion).queryByRole("link")).toBeNull();
-    expect(screen.queryByRole("button", { name: /Installera Datumomröstning/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Lägg till Datumomröstning/ })).toBeNull();
     // Inget utvecklarord i det användaren ser, och ingen rad om att appen "inte visas".
     expect(container.textContent).not.toMatch(/hubb|null|tillagg/);
     expect(container.querySelector('[data-hubb-saknade]')).toBeNull();
@@ -474,65 +476,101 @@ describe("OpsGruppHubb: en modul som bara är ett tillägg (0.124.0)", () => {
 });
 
 /*
- * ⛔ 0.83.0: CP 2026-10-08 17:54, "Varje app/modul borde kunna expanderas med chevron". Röda mot 0.82.0: där hade
- * OpsGruppHubbs kort inga barn och ingen knapp.
+ * ⛔ 0.239.0: CP 2026-11-18, "ja, bygg rutorna" (cllp/lifehub.app#864, skissen i #842 del C). Verktyg är rutor: en länk per
+ * installerat verktyg som öppnar det, ingenting som fälls ut, räknaren kvar på rutan, och de som kan läggas till som streckade
+ * rutor vars tryck installerar. Ersätter proven för chevronen (0.83.0, CP 2026-10-08), som gällde den här sidan till 0.238.2.
+ * Röda mot 0.238.2 (korten med chevron): se CHANGELOG 0.239.0 för antalet.
  */
-describe("OpsGruppHubb: kortet fälls ut med en chevron (0.83.0)", () => {
+describe("OpsGruppHubb: verktyg som rutor (0.239.0)", () => {
   const G = (/** @type {string[]} */ ids) => ({ id: "bolaget", namn: { sv: "Claes Philip Staiger AB" }, moduler: ids });
+  const BOKNING = () => ({ id: "bokning", namn: { sv: "Bokning", en: "Booking" }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [], hubb: { ikon: I("bok"), rutt: "/bokning", startsida: "idag", delar: [{ id: "idag", namn: { sv: "Idag" }, ikon: I("i"), rutt: "/bokning/idag" }] } });
+  const fyra = () => validateModuler([EKONOMI(), RESOR(), INKORG(), BOKNING()]);
 
-  it("chevronen är en egen knapp med aria-expanded, och utfälld visar den delarna som länkar med ikon", () => {
+  it("varje installerat verktyg är EN länk som öppnar verktyget, i gruppens ordning, och sidan har inget som fälls ut", () => {
     const nav = vi.fn((_h, e) => e.preventDefault());
-    render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} onNavigate={nav} />);
-    const chevron = screen.getByRole("button", { name: "Visa delarna i Ekonomi" });
-    expect(chevron).toHaveAttribute("aria-expanded", "false");
-    const lista = document.getElementById(chevron.getAttribute("aria-controls") ?? "");
-    expect(lista).not.toBeNull();
-    expect(lista).toHaveAttribute("hidden");
-    fireEvent.click(chevron);
-    expect(chevron).toHaveAttribute("aria-expanded", "true");
-    expect(lista).not.toHaveAttribute("hidden");
-    const delar = within(/** @type {HTMLElement} */ (lista)).getAllByRole("link");
-    expect(delar).toHaveLength(14);
-    expect(delar[1]).toHaveAttribute("href", "/ekonomi/inkomster");
-    expect(delar[1]).toHaveTextContent("Inkomster");
-    expect(delar[1].querySelector("span[aria-hidden]")).not.toBeNull();
-    fireEvent.click(delar[1]);
-    expect(nav).toHaveBeenCalledWith("/ekonomi/inkomster", expect.anything());
-    fireEvent.click(chevron);
-    expect(chevron).toHaveAttribute("aria-expanded", "false");
-  });
-
-  it("chevronen ligger inte i länken, och kortet leder fortfarande till modulens startsida", () => {
-    const nav = vi.fn((_h, e) => e.preventDefault());
-    render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} onNavigate={nav} />);
-    const chevron = screen.getByRole("button", { name: "Visa delarna i Ekonomi" });
-    expect(chevron.closest("a")).toBeNull();
-    fireEvent.click(chevron);
-    expect(nav).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("link", { name: /^Ekonomi/ }));
-    expect(nav).toHaveBeenCalledWith("/ekonomi", expect.anything());
-  });
-
-  it("⛔ medan ett kort är utfällt sträcks inte grannkorten till dess höjd (rutnätet blir items-start), och stängt igen står de lika höga", () => {
-    render(<OpsGruppHubb grupp={G(["ekonomi", "resor"])} moduler={moduler()} />);
+    render(<OpsGruppHubb grupp={G(["resor", "ekonomi"])} moduler={fyra()} onNavigate={nav} installera={{ onInstallera: () => {} }} />);
     const lista = screen.getByRole("list", { name: "Verktyg i Claes Philip Staiger AB" });
-    expect(lista.className).not.toContain("items-start");
-    const chevron = screen.getByRole("button", { name: "Visa delarna i Ekonomi" });
-    fireEvent.click(chevron);
-    expect(lista.className).toContain("items-start");
-    fireEvent.click(chevron);
-    expect(lista.className).not.toContain("items-start");
+    const rader = within(lista).getAllByRole("listitem");
+    expect(rader).toHaveLength(2);
+    // En ruta, ett tryckbart element: länken. Ingen knapp bredvid den (förut chevronen).
+    for (const rad of rader) {
+      expect(within(rad).getAllByRole("link")).toHaveLength(1);
+      expect(within(rad).queryAllByRole("button")).toHaveLength(0);
+    }
+    const rutor = within(lista).getAllByRole("link");
+    expect(rutor.map((a) => a.getAttribute("href"))).toEqual(["/resor", "/ekonomi"]);
+    expect(rutor.map((a) => a.textContent)).toEqual(["Resor", "Ekonomi"]);
+    // Ikonen står på rutan och är dold för skärmläsaren: namnet är rutans namn.
+    expect(rutor[1].querySelector('[aria-hidden="true"] svg[data-ikon="wallet"]')).not.toBeNull();
+    expect(document.querySelector("[aria-expanded]")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Visa delarna/ })).toBeNull();
+    fireEvent.click(rutor[1]);
+    expect(nav).toHaveBeenCalledTimes(1);
+    expect(nav).toHaveBeenCalledWith("/ekonomi", expect.anything());
+    // Delarna står inte på sidan, varken synliga eller dolda.
+    expect(document.querySelector('a[href="/ekonomi/inkomster"]')).toBeNull();
   });
 
-  it("en modul med en enda del har ingen chevron: delen är startsidan", () => {
-    render(<OpsGruppHubb grupp={G(["ekonomi", "resor"])} moduler={moduler()} />);
-    expect(screen.queryByRole("button", { name: "Visa delarna i Resor" })).toBeNull();
-    expect(screen.getByRole("link", { name: "Resor" })).toHaveAttribute("href", "/resor");
+  it("räknaren står kvar som ett märke på sin ruta, med skärmläsartext, och en ruta utan tal får inget märke", () => {
+    render(<OpsGruppHubb grupp={G(["ekonomi", "resor"])} moduler={fyra()} badge={{ ekonomi: 3, resor: 0 }} />);
+    const ekonomi = screen.getByRole("link", { name: "Ekonomi 3 nya" });
+    expect(ekonomi.querySelector("[data-ops-count-badge]")?.textContent).toContain("3");
+    const resor = screen.getByRole("link", { name: "Resor" });
+    expect(resor.querySelector("[data-ops-count-badge]")).toBeNull();
+    // På engelska är ordet engelskt, och appens eget ord vinner.
+    cleanup();
+    render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={fyra()} badge={{ ekonomi: 2 }} sprak="en" />);
+    expect(screen.getByRole("link", { name: "Finance 2 new" })).toBeTruthy();
+    cleanup();
+    render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={fyra()} badge={{ ekonomi: 2 }} badgeText="väntar" />);
+    expect(screen.getByRole("link", { name: "Ekonomi 2 väntar" })).toBeTruthy();
   });
 
-  it("på engelska heter chevronen efter modulens engelska namn", () => {
-    render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} sprak="en" />);
-    expect(screen.getByRole("button", { name: "Show the parts of Finance" })).toBeInTheDocument();
+  it("⛔ de som kan läggas till är streckade rutor efter de installerade, och ett tryck lägger till just det verktyget", () => {
+    const klick = vi.fn();
+    render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={fyra()} installera={{ onInstallera: klick }} />);
+    const installerade = screen.getByRole("list", { name: "Verktyg i Claes Philip Staiger AB" });
+    const valbara = screen.getByRole("list", { name: "Verktyg som kan läggas till" });
+    // Ordningen: de installerade först, sedan rubriken och de som kan läggas till.
+    expect(installerade.compareDocumentPosition(valbara) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Verktyg som kan läggas till" }).compareDocumentPosition(valbara) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const knappar = within(valbara).getAllByRole("button");
+    expect(knappar.map((k) => k.getAttribute("aria-label"))).toEqual(["Lägg till Resor", "Lägg till Bokning"]);
+    // Streckad och nedtonad: plattan bär en streckad kant, namnet den dämpade textfärgen.
+    for (const k of knappar) {
+      expect(k.querySelector(".border-dashed")).not.toBeNull();
+      expect(k.querySelector(".text-ink-secondary")).not.toBeNull();
+    }
+    fireEvent.click(within(valbara).getByRole("button", { name: "Lägg till Bokning" }));
+    expect(klick).toHaveBeenCalledTimes(1);
+    expect(klick).toHaveBeenCalledWith("bokning");
+    // Ingen separat knapp "Installera" per rad finns kvar.
+    expect(screen.queryByRole("button", { name: /^Installera/ })).toBeNull();
+    expect(within(valbara).queryAllByRole("link")).toHaveLength(0);
+  });
+
+  it("på engelska heter rutan Add och verktygets engelska namn, och appens etikett byter första ordet", () => {
+    const { unmount } = render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={fyra()} installera={{ onInstallera: () => {} }} sprak="en" />);
+    expect(screen.getByRole("button", { name: "Add Booking" })).toBeTruthy();
+    unmount();
+    render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={fyra()} installera={{ onInstallera: () => {}, etikett: "Installera" }} />);
+    expect(screen.getByRole("button", { name: "Installera Bokning" })).toBeTruthy();
+  });
+
+  it("⛔ en ruta som väntar på appens löfte visar det och tar inte emot ett andra tryck", async () => {
+    /** @type {(v?: unknown) => void} */
+    let los = () => {};
+    const lagg = vi.fn(() => new Promise((r) => (los = r)));
+    render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={fyra()} installera={{ onInstallera: lagg }} />);
+    const ruta = () => screen.getByRole("button", { name: "Lägg till Resor" });
+    expect(ruta()).not.toHaveAttribute("aria-busy");
+    fireEvent.click(ruta());
+    await waitFor(() => expect(ruta()).toHaveAttribute("aria-busy", "true"));
+    expect(ruta()).toBeDisabled();
+    fireEvent.click(ruta());
+    expect(lagg).toHaveBeenCalledTimes(1);
+    await act(async () => los());
+    await waitFor(() => expect(ruta()).not.toHaveAttribute("aria-busy"));
   });
 });
 

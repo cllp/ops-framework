@@ -104,7 +104,7 @@ describe("manifestets plats valideras vid uppstart", () => {
 describe("OpsGruppHubb: Bokning erbjuds under Verktyg som kan läggas till", () => {
   const alla = () => validateModuler([MODUL("bokning", [SEKTION()]), MODUL("stum", [])]);
 
-  it("⛔ erbjuds med Installera och 'Syns på: Inställningar', och knappen installerar just den", () => {
+  it("⛔ erbjuds som en ruta att lägga till, med 'Syns på: Inställningar', och knappen installerar just den", () => {
     const klick = vi.fn();
     render(<OpsGruppHubb grupp={G([])} moduler={alla()} installera={{ onInstallera: klick }} />);
     const lista = screen.getByRole("list", { name: "Verktyg som kan läggas till" });
@@ -112,7 +112,7 @@ describe("OpsGruppHubb: Bokning erbjuds under Verktyg som kan läggas till", () 
     expect(within(lista).getByText("Bokning · Syns på: Inställningar")).toBeTruthy();
     // Kontroll åt andra hållet: en modul utan kort och utan tillägg erbjuds fortfarande inte.
     expect(within(lista).queryByText("stum")).toBeNull();
-    fireEvent.click(within(lista).getByRole("button", { name: "Installera Bokning" }));
+    fireEvent.click(within(lista).getByRole("button", { name: "Lägg till Bokning" }));
     expect(klick).toHaveBeenCalledWith("bokning");
   });
 
@@ -126,7 +126,7 @@ describe("OpsGruppHubb: Bokning erbjuds under Verktyg som kan läggas till", () 
     render(<OpsGruppHubb grupp={G(["bokning"])} moduler={alla()} installera={{ onInstallera: () => {} }} />);
     const sektion = screen.getByRole("region", { name: "Tillägg i gruppen" });
     expect(within(sektion).getByText("Bokning · Syns på: Inställningar")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Installera Bokning/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Lägg till Bokning/ })).toBeNull();
   });
 });
 
