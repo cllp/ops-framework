@@ -87,7 +87,7 @@ jobs:
   check:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: [self-hosted, Linux, lifehub]
+    runs-on: ${{ vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7
         # ⛔ TAGGARNA BEHÖVS (0.82.0, granskningen av PR 314). `check-changelog-taggar` kräver en rubrik i CHANGELOG
@@ -128,7 +128,7 @@ jobs:
   scaffold:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: [self-hosted, Linux, lifehub]
+    runs-on: ${{ vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -174,7 +174,7 @@ jobs:
   paket:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: [self-hosted, Linux, lifehub]
+    runs-on: ${{ vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -201,7 +201,7 @@ jobs:
   regelprov:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: [self-hosted, Linux, lifehub]
+    runs-on: ${{ vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -233,9 +233,14 @@ jobs:
   # och därefter startade inget jobb: Inkorgsraden och appens deploy föll inom tre sekunder utan maskin. Ett nytt arbetsflöde
   # mot GitHubs maskiner går tyst tillbaka till minuterna, så det här jobbet är rött för varje sådant runs-on. Mönstret står
   # delat, så att raden inte träffar sig själv. Golvet är antalet arbetsflöden när vakten skrevs.
+  #
+  # ⛔ UNDANTAGET ÄR STRÖMBRYTAREN, OCH BARA DEN (CP 2026-11-18 05.30: "Kör på github eller grok så vi kommer vidare"). Boxen är
+  # en virtuell maskin som fryses och återupptas, och varje frysning dödade jobbet som körde: fem gånger mellan 02.13 och 05.18,
+  # utan logg (cllp/lifehub.app#880). Jobben här går därför på `vars.LIFEHUB_RUNNER`: värdet `boxen` kör dem på de egna runnerna,
+  # allt annat, även tomt, på GitHubs. Tillbaka till boxen är en variabel i repots inställningar, inte en kodändring.
   egna-runners:
     name: egna runners
-    runs-on: [self-hosted, Linux, lifehub]
+    runs-on: ${{ vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -243,9 +248,10 @@ jobs:
       - name: Alla jobb på egna runners
         run: |
           MONSTER="ubuntu""-|windows""-|macos""-"
+          BRYTARE="vars.LIFEHUB_RUNNER == 'boxen' && fromJSON"
           ANTAL="$(ls .github/workflows/*.yml | wc -l)"
           if [ "$ANTAL" -lt 2 ]; then echo "::error::Bara $ANTAL arbetsflöden lästa, golvet är 2."; exit 1; fi
-          if grep -nE "runs-on:.*($MONSTER)" .github/workflows/*.yml; then
+          if grep -nE "runs-on:.*($MONSTER)" .github/workflows/*.yml | grep -vF "$BRYTARE"; then
             echo "::error::Arbetsflöden ovan kör på GitHubs maskiner. Använd runs-on: [self-hosted, Linux, lifehub] (cllp/lifehub.app#880)."
             exit 1
           fi
