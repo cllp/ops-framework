@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useInloggad } from "../auth/auth.jsx";
-import { personnamn, varnaNamnSaknas } from "../lib/personnamn.js";
+import { NAMN_RESERV, personnamn, varnaNamnSaknas } from "../lib/personnamn.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 
 /**
  * Löser en persons visningsnamn i en vy (0.40.1, #218): medlemskapets namn, annars den inloggades namn ur
@@ -15,16 +16,22 @@ import { personnamn, varnaNamnSaknas } from "../lib/personnamn.js";
  * Fungerar utan `OpsAuthProvider` (då finns ingen inloggad att låna namn av), så en vy som ritas i ett prov eller
  * i en app utan ramverkets inloggning faller till "Namn saknas" i stället för att kasta.
  *
- * @returns {(namn: unknown, id?: string, epost?: unknown) => { text: string, saknas: boolean }}
+ * ⛔ `laddar` (0.240.0): sant medan vyn hämtar namn eller adresser. Raden säger då "Hämtar namn …" och ingen varning
+ * skrivs, eftersom inget saknas än. CP 2026-11-18: "Namn Saknas skall aldrig finnas inte ens under progress."
+ * Reservorden följer appens språk (`useOpsSprak`).
+ *
+ * @returns {(namn: unknown, id?: string, epost?: unknown, laddar?: boolean) => { text: string, saknas: boolean, laddar?: boolean }}
  */
 export function usePersonnamn() {
   const inloggad = useInloggad();
+  const sprak = useOpsSprak();
   return useCallback(
-    (namn, id, epost) => {
-      const svar = personnamn(namn, { id, inloggad, epost });
-      if (svar.saknas && id) varnaNamnSaknas(id);
+    (namn, id, epost, laddar = false) => {
+      const ord = NAMN_RESERV[sprak === "en" ? "en" : "sv"];
+      const svar = personnamn(namn, { id, inloggad, epost, laddar, saknas: ord.saknas, laddas: ord.laddar });
+      if (svar.saknas && !svar.laddar && id) varnaNamnSaknas(id);
       return svar;
     },
-    [inloggad],
+    [inloggad, sprak],
   );
 }

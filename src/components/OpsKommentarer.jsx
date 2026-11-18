@@ -394,7 +394,8 @@ export function OpsKommentarsrad(props) {
 export const ORD_OPSKOMMENTARSRAD = {
   enNy: { sv: "1 ny kommentar", en: "1 new comment" },
   flerNya: { sv: "nya kommentarer", en: "new comments" },
-  namnSaknas: { sv: "Namn saknas", en: "Name missing" },
+  // ⛔ "Okänd person", inte "Namn saknas" (0.240.0, CP 2026-11-18). Samma ord som `NAMN_RESERV`.
+  namnSaknas: { sv: "Okänd person", en: "Unknown person" },
 };
 
 /**

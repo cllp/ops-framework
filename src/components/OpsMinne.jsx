@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Bookmark } from "lucide-react";
 import { farAndraMinne } from "../lib/minne.js";
+import { NAMN_RESERV } from "../lib/personnamn.js";
 import { modulTillbaka } from "../lib/modulram.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
@@ -133,7 +134,7 @@ export function OpsMinne({ rader, fel = null, trasiga = [], laddar = false, uid,
                       <span className="block whitespace-pre-wrap text-etikett text-ink">{rad.text}</span>
                     )}
                     <span className="mt-1 block text-meta text-ink-muted">
-                      {kallanamn(rad.kalla.slag)} · {rad.lyftAv.namn || "Namn saknas"} · {nar(rad.lyft, sprak)}
+                      {kallanamn(rad.kalla.slag)} · {rad.lyftAv.namn || NAMN_RESERV[sprak === "en" ? "en" : "sv"].saknas} · {nar(rad.lyft, sprak)}
                     </span>
                     {far && !oppen ? (
                       <span className="mt-2 flex flex-wrap gap-2">

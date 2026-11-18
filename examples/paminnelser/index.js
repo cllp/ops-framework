@@ -89,6 +89,8 @@ const raderna = (groupId) =>
 export const paminnelser = defineModule({
   id: "paminnelser",
   namn: { sv: "Påminnelser", en: "Reminders" },
+  // ⛔ Beskrivningen (0.240.0) står i (i)-panelen på sidan Verktyg, också innan verktyget är installerat. Valfri, `null` utan den.
+  beskrivning: { sv: "Påminnelser om räkningar och avtal, med förfallodag.", en: "Reminders about bills and contracts, with due dates." },
 
   nav: [{ href: "/paminnelser", label: "Påminnelser" }],
 

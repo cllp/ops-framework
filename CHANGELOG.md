@@ -9,6 +9,36 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.240.0
+
+**(i) fäller ut ett verktyg på sidan Verktyg** (CP 2026-11-18: "man skall kunna expandera ett verktyg för att läsa mer om verktyget ... Kanske en (i) eller info som visar status på grejer i projektet. Eller om det kan finnas ett snyggt sätt att fälla ut ett kort så att det blir stort och brett över andra kort och fälla in det igen", och om förslaget: "Perfekt"). 0.239.0 tog bort infolinjen och delarna från rutorna, och då försvann till exempel raden "2 obetalda kundfakturor, nästa förfaller ..." ur appen helt.
+
+### Nytt
+
+- **En (i) i varje installerad rutas övre vänstra hörn** (`OpsGruppHubb`). Ett tryck fäller ut en panel i full bredd direkt under raden rutan står på, med verktygets **läge** (appens `info`, "Inget nytt" när värdet är `null`, ingen rad när nyckeln saknas), **delarna** som länkar (när verktyget har fler än en) och **"Öppna <verktyg>"**. Ett tryck på själva rutan öppnar verktyget som förut.
+- En panel åt gången. Den stängs med (i) igen, med Stäng i panelen eller med Escape, och fokus går tillbaka till (i). (i) har `aria-expanded` och `aria-controls`, panelen är en region med verktygets namn.
+- ⛔ **Panelen skjuter ned raderna under, den lägger sig inte ovanpå.** En panel ovanpå hade dolt de andra verktygen och varit svår att stänga på telefonen. Panelen står direkt efter sin ruta och spänner hela raden (`col-span-full`), och rutnätet packas `grid-flow-row-dense`, så att den hamnar på raden under vid 3, 4, 5 eller 6 kolumner utan att något räknar kolumner i JS.
+- (i) är en egen knapp bredvid länken, aldrig inuti den. Träffytan är 44 px och ikonen 16 px. Märket (räknaren) sitter kvar på plattans övre högra hörn.
+- ⛔ **Rutan förblir en rund ring när den är utfälld** (CP om första skärmbilden: "Men ekonomi skall ju också vara en rund ring tills man fäller ut den eller hur?"). Den öppna rutan markeras med en ring i accentfärgen runt plattan, aldrig med en ruta bakom den.
+- **De som kan läggas till har också (i)** (CP: "de som inte är installerade vill man kunna veta mer om innan man installerar"). Panelen visar verktygets `beskrivning`, delarna som text (inte länkar, verktyget är inte installerat), var det syns, och knappen "Lägg till <verktyg>" med samma väg och samma väntan som rutan: ett tryck på den ena gör båda upptagna. Får den som tittar inte lägga till står raden om att ägaren gör det. En panel åt gången över båda rutnäten.
+- **`beskrivning` i modulens manifest** (`defineModule`): `{ sv, en }`, valfri, `null` när den saknas, och en sträng avvisas som för `namn`. Den står i panelen för både installerade och de som kan läggas till.
+
+- **"Namn saknas" står aldrig, inte ens medan namnen hämtas** (CP 2026-11-18, med en skärmbild av Medlemmar: "Namn Saknas skall aldrig finnas inte ens under progress. Då får det hellre står hämtar användarinfo eller nåt annat."). Mätt i appen: adressen till en medlem utan namn kommer ur ett eget anrop efter att listan ritats, och fram till svaret stod "Namn saknas". `OpsGruppSida` och `OpsMedlemmar` tar `namnLaddas`: medan den är sann säger en rad som saknar både namn och adress **"Hämtar namn …"** (`NAMN_LADDAS`, på engelska "Loading name …"), dämpad och märkt `data-namn-laddas`, och ingen varning skrivs i konsolen. `personnamn` tar `laddar` på samma sätt, och `usePersonnamn` ett fjärde argument.
+
+### Ändrat
+
+- ⛔ **Den sista reserven är "Okänd person", inte "Namn saknas"** (`NAMN_SAKNAS`, på engelska "Unknown person", samma i kommentarerna och Minnet). Inte "Medlem": det är rollens namn i samma rad. Den står bara för den som varken har namn eller adress när allt är hämtat, och är fortsatt märkt `data-namn-saknas` så att den går att räkna. Nya exporter: `NAMN_LADDAS` och `NAMN_RESERV` (båda texterna per språk).
+- **`info` ritas igen**, i panelen. Inga props har bytt namn, och en app som redan skickar `info` (lifehub.app gör det) får läget i panelen utan ändring.
+
+### Prov
+
+- `hubb.test.jsx`, describe "(i) fäller ut ett verktyg (0.240.0)" och "ringen och de som kan läggas till (0.240.0)": fem prov (öppna med läget, delarna och Öppna, panelens plats och rutnätets packning; en åt gången; Stäng och Escape med fokus tillbaka; `null` och saknad nyckel; engelska). Sex prov till för ringen, de som kan läggas till, en panel åt gången över båda rutnäten och `beskrivning`. Mot 0.239.0:s `OpsHub.jsx` och `modul.js`: 13 röda av 87, med ändringen 87 av 87.
+- Skärmbilder vid 390 och 1440 px med panelen utfälld, utan horisontellt överflöde.
+- `namn-laddas.test.jsx`: åtta prov ("Hämtar namn …" medan namnen hämtas i `OpsGruppSida` och `OpsMedlemmar`, adressen när den kommit, "Okänd person" som sista reserv, engelska, ingen varning under laddning). Mot den gamla koden: 6 röda av 8, med ändringen 8 av 8.
+- `check-skalyta` (9c a) i Chromium vid 390 och 1280 px: före 0.240.0 krävde vakten att inget på sidan Verktyg hade `aria-expanded`. Nu är (i) det enda, stängd från början; ett tryck lägger panelen under rutan i rutnätets hela bredd med "Öppna Ekonomi" och en ring runt plattan, sidan flödar inte, och Escape stänger med fokus tillbaka på (i). Utan ringen: 2 brott av 93. Med: inga brott.
+
+---
+
 ## 0.239.0
 
 **Verktyg som rutor** (CP 2026-11-18: "ja, bygg rutorna", cllp/lifehub.app#864; skissen i cllp/lifehub.app#842 del C). Sidan Verktyg (`OpsGruppHubb`) är ett rutnät av rutor i stället för kort: verktygets ikon på en rund platta och namnet under, tre per rad på en telefon. Ett tryck öppnar verktyget, och ingenting fälls ut. Det ersätter beslutet från 2026-10-08 (0.83.0, "Varje app/modul borde kunna expanderas med chevron") för den här sidan: delarna nås inne i verktyget (`OpsModulSida`), och sidan svarar bara på vilka verktyg som finns och vilka som kan läggas till. `OpsHub`, appens egen lista, har kvar korten och chevronen.

@@ -183,7 +183,7 @@ export { MAX_SEKUNDER, LJUDFORMAT } from "../lib/talk.js";
 // ⛔ 0.105.0: förslagens form på serversidan också. Appens server bygger knapparna som `OpsMeddelanden` ritar, och prövar dem med samma
 // funktion som komponenten, så att ett tak eller en ikon inte står på två ställen.
 export { FORSLAG_IKONER, MAX_FORSLAG, MAX_FORSLAG_ETIKETT, MAX_FORSLAG_TEXT, forslagetsFel, kontrolleraForslag } from "../lib/forslag.js";
-export { personnamn, NAMN_SAKNAS } from "../lib/personnamn.js";
+export { personnamn, NAMN_SAKNAS, NAMN_LADDAS, NAMN_RESERV } from "../lib/personnamn.js";
 
 /*
  * ⛔ MEJL (0.76.0, ops-framework#101, lifehub.app#103 lane 18A). Kön bär andras

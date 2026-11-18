@@ -55,9 +55,9 @@ describe("namnet kommer ur medlemskapet (#138, beslut A)", () => {
     expect(container.querySelector("img")).toBe(null);
   });
 
-  it("⛔ ritar 'Namn saknas' och aldrig uid när namnet saknas, alltså för en rad skriven före fältet fanns (#218)", () => {
+  it("⛔ ritar 'Okänd person' (0.240.0, förut 'Namn saknas') och aldrig uid när namnet saknas, alltså för en rad skriven före fältet fanns (#218)", () => {
     const { container } = render(<OpsMedlemmar medlemmar={[ur("uid-utan-namn", {})]} migUid="mig" />);
-    expect(screen.getByText("Namn saknas")).toBeTruthy();
+    expect(screen.getByText("Okänd person")).toBeTruthy();
     expect(container.textContent).not.toContain("uid-utan-namn");
   });
 });
