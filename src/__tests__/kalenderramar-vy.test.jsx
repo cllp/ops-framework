@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsCalendar } from "../components/OpsCalendar.jsx";
+import { ARV_TON_KULOR } from "../lib/gruppfarg.js";
 import { OpsDoldMarke, DOLD_RAD_KLASS } from "../components/OpsDoldMarke.jsx";
 import { OpsSprakProvider } from "../components/OpsSprak.jsx";
 import { useKalenderSynlighet } from "../lib/useKalenderSynlighet.js";
@@ -44,16 +45,21 @@ function rita(visning, extra = {}) {
   return render(<OpsCalendar ariaLabel="Kalender" today={IDAG} monthsBack={0} monthsForward={0} entries={POSTER} kalendrar={KAL} kalenderMinne="p:g" lagring={minne(visning)} {...extra} />);
 }
 const dag = (/** @type {string} */ d) => /** @type {HTMLElement} */ (document.querySelector(`[data-cal-day="${d}"]`));
+/** Kulören en kalender med en äldre ton ritas med (0.238.0). @param {number} n */
+const H = (n) => String(ARV_TON_KULOR[/** @type {1} */ (n)]);
 const yttre = (/** @type {string} */ d) => dag(d).querySelector("[data-dagram]");
 const inre = (/** @type {string} */ d) => dag(d).querySelector("[data-dagram-inre]");
 
 describe("två ramar på en dag", () => {
   it("⛔ två kalendrar med ram samma dag ritar båda, den andra inuti den första, i listans ordning", () => {
     rita({ gruppen: "ram", resor: "bada" });
-    expect(yttre("2026-10-12")?.getAttribute("data-dagram")).toBe("4");
-    expect(inre("2026-10-12")?.getAttribute("data-dagram-inre")).toBe("1");
-    expect(yttre("2026-10-12")?.className).toContain("border-identity-4");
-    expect(inre("2026-10-12")?.className).toContain("border-identity-1");
+    expect(yttre("2026-10-12")?.getAttribute("data-dagram")).toBe(H(4));
+    expect(inre("2026-10-12")?.getAttribute("data-dagram-inre")).toBe(H(1));
+    expect(yttre("2026-10-12")?.className).toContain("ops-kulor-ring");
+    expect(inre("2026-10-12")?.className).toContain("ops-kulor-ring");
+    // ⛔ Kulören sitter på ramen själv (0.238.0, cllp/lifehub.app#882), som `--grupp-kulor`.
+    expect(/** @type {HTMLElement} */ (yttre("2026-10-12")).style.getPropertyValue("--grupp-kulor")).toBe(H(4));
+    expect(/** @type {HTMLElement} */ (inre("2026-10-12")).style.getPropertyValue("--grupp-kulor")).toBe(H(1));
     // Den yttre ligger före den inre i rutan (och alltså under den i stapelordning).
     const barn = [...dag("2026-10-12").children];
     expect(barn.indexOf(/** @type {Element} */ (yttre("2026-10-12")))).toBeLessThan(barn.indexOf(/** @type {Element} */ (inre("2026-10-12"))));
@@ -62,15 +68,15 @@ describe("två ramar på en dag", () => {
   it("⛔ ordningen är listans och inte postens: byter listan plats byter ramarna plats", () => {
     const omvand = [KAL[1], KAL[0], KAL[2]];
     render(<OpsCalendar ariaLabel="Kalender" today={IDAG} monthsBack={0} monthsForward={0} entries={POSTER} kalendrar={omvand} kalenderMinne="p:g" lagring={minne({ gruppen: "ram", resor: "ram" })} />);
-    expect(yttre("2026-10-12")?.getAttribute("data-dagram")).toBe("1");
-    expect(inre("2026-10-12")?.getAttribute("data-dagram-inre")).toBe("4");
+    expect(yttre("2026-10-12")?.getAttribute("data-dagram")).toBe(H(1));
+    expect(inre("2026-10-12")?.getAttribute("data-dagram-inre")).toBe(H(4));
   });
 
   it("⛔ fler än två: bara de två första i listan ritas", () => {
     rita({ gruppen: "ram", resor: "ram", mina: "ram" });
     expect(dag("2026-10-12").querySelectorAll("[data-dagram], [data-dagram-inre]")).toHaveLength(2);
-    expect(yttre("2026-10-12")?.getAttribute("data-dagram")).toBe("4");
-    expect(inre("2026-10-12")?.getAttribute("data-dagram-inre")).toBe("1");
+    expect(yttre("2026-10-12")?.getAttribute("data-dagram")).toBe(H(4));
+    expect(inre("2026-10-12")?.getAttribute("data-dagram-inre")).toBe(H(1));
   });
 
   it("⛔ EN RAM ÄR EXAKT SOM FÖRUT: samma element, samma klasser, ingen inre", () => {
@@ -78,16 +84,16 @@ describe("två ramar på en dag", () => {
     // 12:e har bara Resor med ram, 13:e likaså.
     for (const d of ["2026-10-12", "2026-10-13"]) {
       expect(inre(d)).toBeNull();
-      expect(yttre(d)?.getAttribute("data-dagram")).toBe("1");
+      expect(yttre(d)?.getAttribute("data-dagram")).toBe(H(1));
       expect((yttre(d)?.className ?? "").split(/\s+/).sort()).toEqual(
-        "pointer-events-none absolute -inset-px z-1 rounded-base border-2 sm:inset-0.5 sm:rounded-sm sm:opacity-70 border-identity-1".split(" ").sort(),
+        "pointer-events-none absolute -inset-px z-1 rounded-base border-2 sm:inset-0.5 sm:rounded-sm sm:opacity-70 ops-kulor-ring".split(" ").sort(),
       );
     }
   });
 
   it("en dag där bara en av två kalendrar har ram får en ram, och en dag utan får ingen", () => {
     rita({ resor: "ram", gruppen: "handelser" });
-    expect(yttre("2026-10-12")?.getAttribute("data-dagram")).toBe("1");
+    expect(yttre("2026-10-12")?.getAttribute("data-dagram")).toBe(H(1));
     expect(inre("2026-10-12")).toBeNull();
     expect(yttre("2026-10-14")).toBeNull();
   });
@@ -97,7 +103,7 @@ describe("två ramar på en dag", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Kalendrar: / }));
     const lista = await screen.findByRole("dialog", { name: "Kalendrar" });
     fireEvent.click(within(lista).getByRole("button", { name: kalenderrad("Styrelsen") }));
-    expect(yttre("2026-10-12")?.getAttribute("data-dagram")).toBe("1");
+    expect(yttre("2026-10-12")?.getAttribute("data-dagram")).toBe(H(1));
     expect(inre("2026-10-12")).toBeNull();
   });
 
@@ -113,7 +119,7 @@ describe("två ramar på en dag", () => {
     expect(yttre("2026-10-12")?.getAttribute("data-dagram")).toBe("3");
     expect(inre("2026-10-12")).toBeNull();
     // 13:e har bara Resor: dess ram.
-    expect(yttre("2026-10-13")?.getAttribute("data-dagram")).toBe("1");
+    expect(yttre("2026-10-13")?.getAttribute("data-dagram")).toBe(H(1));
   });
 
   it("⛔ en app som själv ger ramar (dagdekor.ramar) får två, och ger den också ram vinner ram", () => {

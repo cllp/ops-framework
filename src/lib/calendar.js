@@ -57,7 +57,7 @@ import { delaModultypId } from "./modultyper.js";
  *   `date` ritas posten som ett BAND över dagarna, en rad per vecka, i stället för ett märke i varje ruta.
  * @property {boolean} [allDay] Heldag (0.36.0). Ritas som ett band också när den är en enda dag, och kortet säger
  *   "Heldag" i stället för ett klockslag.
- * @property {{ id: string, namn: string, farg: 1|2|3|4|5|6 }} [kalender] Kalendern posten ligger i (0.36.0, #179 F0).
+ * @property {{ id: string, namn: string, farg: 1|2|3|4|5|6|string }} [kalender] Kalendern posten ligger i (0.36.0, #179 F0). `farg` är en kulör (`kulor:<grader>`) sedan 0.238.0, eller en äldre ton.
  *   Färgen är en ton ur identitetspaletten och står ALDRIG ensam: namnet står bredvid den i kortet och i filtret.
  *   ⛔ Saknas den hör posten till den förvalda kalendern i `OpsCalendar`s `kalendrar` (en händelse skriven före
  *   0.36.0 har ingen kalender, och ska inte försvinna ur ett filter för det).

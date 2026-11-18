@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { cx } from "../lib/cx.js";
-import { KALENDERPRICK } from "../lib/kalenderfarg.js";
-import { lagerFarg } from "../lib/kalenderlager.js";
+import { KULORKLASS, kalenderKulor } from "../lib/kalenderfarg.js";
+import { kulorStil } from "../lib/gruppfarg.js";
 import { radRubrikKlass } from "../lib/radKlass.js";
 import { forvalda } from "../lib/ord.js";
 import { ChevronNedIkon, KalenderIkon } from "./icons.jsx";
@@ -147,7 +147,7 @@ function Kalenderrad({ k, syn, o, oppen, onOppna }) {
           chosen={syns}
           onClick={() => syn.vaxla(k.id)}
           under={k.marke || undefined}
-          ikon={<span data-kalenderprick={lagerFarg(k)} className={cx("block size-2.5 rounded-full", KALENDERPRICK[lagerFarg(k)])} />}
+          ikon={<span data-kalenderprick={kalenderKulor(k)} className={cx("block size-2.5 rounded-full", KULORKLASS.prick)} style={kulorStil(kalenderKulor(k))} />}
         >
           {k.namn}
         </ValRad>

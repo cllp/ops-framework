@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsCalendar } from "../components/OpsCalendar.jsx";
+import { ARV_TON_KULOR } from "../lib/gruppfarg.js";
 import { OpsKalenderAr } from "../components/OpsKalenderAr.jsx";
 
 /*
@@ -117,15 +118,23 @@ describe("⛔ OpsKalenderAr (#874)", () => {
     expect(rader[1].getAttribute("data-arsvy-band")).toBe("lov");
   });
 
-  it("⛔ förklaringen och banden har samma färg också när farg saknas eller är en sträng", () => {
-    const kal = [{ id: "a", namn: "A", farg: "3" }, { id: "b", namn: "B" }];
+  it("⛔ förklaringen och banden har samma färg också när farg saknas, är en äldre ton som sträng eller en kulör", () => {
+    const kal = [{ id: "a", namn: "A", farg: "3" }, { id: "b", namn: "B" }, { id: "c", namn: "C", farg: "kulor:210" }];
     const poster = kal.map((k) => ({ id: k.id, date: "2027-07-09", allDay: true, title: k.namn, kalender: k }));
     render(<OpsKalenderAr ar={2027} {...bas} poster={poster} kalendrar={kal} forvaldId="a" />);
+    /** @type {string[]} */
+    const kulorer = [];
     for (const k of kal) {
-      const bandKlass = /** @type {HTMLElement} */ (document.querySelector(`[data-arsvy-dag="2027-07-09"] [data-arsvy-band="${k.id}"]`)).className.match(/bg-identity-\d/)?.[0];
-      const knapp = screen.getByRole("button", { name: `Visa ${k.namn}` });
-      expect(knapp.querySelector("span")?.className).toContain(bandKlass);
+      const band = /** @type {HTMLElement} */ (document.querySelector(`[data-arsvy-dag="2027-07-09"] [data-arsvy-band="${k.id}"]`));
+      const knapp = /** @type {HTMLElement} */ (screen.getByRole("button", { name: `Visa ${k.namn}` }).querySelector("span"));
+      // Samma klass och samma kulör (0.238.0: kalendrarna ritas med sin kulör, `--grupp-kulor`).
+      expect(band.className).toContain("ops-kulor-prick");
+      expect(knapp.className).toContain("ops-kulor-prick");
+      expect(band.style.getPropertyValue("--grupp-kulor")).toBe(knapp.style.getPropertyValue("--grupp-kulor"));
+      kulorer.push(band.style.getPropertyValue("--grupp-kulor"));
     }
+    expect(kulorer[0]).toBe(String(ARV_TON_KULOR[3]));
+    expect(kulorer[2]).toBe("210");
   });
 
   it("⛔ en månad som inte är inläst säger det, och året bläddrar inte till ett år utan inlästa månader", () => {

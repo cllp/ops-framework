@@ -30,9 +30,15 @@ import { identityTone } from "./identity.js";
 
 /**
  * `kulor:` följt av 0 till 359, utan inledande nollor (granskningen av PR 266): en lagrad form per kulör, så att
- * `kulor:7` och `kulor:007` aldrig är två värden för samma färg. Övre gränsen prövas i `fargTillKulor`.
+ * `kulor:7` och `kulor:007` aldrig är två värden för samma färg.
+ *
+ * ⛔ EN FORM FÖR VARJE KULÖR I RAMVERKET, OCH ÖVRE GRÄNSEN STÅR I MÖNSTRET (0.238.0, cllp/lifehub.app#882). Grupper, personer
+ * och kalendrar lagrar samma form, och kalenderreglerna (`opsMinKalenderGiltig` i `regler.js`) läser DET HÄR mönstret med
+ * `regelRegex`. Före 0.238.0 stod övre gränsen i `fargTillKulor` och mönstret släppte in `kulor:999`; en regel kan inte
+ * anropa `fargTillKulor`, så gränsen hade behövt skrivas en gång till i regeltexten. Därför står den här, utan `\d`
+ * (Firestores `matches()` tar ingen omvänd snedstreck genom `regelRegex`).
  */
-export const GRUPPKULOR_FORM = /^kulor:(0|[1-9]\d{0,2})$/;
+export const GRUPPKULOR_FORM = /^kulor:(0|[1-9][0-9]?|[12][0-9][0-9]|3[0-5][0-9])$/;
 
 /** De äldre tonerna (`PROFILFARGER`, "1" till "6") som kulör, i grader. Härledd ur `--color-identity-N`, se filhuvudet. */
 export const ARV_TON_KULOR = Object.freeze({ 1: 166, 2: 88, 3: 29, 4: 240, 5: 336, 6: 119 });
@@ -90,10 +96,7 @@ export function kulorTillFarg(grader) {
 export function fargTillKulor(farg) {
   const varde = typeof farg === "string" ? farg.trim() : "";
   const m = GRUPPKULOR_FORM.exec(varde);
-  if (m) {
-    const g = Number(m[1]);
-    return g <= 359 ? g : null;
-  }
+  if (m) return Number(m[1]);
   // ⛔ `Object.hasOwn`, aldrig `in`: `in` når prototypkedjan, så "toString", "constructor" och "__proto__" godtogs som
   // en äldre ton och sparades av `byggGrupp` och `byggAnvandare` (granskningen av PR 275).
   if (Object.hasOwn(ARV_TON_KULOR, varde)) return ARV_TON_KULOR[/** @type {1|2|3|4|5|6} */ (Number(varde))];
@@ -115,4 +118,18 @@ export function gruppKulor(grupp, seed) {
   const sparad = fargTillKulor(grupp?.farg);
   if (sparad !== null) return sparad;
   return ARV_TON_KULOR[identityTone(grupp?.id ?? seed ?? "")];
+}
+
+/**
+ * Kulören som CSS-variabel, för ett element som ritas med en av kulörklasserna i tokens.css (`.ops-gruppmarke`,
+ * `.ops-kulor-prick`, `.ops-kulor-kant`, `.ops-kulor-ton` och de andra, 0.238.0).
+ *
+ * ⛔ GRADER OCH ALDRIG EN FÄRG. Variabeln bär bara kulören; ljusheten och mättnaden står i temat, så samma tal ritas rätt i
+ * ljust och mörkt läge. Det är därför den går förbi `check-closed-api` punkt 3 med rätta: ingen färg skrivs i `style`.
+ * @param {number | null | undefined} grader
+ * @returns {import("react").CSSProperties | undefined} `undefined` när ingen kulör finns.
+ */
+export function kulorStil(grader) {
+  if (typeof grader !== "number" || !Number.isFinite(grader)) return undefined;
+  return /** @type {import("react").CSSProperties} */ ({ "--grupp-kulor": ((Math.round(grader) % 360) + 360) % 360 });
 }

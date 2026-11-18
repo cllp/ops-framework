@@ -3,7 +3,6 @@ import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { text } from "../lib/sprak.js";
 import {
-  KALENDERFARGER,
   KALENDERIKONER,
   MAX_KALENDERNAMN,
   arkiveraKalender,
@@ -24,6 +23,9 @@ import { forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
+import { ORD_OPSFARGVAL, OpsFargval } from "./OpsFargval.jsx";
+import { GRUPPKULORFORSLAG, kulorTillFarg } from "../lib/gruppfarg.js";
+import { kalenderKulor } from "../lib/kalenderfarg.js";
 import { OpsCheckbox } from "./OpsToggle.jsx";
 
 /**
@@ -133,7 +135,7 @@ export const ORD_OPSKALENDRAR_DELNING = {
  */
 
 /**
- * @typedef {{ id: string, namn: any, farg: number, ikon: string, ordning: number, forvald: boolean, arkiverad: boolean, iFlodet: boolean }} Kal
+ * @typedef {{ id: string, namn: any, farg: number | string, ikon: string, ordning: number, forvald: boolean, arkiverad: boolean, iFlodet: boolean }} Kal
  */
 
 /**
@@ -147,7 +149,7 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
   const od = forvalda(ORD_OPSKALENDRAR_DELNING, sprak);
   /** @param {string} id */
   const antalDelningar = (id) => (delning ? delning.delningar.filter((d) => d.kalenderId === id).length : 0);
-  const [utkast, setUtkast] = useState(/** @type {null | { id: string | null, namn: string, farg: number, ikon: string, forvald: boolean, forvaldFran: boolean }} */ (null));
+  const [utkast, setUtkast] = useState(/** @type {null | { id: string | null, namn: string, farg: number | string, ikon: string, forvald: boolean, forvaldFran: boolean }} */ (null));
   const [upptagen, setUpptagen] = useState(false);
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
   const valbara = /** @type {Kal[]} */ (/** @type {unknown} */ (valjbara(/** @type {any} */ (lista), sprak)));
@@ -175,7 +177,8 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
 
   const oppnaNy = () => {
     setFel(null);
-    setUtkast({ id: null, namn: "", farg: KALENDERFARGER[(lista.length) % KALENDERFARGER.length], ikon: KALENDERIKONER[0], forvald: false, forvaldFran: false });
+    // ⛔ En ny kalender får nästa snabbval som kulör (0.238.0), som den förut fick nästa av de sex tonerna: två kalendrar i rad får inte samma färg.
+    setUtkast({ id: null, namn: "", farg: kulorTillFarg(GRUPPKULORFORSLAG[lista.length % GRUPPKULORFORSLAG.length].kulor), ikon: KALENDERIKONER[0], forvald: false, forvaldFran: false });
   };
   /** @param {Kal} k */
   const oppnaRedigera = (k) => {
@@ -238,7 +241,7 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
               data-kalenderrad={k.id}
               className={cx("flex min-w-0 flex-wrap items-center gap-2 rounded-base border bg-canvas p-2", utkast && utkast.id === k.id ? "border-accent" : "border-line")}
             >
-              <OpsIdentity name={namn} seed={k.id} tone={/** @type {1|2|3|4|5|6} */ (k.farg)} icon={Ikon} size="sm" />
+              <OpsIdentity name={namn} seed={k.id} kulor={kalenderKulor(k)} icon={Ikon} size="sm" />
               <span className="min-w-0 grow basis-16">
                 <span className="block truncate text-etikett text-ink">{namn}</span>
                 {arForvald || delasMed > 0 ? (
@@ -382,13 +385,12 @@ function IkonKnapp({ etikett, disabled, onClick, children }) {
 }
 
 /** Färgrutornas klass, utskriven (Tailwind läser källan som text). @type {Record<number, string>} */
-const FARGRUTA = { 1: "bg-identity-1", 2: "bg-identity-2", 3: "bg-identity-3", 4: "bg-identity-4", 5: "bg-identity-5", 6: "bg-identity-6" };
-
 /**
  * Redigeraren: namn, färg, ikon och förvald. SS `PersonalCalendarsInlineSection.jsx:181-288`.
- * @param {{ utkast: { id: string | null, namn: string, farg: number, ikon: string, forvald: boolean, forvaldFran: boolean }, setUtkast: (f: (u: any) => any) => void, upptagen: boolean, fel: string | null, ny: boolean, onAvbryt: () => void, onSpara: () => void }} props
+ * @param {{ utkast: { id: string | null, namn: string, farg: number | string, ikon: string, forvald: boolean, forvaldFran: boolean }, setUtkast: (f: (u: any) => any) => void, upptagen: boolean, fel: string | null, ny: boolean, onAvbryt: () => void, onSpara: () => void }} props
  */
 function Redigerare({ utkast, setUtkast, upptagen, fel, ny, onAvbryt, onSpara }) {
+  const sprak = useOpsSprak();
   const Ikon = kalenderIkonKomponent(utkast.ikon);
   return (
     <div data-kalenderredigerare="" className="flex flex-col gap-3 border-t border-line pt-4">
@@ -399,25 +401,19 @@ function Redigerare({ utkast, setUtkast, upptagen, fel, ny, onAvbryt, onSpara })
         </p>
       ) : null}
       <div className="flex min-w-0 items-end gap-3">
-        <OpsIdentity name={utkast.namn || "Kalender"} seed={utkast.id || "ny"} tone={/** @type {1|2|3|4|5|6} */ (utkast.farg)} icon={Ikon} size="md" />
+        <OpsIdentity name={utkast.namn || "Kalender"} seed={utkast.id || "ny"} kulor={kalenderKulor({ id: utkast.id || "ny", farg: utkast.farg })} icon={Ikon} size="md" />
         <div className="min-w-0 flex-1">
           <OpsField label="Namn">
             <OpsInput value={utkast.namn} onChange={(v) => setUtkast((u) => ({ ...u, namn: v }))} maxLength={MAX_KALENDERNAMN} placeholder="Till exempel Styrelsen" />
           </OpsField>
         </div>
       </div>
-      <div role="group" aria-label="Färg" className="flex flex-wrap gap-2">
-        {KALENDERFARGER.map((f) => (
-          <button
-            key={f}
-            type="button"
-            aria-label={`Färg ${f}`}
-            aria-pressed={utkast.farg === f}
-            disabled={upptagen}
-            onClick={() => setUtkast((u) => ({ ...u, farg: f }))}
-            className={cx("size-8 cursor-pointer rounded-md border-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", FARGRUTA[f], utkast.farg === f ? "border-accent" : "border-transparent")}
-          />
-        ))}
+      {/* ⛔ RAMVERKETS ENDA FÄRGVÄLJARE, I KULÖRLÄGE (0.238.0, cllp/lifehub.app#882). Före 0.238.0 sex rutor med identitetstonerna; en kalender
+          som har en av dem visas med tonens kulör och behåller den tills någon väljer en ny (`kalenderfarg.js`). */}
+      <div data-kalenderfarg="">
+        <OpsField label="Färg" hint={forvalda(ORD_OPSFARGVAL, sprak).kulorHint}>
+          <OpsFargval slag="kulor" value={utkast.farg} onChange={(v) => setUtkast((u) => ({ ...u, farg: v }))} disabled={upptagen} />
+        </OpsField>
       </div>
       <div role="group" aria-label="Ikon" className="flex flex-wrap gap-1.5">
         {KALENDERIKONER.map((id) => {

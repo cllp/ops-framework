@@ -45,9 +45,37 @@
 import { byggKategori, ID_FORM, KATEGORIFALT, katalognyckel, valjbara } from "./katalog.js";
 import { text } from "./sprak.js";
 import { STANDARD_TIDSZON } from "./format.js";
+import { GRUPPKULOR_FORM } from "./gruppfarg.js";
 
-/** Färgerna en kalender får ha: identitetspalettens sex toner (`--color-identity-1` till `-6`). */
+/**
+ * De äldre tonerna en kalender kan ha: identitetspalettens sex (`--color-identity-1` till `-6`), sparade som tal.
+ *
+ * ⛔ SEDAN 0.238.0 (cllp/lifehub.app#882) VÄLJER EN KALENDER KULÖR, `kulor:<grader>` (`GRUPPKULOR_FORM` i `lib/gruppfarg.js`), som grupperna.
+ * Tonerna erbjuds inte längre i väljaren, men en kalender som har en av dem LÄSES OCH SPARAS VIDARE med den: ingenting skrivs om i databasen,
+ * och den ritas med tonens kulör (`ARV_TON_KULOR`). Giltig färg: `arGiltigKalenderfarg`. Reglerna (`opsMinKalenderGiltig`) läser samma två.
+ */
 export const KALENDERFARGER = /** @type {const} */ ([1, 2, 3, 4, 5, 6]);
+
+/**
+ * En färg en kalender får spara (0.238.0): en äldre ton som tal (`KALENDERFARGER`) eller en kulör `kulor:0` till `kulor:359`, utan inledande
+ * nollor. Text som `"3"` är INTE en giltig färg här: reglerna tar emot talet, och `byggMinKalender` skriver talet.
+ * @param {unknown} farg
+ * @returns {boolean}
+ */
+export function arGiltigKalenderfarg(farg) {
+  return (/** @type {readonly unknown[]} */ (KALENDERFARGER)).includes(farg) || (typeof farg === "string" && GRUPPKULOR_FORM.test(farg));
+}
+
+/**
+ * Färgen som `byggMinKalender` skriver: en kulör som den står, en äldre ton som tal (också ur text, `"3"` blir `3`, som förut), annars `null`.
+ * @param {unknown} farg
+ * @returns {number | string | null}
+ */
+function kalenderfargUt(farg) {
+  if (typeof farg === "string" && GRUPPKULOR_FORM.test(farg)) return farg;
+  const n = Number(farg);
+  return (/** @type {readonly number[]} */ (KALENDERFARGER)).includes(n) ? n : null;
+}
 
 /**
  * Ikonerna en kalender får ha, som ramverkets egna id:n och inte Lucide-namn (samma skäl som `GRUPPIKONER`).
@@ -137,7 +165,7 @@ const rensa = (v) => (typeof v === "string" ? v.trim() : "");
  * @typedef {object} Gruppkalender
  * @property {string} id
  * @property {import("./sprak.js").Namn} namn
- * @property {1|2|3|4|5|6} farg
+ * @property {1|2|3|4|5|6|string} farg En kulör (`kulor:<grader>`, 0.238.0) eller en äldre ton.
  * @property {string} ikon Ur `KALENDERIKONER`.
  * @property {number} ordning
  * @property {boolean} arkiverad
@@ -151,7 +179,7 @@ const rensa = (v) => (typeof v === "string" ? v.trim() : "");
  * @typedef {object} MinKalender
  * @property {string} id
  * @property {string} namn
- * @property {1|2|3|4|5|6} farg
+ * @property {1|2|3|4|5|6|string} farg En kulör (`kulor:<grader>`, 0.238.0) eller en äldre ton.
  * @property {string} ikon
  * @property {number} ordning
  * @property {boolean} forvald
@@ -211,7 +239,7 @@ export function byggGruppkalender(d) {
    * ⛔ `fas` AVVISAS AV `byggKategori` (`faser: false`), SÅ DEN BEHÖVER INTE KONTROLLERAS HÄR. Det som tas bort nedan
    * är nyckeln `fas: null` som bygget alltid lägger till, inte ett värde någon skickat in.
    */
-  const bas = byggKategori(resten, { katalog: "gruppkalendrar", faser: false, platser: KALENDERFARGER, ikoner: KALENDERIKONER });
+  const bas = byggKategori(resten, { katalog: "gruppkalendrar", faser: false, platser: KALENDERFARGER, ikoner: KALENDERIKONER, kulorer: true });
   const { fas: _fas, ...utanFas } = bas;
   const id = bas.id;
   return {
@@ -350,8 +378,8 @@ export function byggMinKalender(d) {
   const namn = rensa(r.namn);
   if (!namn) throw new Error(`${var_}: namn för "${id}" krävs. En kalender utan namn går inte att välja i filtret.`);
   if (namn.length > MAX_KALENDERNAMN) throw new Error(`${var_}: namn för "${id}" är ${namn.length} tecken, taket är ${MAX_KALENDERNAMN}.`);
-  const farg = Number(r.farg);
-  if (!(/** @type {readonly number[]} */ (KALENDERFARGER)).includes(farg)) throw new Error(`${var_}: farg för "${id}" måste vara ${KALENDERFARGER.join(", ")}, inte ${JSON.stringify(r.farg)}.`);
+  const farg = kalenderfargUt(r.farg);
+  if (farg === null) throw new Error(`${var_}: farg för "${id}" måste vara en kulör, kulor:0 till kulor:359, eller en äldre ton ${KALENDERFARGER.join(", ")}, inte ${JSON.stringify(r.farg)}.`);
   const ikon = rensa(r.ikon);
   /*
    * ⛔ IKONEN PRÖVAS MOT REGLERNAS FORM, INTE MOT LISTAN (granskningen av PR 464). En ikon som en nyare version av ramverket lagt till i `KALENDERIKONER` finns inte i den här listan; hade
@@ -366,7 +394,7 @@ export function byggMinKalender(d) {
   return {
     id,
     namn,
-    farg: /** @type {1|2|3|4|5|6} */ (farg),
+    farg: /** @type {1|2|3|4|5|6|string} */ (farg),
     ikon,
     ordning,
     forvald: bool(r.forvald, `forvald för "${id}"`, var_),
@@ -562,7 +590,7 @@ export function kalenderformFel(slag, id, data) {
   const text = (/** @type {unknown} */ v, /** @type {number} */ max) => typeof v === "string" && v.length <= max;
   if (slag === "kalender") {
     sant("namn", typeof d.namn === "string" && d.namn.length > 0 && d.namn.length <= MAX_KALENDERNAMN);
-    sant("farg", (/** @type {readonly unknown[]} */ (KALENDERFARGER)).includes(d.farg));
+    sant("farg", arGiltigKalenderfarg(d.farg));
     sant("ikon", !finns("ikon") || (text(d.ikon, MAX_KALENDERIKON) && ID_FORM.test(d.ikon)));
     sant("ordning", !finns("ordning") || typeof d.ordning === "number");
     for (const f of ["forvald", "iFlodet", "arkiverad"]) sant(f, !finns(f) || typeof d[f] === "boolean");
@@ -703,7 +731,7 @@ export function postIdUrHandelseId(handelseId) {
  * svar, för en post har inga (den ligger i personens egen kalender, `blockerar` är det enda den påverkar).
  *
  * @param {Kalenderpost} post
- * @param {ReadonlyArray<{ id: string, namn: string | import("./sprak.js").Namn, farg: number }>} kalendrar
+ * @param {ReadonlyArray<{ id: string, namn: string | import("./sprak.js").Namn, farg: number | string }>} kalendrar
  * @param {string} [sprak]
  * @returns {import("../components/OpsHandelsePanel.jsx").HandelseVy}
  */
@@ -721,7 +749,7 @@ export function postTillHandelse(post, kalendrar, sprak = "sv") {
     ...(tid ? { tid } : {}),
     ...(slutTid && post.slut !== post.start ? { slutTid } : {}),
     ...(post.heldag ? { heldag: true } : {}),
-    ...(k ? { kalender: { namn: text(k.namn, sprak), farg: /** @type {1|2|3|4|5|6} */ (k.farg) } } : {}),
+    ...(k ? { kalender: { namn: text(k.namn, sprak), farg: /** @type {1|2|3|4|5|6|string} */ (k.farg) } } : {}),
     ...(post.plats ? { plats: post.plats } : {}),
     ...(post.beskrivning ? { beskrivning: post.beskrivning } : {}),
   };
@@ -734,7 +762,7 @@ export function postTillHandelse(post, kalendrar, sprak = "sv") {
  * två mappningar hade börjat säga olika saker om vilken dag en post som slutar vid midnatt hör till.
  *
  * @param {Kalenderpost} post
- * @param {ReadonlyArray<{ id: string, namn: string | import("./sprak.js").Namn, farg: number }>} kalendrar
+ * @param {ReadonlyArray<{ id: string, namn: string | import("./sprak.js").Namn, farg: number | string }>} kalendrar
  * @param {string} [sprak]
  * @returns {import("./calendar.js").CalendarEntry}
  */
@@ -754,7 +782,7 @@ export function postTillRad(post, kalendrar, sprak = "sv") {
     ...(post.heldag ? { allDay: true } : {}),
     title: post.titel,
     ...(tid || post.plats ? { not: [tid, post.plats].filter(Boolean).join(" · ") } : {}),
-    ...(k ? { kalender: { id: k.id, namn: text(k.namn, sprak), farg: /** @type {1|2|3|4|5|6} */ (k.farg) } } : {}),
+    ...(k ? { kalender: { id: k.id, namn: text(k.namn, sprak), farg: /** @type {1|2|3|4|5|6|string} */ (k.farg) } } : {}),
   };
 }
 
@@ -903,7 +931,7 @@ export function arkiveraKalender(lista, id, arkiverad = true) {
  * så att de två aldrig visar olika kalendrar eller olika förval.
  *
  * @param {{ gruppens?: ReadonlyArray<Gruppkalender>, mina?: ReadonlyArray<MinKalender>, sprak?: string }} arg
- * @returns {Array<{ id: string, namn: string, farg: 1|2|3|4|5|6, ikon: string, grupp: boolean, forvald: boolean }>}
+ * @returns {Array<{ id: string, namn: string, farg: 1|2|3|4|5|6|string, ikon: string, grupp: boolean, forvald: boolean }>}
  */
 export function kalenderval({ gruppens = [], mina = [], sprak = "sv" }) {
   const fg = forvaldKalender(gruppens);

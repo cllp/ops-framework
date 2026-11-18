@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { OpsCalendar } from "../components/OpsCalendar.jsx";
+import { ARV_TON_KULOR } from "../lib/gruppfarg.js";
 import { OpsHandelsePanel } from "../components/OpsHandelsePanel.jsx";
 import { filtreraPoster } from "../lib/calendar.js";
 import { kalenderSynlighetNyckel } from "../lib/kalendersynlighet.js";
@@ -108,7 +109,8 @@ describe("listan Kalendrar: en rad per kalender, en växel per rad", () => {
 
     const apple = /** @type {HTMLElement} */ (lista.querySelector('[data-kalenderrad="apple"]'));
     expect(within(apple).getByText("Apple, skrivskyddad")).toBeTruthy();
-    expect(apple.querySelector('[data-kalenderprick="2"]')?.className).toContain("bg-identity-2");
+    // Kalenderns prick är dess kulör (0.238.0): tonen 2 läses som sin kulör.
+    expect(apple.querySelector(`[data-kalenderprick="${ARV_TON_KULOR[2]}"]`)?.className).toContain("ops-kulor-prick");
     expect(within(lista).getByRole("button", { name: kalenderrad("Apple Calendar") })).toHaveAttribute("aria-pressed", "true");
     expect(within(lista).getByRole("button", { name: kalenderrad("Styrelsen") })).toHaveAttribute("aria-pressed", "true");
     expect(within(lista).getByRole("button", { name: kalenderrad("Ärenden") })).toHaveAttribute("aria-pressed", "false");
@@ -174,10 +176,10 @@ describe("⛔ lagren är borta: varje kalender finns EN gång, och Ärenden är 
     fireEvent.click(within(lista).getByRole("button", { name: kalenderrad("Ärenden") }));
     expect(dagnamn("2026-10-13")).toBe("13, 1 post");
     const rad = /** @type {HTMLElement} */ (lista.querySelector('[data-kalenderrad="arenden"]'));
-    expect(rad.querySelector('[data-kalenderprick="6"]')).toBeTruthy();
+    expect(rad.querySelector(`[data-kalenderprick="${ARV_TON_KULOR[6]}"]`)).toBeTruthy();
     fireEvent.click(within(rad).getByRole("button", { name: /Visas som/ }));
     fireEvent.click(within(rad).getByRole("tab", { name: "Ram" }));
-    expect(dag("2026-10-13").querySelector("[data-dagram]")?.getAttribute("data-dagram")).toBe("6");
+    expect(dag("2026-10-13").querySelector("[data-dagram]")?.getAttribute("data-dagram")).toBe(String(ARV_TON_KULOR[6]));
     expect([...document.querySelectorAll("[data-prick]")].map((p) => p.getAttribute("data-prick"))).not.toContain("arende");
   });
 });
@@ -321,7 +323,7 @@ describe("visning per kalender: Händelser, Ram eller Båda", () => {
     await valjVisning(lista, "apple", "Ram");
     expect(prickar()).not.toContain("tandlakare");
     expect(prickar()).toContain("mote");
-    expect(ramTon("2026-10-12")).toBe("2");
+    expect(ramTon("2026-10-12")).toBe(String(ARV_TON_KULOR[2]));
     // Dagen räknar posten: den finns, den ritas bara som ram.
     expect(dagnamn("2026-10-12")).toBe("12, 3 poster");
     expect(ramTon("2026-10-13")).toBeNull();
@@ -337,7 +339,7 @@ describe("visning per kalender: Händelser, Ram eller Båda", () => {
     const lista = await oppnaListan();
     await valjVisning(lista, "apple", "Båda");
     expect(prickar()).toContain("tandlakare");
-    expect(ramTon("2026-10-12")).toBe("2");
+    expect(ramTon("2026-10-12")).toBe(String(ARV_TON_KULOR[2]));
   });
 
   it("visningen sparas i samma minne som synligheten, och Händelser tar bort posten igen", async () => {
@@ -354,7 +356,7 @@ describe("visning per kalender: Händelser, Ram eller Båda", () => {
     rita();
     const lista = await oppnaListan();
     await valjVisning(lista, "apple", "Ram");
-    expect(ramTon("2026-10-12")).toBe("2");
+    expect(ramTon("2026-10-12")).toBe(String(ARV_TON_KULOR[2]));
     fireEvent.click(within(lista).getByRole("button", { name: kalenderrad("Apple Calendar") }));
     expect(ramTon("2026-10-12")).toBeNull();
   });

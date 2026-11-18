@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { KALENDERPRICK } from "../lib/kalenderfarg.js";
+import { fargprick } from "../lib/kalenderfarg.js";
 import { cx } from "../lib/cx.js";
 import { KalenderIkon } from "./icons.jsx";
 import { OpsButton } from "./OpsButton.jsx";
@@ -23,7 +23,7 @@ import { ValRad } from "./ValRad.jsx";
  * ⛔ ETT FEL FRÅN APPEN SKRIVS UT OCH LÄMNAR RUTAN ÖPPEN, och knapparna är spärrade medan anropet pågår, som i `HandelseFlytta`.
  *
  * @param {object} props
- * @param {ReadonlyArray<{ id: string, namn: string, farg?: 1|2|3|4|5|6 }>} props.mal Kalendrarna personen får skapa i. Tom: ingen knapp (en knapp utan val är död).
+ * @param {ReadonlyArray<{ id: string, namn: string, farg?: 1|2|3|4|5|6|string }>} props.mal Kalendrarna personen får skapa i. Tom: ingen knapp (en knapp utan val är död).
  * @param {ReadonlyArray<{ kalenderId: string, namn: string }>} props.kopierad Var händelsen redan är kopierad. Tom: ingen rad.
  * @param {(arg: { handelse: import("./OpsHandelsePanel.jsx").HandelseVy, malKalenderId: string }) => void | Promise<void>} props.onKopiera
  * @param {import("./OpsHandelsePanel.jsx").HandelseVy} props.handelse
@@ -110,7 +110,7 @@ export function HandelseKopiera({ mal, kopierad, onKopiera, handelse, ord }) {
                 key={m.id}
                 chosen={false}
                 stor
-                ikon={<span className={cx("size-2 rounded-full", KALENDERPRICK[/** @type {number} */ (m.farg)] || "bg-accent")} />}
+                ikon={<span className={cx("size-2 rounded-full", fargprick(m.farg).klass)} style={fargprick(m.farg).stil} />}
                 under={redan(m.id) ? ord.kopieraRedanOrd : undefined}
                 onClick={() => (redan(m.id) ? setVarnar(m) : utfor(m))}
               >

@@ -394,10 +394,13 @@
    * Talen är inte färger och har därför inget `--color-`-prefix: de är
    * OKLCH-ljushet och mättnad som kulören sätts in i.
    * ──────────────────────────────────────────────────────────────────────── */
-  --gruppmarke-ikon-l: 0.47;
-  --gruppmarke-ikon-c: 0.13;
-  --gruppmarke-platta-l: 0.93;
-  --gruppmarke-platta-c: 0.045;
+  /* ⛔ Talen för ljust läge står som `--ljust-gruppmarke-*` i ramverkets `:root` (0.238.0, cllp/lifehub.app#882), bredvid
+     `--dark-gruppmarke-*`: färgväljarens förhandsvisning ritar kulören i BÅDA lägena samtidigt, och i mörkt läge pekar
+     de här namnen på de mörka talen. Ett tal, ett ställe; här står bara pekaren. */
+  --gruppmarke-ikon-l: var(--ljust-gruppmarke-ikon-l);
+  --gruppmarke-ikon-c: var(--ljust-gruppmarke-ikon-c);
+  --gruppmarke-platta-l: var(--ljust-gruppmarke-platta-l);
+  --gruppmarke-platta-c: var(--ljust-gruppmarke-platta-c);
 
   /* ─── Slag ───────────────────────────────────────────────────────────────
    * Vad en post ÄR, när samma svar ska synas på flera ytor samtidigt: ett
@@ -1046,6 +1049,12 @@
   --dark-identity-4: #6fa3c4;
   --dark-identity-5: #b08fa6;
   --dark-identity-6: #9aa08a;
+
+  /* Gruppmärket i ljust läge (0.65.0, #265; eget namn sedan 0.238.0). Se `--gruppmarke-ikon-l` i @theme. */
+  --ljust-gruppmarke-ikon-l: 0.47;
+  --ljust-gruppmarke-ikon-c: 0.13;
+  --ljust-gruppmarke-platta-l: 0.93;
+  --ljust-gruppmarke-platta-c: 0.045;
 
   /* Gruppmärket i mörkt läge (0.65.0, #265). Se `--gruppmarke-ikon-l` i @theme. */
   --dark-gruppmarke-ikon-l: 0.82;
@@ -1822,8 +1831,48 @@
     background-color: oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) var(--grupp-kulor) / 0.06);
   }
   /* En kulörruta i formulärets väljare: en fylld cirkel i märkets ikonfärg. */
-  .ops-grupp-kulorruta {
+  .ops-grupp-kulorruta,
+  .ops-kulor-prick {
     background-color: oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) var(--grupp-kulor));
+  }
+
+  /*
+   * Kalenderns färg som kulör (0.238.0, cllp/lifehub.app#882): pricken ovan, vänsterkanten, en hel kant (preliminär post
+   * och dagens ram) och tonen under bandets text (20 procent) och i dagrutan (15 procent). Samma ljushet och mättnad som
+   * märket, alltså samma kulör i båda lägena, och samma `--grupp-kulor` (`kulorStil` i `lib/gruppfarg.js`).
+   *
+   * ⛔ MÄTT, INTE ANTAGET: `scripts/check-gruppfarg.mjs` räknar varje kulör som prick och kant mot ytorna (golv 3:1) och
+   * bandets text (`--color-ink`) mot ytan med tonen ovanpå (golv 4,5:1), i båda lägena.
+   */
+  .ops-kulor-kant {
+    border-left-color: oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) var(--grupp-kulor));
+  }
+  .ops-kulor-ring {
+    border-color: oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) var(--grupp-kulor));
+  }
+  .ops-kulor-ton {
+    background-color: oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) var(--grupp-kulor) / 0.2);
+  }
+  .ops-kulor-dagton {
+    background-color: oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) var(--grupp-kulor) / 0.15);
+  }
+
+  /*
+   * Färgväljarens förhandsvisning i kulörläge (0.238.0, `OpsFargval slag="kulor"`): märket i ljust OCH mörkt läge,
+   * oavsett vilket som är påslaget. Därför de råa talen (`--ljust-*`, `--dark-*`) och inte `--gruppmarke-*`, som
+   * pekar på det påslagna lägets tal.
+   */
+  .ops-kulor-forhand-ljust {
+    background-color: oklch(var(--ljust-gruppmarke-platta-l) var(--ljust-gruppmarke-platta-c) var(--grupp-kulor));
+    color: oklch(var(--ljust-gruppmarke-ikon-l) var(--ljust-gruppmarke-ikon-c) var(--grupp-kulor));
+  }
+  /* Kulörreglagets skala i kulörläget: alla kulörer med det påslagna lägets ljushet och mättnad, var 30:e grad. */
+  .ops-kulor-skala {
+    background-image: linear-gradient(to right, oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 0), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 30), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 60), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 90), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 120), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 150), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 180), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 210), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 240), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 270), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 300), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 330), oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) 360));
+  }
+  .ops-kulor-forhand-morkt {
+    background-color: oklch(var(--dark-gruppmarke-platta-l) var(--dark-gruppmarke-platta-c) var(--grupp-kulor));
+    color: oklch(var(--dark-gruppmarke-ikon-l) var(--dark-gruppmarke-ikon-c) var(--grupp-kulor));
   }
 
   /*

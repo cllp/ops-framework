@@ -280,7 +280,7 @@ export { UTSKRIFT_FALT, UTSKRIFT_TAK_MS, UTSKRIFT_TIMEOUT_TEXT, UTSKRIFTJOBB_STA
  */
 export { AGENTMODELLER, ERSATTA_AGENTMODELLER, FORVALD_AGENTMODELL, modellUrId } from "../lib/agentmodeller.js";
 export { GRUPPIKONKATALOG } from "../lib/gruppikonkatalog.generated.js";
-export { KALENDERFARGER, KALENDERIKONER, forvaldKalender, arkiveraKalender, byggGruppkalender, byggMinKalender, kalenderIdUrNamn, nastaOrdning, STANDARD_TIDSZON, valjForvald, validateGruppkalendrar } from "../lib/kalendrar.js";
+export { KALENDERFARGER, arGiltigKalenderfarg, KALENDERIKONER, forvaldKalender, arkiveraKalender, byggGruppkalender, byggMinKalender, kalenderIdUrNamn, nastaOrdning, STANDARD_TIDSZON, valjForvald, validateGruppkalendrar } from "../lib/kalendrar.js";
 export { MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, arLjudpost, arMittBibliotek, byggPost, ljudRubrik, postFel, utskriftFel } from "../lib/bibliotek.js";
 export { NALTAGG, arNalad } from "../lib/bibliotek.js";
 export { INBJUDNING_GILTIGHET_DAGAR, byggGrupp, byggMedlemskap, medlemskapAvslutas, medlemskapsId } from "../lib/grupp.js";

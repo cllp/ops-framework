@@ -5,7 +5,7 @@ import { cx } from "../lib/cx.js";
 import { attachmentSize, isImage } from "../lib/file.js";
 import { handelsetid } from "../lib/handelsepanel.js";
 import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
-import { KALENDERPRICK } from "../lib/kalenderfarg.js";
+import { fargprick } from "../lib/kalenderfarg.js";
 import { slagText } from "../lib/slag.js";
 import { text } from "../lib/sprak.js";
 import { tillaggFor } from "../lib/tillagg.js";
@@ -72,7 +72,7 @@ import { Knapprad } from "./Knapprad.jsx";
  * @property {boolean} [heldag]
  * @property {{ namn: string, ikon?: import("react").ReactNode, slag?: 1 | 2 | 3 }} [typ] Typen i appens ord. `slag` färgar ikonen (samma ton som raden i Idag), och `namn` står alltid bredvid: en färg ensam säger ingenting.
  * @property {"oppet" | "pagar" | "vantar" | "klart" | "akut"} [status] Kräver `statusWords`.
- * @property {{ namn: string, farg: 1 | 2 | 3 | 4 | 5 | 6 }} [kalender] Kalendern händelsen ligger i. Färgen står aldrig ensam: namnet står bredvid.
+ * @property {{ namn: string, farg: 1 | 2 | 3 | 4 | 5 | 6 | string }} [kalender] Kalendern händelsen ligger i. Färgen står aldrig ensam: namnet står bredvid.
  * @property {string} [grupp] Gruppens namn.
  * @property {string} [plats]
  * @property {string} [kalla] (0.134.0) Var händelsen hör hemma när den INTE ändras här, appens ord, till exempel "Från Apple, ändras i Apple". Står under typ, grupp och kalender som ett eget faktum.
@@ -120,7 +120,7 @@ import { Knapprad } from "./Knapprad.jsx";
  * @param {(arg: { id: string }) => Promise<void>} [props.onAterkalla] (0.125.0) Återkallar en länk (`createDelningService().aterkalla`). Krävs med `onDela`. Raden försvinner först när anropet lyckats; kastar det visas orsaken i raden.
  * @param {(inmatning: { id: string, url: string, till: string }) => Promise<void | boolean> | void | boolean} [props.onMejlaLank] (0.128.0, cllp/lifehub.app#356) Skickar den nyss skapade länken med mejl (appens mejlväg). Med den visar dialogen Dela efter skapandet fältet "Skicka till mejl" och knappen Skicka; ramverket prövar adressen (`epostFel`) innan anropet och visar svaret, lyckat eller inte. Hör till `onDela`. Utan den syns inget fält.
  * @param {string} [props.delningGruppdel] (0.125.0, granskningen av PR 417) Gruppdelen gruppen redan använt i en länk (`gruppdelar({ uid, groupId }).senaste`), föreslagen i Dela-rutan före ett namn ur gruppens namn. En gruppdel tillhör en grupp för alltid: tar en annan grupp den först svarar servern `adress-upptagen` med `del: "gruppdel"` och rutan föreslår en annan.
- * @param {ReadonlyArray<{ id: string, namn: string, farg?: 1|2|3|4|5|6 }>} [props.kopieraTill] (0.134.0, cllp/lifehub.app#402) Kalendrarna personen får skapa i, ur appens regler. Med minst ett val ritar panelen "Kopiera till…" under
+ * @param {ReadonlyArray<{ id: string, namn: string, farg?: 1|2|3|4|5|6|string }>} [props.kopieraTill] (0.134.0, cllp/lifehub.app#402) Kalendrarna personen får skapa i, ur appens regler. Med minst ett val ritar panelen "Kopiera till…" under
  *   informationsrutan, för ALLA händelser, egna som externa. Tom eller utelämnad ritar ingen knapp. ⛔ Listan är ett ERBJUDANDE och ingen behörighet: appen prövar på nytt när kopian skapas.
  * @param {(arg: { handelse: HandelseVy, malKalenderId: string }) => void | Promise<void>} [props.onKopiera] (0.134.0) Anropas med händelsen och vald kalender. ⛔ Ramverket öppnar inget formulär själv: appen öppnar Ny händelse ifylld, eller skapar kopian direkt.
  *   Kastar anropet visas orsaken och rutan står kvar. Kräver `kopieraTill` med val (kastar annars).
@@ -379,7 +379,7 @@ function OpsHandelsePanelRitad({
           ) : null}
           {handelse.kalender ? (
             <span data-handelsekalender="" className="flex min-w-0 items-center gap-1.5">
-              <span aria-hidden="true" className={cx("size-2 shrink-0 rounded-full", KALENDERPRICK[handelse.kalender.farg] || "bg-accent")} />
+              <span aria-hidden="true" className={cx("size-2 shrink-0 rounded-full", fargprick(handelse.kalender.farg).klass)} style={fargprick(handelse.kalender.farg).stil} />
               {handelse.kalender.namn}
             </span>
           ) : null}

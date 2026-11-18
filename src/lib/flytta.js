@@ -26,7 +26,7 @@
  * @typedef {object} Flyttmal Ett val i "Flytta till kalender".
  * @property {string} id Kalenderns id.
  * @property {string} namn
- * @property {1|2|3|4|5|6} farg
+ * @property {1|2|3|4|5|6|string} farg En kulör (`kulor:<grader>`, 0.238.0) eller en äldre ton.
  * @property {string} ikon
  * @property {"byt" | "konvertera"} atgard `byt`: kalendern byts på samma rad (`flyttaPost`, `flyttaHandelse`). `konvertera`: posten blir en
  *   gruppens händelse (`goraPostTillHandelse`), och panelen ber om en bekräftelse först. Den enda uppgiften om vilken flytt det är:

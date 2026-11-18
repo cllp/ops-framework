@@ -131,6 +131,11 @@ describe("gruppens kalendrar: katalogens regel med kalenderns fält", () => {
   it("admin skapar en kalender i sin grupp", async () => {
     await assertSucceeds(setDoc(doc(som(ADMIN), `gruppkalendrar/${gruppkalendernyckel(G, "resor")}`), gruppkal({ id: "resor", namn: { sv: "Resor" }, forvald: false })));
   });
+  it("⛔ admin skapar en kalender med en kulör, och en med en äldre ton (0.238.0, cllp/lifehub.app#882)", async () => {
+    // Gruppkalendrarnas regel prövar fälten och skrivrollen, inte färgens form (det gör byggaren). Provet visar att kulören släpps in.
+    await assertSucceeds(setDoc(doc(som(ADMIN), `gruppkalendrar/${gruppkalendernyckel(G, "kulor")}`), gruppkal({ id: "kulor", namn: { sv: "Kulör" }, forvald: false, farg: "kulor:210" })));
+    await assertSucceeds(setDoc(doc(som(ADMIN), `gruppkalendrar/${gruppkalendernyckel(G, "ton")}`), gruppkal({ id: "ton", namn: { sv: "Ton" }, forvald: false, farg: 3 })));
+  });
   it("⛔ en medlem skapar ingen kalender, den är gruppens konfiguration", async () => {
     await assertFails(setDoc(doc(som(MEDLEM), `gruppkalendrar/${gruppkalendernyckel(G, "medlemmens")}`), gruppkal({ id: "medlemmens", forvald: false })));
   });

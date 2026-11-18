@@ -146,6 +146,33 @@ describe("⛔ mina kalendrar: fälten har rätt sort", () => {
   });
 });
 
+describe("⛔ mina kalendrar: färgen är en kulör eller en äldre ton (0.238.0, cllp/lifehub.app#882)", () => {
+  // Rött mot 0.237.1: `kulor:N` nekades (regeln tog bara emot 1 till 6). Grönt med 0.238.0. Formen är `GRUPPKULOR_FORM` i ramverket.
+  it("⛔ kulor:0, kulor:7, kulor:210 och kulor:359 släpps in", async () => {
+    for (const farg of ["kulor:0", "kulor:7", "kulor:210", "kulor:359"]) {
+      await assertSucceeds(setDoc(doc(som(AGARE), minVag(`kulor-${farg.slice(6)}`)), { ...kal(), farg }), `${farg} borde släppas in`);
+    }
+  });
+  it("⛔ de sex äldre tonerna släpps fortfarande in, så att ingen kalender låses ute", async () => {
+    for (const farg of [1, 2, 3, 4, 5, 6]) await assertSucceeds(setDoc(doc(som(AGARE), minVag(`ton-${farg}`)), { ...kal(), farg }), `ton ${farg}`);
+  });
+  it("⛔ kulor:360, kulor:007, kulor:07, \"7\", \"3\" som text, kulor: utan tal, fel sort och en färgkod nekas", async () => {
+    const nej = ["kulor:360", "kulor:007", "kulor:07", "kulor:-1", "kulor:", "7", "3", "#ff0000", 0, 7, true, ["kulor:7"], { kulor: 7 }];
+    let i = 0;
+    for (const farg of nej) {
+      i += 1;
+      await assertFails(setDoc(doc(som(AGARE), minVag(`fel-farg-${i}`)), { ...kal(), farg }), `${JSON.stringify(farg)} borde nekas`);
+    }
+    assert.ok(nej.length >= 10, "golv: minst tio nekade former");
+  });
+  it("⛔ byggaren och reglerna är ense: kulor:N skrivs som den står, och en befintlig kalender kan byta från ton till kulör", async () => {
+    await assertSucceeds(setDoc(doc(som(AGARE), minVag("byter")), kal()));
+    await assertSucceeds(updateDoc(doc(som(AGARE), minVag("byter")), { farg: "kulor:203" }));
+    assert.equal(kal({ farg: "kulor:203" }).farg, "kulor:203");
+    assert.throws(() => kal({ farg: "kulor:360" }));
+  });
+});
+
 describe("⛔ posterna: id och fältens sort", () => {
   it("ett vanligt id skapas", async () => {
     await assertSucceeds(setDoc(doc(som(AGARE), postVag("p-abc123")), post({ id: "p-abc123" })));
@@ -249,6 +276,10 @@ describe("⛔ mätningen i produktion och reglerna säger samma sak (kalenderfor
     ["tomt namn", { ...kalData, namn: "" }],
     ["namn på 81 tecken", { ...kalData, namn: lang(81) }],
     ["färg 7", { ...kalData, farg: 7 }],
+    ["färg kulor:210", { ...kalData, farg: "kulor:210" }],
+    ["färg kulor:360", { ...kalData, farg: "kulor:360" }],
+    ["färg kulor:007", { ...kalData, farg: "kulor:007" }],
+    ["färg \"7\" som text", { ...kalData, farg: "7" }],
   ];
   /** @type {Array<[string, Record<string, any>]>} */
   const poster = [

@@ -3993,8 +3993,10 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
 
     // Visuell identitet: rutorna har träffyta, och märket ritas i den valda kulören (0.65.0, #265: kulörer, inte sex prickar).
     await page.getByRole("button", { name: /Färg och ikon/ }).click();
+    // ⛔ Kulörerna ligger i färgväljarens ruta sedan 0.238.0 (cllp/lifehub.app#882): fältet Färg öppnar den, och rutan ligger i en portal utanför formuläret.
+    await page.getByRole("button", { name: "Färg", exact: true }).click();
     const id = await page.evaluate(() => {
-      const prickar = [...document.querySelectorAll("[data-gruppidentitet] [data-kulorvaljare] [data-kulor]")];
+      const prickar = [...document.querySelectorAll("[data-fargval-panel] [data-kulorvaljare] [data-kulor]")];
       const ikoner = [...document.querySelectorAll('[data-gruppidentitet] [data-ikonrad="vanliga"] button')];
       const minsta = (/** @type {Element[]} */ l) => (l.length ? Math.min(...l.map((e) => Math.min(e.getBoundingClientRect().width, e.getBoundingClientRect().height))) : 0);
       return { prickar: prickar.length, ikoner: ikoner.length, prickMin: minsta(prickar), ikonMin: minsta(ikoner) };
@@ -4003,6 +4005,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     krav(id.prickar >= 12 && id.ikoner >= 21, `ny grupp ${namn}: ${id.prickar} kulörrutor och ${id.ikoner} ikonrutor bland de vanliga, väntat minst 12 och 21 (golv: Aa plus tjugo vanliga).`);
     krav(id.prickMin >= 43.5 && id.ikonMin >= 43.5, `ny grupp ${namn}: minsta träffyta är ${id.prickMin.toFixed(0)} (kulörer) och ${id.ikonMin.toFixed(0)} (ikoner), väntat 44.`);
     await page.getByRole("button", { name: "Petrol", exact: true }).click();
+    await page.keyboard.press("Escape");
     const farg = await page.evaluate(() => document.querySelector("[data-gruppidentitet] > button [role=img]")?.getAttribute("data-grupp-kulor") ?? null);
     matt.push(`ny grupp ${namn}: märket efter Petrol har kulören ${farg}`);
     krav(farg === "195", `ny grupp ${namn}: märket har kulören ${farg} efter Petrol, väntat 195.`);
@@ -4078,6 +4081,8 @@ for (const tema of /** @type {const} */ (["light", "dark"])) {
       await page.getByLabel(/Gruppnamn/).fill("Bandet");
       await page.getByRole("button", { name: /Färg och ikon/ }).click();
       const forslag = await page.evaluate(() => [...document.querySelectorAll('[data-ikonrad="forslag"] [data-ikonnamn]')].map((e) => e.getAttribute("data-ikonnamn")));
+      // ⛔ Kulörerna i färgväljarens ruta (0.238.0, cllp/lifehub.app#882).
+      await page.getByRole("button", { name: "Färg", exact: true }).click();
       const kulorer = await page.evaluate(() => document.querySelectorAll("[data-kulorvaljare] [data-kulor]").length);
       /** @param {string} knapp */
       const markeFarg = async (knapp) => {
@@ -4107,6 +4112,7 @@ for (const tema of /** @type {const} */ (["light", "dark"])) {
       };
       const petrol = await markeFarg("Petrol");
       const rosa = await markeFarg("Rosa");
+      await page.keyboard.press("Escape");
       await page.getByRole("searchbox", { name: "Sök ikon" }).fill("music");
       const traffar = await page.evaluate(() => [...document.querySelectorAll('[data-ikonrad="traffar"] [data-ikonnamn]')].map((e) => e.getAttribute("data-ikonnamn")));
       await page.getByRole("button", { name: "Gitarr", exact: true }).first().click();
@@ -5751,14 +5757,17 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
         if (!r) return null;
         const knapp = (/** @type {string} */ t) => [...r.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === t);
         const avbryt = knapp("Avbryt"), skapa = knapp("Skapa kalender");
-        return { falt: !!r.querySelector("input"), farger: r.querySelectorAll('[aria-label="Färg"] button').length, ikoner: r.querySelectorAll('[aria-label="Ikon"] button').length, forvald: !!r.querySelector('[role="checkbox"], input[type="checkbox"]'), skapaAv: !!skapa && /** @type {HTMLButtonElement} */ (skapa).disabled, bredder: [avbryt, skapa].map((b) => (b ? Math.round(b.getBoundingClientRect().width) : 0)) };
+        return { falt: !!r.querySelector("input"), farger: r.querySelectorAll("[data-kalenderfarg] [data-ops-fargval]").length, ikoner: r.querySelectorAll('[aria-label="Ikon"] button').length, forvald: !!r.querySelector('[role="checkbox"], input[type="checkbox"]'), skapaAv: !!skapa && /** @type {HTMLButtonElement} */ (skapa).disabled, bredder: [avbryt, skapa].map((b) => (b ? Math.round(b.getBoundingClientRect().width) : 0)) };
       });
       matt.push(`${namn}: redigeraren ${JSON.stringify(red)}`);
-      krav(!!red && red.falt && red.farger === 6 && red.ikoner === 8 && red.forvald, `${namn}: redigeraren ${JSON.stringify(red)}, väntat namnfält, 6 färger, 8 ikoner och Förvald (SS :181-288; golv).`);
+      // ⛔ Färgen är ETT fält med ramverkets färgväljare i kulörläge sedan 0.238.0 (cllp/lifehub.app#882), inte sex rutor.
+      krav(!!red && red.falt && red.farger === 1 && red.ikoner === 8 && red.forvald, `${namn}: redigeraren ${JSON.stringify(red)}, väntat namnfält, ett färgfält, 8 ikoner och Förvald (SS :181-288; golv).`);
       krav(!!red && red.skapaAv, `${namn}: Skapa kalender går att trycka utan namn.`);
       krav(!!red && red.bredder[0] > 0 && Math.abs(red.bredder[0] - red.bredder[1]) <= 1, `${namn}: Avbryt och Skapa är ${JSON.stringify(red && red.bredder)} px breda, väntat lika (SS flex-1 på båda).`);
       await mina.getByRole("textbox").fill("Resor privat");
-      await mina.getByRole("button", { name: "Färg 6" }).click();
+      await mina.getByRole("button", { name: "Färg", exact: true }).click();
+      await page.getByRole("button", { name: "Violett", exact: true }).click();
+      await page.keyboard.press("Escape");
       await mina.getByRole("button", { name: "Bok" }).click();
       if (bildmapp) {
         await mina.locator("[data-kalenderredigerare]").scrollIntoViewIfNeeded();
@@ -5768,7 +5777,7 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       await page.waitForTimeout(150);
       const efter = await page.evaluate(() => ({ rader: [...document.querySelectorAll('[data-kalendersektion="mina"] [data-kalenderrad]')].map((r) => r.getAttribute("data-kalenderrad")), sparat: JSON.stringify(/** @type {any} */ (window).__sparat.at(-1)) }));
       matt.push(`${namn}: efter Skapa ${JSON.stringify(efter.rader)}, sparat ${efter.sparat}`);
-      krav(efter.rader.includes("resor-privat") && /"id":"resor-privat".*"farg":6.*"ikon":"bok"/.test(efter.sparat), `${namn}: efter Skapa står ${JSON.stringify(efter.rader)} och sparningen var ${efter.sparat}, väntat resor-privat med färg 6 och ikonen bok.`);
+      krav(efter.rader.includes("resor-privat") && /"id":"resor-privat".*"farg":"kulor:315".*"ikon":"bok"/.test(efter.sparat), `${namn}: efter Skapa står ${JSON.stringify(efter.rader)} och sparningen var ${efter.sparat}, väntat resor-privat med färgen kulor:315 och ikonen bok.`);
     } catch (e) {
       krav(false, `${namn} (c): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
     }
