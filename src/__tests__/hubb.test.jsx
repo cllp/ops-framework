@@ -1022,3 +1022,26 @@ describe("OpsGruppHubb: ringen och de som kan läggas till (0.240.0)", () => {
     expect(() => defineModule({ ...RESOR(), beskrivning: "Resor" })).toThrow(/beskrivning är en sträng/);
   });
 });
+
+// ⛔ 0.241.0: Datumomröstning och Bokning ritades med ett plus på sidan Verktyg (CP:s skärmbild 2026-11-18 21.48), eftersom ett tillägg
+// (`hubb: null`) inte har någon ikon i manifestet. Appen skickar in sina (`ikoner`), och kortet ritar den.
+describe("OpsGruppHubb: ikonen för ett tillägg utan kort (0.241.0)", () => {
+  it("⛔ ett tillägg får appens ikon på sitt streckade kort, och ett utan ikon får plusset", () => {
+    const tillagg = (/** @type {string} */ id, /** @type {string} */ namn) => ({
+      id,
+      namn: { sv: namn },
+      nav: [],
+      routes: [],
+      samlingar: [],
+      kallor: {},
+      skapar: [],
+      hubb: null,
+      tillagg: [{ plats: "handelse.sektion", id: `${id}-del`, etikett: { sv: namn, en: namn }, komponent: () => null }],
+    });
+    const mods = validateModuler([EKONOMI(), tillagg("omrostning", "Datumomröstning"), tillagg("bokning", "Bokning")]);
+    render(<OpsGruppHubb grupp={{ id: "g", namn: { sv: "G" }, moduler: ["ekonomi"] }} moduler={mods} installera={{ onInstallera: () => {} }} ikoner={{ omrostning: <svg data-appikon="omrostning" /> }} />);
+    const kort = (/** @type {string} */ n) => screen.getByRole("button", { name: `Lägg till ${n}` });
+    expect(kort("Datumomröstning").querySelector('[data-appikon="omrostning"]')).not.toBeNull();
+    expect(kort("Bokning").querySelector("[data-appikon]")).toBeNull();
+  });
+});

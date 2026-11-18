@@ -22,6 +22,7 @@ CP 2026-11-18 21.48, med en skärmbild av 0.239.0: "Jag tänkte mig mer att det 
 - **Kan läggas till:** streckat kort med streckad ikonruta. Raden under är "+ Lägg till". Ett tryck på kortet lägger till verktyget, med samma väntan som förut (snurran i ikonrutan, `aria-busy`, spärrat mot dubbeltryck). Kortets namn är "Lägg till Ekonomi".
 - **(i) i övre högra hörnet på alla kort** fäller ut samma panel som i 0.240.0: beskrivningen, delarna och Öppna eller Lägg till. Beskrivningen står inte längre på kortet, eftersom den klipptes mitt i.
 - Det öppna kortet markeras med en ring i accentfärgen.
+- **`ikoner` på `OpsGruppHubb`:** ikonen per modul-id för ett tillägg utan kort (`hubb: null`). Datumomröstning och Bokning ritades med ett plus i CP:s skärmbild, eftersom ett tillägg inte har någon ikon i manifestet. Prov: rött utan propen, grönt med.
 - Prov: `hubb.test.jsx`, tre prov skrivna om från ringarna till korten (rött mot 0.240.0:s `OpsHub`, 3 av 87, grönt med). Skalytans kontroller av hubben (a) och (b) följer korten, 93 kontroller utan brott.
 
 ### Nytt: helskärm för HTML-dokument

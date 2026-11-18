@@ -453,8 +453,9 @@ function VerktygPanel({ id, post, sprak, t, onNavigate, onStang }) {
  * @param {boolean} [props.visaAgarRad] Sant när rutorna står bredvid redan installerade verktyg och den som tittar inte får installera.
  * @param {string | null} props.oppen Nyckeln för den öppna panelen, delad med de installerade (en panel åt gången på sidan).
  * @param {(nyckel: string | null) => void} props.setOppen
+ * @param {Readonly<Record<string, import("react").ReactNode>>} [props.ikoner] Se `OpsGruppHubb`.
  */
-function ValbaraRutor({ moduler, sprak, t, installera, onNavigate, visaAgarRad = false, oppen, setOppen }) {
+function ValbaraRutor({ moduler, sprak, t, installera, onNavigate, visaAgarRad = false, oppen, setOppen, ikoner }) {
   const medVag = Boolean(installera && (installera.href || installera.onClick || installera.onInstallera));
   return (
     <section className="flex w-full flex-col gap-2 text-left">
@@ -471,6 +472,7 @@ function ValbaraRutor({ moduler, sprak, t, installera, onNavigate, visaAgarRad =
             visaAgarRad={!medVag}
             ar={oppen === `l:${m.id}`}
             onVaxla={(ny) => setOppen(ny ? `l:${m.id}` : null)}
+            ikon={ikoner?.[m.id]}
           />
         ))}
       </ul>
@@ -493,8 +495,9 @@ function ValbaraRutor({ moduler, sprak, t, installera, onNavigate, visaAgarRad =
  * @param {boolean} props.visaAgarRad Sant när den som tittar inte får lägga till: panelen säger då att ägaren gör det.
  * @param {boolean} props.ar Panelen är öppen.
  * @param {(oppna: boolean) => void} props.onVaxla
+ * @param {import("react").ReactNode} [props.ikon] Appens ikon för ett tillägg utan kort (`OpsGruppHubb` `ikoner`).
  */
-function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, ar, onVaxla }) {
+function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, ar, onVaxla, ikon }) {
   const synsId = useId();
   const panelId = useId();
   const infoRef = useRef(/** @type {HTMLButtonElement | null} */ (null));
@@ -510,7 +513,9 @@ function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, a
   const innehall = (
     <>
       <span aria-hidden="true" className={cx(IKONRUTA, "border border-dashed border-ink-muted/50 text-ink-muted")}>
-        {upptagen ? <OpsSpinner size="sm" decorative /> : m.hubb?.ikon ? /** @type {import("react").ReactNode} */ (m.hubb.ikon) : <PlusIkon size={20} />}
+        {/* ⛔ KORTETS IKON, ANNARS APPENS (`ikoner`), ANNARS ETT PLUS (0.241.0). Datumomröstning och Bokning ritades med ett plus, eftersom ett tillägg
+            (`hubb: null`) inte har någon ikon i manifestet. Appen har dem redan (lifehub.app `APPIKON_UTAN_KORT`) och skickar in dem. */}
+        {upptagen ? <OpsSpinner size="sm" decorative /> : m.hubb?.ikon ? /** @type {import("react").ReactNode} */ (m.hubb.ikon) : ikon ?? <PlusIkon size={20} />}
       </span>
       <span className="w-full min-w-0">
         <span className={cx(KORTNAMN, "text-ink")}>{namn}</span>
@@ -686,9 +691,10 @@ function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, a
  * @param {string} [props.badgeText] Skärmläsarordet efter räknaren. Förval "nya" (sv), "new" (en).
  * @param {boolean} [props.ram] Ritas i `OpsView`. Förval sant.
  * @param {{ href?: string, onClick?: (id?: string) => void | Promise<unknown>, onInstallera?: (id: string) => void | Promise<unknown>, etikett?: string }} [props.installera] Vägen till modulvalet. Appen skickar den bara för den som får välja appar: ägaren, och sedan 0.128.0 en admin (0.87.0, lifehub.app#129). Ett tryck på en streckad ruta anropar `onInstallera` med appens id, annars `onClick` med appens id, eller så öppnas `href`. Ett löfte ur appen gör rutan upptagen tills det är klart. `etikett` är första ordet i rutans namn, förval "Lägg till" (sv), "Add" (en).
+ * @param {Readonly<Record<string, import("react").ReactNode>>} [props.ikoner] (0.241.0) Ikonen per modul-id för ett tillägg utan kort (`hubb: null`), på dess streckade kort. Ett kort med egen ikon (`hubb.ikon`) använder den. Utan ikon ritas ett plus.
  * @param {import("react").ReactNode} [props.atgard] (0.103.0) Åtgärden i sidans huvud, till exempel `<OpsVyAtgard>Skapa app</OpsVyAtgard>`.
  */
-export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak: sprakProp, info, badge, badgeText, ram = true, installera, atgard }) {
+export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak: sprakProp, info, badge, badgeText, ram = true, installera, atgard, ikoner }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -711,7 +717,7 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
   // ⛔ 0.239.0: rutorna som kan läggas till står UNDER tomläget, inte i det. Tomlägets yta centrerar sitt innehåll och krymper det till
   // sin bredd, och ett rutnät med tre kolumner i en krympt ruta blev en kolumn av avkortade namn. Samma sektion som i en grupp med verktyg.
   const valbarSektion = tillaggningsbara.length > 0 ? (
-    <ValbaraRutor moduler={tillaggningsbara} sprak={sprak} t={t} installera={installera} onNavigate={onNavigate} visaAgarRad={harInnehall} oppen={oppen} setOppen={setOppen} />
+    <ValbaraRutor moduler={tillaggningsbara} sprak={sprak} t={t} installera={installera} onNavigate={onNavigate} visaAgarRad={harInnehall} oppen={oppen} setOppen={setOppen} ikoner={ikoner} />
   ) : null;
   const innehall = (
     <div className="flex flex-col gap-4" data-grupphubb={grupp.id}>
