@@ -9,6 +9,18 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.238.1
+
+**Röstsamtalets byggstenar finns i huvudingången** (cllp/lifehub.app#870, skiva 4). 0.238.0 bad appen låta `onAgent` ge en `Talkrost` byggd med `samtalssvar` och `vidareISamtal`, men ingen av dem exporterades. Mätt vid lifehub.app:s ompinning 2026-11-18: appen kunde inte importera dem, och den enda andra vägen hade varit en egen kopia av logiken (regel 2).
+
+### Tillagt
+
+- `samtalssvar`, `vidareISamtal` och `talkrostUr` ur `ops-framework`, samma funktioner som agentchatten använder.
+
+### Vakt
+
+- `talkrost-ingang-870.test.js` kräver att de tre finns i huvudingången och är samma funktioner som i `lib/talkrost.js`. Rött utan exportraden (3 fel), grönt med.
+
 ## 0.238.0
 
 Tre saker från natten mot 2026-11-18, alla i lifehub.app: TALK pratar tillbaka (#870 skiva 4), textstorlek per person (#873) och en färgväljare överallt (#882). Inget brytande.
