@@ -226,7 +226,8 @@ jobs:
       # ⛔ ETT EMULATORPROV I TAGET PÅ BOXEN (cllp/lifehub.app#880). De egna runnerna för fyra repon delar en maskin och dess portar, och
       # Firestore-emulatorn står på 8080 i alla. Ramverkets regelprov föll på "port taken" medan appens kördes (körning 44197961443).
       # Låset på maskinen gör att de körs i följd i stället (arbetsreglernas regel 14). Väntar högst 30 minuter.
-      - run: flock -w 1800 /tmp/lifehub-firebase-emulator.lock npm run test:rules
+      # Innanför låset stänger scripts/ci/emulatorn-ensam.sh en emulator som blivit kvar när boxen frös mitt i ett jobb.
+      - run: flock -w 1800 /tmp/lifehub-firebase-emulator.lock bash scripts/ci/emulatorn-ensam.sh npm run test:rules
 
   # ⛔ EGNA RUNNERS, ALDRIG GITHUBS (CP 2026-11-17 23.24, cllp/lifehub.app#880). Actions-minuterna slog i taket 23.38 samma kväll,
   # och därefter startade inget jobb: Inkorgsraden och appens deploy föll inom tre sekunder utan maskin. Ett nytt arbetsflöde
