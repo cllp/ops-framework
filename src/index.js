@@ -24,6 +24,10 @@ export { samtalssvar, vidareISamtal, talkrostUr } from "./lib/talkrost.js";
 // visar eller provar samma färg räknar den med samma funktion, annars en egen kopia av reserven ur id (regel 2).
 export { kalenderKulor, kalenderfargKulor } from "./lib/kalenderfarg.js";
 export { OpsHub, OpsHubModul, OpsHubTillbaka, OpsGruppHubb } from "./components/OpsHub.jsx";
+// ⛔ DRA OCH SLÄPP AV KORT (0.241.0, cllp/lifehub.app#894): från ett grepp, mellan kolumner och inom en kolumn, med finger eller mus. Appens ärendetavla
+// använder den. De rena delarna (plats och ordning) är egna, så att appen räknar ordningen med samma funktioner som kroken (regel 2).
+export { useKortdragning } from "./components/useKortdragning.js";
+export { slappIndex, flyttaIOrdning, ordnaEfter } from "./lib/kortdragning.js";
 export { OpsVyAtgard } from "./components/OpsTillbaka.jsx";
 export { OpsModulSida } from "./components/OpsModulSida.jsx";
 export { OpsApparArk, ORD_OPSAPPARARK } from "./components/OpsApparArk.jsx";
