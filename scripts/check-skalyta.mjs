@@ -211,6 +211,8 @@ async function oppna(scen, viewport, tema = standardtema, skala = 1, aktiv = nul
   const page = await context.newPage();
   // 0.31.2: en kort tidsgräns, så att ett saknat element (röd mot en äldre dist) blir ett brott och inte 30 sekunders väntan.
   page.setDefaultTimeout(4000);
+  // ⛔ Laddningen har en egen gräns (cllp/lifehub.app#880): 4 s är till för ett element som saknas, men gällde också setContent/goto, och på den egna runnern där flera jobb delar CPU föll en laddning på det (körning 44197961443).
+  page.setDefaultNavigationTimeout(30_000);
   const fel = /** @type {string[]} */ ([]);
   page.on("pageerror", (e) => fel.push(e.message));
   await page.emulateMedia({ colorScheme: tema === "dark" ? "dark" : "light" });
@@ -4360,6 +4362,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
       const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
       const page = await context.newPage();
       page.setDefaultTimeout(4000);
+      page.setDefaultNavigationTimeout(30_000);
       const fel = /** @type {string[]} */ ([]);
       page.on("pageerror", (e) => fel.push(e.message));
       await page.emulateMedia({ colorScheme: standardtema === "dark" ? "dark" : "light" });
@@ -4486,6 +4489,7 @@ async function spelradMotMikrofon() {
     const context = await browser.newContext({ viewport, isMobile: mobil, hasTouch: mobil });
     const page = await context.newPage();
     page.setDefaultTimeout(4000);
+    page.setDefaultNavigationTimeout(30_000);
     const fel = /** @type {string[]} */ ([]);
     page.on("pageerror", (e) => fel.push(e.message));
     await page.emulateMedia({ colorScheme: standardtema === "dark" ? "dark" : "light" });
@@ -6130,6 +6134,7 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   const context = await browser.newContext({ viewport: vp });
   const page = await context.newPage();
   page.setDefaultTimeout(4000);
+  page.setDefaultNavigationTimeout(30_000);
   const fel = /** @type {string[]} */ ([]);
   page.on("pageerror", (e) => fel.push(e.message));
   await page.emulateMedia({ colorScheme: standardtema === "dark" ? "dark" : "light" });
@@ -6343,6 +6348,7 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   const context = await browser.newContext({ viewport: vp });
   const page = await context.newPage();
   page.setDefaultTimeout(4000);
+  page.setDefaultNavigationTimeout(30_000);
   const fel = /** @type {string[]} */ ([]);
   page.on("pageerror", (e) => fel.push(e.message));
   await page.emulateMedia({ colorScheme: standardtema === "dark" ? "dark" : "light" });

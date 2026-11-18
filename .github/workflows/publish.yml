@@ -163,7 +163,7 @@ jobs:
       # oföränderlig i praktiken: den som installerat den har den, och en
       # tillbakadragen version är värre än en som aldrig fanns.
       - if: steps.provad.outputs.kor != 'nej'
-        run: npm run check
+        run: flock -w 3600 /tmp/boxen-tung.lock npm run check
       # Paketet byggs ur dist också när sviten hoppas över.
       - if: steps.provad.outputs.kor == 'nej'
         run: npm run build
@@ -179,6 +179,8 @@ jobs:
       # är den här filen. Den mäter CSS i en riktig webbläsare, alltså sådant som
       # jsdom aldrig ser. Samma installation som i `check.yml`: bara chromium, och
       # `npm run check` har redan byggt `dist`, som vakten kräver.
+      # MED --with-deps (cllp/lifehub.app#880, 2026-11-18): jobben går på GitHubs maskiner igen, och där saknas Chromiums
+      # systembibliotek tills flaggan installerar dem. Den togs bort en natt då jobben gick på Groks box, där apt svarade 500.
       - if: steps.provad.outputs.kor != 'nej'
         run: npx playwright install --with-deps chromium
       - if: steps.provad.outputs.kor != 'nej'
