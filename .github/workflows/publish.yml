@@ -66,7 +66,7 @@ permissions:
 
 jobs:
   publish:
-    runs-on: ${{ vars.LIFEHUB_RUNNER == 'github' && 'ubuntu-latest' || vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || fromJSON('["self-hosted", "macOS", "mbp2017"]') }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         # ⛔ TAGGARNA BEHÖVS (0.82.0, granskningen av PR 314). `check-changelog-taggar` kräver en rubrik i CHANGELOG
@@ -179,11 +179,10 @@ jobs:
       # är den här filen. Den mäter CSS i en riktig webbläsare, alltså sådant som
       # jsdom aldrig ser. Samma installation som i `check.yml`: bara chromium, och
       # `npm run check` har redan byggt `dist`, som vakten kräver.
-      # ⛔ UTAN --with-deps PÅ EGNA RUNNERS (cllp/lifehub.app#880, 2026-11-18). Flaggan kör apt-get som root vid varje
-      # körning, och på Groks box (Debian) svarade apt med 500 från deb.debian.org, så steget föll. Chromiums
-      # systembibliotek installeras en gång på runnern av Grok, inte i varje jobb. Saknas de faller Chromium vid start.
+      # MED --with-deps (cllp/lifehub.app#880, 2026-11-18): jobben går på GitHubs maskiner igen, och där saknas Chromiums
+      # systembibliotek tills flaggan installerar dem. Den togs bort en natt då jobben gick på Groks box, där apt svarade 500.
       - if: steps.provad.outputs.kor != 'nej'
-        run: npx playwright install chromium
+        run: npx playwright install --with-deps chromium
       - if: steps.provad.outputs.kor != 'nej'
         run: npm run check:skalyta
       # 0.94.0: brandfilen och lagren, samma skäl och samma installation som skalytevakten ovan.

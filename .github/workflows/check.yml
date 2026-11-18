@@ -87,7 +87,7 @@ jobs:
   check:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ${{ vars.LIFEHUB_RUNNER == 'github' && 'ubuntu-latest' || vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || fromJSON('["self-hosted", "macOS", "mbp2017"]') }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         # ⛔ TAGGARNA BEHÖVS (0.82.0, granskningen av PR 314). `check-changelog-taggar` kräver en rubrik i CHANGELOG
@@ -128,7 +128,7 @@ jobs:
   scaffold:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ${{ vars.LIFEHUB_RUNNER == 'github' && 'ubuntu-latest' || vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || fromJSON('["self-hosted", "macOS", "mbp2017"]') }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -138,10 +138,9 @@ jobs:
       - run: npm ci
       # ⛔ Bara chromium och bara dess systemberoenden. Tre webbläsare hade tagit
       # tre gånger tiden för samma svar: mätningen körs i en av dem.
-      # ⛔ UTAN --with-deps PÅ EGNA RUNNERS (cllp/lifehub.app#880, 2026-11-18). Flaggan kör apt-get som root vid varje
-      # körning, och på Groks box (Debian) svarade apt med 500 från deb.debian.org, så steget föll. Chromiums
-      # systembibliotek installeras en gång på runnern av Grok, inte i varje jobb. Saknas de faller Chromium vid start.
-      - run: npx playwright install chromium
+      # MED --with-deps (cllp/lifehub.app#880, 2026-11-18): jobben går på GitHubs maskiner igen, och där saknas Chromiums
+      # systembibliotek tills flaggan installerar dem. Den togs bort en natt då jobben gick på Groks box, där apt svarade 500.
+      - run: npx playwright install --with-deps chromium
       # ⛔ Provaren FÖRE vakten den provar. Är mätningen trasig är ett grönt
       # `check-scaffold` inte ett bevis, och då vill jag veta det först.
       - run: flock -w 3600 /tmp/boxen-tung.lock npm run check:viewport-guard
@@ -174,7 +173,7 @@ jobs:
   paket:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ${{ vars.LIFEHUB_RUNNER == 'github' && 'ubuntu-latest' || vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || fromJSON('["self-hosted", "macOS", "mbp2017"]') }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -201,7 +200,7 @@ jobs:
   regelprov:
     # Ett utkast kör inte. Knappen kör alltid.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ${{ vars.LIFEHUB_RUNNER == 'github' && 'ubuntu-latest' || vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || fromJSON('["self-hosted", "macOS", "mbp2017"]') }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -229,32 +228,28 @@ jobs:
       # Innanför låset stänger scripts/ci/emulatorn-ensam.sh en emulator som blivit kvar när boxen frös mitt i ett jobb.
       - run: flock -w 1800 /tmp/lifehub-firebase-emulator.lock bash scripts/ci/emulatorn-ensam.sh npm run test:rules
 
-  # ⛔ EGNA RUNNERS, ALDRIG GITHUBS (CP 2026-11-17 23.24, cllp/lifehub.app#880). Actions-minuterna slog i taket 23.38 samma kväll,
-  # och därefter startade inget jobb: Inkorgsraden och appens deploy föll inom tre sekunder utan maskin. Ett nytt arbetsflöde
-  # mot GitHubs maskiner går tyst tillbaka till minuterna, så det här jobbet är rött för varje sådant runs-on. Mönstret står
-  # delat, så att raden inte träffar sig själv. Golvet är antalet arbetsflöden när vakten skrevs.
-  #
-  # ⛔ UNDANTAGET ÄR STRÖMBRYTAREN, OCH BARA DEN (CP 2026-11-18 05.30: "Kör på github eller grok så vi kommer vidare"). Boxen är
-  # en virtuell maskin som fryses och återupptas, och varje frysning dödade jobbet som körde: fem gånger mellan 02.13 och 05.18,
-  # utan logg (cllp/lifehub.app#880). Jobben här går därför på `vars.LIFEHUB_RUNNER`: `boxen` kör dem på Groks box, `github` på
-  # GitHubs maskiner, och tomt på 2017-Macen (`[self-hosted, macOS, mbp2017]`). Macen är förval, för GitHubs minuter tog slut
-  # 06.03 ("spending limit needs to be increased") och CP 06.10: "Om github är helt slut så kör via 2017 eller grok". Byte är en
-  # variabel i repots inställningar, inte en kodändring.
   egna-runners:
-    name: egna runners
-    runs-on: ${{ vars.LIFEHUB_RUNNER == 'github' && 'ubuntu-latest' || vars.LIFEHUB_RUNNER == 'boxen' && fromJSON('["self-hosted", "Linux", "lifehub"]') || fromJSON('["self-hosted", "macOS", "mbp2017"]') }}
+    name: runners
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Alla jobb på egna runners
+      # ⛔ INGA JOBB PÅ BOXEN (CP 2026-11-18 05.59, cllp/lifehub.app#880). Groks box är en virtuell maskin som fryses och återupptas,
+      # och varje frysning dödade jobbet som körde: fem gånger mellan 02.13 och 05.18 samma natt, utan logg, så ingen PR blev grön och
+      # ingen deploy gick klart. Linux-jobben går därför på GitHubs maskiner (ubuntu-latest), och bara macOS-jobb på 2017-Macen
+      # ([self-hosted, macOS, mbp2017]). Vakten är röd för varje runs-on som pekar på boxens etikett. Etiketten står delad, så att
+      # raden inte träffar sig själv.
+      #
+      # Historik: kvällen innan (CP 2026-11-17 23.24) gällde det omvända, alla jobb på egna runners, eftersom Actions-minuterna slog
+      # i taket 23.38. Den regeln höll inte när boxen frös, och den ersattes samma natt.
+      - name: Inga jobb på boxen
         run: |
-          MONSTER="ubuntu""-|windows""-|macos""-"
-          BRYTARE="vars.LIFEHUB_RUNNER == 'boxen' && fromJSON"
+          BOXEN="self-hosted, Linux, lif""ehub"
           ANTAL="$(ls .github/workflows/*.yml | wc -l)"
           if [ "$ANTAL" -lt 2 ]; then echo "::error::Bara $ANTAL arbetsflöden lästa, golvet är 2."; exit 1; fi
-          if grep -nE "runs-on:.*($MONSTER)" .github/workflows/*.yml | grep -vF "$BRYTARE"; then
-            echo "::error::Arbetsflöden ovan kör på GitHubs maskiner. Använd runs-on: [self-hosted, Linux, lifehub] (cllp/lifehub.app#880)."
+          if grep -nF "$BOXEN" .github/workflows/*.yml | grep "runs-on:"; then
+            echo "::error::Arbetsflöden ovan kör på Groks box, som fryses. Använd runs-on: ubuntu-latest, eller [self-hosted, macOS, mbp2017] för macOS-jobb (#880)."
             exit 1
           fi
-          echo "Alla $ANTAL arbetsflöden kör på egna runners."
+          echo "Inget av $ANTAL arbetsflöden kör på boxen."
