@@ -9,6 +9,20 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.242.0
+
+**(i)-panelerna på sidan Verktyg läses in lat, så att appens startfil krymper igen (#624).**
+
+### Ändrat: panelerna är en egen bit
+
+Mätt 2026-11-18 i lifehub.app vid ompinningen till 0.240.0: `components/OpsHub.js` växte med 5 303 byte minifierat, startfilerna med 1 961 byte gzip, och appens `check:jsstorlek` blev röd. Taket höjdes temporärt (regel 1). Panelerna ritas först efter ett tryck på (i), så de hör inte hemma före första vyn.
+
+- `VerktygPanel` (ett verktyg i gruppen) och `ValbarPanel` (ett som kan läggas till) ligger i `VerktygPaneler.jsx` och läses in av `VerktygPanelerLat.jsx` med `lazy`, samma väg som `OpsFargvalLat`. Inget i API:t ändras.
+- Medan biten hämtas står en rad på panelens plats med "Hämtar beskrivningen" och `aria-busy`. Går biten inte att hämta står en mening (`LatGrans`), aldrig en tom rad.
+- Det som flyttade är 3 729 byte minifierat och 1 287 byte gzip, mätt på den byggda filen. Appen sänker sitt tak med det den mäter vid ompinningen.
+- `check:delbarhet` vaktar att `VerktygPanel` och `ValbarPanel` inte följer med `OpsGruppHubb` in i startfilen. Grönt med ändringen, och `--bevisa` är rött som väntat mot paketet som en enda modul.
+- Prov: `hubb.test.jsx`, nio prov väntar nu in panelen (`findBy`). Röda med den lata panelen och synkrona frågor, gröna när de väntar in den, 103 av 103.
+
 ## 0.241.0
 
 **Verktyg som kort, helskärm för HTML-dokument, dra och släpp av kort och kalendermenyns rader.**
