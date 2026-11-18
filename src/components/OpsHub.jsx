@@ -3,9 +3,10 @@ import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
-import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
-import { ChevronNedIkon, HubIkon } from "./icons.jsx";
+import { OpsSpinner } from "./OpsSpinner.jsx";
+import { ChevronNedIkon, HubIkon, PlusIkon } from "./icons.jsx";
+import { useLofteVantan } from "../lib/useLofteVantan.js";
 import { OpsView, OpsViewHeader } from "./OpsView.jsx";
 import { radKlass } from "../lib/radKlass.js";
 import { OpsHubTillbaka } from "./OpsTillbaka.jsx";
@@ -116,7 +117,7 @@ const GRUPPHUBB_TEXT = {
     rubrik: "Verktyg",
     valbara: "Verktyg som kan läggas till",
     ingaValbara: "Det finns inga verktyg att lägga till.",
-    installera: "Installera",
+    installera: "Lägg till",
     agarenInstallerar: "Ägaren installerar dem i gruppens inställningar.",
     tillaggRubrik: "Tillägg i gruppen",
     synsPa: "Syns på",
@@ -137,7 +138,7 @@ const GRUPPHUBB_TEXT = {
     rubrik: "Tools",
     valbara: "Tools that can be added",
     ingaValbara: "There are no tools to add.",
-    installera: "Install",
+    installera: "Add",
     agarenInstallerar: "The owner installs them in the group's settings.",
     tillaggRubrik: "Add-ons in the group",
     synsPa: "Visible in",
@@ -169,13 +170,97 @@ function tillaggText(m, t, sprak) {
   return `${etiketter} · ${t.synsPa}: ${platser}`;
 }
 
-/**
- * Appar som gruppen inte har, med en knapp per app när ägaren får installera.
+/*
+ * ══ ⛔ VERKTYG SOM RUTOR (0.239.0, CP 2026-11-18: "ja, bygg rutorna", cllp/lifehub.app#864) ══════════════════════════════════
  *
- * Tom grupp och en grupp som redan har appar använder samma rader, så erbjudandet
- * inte försvinner så fort Meddelanden är på och Bibliotek saknas (CP 2026-10-10).
- * En modul utan kort och utan tillägg (`hubb: null`) kommer inte med: den har ingen yta att visa. En modul som bara är ett
- * tillägg kommer med (0.124.0, CP 2026-10-19: "Datumomröstning finns inte"), utan ikon och med en rad om var den syns.
+ * Skissen i cllp/lifehub.app#842 del C: Verktyg är ett rutnät av rutor, tre per rad på en telefon (390 px) och fler på en bredare
+ * skärm. En ruta är verktygets ikon på en rund platta och namnet under. De installerade står först. Under rubriken "Verktyg som kan
+ * läggas till" står resten som streckade, nedtonade rutor, och ett tryck på en sådan installerar verktyget (samma `installera` som
+ * förut) i stället för en knapp "Installera" per rad.
+ *
+ * Före 0.239.0 var varje installerat verktyg ett kort med en chevron som fällde ut delarna, en infolinje och räknaren (0.83.0, CP
+ * 2026-10-08: "Varje app/modul borde kunna expanderas med chevron"). Det beslutet gäller inte längre på den här sidan: delarna nås inne
+ * i verktyget (`OpsModulSida`), och sidan svarar bara på frågan "vilka verktyg finns, och vilka kan jag lägga till". Ett tryck på en
+ * ruta öppnar verktyget, och ingenting fälls ut. Räknaren står kvar som ett litet märke på plattan, så att det man behöver se inte
+ * försvinner. `OpsHub` (appens egen lista) har kvar korten och chevronen.
+ *
+ * ⛔ RAMVERKETS TOKENS, INGA EGNA FÄRGER. Plattan är `bg-surface` med `border-line` och `shadow-sm`, den streckade är platt med
+ * `border-dashed` i `ink-muted` till hälften, dämpad ikon och dämpad text. Mätt i en skärmbild vid 390 px i ljust tema: med
+ * `border-line-strong` syntes den streckade kanten knappt mot `canvas`, och den installerade plattan utan skugga inte alls.
+ * Namnet är rollen `meta` med `font-medium` (skillen interaktionsdesign, avsnitt 5: en etikett på en flik). Rutan är minst 44 px hög (plattan är 56 px), och den som trycker träffar hela rutan, inte bara plattan.
+ */
+const RUTNAT = "m-0 grid list-none grid-cols-3 gap-x-1 gap-y-3 p-0 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6";
+const RUTA =
+  "flex h-full min-h-11 w-full flex-col items-center gap-2 rounded-card px-0.5 py-2 text-center transition-colors duration-(--duration-fast) ease-standard";
+const PLATTA = "relative flex size-14 shrink-0 items-center justify-center rounded-full [&_svg]:size-6";
+const RUTNAMN = "line-clamp-2 w-full break-words hyphens-auto text-meta font-medium";
+
+/**
+ * De installerade verktygen som rutor: en länk per verktyg, till verktygets startsida (0.239.0).
+ *
+ * ⛔ RUTAN ÄR EN LÄNK OCH INGET ANNAT. Ingen knapp i den och ingen utfällning: trycket öppnar verktyget, precis som kortets länk
+ * gjorde före 0.239.0. Länkens namn är verktygets namn och räknarens skärmläsartext ("Ekonomi 3 nya"), eftersom plattan är dold
+ * för skärmläsaren och märket bär sin egen text.
+ *
+ * @param {object} props
+ * @param {ReadonlyArray<{ id: string, href: string, label: string, icon?: import("react").ReactNode, badge?: number }>} props.poster
+ * @param {string} props.activeHref
+ * @param {(href: string, event: any) => void} [props.onNavigate]
+ * @param {string} props.ariaLabel
+ * @param {string} props.badgeText
+ */
+function VerktygRutor({ poster, activeHref, onNavigate, ariaLabel, badgeText }) {
+  return (
+    <ul aria-label={ariaLabel} data-verktygsrutor="" className={RUTNAT}>
+      {poster.map((m) => {
+        const aktiv = m.href === activeHref;
+        return (
+          <li key={m.href} data-verktyg={m.id} className="min-w-0">
+            <a
+              href={m.href}
+              onClick={(e) => onNavigate?.(m.href, e)}
+              aria-current={aktiv ? "page" : undefined}
+              className={cx(RUTA, "relative text-ink hover:bg-surface", KORT_FOKUS, aktiv && "ring-2 ring-accent")}
+            >
+              <span aria-hidden="true" className={cx(PLATTA, "border border-line bg-surface text-ink shadow-sm")}>
+                {m.icon ?? <HubIkon size={24} />}
+              </span>
+              <span className={RUTNAMN}>{m.label}</span>
+              {/* ⛔ MÄRKET STÅR SIST I LÄNKEN OCH RITAS PÅ PLATTANS HÖRN. Låg det i plattan, före namnet, blev länkens namn "3 nya Ekonomi" i
+                  stället för "Ekonomi 3 nya": skärmläsaren läser i källans ordning. Rutan är `relative`, och den här rutan har plattans mått
+                  och läge (`top-2` är rutans `py-2`), så märkets egen placering (`icon`, övre högra hörnet) hamnar på plattan. */}
+              {typeof m.badge === "number" && m.badge > 0 ? (
+                <span className="pointer-events-none absolute top-2 left-1/2 size-14 -translate-x-1/2">
+                  <OpsCountBadge count={m.badge} text={badgeText} placement="icon" />
+                </span>
+              ) : null}
+            </a>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/**
+ * Verktyg som gruppen inte har, som streckade rutor. Ett tryck på en ruta installerar verktyget när den som tittar får göra det
+ * (0.239.0, tidigare en rad med en knapp "Installera" per verktyg).
+ *
+ * Tom grupp och en grupp som redan har verktyg använder samma rutor, så erbjudandet inte försvinner så fort Meddelanden är på och
+ * Bibliotek saknas (CP 2026-10-10). En modul utan kort och utan tillägg (`hubb: null`) kommer inte med: den har ingen yta att visa.
+ * En modul som bara är ett tillägg kommer med (0.124.0, CP 2026-10-19: "Datumomröstning finns inte"), med ett plus på plattan och en
+ * rad om var den syns.
+ *
+ * ⛔ RUTANS NAMN SÄGER ATT VERKTYGET KAN LÄGGAS TILL ("Lägg till Ekonomi", "Add Finance"), eftersom den synliga texten bara är
+ * namnet. Utan den hade en skärmläsare läst upp en knapp som heter "Ekonomi" och som inte öppnar Ekonomi. `installera.etikett` byter
+ * det första ordet, som den förut bytte knappens text.
+ *
+ * ⛔ VÄNTAN SYNS (skillen interaktionsdesign, avsnitt 7). Ger appens `onInstallera` eller `onClick` ett löfte står en snurra på
+ * plattan, rutan är `aria-busy` och spärrad mot ett andra tryck tills löftet är klart (`useLofteVantan`, samma mönster som
+ * `OpsButton`). Ett löfte som avslås sväljs inte: det går vidare till appen.
+ *
+ * ⛔ UTAN `installera` ÄR RUTAN INGEN KNAPP. Den som inte får installera ser vad som finns och raden om att ägaren installerar,
+ * men inget som går att trycka på och som inte gör något.
  *
  * @param {object} props
  * @param {ReadonlyArray<import("../lib/modul.js").Modul>} props.moduler
@@ -183,84 +268,113 @@ function tillaggText(m, t, sprak) {
  * @param {(typeof GRUPPHUBB_TEXT)["sv"]} props.t
  * @param {{ href?: string, onClick?: (id?: string) => void | Promise<unknown>, onInstallera?: (id: string) => void | Promise<unknown>, etikett?: string } | undefined} props.installera
  * @param {(href: string, event: any) => void} [props.onNavigate]
- * @param {boolean} [props.visaAgarRad] Sant när listan står bredvid redan installerade kort och den som tittar inte får installera.
+ * @param {boolean} [props.visaAgarRad] Sant när rutorna står bredvid redan installerade verktyg och den som tittar inte får installera.
  */
-function ValbaraAppar({ moduler, sprak, t, installera, onNavigate, visaAgarRad = false }) {
-  const medKnapp = Boolean(installera && (installera.href || installera.onClick || installera.onInstallera));
-  const knappText = installera?.etikett || t.installera;
-  const direkt = typeof installera?.onInstallera === "function";
-  const viaKlick = !direkt && typeof installera?.onClick === "function";
+function ValbaraRutor({ moduler, sprak, t, installera, onNavigate, visaAgarRad = false }) {
+  const medVag = Boolean(installera && (installera.href || installera.onClick || installera.onInstallera));
   return (
     <section className="flex w-full flex-col gap-2 text-left">
       <h2 className="m-0 text-etikett font-medium text-ink">{t.valbara}</h2>
-      <ul aria-label={t.valbara} data-hubb-valbara="" className="m-0 flex list-none flex-col gap-2 p-0">
-        {moduler.map((m) => {
-          const namn = text(m.namn, sprak);
-          const etikett = `${knappText} ${namn}`;
-          const href = installera?.href ?? "";
-          const lankar = href !== "" && !direkt && !viaKlick;
-          const syns = arBaraTillagg(m) ? tillaggText(m, t, sprak) : "";
-          return (
-            <li key={m.id} data-hubb-valbar={m.id} className="flex min-h-11 items-center gap-3 rounded-base border border-line bg-surface px-3 py-2">
-              {m.hubb?.ikon ? (
-                <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-raised text-ink [&_svg]:size-6">
-                  {/** @type {import("react").ReactNode} */ (m.hubb.ikon)}
-                </span>
-              ) : null}
-              {syns ? (
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-etikett text-ink">{namn}</span>
-                  <span data-hubb-syns="" className="truncate text-meta text-ink-secondary">{syns}</span>
-                </span>
-              ) : (
-                <span className="min-w-0 flex-1 truncate text-etikett text-ink">{namn}</span>
-              )}
-              {medKnapp && installera ? (
-                lankar ? (
-                  <OpsButton href={href} variant="secondary" size="md" ariaLabel={etikett} onClick={(e) => onNavigate?.(href, e)}>
-                    {knappText}
-                  </OpsButton>
-                ) : (
-                  <OpsButton
-                    variant="secondary"
-                    size="md"
-                    ariaLabel={etikett}
-                    // ⛔ Svaret lämnas tillbaka (0.129.0, cllp/lifehub.app#217): en app som installerar med ett löfte (en skrivning till gruppen) får knappen
-                    // att visa snurra och spärra ett andra tryck medan den pågår. En app som svarar direkt ser ingen skillnad.
-                    onClick={() => (direkt ? installera.onInstallera?.(m.id) : installera.onClick?.(m.id))}
-                  >
-                    {knappText}
-                  </OpsButton>
-                )
-              ) : null}
-            </li>
-          );
-        })}
+      <ul aria-label={t.valbara} data-hubb-valbara="" className={RUTNAT}>
+        {moduler.map((m) => (
+          <li key={m.id} data-hubb-valbar={m.id} className="min-w-0">
+            <ValbarRuta modul={m} sprak={sprak} t={t} installera={medVag ? installera : undefined} onNavigate={onNavigate} />
+          </li>
+        ))}
       </ul>
-      {!medKnapp && visaAgarRad ? <p className="m-0 text-hjalp text-ink-secondary">{t.agarenInstallerar}</p> : null}
+      {!medVag && visaAgarRad ? <p className="m-0 text-hjalp text-ink-secondary">{t.agarenInstallerar}</p> : null}
     </section>
   );
 }
 
 /**
- * Hubben för den aktiva gruppen: ett kort per modul i `grupp.moduler`, i gruppens ordning (0.37.0, #184).
+ * En streckad ruta: en länk till `installera.href`, en knapp som installerar, eller (utan väg) bara verktyget att se.
+ * @param {object} props
+ * @param {import("../lib/modul.js").Modul} props.modul
+ * @param {string} props.sprak
+ * @param {(typeof GRUPPHUBB_TEXT)["sv"]} props.t
+ * @param {{ href?: string, onClick?: (id?: string) => void | Promise<unknown>, onInstallera?: (id: string) => void | Promise<unknown>, etikett?: string } | undefined} props.installera
+ * @param {(href: string, event: any) => void} [props.onNavigate]
+ */
+function ValbarRuta({ modul: m, sprak, t, installera, onNavigate }) {
+  const synsId = useId();
+  const direkt = typeof installera?.onInstallera === "function";
+  const viaKlick = !direkt && typeof installera?.onClick === "function";
+  // ⛔ Svaret lämnas tillbaka (0.129.0, cllp/lifehub.app#217): ett löfte ur appen gör rutan upptagen tills det är klart.
+  const { upptagen, anropa } = useLofteVantan(direkt || viaKlick ? () => (direkt ? installera?.onInstallera?.(m.id) : installera?.onClick?.(m.id)) : undefined);
+  const namn = text(m.namn, sprak);
+  const etikett = `${installera?.etikett || t.installera} ${namn}`;
+  const syns = arBaraTillagg(m) ? tillaggText(m, t, sprak) : "";
+  const href = installera?.href ?? "";
+  const innehall = (
+    <>
+      <span className={cx(PLATTA, "border-2 border-dashed border-ink-muted/50 text-ink-muted")}>
+        <span aria-hidden="true" className="flex items-center">
+          {upptagen ? <OpsSpinner size="sm" decorative /> : m.hubb?.ikon ? /** @type {import("react").ReactNode} */ (m.hubb.ikon) : <PlusIkon size={24} />}
+        </span>
+      </span>
+      <span className={cx(RUTNAMN, "text-ink-secondary")}>{namn}</span>
+      {syns ? (
+        <span id={synsId} data-hubb-syns="" className="line-clamp-3 w-full break-words text-hjalp text-ink-secondary">
+          {syns}
+        </span>
+      ) : null}
+    </>
+  );
+  const describedBy = syns ? synsId : undefined;
+  const klass = cx(RUTA, "cursor-pointer hover:bg-surface", KORT_FOKUS);
+  if (direkt || viaKlick) {
+    return (
+      <button
+        type="button"
+        aria-label={etikett}
+        aria-describedby={describedBy}
+        aria-busy={upptagen || undefined}
+        disabled={upptagen}
+        data-valbar-ruta=""
+        onClick={() => anropa()}
+        className={cx(klass, "disabled:cursor-wait")}
+      >
+        {innehall}
+      </button>
+    );
+  }
+  if (href !== "") {
+    return (
+      <a href={href} aria-label={etikett} aria-describedby={describedBy} data-valbar-ruta="" onClick={(e) => onNavigate?.(href, e)} className={klass}>
+        {innehall}
+      </a>
+    );
+  }
+  return (
+    <div data-valbar-ruta="" className={RUTA}>
+      {innehall}
+    </div>
+  );
+}
+
+/**
+ * Hubben för den aktiva gruppen, sidan Verktyg: en ruta per modul i `grupp.moduler`, i gruppens ordning (0.37.0, #184; rutor 0.239.0).
  *
  * ══ ⛔ GRUPPENS MODULER OCH INGET ANNAT ═══════════════════════════════════
  *
  * CP 2026-09-30: "Ekonomi är EN modul." Före 0.37.0 skickade appen sin egen lista till `OpsHub`, samma lista i varje grupp,
- * och varje del av Ekonomi var ett eget kort. Nu ritar hubben det gruppens ägare valt (`groups.moduler`), och varje kort leder
+ * och varje del av Ekonomi var ett eget kort. Nu ritar hubben det gruppens ägare valt (`groups.moduler`), och varje ruta leder
  * till modulens egen insida (`OpsModulSida`). Beslutet om vad som ritas bor i `hubbForGrupp`, så det går att pröva utan att rita.
  *
  * ⛔ TOMHET ÄR ETT SVAR (arbetsreglernas punkt 5), på fyra sätt:
- *   - en grupp utan moduler visar apparna som kan läggas till, och en väg till valet när appen skickar `installera`;
- *   - en grupp som redan har appar visar samma erbjudande under korten, så Bibliotek syns i Travel fast Meddelanden är installerat (CP 2026-10-10);
- *   - en modul appen inte registrerat, eller en utan kort, ritas inte, och en rad under korten säger vilken och varför;
+ *   - en grupp utan moduler säger det, och visar verktygen som kan läggas till, med en väg till valet när appen skickar `installera`;
+ *   - en grupp som redan har verktyg visar samma erbjudande under rutorna, så Bibliotek syns i Travel fast Meddelanden är installerat (CP 2026-10-10);
+ *   - en modul appen inte registrerat, eller en utan kort, ritas inte, och en rad under rutorna säger vilken och varför;
  *   - pekar gruppen BARA på sådana står det också, i stället för rubriken "inga moduler", som vore osann.
  *
- * ⛔ KORTEN FÄLLS UT MED EN CHEVRON OCH VISAR MODULENS DELAR (0.83.0, CP 2026-10-08 17:54: "Varje app/modul borde kunna
- * expanderas med chevron"). Här stod "inga barn på korten", med skälet att delarna är modulens egen navigation. Skälet
- * står kvar för toppradens rullgardin, som fortfarande bara listar moduler (`hubbPoster` utan `delar`). På kortet är
- * delarna en genväg in i modulen, och kortet självt leder som förut till startsidan. En modul med en del får ingen chevron.
+ * ⛔ RUTOR, INTE KORT SOM FÄLLS UT (0.239.0, CP 2026-11-18: "ja, bygg rutorna", cllp/lifehub.app#864). Se avsnittet om rutorna
+ * ovanför `VerktygRutor`. Här stod från 0.83.0 att korten fälls ut med en chevron och visar modulens delar (CP 2026-10-08 17:54:
+ * "Varje app/modul borde kunna expanderas med chevron"). Det beslutet är ersatt för den här sidan: en ruta öppnar verktyget, och
+ * delarna nås inne i det. Toppradens rullgardin har aldrig visat delarna och gör det inte nu heller.
+ *
+ * ⛔ `info` TAS FORTFARANDE EMOT, MEN RITAS INTE HÄR (0.239.0). Rutan har ingen infolinje. Appen kan skicka samma karta som förut,
+ * till exempel för att samma `info` ger raden under namnet i toppradens rullgardin (`hubbPoster`), och ingenting går sönder.
  *
  * @param {object} props
  * @param {{ id: string, namn: import("../lib/sprak.js").Namn, moduler: ReadonlyArray<string> }} props.grupp Den aktiva gruppen.
@@ -268,23 +382,23 @@ function ValbaraAppar({ moduler, sprak, t, installera, onNavigate, visaAgarRad =
  * @param {string} [props.activeHref]
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {"sv"|"en"} [props.sprak]
- * @param {Readonly<Record<string, string | { sv: string, en?: string } | null>>} [props.info] Kortets infolinje per modul-id (se `OpsHub`).
- * @param {Readonly<Record<string, number>>} [props.badge] Räknaren per modul-id.
- * @param {string} [props.badgeText]
+ * @param {Readonly<Record<string, string | { sv: string, en?: string } | null>>} [props.info] Tas emot men ritas inte sedan 0.239.0: rutan har ingen infolinje. Behålls så att en app som skickar den inte går sönder.
+ * @param {Readonly<Record<string, number>>} [props.badge] Räknaren per modul-id, ett litet märke på rutans platta.
+ * @param {string} [props.badgeText] Skärmläsarordet efter räknaren. Förval "nya" (sv), "new" (en).
  * @param {boolean} [props.ram] Ritas i `OpsView`. Förval sant.
- * @param {{ href?: string, onClick?: (id?: string) => void | Promise<unknown>, onInstallera?: (id: string) => void | Promise<unknown>, etikett?: string }} [props.installera] Vägen till modulvalet. Appen skickar den bara för den som får välja appar: ägaren, och sedan 0.128.0 en admin (0.87.0, lifehub.app#129). `onInstallera` installerar just den appen. Utan den anropas `onClick` med appens id, eller så öppnas `href`.
+ * @param {{ href?: string, onClick?: (id?: string) => void | Promise<unknown>, onInstallera?: (id: string) => void | Promise<unknown>, etikett?: string }} [props.installera] Vägen till modulvalet. Appen skickar den bara för den som får välja appar: ägaren, och sedan 0.128.0 en admin (0.87.0, lifehub.app#129). Ett tryck på en streckad ruta anropar `onInstallera` med appens id, annars `onClick` med appens id, eller så öppnas `href`. Ett löfte ur appen gör rutan upptagen tills det är klart. `etikett` är första ordet i rutans namn, förval "Lägg till" (sv), "Add" (en).
  * @param {import("react").ReactNode} [props.atgard] (0.103.0) Åtgärden i sidans huvud, till exempel `<OpsVyAtgard>Skapa app</OpsVyAtgard>`.
  */
-export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak: sprakProp, info, badge, badgeText, ram = true, installera, atgard }) {
+export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak: sprakProp, badge, badgeText, ram = true, installera, atgard }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
   const { kort, saknade } = hubbForGrupp({ grupp, moduler });
   const t = GRUPPHUBB_TEXT[sprak === "en" ? "en" : "sv"];
   const gruppnamn = text(grupp.namn, sprak);
-  // ⛔ 0.83.0: korten får modulens delar, så att de fälls ut med en chevron. Toppradens rullgardin ber inte om dem.
-  const poster = hubbPoster(kort, { sprak, info, badge, delar: true });
-  // Appar med ett kort som gruppen inte har. En modul utan kort (hubb: null) blir ingen rad här: den syns inte i hubben.
+  // ⛔ 0.239.0: rutorna har varken delar eller infolinje. Samma `hubbPoster` som toppradens rullgardin, så namn, ikon och räknare är desamma.
+  const poster = hubbPoster(kort, { sprak, badge }).map((p, i) => ({ ...p, id: kort[i].id }));
+  // Appar med ett kort som gruppen inte har. En modul utan kort (hubb: null) blir ingen ruta här: den syns inte i hubben.
   // ⛔ En kärnmodul står aldrig här (0.106.0, #386): den är alltid installerad, och `medKarna` räknar den så.
   const installerade = medKarna(grupp.moduler, moduler);
   // ⛔ 0.124.0: en modul som bara är ett tillägg (`hubb: null`, minst ett tillägg) kan också installeras. Den har inget kort att visa,
@@ -292,10 +406,11 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
   const tillaggningsbara = moduler.filter((m) => (m.hubb || arBaraTillagg(m)) && !arKarna(m) && !installerade.includes(m.id));
   const tillaggsmoduler = tillaggsmodulerIGrupp({ grupp, moduler });
   const medVag = Boolean(installera && (installera.href || installera.onClick || installera.onInstallera));
-  // Appar gruppen inte har ska synas också när andra redan är installerade. Tom grupp listar dem i tomläget nedan, så de inte står två gånger.
   const harInnehall = poster.length > 0 || saknade.length > 0 || tillaggsmoduler.length > 0;
-  const valbarSektion = tillaggningsbara.length > 0 && harInnehall ? (
-    <ValbaraAppar moduler={tillaggningsbara} sprak={sprak} t={t} installera={installera} onNavigate={onNavigate} visaAgarRad />
+  // ⛔ 0.239.0: rutorna som kan läggas till står UNDER tomläget, inte i det. Tomlägets yta centrerar sitt innehåll och krymper det till
+  // sin bredd, och ett rutnät med tre kolumner i en krympt ruta blev en kolumn av avkortade namn. Samma sektion som i en grupp med verktyg.
+  const valbarSektion = tillaggningsbara.length > 0 ? (
+    <ValbaraRutor moduler={tillaggningsbara} sprak={sprak} t={t} installera={installera} onNavigate={onNavigate} visaAgarRad={harInnehall} />
   ) : null;
   const innehall = (
     <div className="flex flex-col gap-4" data-grupphubb={grupp.id}>
@@ -303,20 +418,14 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
           Skapa app kan få vara enligt samma princip i header som meddelanden." Förut började sidan direkt med korten. */}
       <OpsViewHeader title={t.rubrik} ikon={<HubIkon size={18} />} actions={atgard ?? undefined} />
       {poster.length > 0 ? (
-        <KortRutnat poster={poster} activeHref={activeHref} onNavigate={onNavigate} ariaLabel={t.moduler(gruppnamn)} badgeText={badgeText ?? (sprak === "en" ? "new" : "nya")} sprak={sprak} />
+        <VerktygRutor poster={poster} activeHref={activeHref} onNavigate={onNavigate} ariaLabel={t.moduler(gruppnamn)} badgeText={badgeText ?? (sprak === "en" ? "new" : "nya")} />
       ) : tillaggsmoduler.length > 0 ? null : saknade.length > 0 ? (
         <OpsEmpty title={t.ingaRitbara} description={t.ingaRitbaraText} />
       ) : (
         <OpsEmpty
           title={t.tomRubrik}
           description={t.tomText(gruppnamn, medVag)}
-          action={
-            tillaggningsbara.length > 0 ? (
-              <ValbaraAppar moduler={tillaggningsbara} sprak={sprak} t={t} installera={installera} onNavigate={onNavigate} />
-            ) : (
-              <p className="m-0 text-etikett text-ink-secondary">{t.ingaValbara}</p>
-            )
-          }
+          action={tillaggningsbara.length > 0 ? undefined : <p className="m-0 text-etikett text-ink-secondary">{t.ingaValbara}</p>}
         />
       )}
       {tillaggsmoduler.length > 0 ? (

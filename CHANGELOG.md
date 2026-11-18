@@ -9,6 +9,29 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.239.0
+
+**Verktyg som rutor** (CP 2026-11-18: "ja, bygg rutorna", cllp/lifehub.app#864; skissen i cllp/lifehub.app#842 del C). Sidan Verktyg (`OpsGruppHubb`) är ett rutnät av rutor i stället för kort: verktygets ikon på en rund platta och namnet under, tre per rad på en telefon. Ett tryck öppnar verktyget, och ingenting fälls ut. Det ersätter beslutet från 2026-10-08 (0.83.0, "Varje app/modul borde kunna expanderas med chevron") för den här sidan: delarna nås inne i verktyget (`OpsModulSida`), och sidan svarar bara på vilka verktyg som finns och vilka som kan läggas till. `OpsHub`, appens egen lista, har kvar korten och chevronen.
+
+### Ändrat
+
+- **De installerade verktygen är rutor.** En ruta är en länk till verktygets startsida (samma `href` och `onNavigate` som kortet), utan chevron, utan utfällning och utan infolinje. Räknaren (`badge`, `badgeText`) står kvar som ett litet märke på plattans hörn, och länkens namn är "Ekonomi 3 nya", som förut. Tre rutor per rad vid 390 px, fyra från 640, fem från 768 och sex från 1024. Namnet har rollen `meta` med `font-medium`, rutan är minst 44 px, och färgerna är ramverkets tokens (`surface`, `line`, `shadow-sm`).
+- **Verktyg som kan läggas till är streckade, nedtonade rutor** under rubriken "Verktyg som kan läggas till", efter de installerade. Ett tryck på rutan installerar verktyget (`installera.onInstallera` med verktygets id, annars `onClick` med id, eller en länk till `href`) i stället för en knapp "Installera" per rad. Rutans namn är "Lägg till Ekonomi" ("Add Finance"); `installera.etikett` byter första ordet, som den förut bytte knappens text. Ger appen ett löfte står en snurra på plattan, rutan är `aria-busy` och tar inte emot ett andra tryck tills löftet är klart (`useLofteVantan`). Utan `installera` är rutan inget att trycka på, och raden om att ägaren installerar står kvar.
+- En modul som bara är ett tillägg (0.124.0) har ett plus på plattan och raden om var den syns ("Rösta på datum · Syns på: Händelser") under namnet.
+- En grupp utan verktyg visar tomläget och rutorna som kan läggas till **under** det, inte i det: tomlägets yta krymper sitt innehåll, och tre kolumner i den blev en kolumn av avkortade namn.
+- ⛔ **`info` tas emot men ritas inte på sidan.** Rutan har ingen infolinje. En app som skickar `info` (lifehub.app gör det) går inte sönder, och `hubbPoster` ger fortfarande raden under namnet i toppradens rullgardin. Inga andra props har ändrats.
+
+### Att göra i appen vid ompinning
+
+- Prov som letar efter knappen "Installera <namn>" hittar i stället rutan "Lägg till <namn>" (lifehub.app: `apparna-tillganglighet.test.jsx`, `moduler.test.jsx`, `bokning-installerbar.test.jsx`, `e2e/bokning-installerbar.mjs`), och `e2e/bibliotek-navigering.mjs` mäter chevronen "Visa delarna i Ekonomi", som inte finns på sidan längre. `data-hubb-valbara`, `data-hubb-valbar` och `data-hubb-syns` står kvar.
+- `HubView` skickar `onInstallera: (id) => void installera(id)`, som kastar bort löftet. Med `(id) => installera(id)` visar rutan att den väntar medan verktyget läggs till.
+
+### Vakt
+
+- `hubb.test.jsx`, "verktyg som rutor (0.239.0)", ersätter proven för chevronen: en länk per installerat verktyg som navigerar, i gruppens ordning; inget med `aria-expanded` på sidan; märket på sin ruta med skärmläsartext; streckade rutor efter de installerade vars tryck anropar `installera` med just det verktyget; Add och appens etikett på engelska; väntan och spärren medan appens löfte pågår. Proven för tomläget, ägarens väg och tilläggen (samma fil), Bokning (`installningar-plats.test.jsx`) och inventeringen av väntande knappar (`knappar-vantar.test.jsx`) söker rutan i stället för knappen.
+- Rött mot 0.238.2 (korten med chevron, `OpsHub.jsx` ur `HEAD`): 10 av 120 prov i de tre filerna, varav 4 av de 5 nya. Det femte, märket på rutan, är grönt mot korten eftersom märket fanns där också; det fälls när märket tas bort ur rutan (1 fel). Grönt med rutorna: 120 av 120.
+- `check:skalyta`, avsnitt 9c (a): rutan har bara namnet, ingen infolinje, är minst 44 px hög och bred, och sidan har inget med `aria-expanded`. Rött mot 0.238.2 (4 brott av 83 kontroller: infolinjen och chevronen, vid 390 och 1280 px), grönt med rutorna (83 kontroller, inga brott), körd ensam med `--bara-9c`.
+
 ## 0.238.2
 
 **Färgväljaren lämnar appens startfil** (cllp/lifehub.app#883). 0.238.0 gav gruppens kulör ramverkets enda färgväljare, och `OpsGruppmarkeValjare` importerade `OpsFargval` statiskt. Väljaren följer med `OpsGruppFormular` och `OpsProfil` in i startfilen, och med den reglagen, paletten, omfångsräkningen och kontrastparen. Mätt vid lifehub.app:s ompinning till 0.238.1, 2026-11-18: `check:jsstorlek` röd med 14 419 byte gzip över taket. Källkartor mot ett bygge av appens main (minifierade byte i App-biten): `OpsFargval` +11 158, `palett.js` +5 958, `palettomfang.js` +4 854, `kontrastpar.js` +3 432. Före 0.238.0 låg samma kod bara i Hubbens färger, som redan är en egen bit.

@@ -2318,8 +2318,8 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
 // ══ 9c. HUBBEN PER GRUPP OCH MODULENS INSIDA (0.37.0, #184) ════════════════════
 // CP 2026-09-30: "Ekonomi är EN modul. Inte massa moduler med komponenter." Hubben visar den aktiva gruppens moduler och inget
 // annat, och en modul har en egen insida med sin egen navigation. Mått vid 390 och 1280:
-//   (a) en grupp med Ekonomi: ETT kort, en länk till /ekonomi, inga delar synliga i hubben förrän chevronen fälls ut (0.83.0),
-//       minst 44 px högt, klick navigerar;
+//   (a) en grupp med Ekonomi: EN ruta, en länk till /ekonomi med namnet och ingen infolinje, inga delar och inget som fälls ut
+//       på sidan (0.239.0, rutorna; före det ett kort med chevron, 0.83.0), minst 44 px hög och bred, klick navigerar;
 //       på dator listar toppradens rullgardin bara modulen (inga chevronrader, inga delar).
 //   (b) en grupp utan moduler: rubriken och en rad med gruppens namn, inga kort, ingen tom yta.
 //   (c) en grupp med en modul appen inte registrerat: kortet för Ekonomi OCH en synlig rad som säger vilken som inte visas.
@@ -2339,15 +2339,18 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     const { page, context } = await oppna("grupphubb", vp, standardtema, 1, "g3");
     try {
       const lista = page.locator('main ul[aria-label="Verktyg i Claes Philip Staiger AB"]');
-      // ⛔ 0.83.0: ett kort med delar är en länk med en chevron bredvid (`[data-kortlank]` i en `div`), inte en länk direkt i `li`.
+      // Rutan är en länk direkt i `li` (0.239.0). `[data-kortlank]` står kvar så att samma mätning kan köras mot en äldre dist med kort och chevron.
       const kort = lista.locator(":scope > li > a, :scope > li [data-kortlank]");
       const antal = await kort.count();
       krav(antal === 1, `Hubben per grupp ${namn} (a): ${antal} kort ritades i gruppen med Ekonomi, väntat 1.`);
       if (antal === 1) {
-        const k = await kort.evaluate((a) => ({ href: a.getAttribute("href"), text: /** @type {HTMLElement} */ (a).innerText.replace(/\s+/g, " ").trim(), h: a.getBoundingClientRect().height }));
+        const k = await kort.evaluate((a) => ({ href: a.getAttribute("href"), text: /** @type {HTMLElement} */ (a).innerText.replace(/\s+/g, " ").trim(), h: a.getBoundingClientRect().height, w: a.getBoundingClientRect().width }));
         matt.push(`Hubben per grupp ${namn} (a): ${JSON.stringify(k)}`);
-        krav(k.href === "/ekonomi" && k.text.startsWith("Ekonomi") && k.text.includes("Skatten förfaller 12 oktober"), `Hubben per grupp ${namn} (a): kortet ${JSON.stringify(k)}, väntat Ekonomi med infolinjen och länken /ekonomi.`);
-        krav(k.h >= 44, `Hubben per grupp ${namn} (a): kortet är ${k.h} px högt, under tumkravet 44.`);
+        // ⛔ 0.239.0: rutan är ikonen och namnet. Infolinjen ritas inte på sidan (appen skickar den ändå, scenen också).
+        krav(k.href === "/ekonomi" && k.text === "Ekonomi", `Hubben per grupp ${namn} (a): rutan ${JSON.stringify(k)}, väntat bara namnet Ekonomi och länken /ekonomi.`);
+        krav(k.h >= 44 && k.w >= 44, `Hubben per grupp ${namn} (a): rutan är ${k.w} x ${k.h} px, under tumkravet 44.`);
+        const utfallbara = await page.locator("main [aria-expanded]").count();
+        krav(utfallbara === 0, `Hubben per grupp ${namn} (a): ${utfallbara} element med aria-expanded på sidan Verktyg, väntat inga (rutorna fälls inte ut).`);
         krav(!(await page.locator("main").innerText()).includes("Inkomster"), `Hubben per grupp ${namn} (a): en del av Ekonomi står i hubben.`);
         await kort.click();
         const gick = await page.evaluate(() => window.__gick);

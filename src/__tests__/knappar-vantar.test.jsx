@@ -285,14 +285,14 @@ describe("knapparna i ramverket som väntar (inventeringen)", () => {
     await provaVantar(() => screen.getByRole("button", { name: /Dölj/ }), onAndra, d.los);
   });
 
-  it("OpsGruppHubb: Installera (lokal rättelse: svaret kastades bort i en blockkropp)", async () => {
+  it("OpsGruppHubb: en streckad ruta som lägger till ett verktyg (0.239.0; före det knappen Installera, lokal rättelse: svaret kastades bort i en blockkropp)", async () => {
     const I = (/** @type {string} */ n) => <svg data-ikon={n} />;
     const resor = { id: "resor", namn: { sv: "Resor" }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [], hubb: { ikon: I("plan"), rutt: "/resor", startsida: "kommande", delar: [{ id: "kommande", namn: { sv: "Kommande" }, ikon: I("k"), rutt: "/resor/kommande" }] } };
     const inkorg = { id: "inkorg", namn: { sv: "Inkorg" }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [], hubb: null };
     const d = uppskjuten();
     const onInstallera = vi.fn(() => d.lofte);
     render(<OpsGruppHubb grupp={{ id: "bolaget", namn: { sv: "Bolaget" }, moduler: ["inkorg"] }} moduler={validateModuler([resor, inkorg])} installera={{ onInstallera }} />);
-    await provaVantar(() => screen.getByRole("button", { name: "Installera Resor" }), onInstallera, d.los);
+    await provaVantar(() => screen.getByRole("button", { name: "Lägg till Resor" }), onInstallera, d.los);
   });
 
   it("OpsGruppFormular: Ta bort bilden", async () => {
