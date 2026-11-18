@@ -541,12 +541,15 @@ describe("OpsGruppHubb: verktyg som rutor (0.239.0)", () => {
     expect(knappar.map((k) => k.getAttribute("aria-label"))).toEqual(["Lägg till Resor", "Lägg till Bokning"]);
     // Sedan 0.240.0 har varje streckad ruta också en (i), stängd från början.
     expect(within(valbara).getAllByRole("button", { name: /^Om / }).map((k) => k.getAttribute("aria-expanded"))).toEqual(["false", "false"]);
-    // ⛔ 0.241.0: KORTET är streckat, och ikonrutan i det. Lägg till är en egen knapp på kortet, aldrig inuti (i)-delen.
-    for (const om of within(valbara).getAllByRole("button", { name: /^Om / })) {
-      expect(om.className.split(/\s+/)).toContain("border-dashed");
-      expect(om.querySelector('[aria-hidden="true"].border-dashed')).not.toBeNull();
-      expect(om.querySelector("button")).toBeNull();
+    // ⛔ 0.241.0 (CP 2026-11-18 22.25): KORTET är knappen som lägger till, streckat och med en streckad ikonruta. Raden "+ Lägg till" säger
+    // vad trycket gör. (i) är en egen knapp bredvid, aldrig inuti kortet: en knapp i en knapp är två mål i ett.
+    for (const k of knappar) {
+      expect(k.className.split(/\s+/)).toContain("border-dashed");
+      expect(k.querySelector('[aria-hidden="true"].border-dashed')).not.toBeNull();
+      expect(k.querySelector("[data-hubb-lagg-till]")?.textContent).toBe("+ Lägg till");
+      expect(k.querySelector("button")).toBeNull();
     }
+    expect(valbara.className.split(/\s+/)).toContain("grid-cols-2");
     fireEvent.click(within(valbara).getByRole("button", { name: "Lägg till Bokning" }));
     expect(klick).toHaveBeenCalledTimes(1);
     expect(klick).toHaveBeenCalledWith("bokning");

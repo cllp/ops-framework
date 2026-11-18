@@ -11,6 +11,21 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.241.0
 
+**Verktyg som kort, och helskärm för HTML-dokument i Biblioteket.**
+
+### Ändrat: sidan Verktyg är kort, inte ringar
+
+CP 2026-11-18 21.48, med en skärmbild av 0.239.0: "Jag tänkte mig mer att det blir kort istället ungefär som grupp korten fast för verktyg samma princip med de sträckade och sådär men just nu är det glest och rörigt." Beslutet efter samtalet, 22.25: "Bra det kör vi på" (skissen i lifehub.app#864).
+
+- **Ett kort per verktyg, två på raden** (tre från 768 px), med gruppkortens radie och kant. Ikonen står i en ruta överst, namnet och en rad under.
+- **I gruppen:** fyllt kort. Raden under är läget (`info`, "Inget nytt" vid `null`), på högst två rader. Ett tryck öppnar verktyget.
+- **Kan läggas till:** streckat kort med streckad ikonruta. Raden under är "+ Lägg till". Ett tryck på kortet lägger till verktyget, med samma väntan som förut (snurran i ikonrutan, `aria-busy`, spärrat mot dubbeltryck). Kortets namn är "Lägg till Ekonomi".
+- **(i) i övre högra hörnet på alla kort** fäller ut samma panel som i 0.240.0: beskrivningen, delarna och Öppna eller Lägg till. Beskrivningen står inte längre på kortet, eftersom den klipptes mitt i.
+- Det öppna kortet markeras med en ring i accentfärgen.
+- Prov: `hubb.test.jsx`, tre prov skrivna om från ringarna till korten (rött mot 0.240.0:s `OpsHub`, 3 av 87, grönt med). Skalytans kontroller av hubben (a) och (b) följer korten, 93 kontroller utan brott.
+
+### Nytt: helskärm för HTML-dokument
+
 **Helskärm för HTML-dokument i Biblioteket** (CP 2026-11-18 21.43, med en skärmbild av statussidan på 22 % i telefonen: "HTM har fortfarande ingen full screen"). PDF-vyn, kartan och årsvyn hade den. HTML-dokumentet hade bara zoom.
 
 ### Nytt

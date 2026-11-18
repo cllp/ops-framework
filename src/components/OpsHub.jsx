@@ -230,18 +230,20 @@ function tillaggText(m, t, sprak) {
  * kolumner lämnade stora tomma ytor, och texten under de valbara klipptes mitt i. Nu är varje verktyg ett kort i en lista, med gruppkortens
  * radie och kant: ikonen i en ruta, namnet och en rad under. Det som finns i gruppen är fyllt, med läget på raden och (i) till höger. Det
  * som kan läggas till är streckat, med beskrivningen på raden och Lägg till som en knapp på kortet.
- * ⛔ TVÅ PÅ RADEN FÖR DET SOM FINNS, HELA BREDDEN FÖR DET SOM KAN LÄGGAS TILL (CP samma kväll: "visa korten två på en rad också, då behöver
- * man inte scrolla om det är många, Vidare kan kortet för att lägga till gå över hela"). Ett installerat kort har namn och en kort lägesrad
- * och ryms i halv bredd när ikonen står överst. Ett valbart har en mening och en knapp, och i halv bredd vid 390 px hade meningen klippts
- * igen, som i ringarna.
+ * ⛔ TVÅ PÅ RADEN, SAMMA KORT ÖVERALLT (CP samma kväll: "visa korten två på en rad också, då behöver man inte scrolla om det är många",
+ * och om det valbara kortet: "Lägg till knappen kanske inte behövs ... kanske räcker med at man trycker på dom? och att det finns en ikon
+ * för att visa info?"). Beslutet, CP 22.25 ("Bra det kör vi på"): ett tryck på kortet gör det vanligaste, alltså öppnar ett installerat
+ * verktyg och lägger till ett valbart. (i) i övre högra hörnet på alla kort fäller ut vad verktyget är. Raden under namnet är läget på ett
+ * installerat kort och "+ Lägg till" på ett streckat, så att den som ser sidan första gången vet vad trycket gör. Beskrivningen står i (i).
  * Panelen under ett kort är densamma som förut och hamnar fortfarande på raden under (`col-span-full`, `grid-flow-row-dense`).
  */
 const KORTPAR = "m-0 grid list-none grid-cols-2 gap-2 p-0 grid-flow-row-dense md:grid-cols-3";
-const KORTLISTA = "m-0 grid list-none grid-cols-1 gap-2 p-0 grid-flow-row-dense md:grid-cols-2";
-const KORT_YTA = "flex min-h-16 w-full min-w-0 items-center gap-3 rounded-card p-3 text-left transition-colors duration-(--duration-fast) ease-standard";
+/** Kortets yta: ikonen överst, namnet och raden under. `pr-12` lämnar plats åt (i) i hörnet. */
+const VERKTYGSKORT = "flex h-full min-h-24 w-full min-w-0 flex-col items-start gap-2 rounded-card p-3 pr-12 text-left transition-colors duration-(--duration-fast) ease-standard";
 const IKONRUTA = "relative flex size-10 shrink-0 items-center justify-center rounded-lg [&_svg]:size-5";
 const KORTNAMN = "block truncate text-etikett font-medium";
-const KORTRAD = "block truncate text-meta text-ink-secondary";
+/** Två rader, inte en: i halv bredd vid 390 px klipptes "Skatten förfaller 12 oktober" efter "1" (mätt i skalytan). */
+const KORTRAD = "line-clamp-2 break-words text-meta text-ink-secondary";
 /** (i) i det installerade kortets övre högra hörn. Träffytan är 44 px. */
 const INFO_HORN = "absolute top-0.5 right-0.5 flex size-11 items-center justify-center rounded-full";
 
@@ -285,13 +287,9 @@ function VerktygRutor({ poster, activeHref, onNavigate, ariaLabel, badgeText, sp
               href={m.href}
               onClick={(e) => onNavigate?.(m.href, e)}
               aria-current={aktiv ? "page" : undefined}
-              className={cx(
-                "flex h-full min-h-24 w-full min-w-0 flex-col items-start gap-2 rounded-card border border-line bg-surface p-3 text-left text-ink shadow-sm transition-colors duration-(--duration-fast) ease-standard hover:bg-raised",
-                KORT_FOKUS,
-                (aktiv || ar) && "ring-2 ring-accent",
-              )}
+              className={cx(VERKTYGSKORT, "border border-line bg-surface text-ink shadow-sm hover:bg-raised", KORT_FOKUS, (aktiv || ar) && "ring-2 ring-accent")}
             >
-              <span aria-hidden="true" className={cx(IKONRUTA, "bg-raised text-accent")}>
+              <span aria-hidden="true" className={cx(IKONRUTA, "bg-accent/10 text-accent")}>
                 {m.icon ?? <HubIkon size={20} />}
               </span>
               <span className="w-full min-w-0">
@@ -461,7 +459,7 @@ function ValbaraRutor({ moduler, sprak, t, installera, onNavigate, visaAgarRad =
   return (
     <section className="flex w-full flex-col gap-2 text-left">
       <h2 className="m-0 text-etikett font-medium text-ink">{t.valbara}</h2>
-      <ul aria-label={t.valbara} data-hubb-valbara="" className={KORTLISTA}>
+      <ul aria-label={t.valbara} data-hubb-valbara="" className={KORTPAR}>
         {moduler.map((m) => (
           <ValbarPost
             key={m.id}
@@ -508,15 +506,26 @@ function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, a
   const etikett = `${installera?.etikett || t.installera} ${namn}`;
   const syns = arBaraTillagg(m) ? tillaggText(m, t, sprak) : "";
   const href = installera?.href ?? "";
-  const beskrivningRad = m.beskrivning ? text(m.beskrivning, sprak) : syns;
-  // ⛔ KORTET ÄR (i), LÄGG TILL ÄR KNAPPEN PÅ KORTET (0.241.0). Ett tryck på kortet fäller ut panelen med vad verktyget är och vilka delar det
-  // har (CP: "de som inte är installerade vill man kunna veta mer om innan man installerar"), och Lägg till lägger till utan att något
-  // behöver öppnas. Två mål, sida vid sida, aldrig ett i ett annat.
-  const medKnapp = direkt || viaKlick || href !== "";
-  const knappText = installera?.etikett || t.installera;
-  const knappKlassen = cx(knappKlass({ variant: "secondary", size: "sm" }), "absolute top-1/2 right-3 -translate-y-1/2");
+  const medVag = direkt || viaKlick || href !== "";
+  const innehall = (
+    <>
+      <span aria-hidden="true" className={cx(IKONRUTA, "border border-dashed border-ink-muted/50 text-ink-muted")}>
+        {upptagen ? <OpsSpinner size="sm" decorative /> : m.hubb?.ikon ? /** @type {import("react").ReactNode} */ (m.hubb.ikon) : <PlusIkon size={20} />}
+      </span>
+      <span className="w-full min-w-0">
+        <span className={cx(KORTNAMN, "text-ink")}>{namn}</span>
+        {/* Länkens och knappens namn är "Lägg till Ekonomi" (`aria-label`), så raden är bara för ögat. */}
+        {medVag ? (
+          <span aria-hidden="true" data-hubb-lagg-till="" className={cx(KORTRAD, "text-accent")}>
+            + {installera?.etikett || t.installera}
+          </span>
+        ) : null}
+      </span>
+    </>
+  );
+  const klass = cx(VERKTYGSKORT, "border border-dashed border-ink-muted/50 text-ink-secondary", medVag && "cursor-pointer hover:bg-surface", KORT_FOKUS, ar && "ring-2 ring-accent");
   /** @type {import("react").ReactNode} */
-  let ruta = null;
+  let ruta;
   if (direkt || viaKlick) {
     ruta = (
       <button
@@ -527,17 +536,22 @@ function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, a
         disabled={upptagen}
         data-valbar-ruta=""
         onClick={() => anropa()}
-        className={cx(knappKlassen, "disabled:cursor-wait")}
+        className={cx(klass, "disabled:cursor-wait")}
       >
-        {upptagen ? <OpsSpinner size="sm" decorative /> : null}
-        {knappText}
+        {innehall}
       </button>
     );
   } else if (href !== "") {
     ruta = (
-      <a href={href} aria-label={etikett} aria-describedby={syns ? synsId : undefined} data-valbar-ruta="" onClick={(e) => onNavigate?.(href, e)} className={knappKlassen}>
-        {knappText}
+      <a href={href} aria-label={etikett} aria-describedby={syns ? synsId : undefined} data-valbar-ruta="" onClick={(e) => onNavigate?.(href, e)} className={klass}>
+        {innehall}
       </a>
+    );
+  } else {
+    ruta = (
+      <div data-valbar-ruta="" className={klass}>
+        {innehall}
+      </div>
     );
   }
   const stang = () => {
@@ -550,6 +564,12 @@ function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, a
   return (
     <>
       <li data-hubb-valbar={m.id} className="relative min-w-0">
+        {ruta}
+        {syns ? (
+          <span id={synsId} data-hubb-syns="" className="sr-only">
+            {syns}
+          </span>
+        ) : null}
         <button
           ref={infoRef}
           type="button"
@@ -564,21 +584,10 @@ function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, a
               onVaxla(false);
             }
           }}
-          className={cx(KORT_YTA, "cursor-pointer border border-dashed border-ink-muted/50 text-ink-secondary hover:bg-surface", medKnapp && "pr-32", KORT_FOKUS, ar && "ring-2 ring-accent")}
+          className={cx(INFO_HORN, KORT_FOKUS, ar ? "text-accent" : "text-ink-muted hover:text-ink")}
         >
-          <span aria-hidden="true" className={cx(IKONRUTA, "border border-dashed border-ink-muted/50 text-ink-muted")}>
-            {m.hubb?.ikon ? /** @type {import("react").ReactNode} */ (m.hubb.ikon) : <PlusIkon size={20} />}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className={cx(KORTNAMN, "text-ink")}>{namn}</span>
-            {beskrivningRad ? (
-              <span id={synsId} data-hubb-syns="" className={KORTRAD}>
-                {beskrivningRad}
-              </span>
-            ) : null}
-          </span>
+          <InfoIkon size={16} />
         </button>
-        {ruta}
       </li>
       {ar ? (
         <li className="col-span-full min-w-0" data-valbarpanel={m.id}>
