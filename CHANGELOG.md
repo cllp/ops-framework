@@ -25,6 +25,13 @@ CP 2026-11-18 21.48, med en skärmbild av 0.239.0: "Jag tänkte mig mer att det 
 - **`ikoner` på `OpsGruppHubb`:** ikonen per modul-id för ett tillägg utan kort (`hubb: null`). Datumomröstning och Bokning ritades med ett plus i CP:s skärmbild, eftersom ett tillägg inte har någon ikon i manifestet. Prov: rött utan propen, grönt med.
 - Prov: `hubb.test.jsx`, tre prov skrivna om från ringarna till korten (rött mot 0.240.0:s `OpsHub`, 3 av 87, grönt med). Skalytans kontroller av hubben (a) och (b) följer korten, 93 kontroller utan brott.
 
+### Nytt: "Alla verktyg" i Verktygs meny i toppraden
+
+CP 2026-11-18: "I menyn till verktyg i telefonen så lade vi till en streckad + i menyn för alla verktyg. Alla vet inte hur man kommer till verktygspanelen annars. Vidare behöver vi lägga till samma i web vy." Webbens meny under Verktyg listade bara de installerade verktygen, och att ordet Verktyg också leder till sidan syns inte.
+
+- Raden **Alla verktyg** överst i menyn, med samma streckade ring och plus som i telefonens snabbmeny (0.234.0), och samma ord (`ORD_OPSAPPARARK.allaAppar`). Den leder till sidan Verktyg (`fasta.hub.href`), där verktyg också läggs till.
+- Prov: `skal030.test.jsx`, rött utan raden, grönt med.
+
 ### Nytt: helskärm för HTML-dokument
 
 **Helskärm för HTML-dokument i Biblioteket** (CP 2026-11-18 21.43, med en skärmbild av statussidan på 22 % i telefonen: "HTM har fortfarande ingen full screen"). PDF-vyn, kartan och årsvyn hade den. HTML-dokumentet hade bara zoom.

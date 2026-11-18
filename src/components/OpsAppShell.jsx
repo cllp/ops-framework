@@ -315,8 +315,12 @@ const FLIK_LUFT = "px-3 lg:px-4";
  * @param {string} props.classes
  * @param {string} props.submenuLabel Verb för chevronens namn, följt av postens etikett.
  * @param {{ oppen: boolean, onOppen: (oppen: boolean) => void } | null} [props.arkKnapp] (0.89.0) Fliken öppnar app-arket i stället för att navigera.
+ * @param {{ etikett: string, href: string } | null} [props.alla] (0.241.0) Raden "Alla verktyg" överst i Verktygs meny, med samma streckade ring och plus som
+ *   i telefonens snabbmeny (0.234.0). CP 2026-11-18: "Alla vet inte hur man kommer till verktygspanelen annars. Vidare behöver vi lägga till samma i web vy,
+ *   så att användare fattar att man kommer till verktygspanelen och kan lägga till." Menyn listade bara de installerade, och att ordet Verktyg också är en
+ *   länk till sidan syns inte.
  */
-function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, submenuLabel, arkKnapp = null }) {
+function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, submenuLabel, arkKnapp = null, alla = null }) {
   const [oppen, setOppen] = useState(false);
   const childEntries = /** @type {any[]} */ (Array.isArray(entry.children) ? entry.children : []);
 
@@ -457,6 +461,23 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
                 Barn i barnen (Hubs moduler har egna undersidor) ritas indragna
                 under sin förälder: en nivå djupare än `nav`, och exakt så djupt
                 som Hub behöver. */}
+            {alla ? (
+              <a
+                href={alla.href}
+                data-ops-alla-verktyg=""
+                onClick={(e) => {
+                  setOppen(false);
+                  onActivate(alla.href, e);
+                }}
+                aria-current={alla.href === activeHref ? "page" : undefined}
+                className={cx(radKlass({ active: alla.href === activeHref }), "w-auto")}
+              >
+                <span aria-hidden="true" className="flex size-6 shrink-0 items-center justify-center rounded-full border border-dashed border-ink-muted [&_svg]:size-3.5">
+                  <PlusIkon size={14} />
+                </span>
+                <span className="min-w-0 flex-1 truncate">{alla.etikett}</span>
+              </a>
+            ) : null}
             {childEntries.map((b) => (
               <HubModulRad key={b.href} b={b} activeHref={activeHref} onActivate={onActivate} stang={() => setOppen(false)} submenuLabel={submenuLabel} />
             ))}
@@ -2837,6 +2858,7 @@ function OpsAppShellRitad({
                 badgeText={badgeText}
                 submenuLabel={submenuLabel}
                 arkKnapp={apparArk && !snabbmenyer && s.href === apparHref ? { oppen: arkOppen, onOppen: setArkOppen } : null}
+                alla={harFasta && s.href === fasta.hub.href ? { etikett: ordet(ORD_OPSAPPARARK, "allaAppar", sprak), href: fasta.hub.href } : null}
                 classes={cx(
                   lankKlass(flikPa(s) ? "pa" : "av"),
                   // Utanför det som får plats vid 768: finns i menyn i stället,

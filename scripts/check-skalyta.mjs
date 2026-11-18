@@ -2400,7 +2400,8 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
           knappar: [...el.querySelectorAll("button[aria-expanded]")].length,
         }));
         matt.push(`Hubben per grupp ${namn} (a): rullgardinen ${JSON.stringify(rader)}`);
-        krav(rader.lankar.length === 1 && rader.lankar[0].startsWith("Ekonomi") && rader.knappar === 0, `Hubben per grupp ${namn} (a): rullgardinen ${JSON.stringify(rader)}, väntat bara Ekonomi och inga utfällbara rader.`);
+        // ⛔ 0.241.0: "Alla verktyg" står överst (CP 2026-11-18), sedan gruppens verktyg. Före 0.241.0 stod här "bara Ekonomi".
+        krav(rader.lankar.length === 2 && rader.lankar[0] === "Alla verktyg" && rader.lankar[1].startsWith("Ekonomi") && rader.knappar === 0, `Hubben per grupp ${namn} (a): rullgardinen ${JSON.stringify(rader)}, väntat Alla verktyg och sedan Ekonomi, och inga utfällbara rader.`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "grupphubb-rullgardin-1280.png"), clip: { x: 300, y: 0, width: 700, height: 360 } });
       }
     } catch (e) {
