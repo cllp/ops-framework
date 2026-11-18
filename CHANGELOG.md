@@ -16,10 +16,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 ### Tillagt
 
 - `samtalssvar`, `vidareISamtal` och `talkrostUr` ur `ops-framework`, samma funktioner som agentchatten använder.
+- `kalenderKulor` och `kalenderfargKulor` (cllp/lifehub.app#882). Sedan 0.238.0 bär dagrutans ram kalenderns kulör, och appens prov för ramen kunde inte räkna fram den: det jämförde med `lagerFarg` (ton 6) och fick kulören (119).
 
 ### Vakt
 
-- `talkrost-ingang-870.test.js` kräver att de tre finns i huvudingången och är samma funktioner som i `lib/talkrost.js`. Rött utan exportraden (3 fel), grönt med.
+- `talkrost-ingang-870.test.js` kräver att de fem finns i huvudingången och är samma funktioner som i sina moduler. Rött utan exportraderna (3 och 2 fel), grönt med.
+- `check-docs` fällde den första versionen i CI (3 odokumenterade). README har nu en rad för varje.
 
 ## 0.238.0
 
