@@ -24,6 +24,7 @@
  */
 
 import { rapporteraFel } from "./felrapport.js";
+import { agentutkast } from "./samtal.js";
 
 /**
  * ⛔ TAKET PÅ VARV. Ett varv är: agenten svarar, svaret läses upp, mikrofonen lyssnar, det sagda går till agenten. Efter så många varv i
@@ -113,12 +114,89 @@ export function arKlarfras(text) {
   return traffar > 0;
 }
 
+/** Kortare än så läses inte ensamt: "Ja." eller "t.ex." följer med nästa mening, så att rösten inte hackar. */
+export const MENING_MINST = 12;
+
+/**
+ * Hela meningar i en text som växer, från `fran` (0.244.0, lifehub.app#896). TALK läser första meningen medan agenten skriver resten.
+ *
+ * En mening är klar när den slutar på `.`, `!`, `?` eller `…` FÖLJT AV ett mellanslag, eller på en radbrytning. Punkten sist i ett utkast
+ * räknas inte: "3." kan bli "3.5" i nästa leverans. Resten, efter sista hela meningen, läses när svaret är färdigt.
+ *
+ * @param {string} text Hela texten så här långt.
+ * @param {number} [fran] Var förra läsningen slutade, i tecken.
+ * @returns {{ meningar: string[], till: number }} Meningarna att läsa, i ordning, och var nästa läsning börjar.
+ */
+export function helaMeningar(text, fran = 0) {
+  const rest = String(text ?? "").slice(fran);
+  const grans = /[.!?…]+["'”»)]*\s+|\n+/g;
+  /** @type {string[]} */
+  const meningar = [];
+  let start = 0;
+  /** @type {RegExpExecArray | null} */
+  let m;
+  while ((m = grans.exec(rest))) {
+    const slut = m.index + m[0].length;
+    const bit = rest.slice(start, slut).trim();
+    if (bit.length >= MENING_MINST) {
+      meningar.push(bit);
+      start = slut;
+    }
+  }
+  return { meningar, till: fran + start };
+}
+
+/**
+ * En kö som läser texter en i taget, i den ordning de kom (0.244.0, lifehub.app#896). TALK lägger varje hel mening i kön medan agenten
+ * skriver, och resten när svaret är färdigt.
+ *
+ * ⛔ ETT FEL STOPPAR KÖN OCH SPARAS TILL `slut`. Det rapporteras alltså en gång, där svaret redan hanteras, och resten läses inte: en röst som
+ * hoppar över en mening mitt i ett svar är sämre än en som slutar och säger att svaret står i fältet.
+ * ⛔ `aktuell` PRÖVAS FÖRE VARJE TEXT. Har personen tryckt Stopp eller börjat prata läses ingenting mer, också det som redan står i kön.
+ * @param {(text: string) => Promise<void> | void} las
+ * @param {() => boolean} aktuell
+ * @returns {{ lagg: (text: string) => void, antal: () => number, slut: () => Promise<void> }}
+ */
+export function lasIOrdning(las, aktuell) {
+  /** @type {Promise<void>} */
+  let kedja = Promise.resolve();
+  /** @type {unknown} */
+  let fel = null;
+  let felFinns = false;
+  let antal = 0;
+  return {
+    lagg(text) {
+      const t = String(text ?? "").trim();
+      if (!t) return;
+      antal += 1;
+      kedja = kedja
+        .then(() => {
+          if (felFinns || !aktuell()) return undefined;
+          return las(t);
+        })
+        .catch((e) => {
+          if (!felFinns) {
+            felFinns = true;
+            fel = e;
+          }
+        });
+    },
+    antal: () => antal,
+    slut: () =>
+      kedja.then(() => {
+        if (felFinns) throw fel;
+      }),
+  };
+}
+
 /**
  * Det appens mottagare kan lösa till för att samtalet ska fortsätta med röst.
  * @typedef {object} Talkrost
- * @property {(opt?: { signal?: AbortSignal }) => Promise<string>} svar Agentens svar på det personen nyss sade, som text. ⛔ Anropas bara när svaret ska läsas upp, så att
+ * @property {(opt?: { signal?: AbortSignal, onUtkast?: (text: string) => void }) => Promise<string>} svar Agentens svar på det personen nyss sade, som text. ⛔ Anropas bara när svaret ska läsas upp, så att
  *   en app som alltid ger det inte prenumererar i onödan. Avvisas löftet, eller löser det till en tom text, säger fältet att svaret står i chatten.
  *   `signal` avbryts när fältet slutat vänta (taket på 90 s, Klar, en ny fråga): den som prenumererar ska då stänga, annars lever lyssnaren kvar.
+ *   `onUtkast` (0.244.0, lifehub.app#896) får det agenten hittills skrivit, hela texten varje gång, medan svaret växer. Fältet läser då första
+ *   meningen innan svaret är färdigt. Frivillig: en app som inte kan följa ett utkast anropar den aldrig, och fältet läser som förut.
  * @property {(text: string) => Promise<Talkrost | void> | Talkrost | void} vidare Nästa sak personen säger, i SAMMA samtal. Löser den till en
  *   ny `Talkrost` fortsätter samtalet, annars stängs fältet som efter Agent.
  */
@@ -291,10 +369,14 @@ export function sparaUpplasningPa(pa) {
  * Väntar på svaret efter ett skickat meddelande: texten i första meddelandet efter `efter` som någon annan än `uid` skrev. I ett agentsamtal
  * är det agenten. Avvisar när källan inte kan prenumerera (då finns inget att vänta med) eller när prenumerationen faller.
  * ⛔ `signal` STÄNGER PRENUMERATIONEN. Utan den levde lyssnaren kvar när fältet slutat vänta (taket på 90 s): kom svaret aldrig, stängdes den aldrig.
- * @param {{ kalla: { prenumerera: (sid: string, l: { onData: (rader: any[]) => void, onError: (fel: Error) => void }) => (() => void) | null }, sid: string, uid: string, efter: { id: string }, signal?: AbortSignal }} p
+ *
+ * ⛔ `onUtkast` FÖLJER AGENTENS STATUS (0.244.0, lifehub.app#896). Kan källan prenumerera på statusen (`prenumereraStatus`, när appen gav
+ * `status`) får `onUtkast` utkastet varje gång det växer, och lyssnaren stängs med samma `sluta` som meddelandets. Ett fel i den lyssnaren
+ * rapporteras men stoppar inte väntan: svaret kommer ändå som meddelande, och utkastet var bara ett sätt att börja tidigare.
+ * @param {{ kalla: { prenumerera: (sid: string, l: { onData: (rader: any[]) => void, onError: (fel: Error) => void }) => (() => void) | null, prenumereraStatus?: (sid: string, l: { onData: (dok: any) => void, onError: (fel: Error) => void }) => (() => void) | null }, sid: string, uid: string, efter: { id: string }, signal?: AbortSignal, onUtkast?: (text: string) => void }} p
  * @returns {Promise<string>}
  */
-export function samtalssvar({ kalla, sid, uid, efter, signal }) {
+export function samtalssvar({ kalla, sid, uid, efter, signal, onUtkast }) {
   return new Promise((losa, avvisa) => {
     if (signal?.aborted) {
       avvisa(new Error("Väntan på svaret avbröts."));
@@ -302,6 +384,8 @@ export function samtalssvar({ kalla, sid, uid, efter, signal }) {
     }
     /** @type {(() => void) | null} */
     let stang = null;
+    /** @type {(() => void) | null} */
+    let stangUtkast = null;
     let klar = false;
     /** @param {() => void} gor */
     const sluta = (gor) => {
@@ -312,8 +396,34 @@ export function samtalssvar({ kalla, sid, uid, efter, signal }) {
       } catch (fel) {
         rapporteraFel(fel, { yta: "OpsTalk", steg: "samtalssvar-stang" });
       }
+      try {
+        stangUtkast?.();
+      } catch (fel) {
+        rapporteraFel(fel, { yta: "OpsTalk", steg: "samtalssvar-stang-utkast" });
+      }
       gor();
     };
+    if (typeof onUtkast === "function" && typeof kalla.prenumereraStatus === "function") {
+      let senast = "";
+      try {
+        stangUtkast = kalla.prenumereraStatus(sid, {
+          onData: (dok) => {
+            if (klar) return;
+            const u = agentutkast(dok);
+            if (!u || u === senast) return;
+            senast = u;
+            try {
+              onUtkast(u);
+            } catch (fel) {
+              rapporteraFel(fel, { yta: "OpsTalk", steg: "samtalssvar-utkast" });
+            }
+          },
+          onError: (fel) => rapporteraFel(fel, { yta: "OpsTalk", steg: "samtalssvar-utkast" }),
+        });
+      } catch (fel) {
+        rapporteraFel(fel, { yta: "OpsTalk", steg: "samtalssvar-utkast" });
+      }
+    }
     stang = kalla.prenumerera(sid, {
       onData: (rader) => {
         const i = rader.findIndex((m) => m?.id === efter.id);
@@ -354,7 +464,7 @@ export function vidareISamtal({ kalla, sid, uid, skicka }) {
   const vidare = async (text) => {
     const ny = await sand(text);
     if (!ny || typeof ny.id !== "string") throw new Error("vidareISamtal: det skickade meddelandet saknar id, så svaret kan inte kännas igen.");
-    return { svar: (opt) => samtalssvar({ kalla, sid, uid, efter: ny, signal: opt?.signal }), vidare };
+    return { svar: (opt) => samtalssvar({ kalla, sid, uid, efter: ny, signal: opt?.signal, onUtkast: opt?.onUtkast }), vidare };
   };
   return vidare;
 }

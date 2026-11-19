@@ -9,6 +9,41 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.244.0
+
+**TALK börjar tidigare: igenkänningen förbereds, svaret läses mening för mening medan agenten skriver, och en igenkänning som hör att personen är klar skickar direkt (cllp/lifehub.app#896).**
+
+CP 2026-11-19: "Får samma långsamma upplevelse med soniox? Tar massa tid för agenten att vakna upp. Sedan samma gamla robot som läser sakta." Sedan: "Kör steg 1 och 2 för Soniox." Mätt samma kväll i Sentry: stoppet väntade 3 000 ms på de sista orden och gav upp, eftersom Soniox hämtade nyckel och anslöt först när omgången började. Svaret lästes först när hela texten fanns.
+
+### Nytt: agentens utkast i statusdokumentet (`lib/samtal.js`)
+
+- `AGENTSTATUSFALT` har `utkast`, och `byggAgentstatus({ lage: "skriver", utkast })` bygger det: bara i läget "skriver", som en text, högst `AGENTUTKAST_MAX` (4 000) tecken. Ett längre kastar i stället för att kapas tyst.
+- `agentutkast(dok)` läser utkastet, eller `""`.
+- Utkastet bor i statusdokumentet och inte i meddelandet, eftersom meddelandet skapas en gång och färdigt: en notis, inkorgen och varje trigger på meddelanden hade annars sett en halv text. Bara servern skriver statusen (`allow write: if false`), så reglerna ändras inte.
+
+### Nytt: TALK följer utkastet (`lib/talkrost.js`, `OpsTalk`)
+
+- `Talkrost.svar({ signal, onUtkast })`: `onUtkast` får hela utkastet varje gång det växer. `samtalssvar` och `vidareISamtal` följer statusen när källan kan (`prenumereraStatus`), och lyssnaren stängs med svaret. Ett fel i den lyssnaren rapporteras men stoppar inte väntan.
+- `helaMeningar(text, fran)`: hela meningar ur en text som växer. En punkt sist räknas inte ("3." kan bli "3.5"), och en bit kortare än `MENING_MINST` (12) tecken följer med nästa.
+- `lasIOrdning(las, aktuell)`: en kö som läser en text i taget. Ett fel stoppar kön och kommer tillbaka i `slut`, en gång.
+- `OpsTalk` läser varje hel mening när den kommer, och resten av det färdiga svaret sist. Texten i fältet växer med utkastet. Börjar det färdiga svaret inte som utkastet som lästs upp läses hela svaret: det som lästs var en inledning (text före ett verktyg) eller ett utkast servern bytte ut. Börjar ett utkast om (nästa varv i agentens loop) följer läsningen det nya från början.
+- Utan utkast läses hela svaret som förut.
+
+### Nytt i `Igenkanning`
+
+- `forbered()` (frivillig): anropas när fältet monteras, när en omgång kan starta (`ner`, `direkt`) och efter varje omgång. Ett kast rapporteras (`igenkanning-forbered`) och omgången startar som förut. Bara för en igenkänning appen gett.
+- `onSlut` i `starta`: igenkänningen hör själv att personen pratat klart. I ett röstsamtal som lyssnar och har text skickas det sagda direkt, utan att vänta `ROST_TYSTNAD_MS`. Annars väntar fältet på tystnaden som förut.
+
+### Ingår inte
+
+Röststyrt avbrott (att rösten tystnar när personen börjar prata) kräver en öppen mikrofon medan telefonen talar, med ekosläckning mot den egna rösten, och är oprovat i iOS WebKit. Ett tryck på Stoppa avbryter som förut.
+
+### Prov
+
+`talk-utkast-896.test.jsx`: 15 prov. 12 är röda mot 0.243.0 och gröna med ändringen. De tre som är gröna i båda prövar det som ska vara oförändrat: utan utkast läses hela svaret, utan `prenumereraStatus` väntas svaret in, och `onSlut` utan text skickar ingenting.
+
+---
+
 ## 0.243.0
 
 **Dra och släpp på tavlan: kortet följer fingret, och tavlan ritas inte om för varje rörelse (cllp/lifehub.app#894).**
