@@ -266,9 +266,11 @@ export function granskaFil(fil, kalla) {
 
 /**
  * @param {Record<string, string>} filer Filnamn till källtext.
+ * @param {{ golv?: Record<string, number>, tak?: number }} [matt] Golv och tak. Utan dem gäller ramverkets (`GOLV`, `UNDANTAGSTAK`). En app som
+ *   kör vakten mot sin egen katalog (0.245.0) har andra mått, och anger dem själv (`check-vantar.mjs <katalog> --tak=N --golv-filer=N`).
  * @returns {{ brott: Brott[], golv: string[], stat: { filer: number, knappar: number, anropande: number, undantag: number, loftesprops: number } }}
  */
-export function granska(filer) {
+export function granska(filer, { golv: golvMatt = GOLV, tak = UNDANTAGSTAK } = {}) {
   /** @type {Brott[]} */
   const brott = [];
   const stat = { filer: 0, knappar: 0, anropande: 0, undantag: 0, loftesprops: 0, val: 0 };
@@ -283,9 +285,11 @@ export function granska(filer) {
     brott.push(...r.brott);
   }
   const golv = [];
-  for (const [namn, min] of Object.entries(GOLV)) {
+  for (const [namn, min] of Object.entries(golvMatt)) {
     if (/** @type {Record<string, number>} */ (stat)[namn] < min) golv.push(`golvet för ${namn}: läste ${/** @type {Record<string, number>} */ (stat)[namn]}, kräver minst ${min}. En vakt som läser för lite mäter ingenting.`);
   }
-  if (stat.undantag > UNDANTAGSTAK) golv.push(`${stat.undantag} undantag (vantar-ej) men taket är ${UNDANTAGSTAK}. Taket får bara sjunka: laga en rad i stället för att höja det.`);
+  if (stat.undantag > tak) golv.push(`${stat.undantag} undantag (vantar-ej) men taket är ${tak}. Taket får bara sjunka: laga en rad i stället för att höja det.`);
+  // (0.245.0) Ett tak över antalet undantag är utrymme att fylla utan att någon märker det. Taket följer med ned när en rad lagas.
+  else if (stat.undantag < tak && Object.keys(filer).length > 0) golv.push(`taket är ${tak} men bara ${stat.undantag} undantag (vantar-ej) finns: sänk det till ${stat.undantag}. Ett tak som står högre än antalet går att fylla utan att någon märker det.`);
   return { brott, golv, stat };
 }

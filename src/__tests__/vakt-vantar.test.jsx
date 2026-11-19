@@ -1,7 +1,9 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { GOLV, UNDANTAGSTAK, granska, granskaFil } from "../../scripts/lib/vantar.mjs";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsButton } from "../components/OpsButton.jsx";
@@ -165,6 +167,116 @@ export function A({ onSpara }) {
     expect(granskaFil("a.jsx", synlig).brott).toEqual([]);
     // En prop som inte kan ge ett löfte startar inget anrop: en rå knapp är då rätt.
     expect(granskaFil("a.jsx", sync).brott).toEqual([]);
+  });
+});
+
+/*
+ * ══ ⛔ VAKTEN MOT EN APPS KATALOG (0.245.0) ═══════════════════════════════════════════════════════════════════════════════════════
+ *
+ * Mätt 2026-11-19: lifehub.app körde `node node_modules/ops-framework/scripts/check-vantar.mjs src`, men skriptet läste alltid ramverkets
+ * egen `src/components` och argumentet användes aldrig. Appens vakt var grön utan att ha läst en enda av appens filer (arbetsreglernas
+ * punkt 4, tomt underlag), och en granskning hittade två brott i appen som vakten aldrig hade sett. Proven här kör det riktiga skriptet
+ * som en process, så som appen gör, mot en katalog med ett brott: före rättelsen var utfallet grönt (exit 0), och det är det som mäts.
+ */
+const SKRIPT = path.resolve(import.meta.dirname, "../../scripts/check-vantar.mjs");
+
+/** @param {string[]} argv @param {string} cwd */
+function kor(argv, cwd) {
+  const k = spawnSync(process.execPath, [SKRIPT, ...argv], { cwd, encoding: "utf8" });
+  return { kod: k.status, ut: `${k.stdout}${k.stderr}` };
+}
+
+/** Lägger filer i en ny tillfällig katalog. @param {Record<string, string>} filer */
+function app(filer) {
+  const rot = fs.mkdtempSync(path.join(os.tmpdir(), "vakt-vantar-"));
+  for (const [namn, kalla] of Object.entries(filer)) {
+    fs.mkdirSync(path.dirname(path.join(rot, namn)), { recursive: true });
+    fs.writeFileSync(path.join(rot, namn), kalla);
+  }
+  return rot;
+}
+
+const SVALJER = `
+/** @param {{ onSpara: () => Promise<void> }} props */
+export function A({ onSpara }) {
+  return <OpsButton onClick={() => { void onSpara(); }}>Spara</OpsButton>;
+}
+`;
+const VANTAR = `
+/** @param {{ onSpara: () => Promise<void> }} props */
+export function A({ onSpara }) {
+  return <OpsButton onClick={() => onSpara()}>Spara</OpsButton>;
+}
+`;
+
+describe("vakten mot en katalog: med ett argument läser den katalogen, inte ramverkets komponenter (0.245.0)", () => {
+  /** @type {string[]} */
+  const stada = [];
+  afterAll(() => {
+    for (const d of stada) fs.rmSync(d, { recursive: true, force: true });
+  });
+  /** @param {Record<string, string>} filer */
+  const ny = (filer) => {
+    const d = app(filer);
+    stada.push(d);
+    return d;
+  };
+
+  it("⛔ röd för ett brott i katalogen, med sökvägen relativt katalogen och katalogen utskriven", () => {
+    const rot = ny({ "src/app/views/Panel.jsx": SVALJER, "src/app/views/Annan.jsx": VANTAR });
+    const r = kor(["src"], rot);
+    expect(r.kod).toBe(1);
+    expect(r.ut).toContain("app/views/Panel.jsx:4 [loftet-svaljs]");
+    expect(r.ut).toMatch(/läste src\b/);
+    expect(r.ut).toContain("2 filer");
+  });
+
+  it("grön när katalogens knappar väntar, och den läste katalogen och ingenting annat", () => {
+    const rot = ny({ "src/a/Panel.jsx": VANTAR, "src/b/Annan.jsx": VANTAR });
+    const r = kor(["src"], rot);
+    expect(r.ut).toContain("2 filer");
+    expect(r.kod).toBe(0);
+  });
+
+  it("⛔ röd för en tom katalog och för en felstavad", () => {
+    const rot = ny({ "src/.gitkeep": "" });
+    const tom = kor(["src"], rot);
+    expect(tom.kod).toBe(1);
+    expect(tom.ut).toContain("golvet för filer");
+    const fel = kor(["srcc"], rot);
+    expect(fel.kod).toBe(1);
+    expect(fel.ut).toContain("finns inte");
+  });
+
+  it("⛔ röd under appens eget golv, över appens tak och när taket står högre än antalet undantag", () => {
+    const rot = ny({ "src/Panel.jsx": SVALJER.replace("  return <OpsButton", "  // vantar-ej: raden under listan säger redan vad som skickas\n  return <OpsButton"), "src/Annan.jsx": VANTAR });
+    expect(kor(["src", "--golv-filer=3"], rot).ut).toContain("golvet för filer: läste 2, kräver minst 3");
+    const utanTak = kor(["src"], rot);
+    expect(utanTak.kod).toBe(1);
+    expect(utanTak.ut).toContain("taket är 0");
+    expect(kor(["src", "--tak=1", "--golv-filer=2", "--golv-knappar=2"], rot).kod).toBe(0);
+    const slakt = kor(["src", "--tak=2"], rot);
+    expect(slakt.kod).toBe(1);
+    expect(slakt.ut).toContain("sänk det till 1");
+  });
+
+  it("⛔ röd för en okänd flagga och ett tak som inte är ett tal, i stället för att tyst strunta i dem", () => {
+    const rot = ny({ "src/Panel.jsx": VANTAR });
+    expect(kor(["src", "--golv=3"], rot).kod).toBe(1);
+    expect(kor(["src", "--tak=tva"], rot).kod).toBe(1);
+  });
+
+  it("proven i katalogen räknas inte: ett prov som renderar en knapp är inte appens knapp", () => {
+    const rot = ny({ "src/Panel.jsx": VANTAR, "src/__tests__/panel.test.jsx": SVALJER, "src/x/Rad.test.jsx": SVALJER });
+    const r = kor(["src"], rot);
+    expect(r.ut).toContain("1 filer");
+    expect(r.kod).toBe(0);
+  });
+
+  it("utan argument läser den ramverkets komponenter som förut", () => {
+    const r = kor([], os.tmpdir());
+    expect(r.kod).toBe(0);
+    expect(r.ut).toMatch(/läste src\/components\b/);
   });
 });
 
