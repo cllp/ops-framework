@@ -15,7 +15,8 @@ anteckningar är en version ingen kan välja att hoppa över.
 - **Tystnad efter ett svar avslutar röstsamtalet, utan fel** (cllp/lifehub.app#896). I CP:s video 2026-11-19 lyssnade TALK igen efter ett svar.
   Han sa ingenting och tryckte Klar, och fältet visade "Inget tal hördes i inspelningen" och en meny med sju knappar. Nu slutar samtalet med
   samma besked som när tystnaden gått ut ("Inget mer hördes, så samtalet är avslutat"), och ingen felrapport skickas, eftersom inget gick fel.
-  Gäller bara ett röstsamtal som inte bytts till menyn (Något annat).
+  Gäller bara ett röstsamtal som inte bytts till menyn (Något annat), och bara när tystnaden är belagd: en omgång utan inspelare (iPhone och iPad med agenten), en tom inspelning
+  eller en nivå som aldrig kom över tystnadsgränsen. Tom text med tal i ljudet, eller en igenkänning som föll, går den vanliga vägen och ljudet bevaras.
 
 ## 0.244.0
 
