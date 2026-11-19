@@ -375,3 +375,24 @@ describe("appens igenkänning förbereds, och säger själv när personen är kl
     expect(vidare).not.toHaveBeenCalled();
   });
 });
+
+describe("tystnad efter ett svar avslutar röstsamtalet, utan fel (CP:s video 2026-11-19 22.08)", () => {
+  it("⛔ Klar utan att något sagts i ett röstsamtal: samtalet slutar med beskedet, utan felrad och utan menyn", async () => {
+    const igk = falskIgenkanning("Fråga");
+    const u = falskUpplasning();
+    const vidare = vi.fn();
+    Skal({ talk: { onAgent: async () => ({ svar: async () => "Svar.", vidare }) }, igenkanning: igk, upplasning: u });
+    await tillAgenten();
+    await act(async () => u.pagar()?.losa());
+    await flush();
+    expect(lage()).toBe("lyssnar");
+    fireEvent.click(screen.getByRole("button", { name: /^(Klar|Done)/ }));
+    await flush();
+    await flush();
+    expect(vidare).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Inget tal hördes/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Agent" })).toBeNull();
+    expect(screen.getByText(/Inget mer hördes, så samtalet är avslutat/)).toBeTruthy();
+  });
+});
+
