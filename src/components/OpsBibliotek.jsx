@@ -264,6 +264,8 @@ const ORD_BIBLIOTEKLISTA = {
   slappKlarEn: { sv: "{namn} är tillagd.", en: "{namn} is added." },
   slappFelFil: { sv: "{namn}: {fel}", en: "{namn}: {fel}" },
   slappInteKopplad: { sv: "Uppladdningen är inte kopplad. Filerna är kvar på enheten.", en: "Uploading is not connected. The files are still on your device." },
+  // (0.245.0, cllp/lifehub.app#901) Knappen i det tomma biblioteket. Samma ord som "+ Ny" under Ljud när där bara finns uppladdningen.
+  laddaUpp: { sv: "Ladda upp", en: "Upload" },
 };
 
 /**
@@ -1003,6 +1005,15 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
    * @param {import("react").DragEvent} e
    */
   const redanTaget = (e) => e.nativeEvent.defaultPrevented;
+  /**
+   * ⛔ LADDA UPP I DET TOMMA BIBLIOTEKET (0.245.0, cllp/lifehub.app#901, CP 2026-11-19: "När biblioteket är tomt, skulle behöva en större Ladda
+   * upp, att man drar släpper är bra, men kanske en tydligare ladda upp."). På telefonen finns inget att dra från, så knappen är där den enda
+   * vägen från ett tomt bibliotek. Den öppnar filväljaren, och de valda filerna går samma väg som ett släpp (`laddaUppSlappta`): prövas, laddas
+   * upp en i taget, och beskeden står ovanför listan. Knappen ritas bara där ett släpp tas emot (`kanSlappa`) och uppladdningen är kopplad:
+   * ett tomläge som lovar en knapp som inte går är sämre än inget.
+   */
+  const kanLaddaUpp = kanSlappa && typeof onLaddaUpp === "function";
+  const uppladdningsFalt = useRef(/** @type {HTMLInputElement | null} */ (null));
   /** @param {import("react").DragEvent} e */
   const drarOver = (e) => {
     if (!kanSlappa || !Array.from(e.dataTransfer?.types ?? []).includes("Files")) return;
@@ -1514,6 +1525,22 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                 </ul>
               </div>
             ) : null}
+            {kanLaddaUpp ? (
+              <input
+                ref={uppladdningsFalt}
+                type="file"
+                multiple
+                aria-label={lord("laddaUpp")}
+                data-bibliotek-ladda-upp=""
+                className="hidden"
+                onChange={(e) => {
+                  const valda = Array.from(e.target.files ?? []);
+                  // Värdet nollas så att samma fil går att välja igen efter ett fel.
+                  e.target.value = "";
+                  void laddaUppSlappta(valda);
+                }}
+              />
+            ) : null}
             <Tabs.Content value={aktivFlik} data-bibliotek-panel="" aria-label={flikLista.find((f) => f.id === aktivFlik)?.namn ?? lord("flik_alla")} className="flex min-w-0 flex-col gap-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
               {fel ? (
                 <p role="alert" data-bibliotek-fel="">{fel}</p>
@@ -1524,6 +1551,12 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                   icon={inbaddad || sok || valda.length > 0 ? null : <IKON_FOR.bibliotek size={28} />}
                   title={inbaddad ? "Inga filer än." : sok || valda.length > 0 ? "Inga träffar." : poster.length === 0 ? "Biblioteket är tomt." : "Inget här ännu."}
                   description={inbaddad ? (tomText ?? TOM_FILER_FORVAL) : sok ? `Inget matchar "${sok}"${valda.length > 0 ? ` med ${valda.join(" och ")}` : ""}.` : valda.length > 0 ? `Inget här har ${valda.join(" och ")}.` : "Lägg till en anteckning, en länk, ett ljud eller en fil."}
+                  action={kanLaddaUpp && poster.length === 0 && !sok && valda.length === 0 ? (
+                    <OpsButton variant="primary" onClick={() => uppladdningsFalt.current?.click()}>
+                      <IKON_FOR.laddaUpp size={16} aria-hidden="true" />
+                      <span>{lord("laddaUpp")}</span>
+                    </OpsButton>
+                  ) : undefined}
                 />
               ) : (
                 <ul aria-label={lord("listaEtikett")} data-bibliotek-lista="" className="m-0 flex list-none flex-col gap-3 p-0">
