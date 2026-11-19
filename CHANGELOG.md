@@ -9,6 +9,11 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.245.0
+
+### Rättat
+- **En fil som släpps i Biblioteket blir en post, inte två** (cllp/lifehub.app#900). CP 2026-11-19: "När man drar en fil till biblioteket så blir det en dubblett om man trycker på spara, för den kommer upp utan att spara." Mätt: släppet hade två mottagare. lifehub.app tar emot släpp på ytan runt Biblioteket sedan 2026-11-04 (en ruta med namn, taggar och Spara), och 0.236.0 gav listan en egen mottagare som laddade upp direkt. Nu går listan undan när någon runt den redan tagit släppet (`preventDefault`, webbläsarens egen regel): ingen ram, ingen rad om att släppa och ingen uppladdning. Posten skapas av appens Spara, med taggarna. Utan en sådan mottagare är släppet som i 0.236.0. Prov: `bibliotek-slapp-en-post-900.test.jsx` (2), röda mot 0661e18 (två poster, den första utan taggar), gröna med ändringen.
+
 ## 0.244.1
 
 ### Rättat

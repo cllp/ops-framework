@@ -990,9 +990,26 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
 
   /** Bara filer räknas som något att släppa: en markerad text eller länk som dras över listan ska inte rita ramen. */
   const kanSlappa = Boolean(jag) && !inbaddad;
+  /**
+   * ⛔ ETT SLÄPP HAR EN MOTTAGARE (0.245.0, cllp/lifehub.app#900, CP 2026-11-19: "När man drar en fil till biblioteket så blir det en dubblett om
+   * man trycker på spara, för den kommer upp utan att spara."). Mätt: lifehub.app tar emot släpp på ytan runt Biblioteket sedan 2026-11-04
+   * (`BibliotekInklistring`, en ruta med namn, taggar och Spara), och 0.236.0 gav listan en egen mottagare som laddade upp direkt. Samma släpp
+   * blev då en post utan taggar direkt och en till med taggarna vid Spara. Mätningen bakom 0.236.0 ("Biblioteket hade inga `onDrop`") läste
+   * bara ramverket, inte appen runt det.
+   *
+   * Regeln är webbläsarens egen: den som tar ett släpp anropar `preventDefault`, och den som ser att det redan är gjort går undan. En app som
+   * lyssnar på ett element runt Biblioteket (`addEventListener`) hör släppet före listan, eftersom React tar emot sina händelser först vid
+   * roten. Då ritar listan ingen ram och laddar inte upp något. Utan en sådan mottagare är släppet som förut.
+   * @param {import("react").DragEvent} e
+   */
+  const redanTaget = (e) => e.nativeEvent.defaultPrevented;
   /** @param {import("react").DragEvent} e */
   const drarOver = (e) => {
     if (!kanSlappa || !Array.from(e.dataTransfer?.types ?? []).includes("Files")) return;
+    if (redanTaget(e)) {
+      if (drarFil) setDrarFil(false);
+      return;
+    }
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
     if (!drarFil) setDrarFil(true);
@@ -1463,8 +1480,9 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
               }}
               onDrop={(e) => {
                 if (!kanSlappa || !Array.from(e.dataTransfer?.types ?? []).includes("Files")) return;
-                e.preventDefault();
                 setDrarFil(false);
+                if (redanTaget(e)) return;
+                e.preventDefault();
                 void laddaUppSlappta(Array.from(e.dataTransfer.files ?? []));
               }}
               data-bibliotek-slapp={drarFil ? "drar" : undefined}
