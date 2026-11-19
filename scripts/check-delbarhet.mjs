@@ -97,6 +97,8 @@ const SKALEN = [
   { skal: "OpsCalendar", lata: ["OpsKalenderAr", "arsband"], via: "OpsCalendar" },
   // 0.238.2: gruppens kulörväljare drog in hela färgväljaren (reglage, palett, omfång, kontrastpar) i appens startfil i 0.238.0, 14 419 byte gzip över lifehub.app:s tak.
   { skal: "OpsGruppmarkeValjare", lata: ["OpsFargval", "hallbarLjushet"], via: "OpsFargvalLat" },
+  // 0.242.0 (#624): (i)-panelerna på sidan Verktyg låg i `OpsHub` från 0.240.0, och lifehub.app:s startfil växte med 1 961 byte gzip. Sidan Verktyg är `OpsGruppHubb`, och panelerna ritas först efter ett tryck på (i).
+  { skal: "OpsGruppHubb", lata: ["VerktygPanel", "ValbarPanel"], via: "VerktygPanelerLat" },
 ];
 
 /** En import av paketet (statisk eller dynamisk) i en bit. Ett namn i en kommentar eller en text räknas inte. @param {string} kod @param {string} paket */

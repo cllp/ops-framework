@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { GripVertical } from "lucide-react";
 import { IKON_FOR } from "./ikonlexikon.js";
 import { MAX_BIBLIOTEKRUBRIK, MAX_LISTPOSTER, filtreraBibliotek, inmatningsfel, ljudRubrik, arLjudpost, trimSomRegeln } from "../lib/bibliotek.js";
 import { LISTRADTEXT, kandidaterForLista, laggTillPost, losLista, taBortPost } from "../lib/biblioteklista.js";
@@ -255,7 +254,7 @@ export function ListaVisning({ lista, poster, kanAndra, onSpara, onOppnaPost }) 
                     }}
                     className="flex size-9 shrink-0 cursor-grab touch-none items-center justify-center rounded-md border-0 bg-transparent text-ink-muted hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                   >
-                    <GripVertical size={18} aria-hidden="true" />
+                    <IKON_FOR.grepp size={18} aria-hidden="true" />
                   </button>
                 ) : null}
                 {r.post ? <Raden post={r.post} namn={namn} onOppnaPost={onOppnaPost} /> : (
