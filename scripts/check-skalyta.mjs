@@ -43,6 +43,7 @@
  *       node scripts/check-skalyta.mjs --bara-chatt      bara avsnitt 29g, chattens nattskiva (#273), för en snabb körning
  *       node scripts/check-skalyta.mjs --bara-spelrad    bara avsnitt 24, spelraden mot mikrofonknappen och ytan (0.176.0, cllp/lifehub.app#417)
  *       node scripts/check-skalyta.mjs --bara-appar      bara Appar-hyllan mot plusknappen (0.90.6)
+ *       node scripts/check-skalyta.mjs --bara-kalenderrader  bara avsnitt 52f, kalendermenyns rader och knapparna under dem ligger inte i varandra, 390 och 1280 px mörkt (0.241.0)
  *       node scripts/check-skalyta.mjs --bara-verktyg    bara avsnitt 52e, Alla verktyg överst i Verktyg-menyn vid 390 px, ljust och mörkt (0.234.0)
  *       node scripts/check-skalyta.mjs --bara-textfalt   bara avsnitt 45, TALK och mikrofonen i textfälten (0.104.0, 0.233.0)
  *       node scripts/check-skalyta.mjs --bara-talkval    bara avsnitt 46, valen efter talet och förslagen i chatten (0.105.0)
@@ -1228,6 +1229,14 @@ if (argv.includes("--bara-0127")) {
   process.exit(0);
 }
 
+// `--bara-kalenderrader`: bara avsnitt 52f, kalendermenyns rader ligger inte i varandra (0.241.0). Hela körningen kör det också.
+if (argv.includes("--bara-kalenderrader")) {
+  await kalenderRader();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
 // `--bara-verktyg`: bara avsnitt 52e, Alla verktyg överst i Verktyg-menyn (0.234.0).
 if (argv.includes("--bara-verktyg")) {
   await verktygMeny();
@@ -2347,8 +2356,8 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
       if (antal === 1) {
         const k = await kort.evaluate((a) => ({ href: a.getAttribute("href"), text: /** @type {HTMLElement} */ (a).innerText.replace(/\s+/g, " ").trim(), h: a.getBoundingClientRect().height, w: a.getBoundingClientRect().width }));
         matt.push(`Hubben per grupp ${namn} (a): ${JSON.stringify(k)}`);
-        // ⛔ 0.239.0: rutan är ikonen och namnet. Infolinjen ritas inte på sidan (appen skickar den ändå, scenen också).
-        krav(k.href === "/ekonomi" && k.text === "Ekonomi", `Hubben per grupp ${namn} (a): rutan ${JSON.stringify(k)}, väntat bara namnet Ekonomi och länken /ekonomi.`);
+        // ⛔ 0.241.0: kortet är ikonen, namnet och läget under (CP 2026-11-18: korten som gruppkorten). 0.239.0 ritade bara namnet.
+        krav(k.href === "/ekonomi" && k.text.startsWith("Ekonomi"), `Hubben per grupp ${namn} (a): kortet ${JSON.stringify(k)}, väntat namnet Ekonomi först och länken /ekonomi.`);
         krav(k.h >= 44 && k.w >= 44, `Hubben per grupp ${namn} (a): rutan är ${k.w} x ${k.h} px, under tumkravet 44.`);
         // ⛔ 0.240.0: (i) FÄLLER UT EN PANEL UNDER RADEN (CP 2026-11-18). Det enda som fälls ut är (i)-knappen, en per ruta, och den är stängd
         // när sidan öppnas. Före 0.240.0 stod här "väntat inga": rutorna fälldes inte ut alls.
@@ -2363,7 +2372,8 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
           const p = await panel.evaluate((li) => {
             const ul = /** @type {HTMLElement} */ (li.parentElement);
             const ruta = /** @type {HTMLElement} */ (ul.querySelector('[data-verktyg="ekonomi"]'));
-            const platta = ruta.querySelector("a > span");
+            // ⛔ 0.241.0: ringen sitter på det öppna kortet (länken), inte på en platta i det.
+            const platta = ruta.querySelector("a");
             const r = li.getBoundingClientRect();
             return {
               under: Math.round(r.top - ruta.getBoundingClientRect().bottom),
@@ -2374,7 +2384,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
             };
           });
           matt.push(`Hubben per grupp ${namn} (a, i): ${JSON.stringify(p)}`);
-          krav(p.under >= 0 && Math.abs(p.bredd - p.listbredd) <= 1 && p.oppna && p.ring, `Hubben per grupp ${namn} (a, i): panelen ${JSON.stringify(p)}, väntat under rutan, i rutnätets hela bredd, med Öppna Ekonomi, och en ring runt den öppna rutans platta.`);
+          krav(p.under >= 0 && Math.abs(p.bredd - p.listbredd) <= 1 && p.oppna && p.ring, `Hubben per grupp ${namn} (a, i): panelen ${JSON.stringify(p)}, väntat under rutan, i rutnätets hela bredd, med Öppna Ekonomi, och en ring runt det öppna kortet.`);
           krav((await info.getAttribute("aria-expanded")) === "true", `Hubben per grupp ${namn} (a, i): (i) säger inte att panelen är öppen.`);
           krav((await over(page)) <= 0, `Hubben per grupp ${namn} (a, i): sidan flödar ${await over(page)} px i sidled med panelen öppen.`);
           if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `grupphubb-info-${vp.width}.png`) });
@@ -2399,7 +2409,8 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
           knappar: [...el.querySelectorAll("button[aria-expanded]")].length,
         }));
         matt.push(`Hubben per grupp ${namn} (a): rullgardinen ${JSON.stringify(rader)}`);
-        krav(rader.lankar.length === 1 && rader.lankar[0].startsWith("Ekonomi") && rader.knappar === 0, `Hubben per grupp ${namn} (a): rullgardinen ${JSON.stringify(rader)}, väntat bara Ekonomi och inga utfällbara rader.`);
+        // ⛔ 0.241.0: "Alla verktyg" står överst (CP 2026-11-18), sedan gruppens verktyg. Före 0.241.0 stod här "bara Ekonomi".
+        krav(rader.lankar.length === 2 && rader.lankar[0] === "Alla verktyg" && rader.lankar[1].startsWith("Ekonomi") && rader.knappar === 0, `Hubben per grupp ${namn} (a): rullgardinen ${JSON.stringify(rader)}, väntat Alla verktyg och sedan Ekonomi, och inga utfällbara rader.`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "grupphubb-rullgardin-1280.png"), clip: { x: 300, y: 0, width: 700, height: 360 } });
       }
     } catch (e) {
@@ -2418,7 +2429,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
       krav((await rubrik.count()) === 1 && (await rubrik.isVisible()), `Hubben per grupp ${namn} (b): rubriken "Gruppen har inga verktyg ännu" syns inte i gruppen utan moduler.`);
       krav((await rad.count()) === 1 && (await rad.isVisible()), `Hubben per grupp ${namn} (b): raden med gruppens namn syns inte.`);
       const namnIListan = await valbara.locator("li").allTextContents();
-      krav(namnIListan.includes("Ekonomi"), `Hubben per grupp ${namn} (b): listan är ${JSON.stringify(namnIListan)}, väntat Ekonomi bland apparna som kan läggas till.`);
+      krav(namnIListan.some((t) => t.startsWith("Ekonomi")), `Hubben per grupp ${namn} (b): listan är ${JSON.stringify(namnIListan)}, väntat Ekonomi bland apparna som kan läggas till.`);
       const lankar = await main.locator("a").count();
       krav(lankar === 0, `Hubben per grupp ${namn} (b): ${lankar} länkar i hubben för en grupp utan moduler (scenen skickar ingen väg till valet).`);
       krav((await over(page)) <= 0, `Hubben per grupp ${namn} (b): sidan flödar i sidled.`);
@@ -7801,6 +7812,45 @@ async function verktygMeny() {
   }
 }
 
+/**
+ * Avsnitt 52f (0.241.0): kalendermenyns rader ligger inte i varandra. CP 2026-11-18 23.10, med en skärmbild av menyn i mörkt läge: "Hover i kalendrars meny
+ * överlappar varandras ramar. Ser lite grötigt ut." Raden "Visas som Händelser" under en kalender var dragen 6 px upp (`-mt-1.5`) in i kalenderradens tonade
+ * yta, så två rundade ytor låg på varandra så fort båda var tonade (vald rad och hovring). Mätningen: varje yta som kan tonas i listan (kalenderradens yta,
+ * knappen Visas som och Visa bara den här) slutar innan nästa börjar, i den ordning de står. Golv: minst fyra ytor och minst en knapp under en rad.
+ */
+async function kalenderRader() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const namn = `kalendermenyns rader ${vp.width}`;
+    const { page, context } = await oppna("kalender", vp, "dark");
+    try {
+      await page.getByRole("button", { name: /^Kalendrar:/ }).click();
+      await page.waitForSelector("[data-radix-popper-content-wrapper] [data-kalenderrad]", { timeout: 4000 });
+      await page.waitForTimeout(250);
+      const m = await page.evaluate(() => {
+        const lista = document.querySelector("[data-radix-popper-content-wrapper] [data-kalenderlista]");
+        if (!lista) return { ytor: 0, under: 0, brott: ["ingen kalenderlista i menyn"] };
+        const ytor = [...lista.querySelectorAll("[data-kalenderrad-yta], [data-kalendervisning-knapp], [data-visa-bara]")].filter((e) => e.getBoundingClientRect().height > 0);
+        const brott = [];
+        for (let i = 1; i < ytor.length; i += 1) {
+          const a = ytor[i - 1].getBoundingClientRect();
+          const b = ytor[i].getBoundingClientRect();
+          const etikett = (/** @type {Element} */ e) => (e.textContent || "").trim().slice(0, 30);
+          if (b.top < a.bottom - 0.5) brott.push(`"${etikett(ytor[i])}" börjar ${(a.bottom - b.top).toFixed(1)} px inne i "${etikett(ytor[i - 1])}"`);
+        }
+        return { ytor: ytor.length, under: ytor.filter((e) => !e.hasAttribute("data-kalenderrad-yta")).length, brott };
+      });
+      matt.push(`${namn}: ${m.ytor} ytor, ${m.under} knappar under en rad, ${m.brott.length} överlapp`);
+      krav(m.ytor >= 4 && m.under >= 1, `${namn}: ${m.ytor} ytor och ${m.under} knappar under en rad, väntat minst 4 och 1 (golv).`);
+      krav(m.brott.length === 0, `${namn}: ytorna ligger i varandra: ${m.brott.join("; ")}.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kalendermenyn-rader-${vp.width}.png`) });
+    } catch (e) {
+      krav(false, `${namn}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      await context.close();
+    }
+  }
+}
+
 async function bibliotekKarta() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const namn = `karta i biblioteket ${vp.width}`;
@@ -9826,6 +9876,7 @@ await nyHandelseTillagg();
 await bibliotekVideo();
 await bibliotekKarta();
 await verktygMeny();
+await kalenderRader();
 await gruppVantar();
 await kategoriFormular();
 await gastVyer();

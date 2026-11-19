@@ -9,6 +9,54 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.241.0
+
+**Verktyg som kort, helskärm för HTML-dokument, dra och släpp av kort och kalendermenyns rader.**
+
+### Ändrat: sidan Verktyg är kort, inte ringar
+
+CP 2026-11-18 21.48, med en skärmbild av 0.239.0: "Jag tänkte mig mer att det blir kort istället ungefär som grupp korten fast för verktyg samma princip med de sträckade och sådär men just nu är det glest och rörigt." Beslutet efter samtalet, 22.25: "Bra det kör vi på" (skissen i lifehub.app#864).
+
+- **Ett kort per verktyg, två på raden** (tre från 768 px), med gruppkortens radie och kant. Ikonen står i en ruta överst, namnet och en rad under.
+- **I gruppen:** fyllt kort. Raden under är läget (`info`, "Inget nytt" vid `null`), på högst två rader. Ett tryck öppnar verktyget.
+- **Kan läggas till:** streckat kort med streckad ikonruta. Raden under är "+ Lägg till". Ett tryck på kortet lägger till verktyget, med samma väntan som förut (snurran i ikonrutan, `aria-busy`, spärrat mot dubbeltryck). Kortets namn är "Lägg till Ekonomi".
+- **(i) i övre högra hörnet på alla kort** fäller ut samma panel som i 0.240.0: beskrivningen, delarna och Öppna eller Lägg till. Beskrivningen står inte längre på kortet, eftersom den klipptes mitt i.
+- Det öppna kortet markeras med en ring i accentfärgen.
+- **`ikoner` på `OpsGruppHubb`:** ikonen per modul-id för ett tillägg utan kort (`hubb: null`). Datumomröstning och Bokning ritades med ett plus i CP:s skärmbild, eftersom ett tillägg inte har någon ikon i manifestet. Prov: rött utan propen, grönt med.
+- Prov: `hubb.test.jsx`, tre prov skrivna om från ringarna till korten (rött mot 0.240.0:s `OpsHub`, 3 av 87, grönt med). Skalytans kontroller av hubben (a) och (b) följer korten, 93 kontroller utan brott.
+
+### Nytt: dra och släpp av kort, från ett grepp (`useKortdragning`)
+
+CP 2026-11-18 22.58, om ärendetavlan: "Vi har inte dra och släpp heller, det måste gå horisontellt och vertikalt." Tavlan hade webbläsarens egen dragning, bara med mus och bara mellan kolumner, och i telefonen var den avstängd eftersom ett dragbart kort tog långtrycket.
+
+- **`useKortdragning({ onSlapp, tillat?, rullyta? })`:** dragningen börjar i ett grepp på kortet och följer fingret eller musen mellan kolumner och upp eller ned i en kolumn. Kortets tryck, långtryck och svep är orörda. Escape avbryter, och nära kanten rullar ytan. Se README.
+- **`slappIndex`, `flyttaIOrdning`, `ordnaEfter`:** platsen där ett kort släpps och gruppens nya ordning, utan DOM, så att appen räknar ordningen med samma funktioner.
+- Prov: `kortdragning.test.jsx`, 13 prov. Rött utan rättningen i fyra fall var för sig: kortet som dras räknas i platsen (2 röda), trycket i greppet når kortet (1), ett andra finger styr dragningen (1), målkolumnen läses inte (1). Grönt med, 13 av 13. Greppets utseende och att fingret inte rullar sidan mäts i appen.
+
+### Rättat: kalendermenyns rader ligger inte i varandra
+
+CP 2026-11-18 23.10, med en skärmbild i mörkt läge: "Hover i kalendrars meny överlappar varandras ramar. Ser lite grötigt ut." Raden "Visas som Händelser" under en kalender var dragen 6 px upp (`-mt-1.5`) in i kalenderradens tonade yta, så två rundade ytor låg på varandra.
+
+- Raden börjar nu där kalenderradens yta slutar, också "Visa bara den här" under en dold kalender.
+- Prov: check-skalyta avsnitt 52f (`--bara-kalenderrader`), 390 och 1280 px mörkt. Rött utan rättningen ("börjar 6.0 px inne i Styrelsen", tre överlapp per bredd), grönt med (0 överlapp, golv 6 ytor och 3 knappar).
+
+### Nytt: "Alla verktyg" i Verktygs meny i toppraden
+
+CP 2026-11-18: "I menyn till verktyg i telefonen så lade vi till en streckad + i menyn för alla verktyg. Alla vet inte hur man kommer till verktygspanelen annars. Vidare behöver vi lägga till samma i web vy." Webbens meny under Verktyg listade bara de installerade verktygen, och att ordet Verktyg också leder till sidan syns inte.
+
+- Raden **Alla verktyg** överst i menyn, med samma streckade ring och plus som i telefonens snabbmeny (0.234.0), och samma ord (`ORD_OPSAPPARARK.allaAppar`). Den leder till sidan Verktyg (`fasta.hub.href`), där verktyg också läggs till.
+- Prov: `skal030.test.jsx`, rött utan raden, grönt med.
+
+### Nytt: helskärm för HTML-dokument
+
+**Helskärm för HTML-dokument i Biblioteket** (CP 2026-11-18 21.43, med en skärmbild av statussidan på 22 % i telefonen: "HTM har fortfarande ingen full screen"). PDF-vyn, kartan och årsvyn hade den. HTML-dokumentet hade bara zoom.
+
+### Nytt
+
+- **Helskärm i HTML-dokumentets rad** (`OpsHtmlDokument`), bredvid Spara som PDF. Samma `useHelskarm` som PDF-vyn och kartan (regel 2): webbläsarens helskärm där den finns, annars ett fast lager över hela skärmen, eftersom iPhone inte ger ett element helskärm. Raden följer med in, så zoomen, Spara som PDF och Stäng helskärm finns kvar. Rutan tar resten av höjden i stället för 70 procent av fönstret. Escape stänger lagret.
+- Öppna i eget fönster döljs medan dokumentet är i helskärm: det finns redan en väg ut, och en länk till en ny flik mitt i helskärmen är en knapp för mycket.
+- Prov: `htmldokument-helskarm.test.jsx`, rött utan ändringen (3 av 3), grönt med.
+
 ## 0.240.0
 
 **(i) fäller ut ett verktyg på sidan Verktyg** (CP 2026-11-18: "man skall kunna expandera ett verktyg för att läsa mer om verktyget ... Kanske en (i) eller info som visar status på grejer i projektet. Eller om det kan finnas ett snyggt sätt att fälla ut ett kort så att det blir stort och brett över andra kort och fälla in det igen", och om förslaget: "Perfekt"). 0.239.0 tog bort infolinjen och delarna från rutorna, och då försvann till exempel raden "2 obetalda kundfakturor, nästa förfaller ..." ur appen helt.

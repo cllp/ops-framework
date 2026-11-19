@@ -49,12 +49,17 @@ describe("A: fasta poster och moduler i Hub (#173)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Visa sidorna under Verktyg" }));
     const dropdown = screen.getByRole("dialog");
     // Ekonomis barn är infällda tills dess egen chevron trycks: en rad med chevron, inte en lista som alltid syns.
-    expect(within(dropdown).getAllByRole("link").map((a) => a.textContent)).toEqual(["Översikt", "Ekonomi"]);
+    // ⛔ 0.241.0: "Alla verktyg" står överst, med en streckad ring och ett plus som i telefonens snabbmeny, och leder till sidan Verktyg
+    // (CP 2026-11-18: "Alla vet inte hur man kommer till verktygspanelen annars").
+    expect(within(dropdown).getAllByRole("link").map((a) => a.textContent)).toEqual(["Alla verktyg", "Översikt", "Ekonomi"]);
+    const alla = within(dropdown).getByRole("link", { name: "Alla verktyg" });
+    expect(alla.getAttribute("href")).toBe("/hub");
+    expect(alla.querySelector('[aria-hidden="true"].border-dashed')).not.toBeNull();
     const chevron = within(dropdown).getByRole("button", { name: "Visa sidorna under Ekonomi" });
     expect(chevron.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(chevron);
     expect(chevron.getAttribute("aria-expanded")).toBe("true");
-    expect(within(dropdown).getAllByRole("link").map((a) => a.textContent)).toEqual(["Översikt", "Ekonomi", "Inkomster", "Kostnader"]);
+    expect(within(dropdown).getAllByRole("link").map((a) => a.textContent)).toEqual(["Alla verktyg", "Översikt", "Ekonomi", "Inkomster", "Kostnader"]);
   });
 
   it("Hub lyser när man står på en moduls undersida (två steg ner)", () => {

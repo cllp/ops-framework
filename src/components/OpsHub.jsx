@@ -224,15 +224,28 @@ function tillaggText(m, t, sprak) {
  * `border-line-strong` syntes den streckade kanten knappt mot `canvas`, och den installerade plattan utan skugga inte alls.
  * Namnet är rollen `meta` med `font-medium` (skillen interaktionsdesign, avsnitt 5: en etikett på en flik). Rutan är minst 44 px hög (plattan är 56 px), och den som trycker träffar hela rutan, inte bara plattan.
  */
-const RUTNAT = "m-0 grid list-none grid-cols-3 gap-x-1 gap-y-3 p-0 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6";
-/** De installerades rutnät packas tätt, så att en utfälld panel (`col-span-full`) hamnar på raden under sin ruta. Se ovan. */
-const RUTNAT_TATT = `${RUTNAT} grid-flow-row-dense`;
-/** Den öppna rutans markering: en ring runt den runda plattan, aldrig en ruta bakom den (CP 2026-11-18). */
-const OPPEN_RING = "ring-2 ring-accent ring-offset-2 ring-offset-canvas";
-const RUTA =
-  "flex h-full min-h-11 w-full flex-col items-center gap-2 rounded-card px-0.5 py-2 text-center transition-colors duration-(--duration-fast) ease-standard";
-const PLATTA = "relative flex size-14 shrink-0 items-center justify-center rounded-full [&_svg]:size-6";
-const RUTNAMN = "line-clamp-2 w-full break-words hyphens-auto text-meta font-medium";
+/*
+ * ⛔ KORT, INTE RINGAR (0.241.0, CP 2026-11-18 21.48, med en skärmbild av 0.239.0: "Jag tänkte mig mer att det blir kort istället ungefär
+ * som grupp korten fast för verktyg samma princip med de sträckade och sådär men just nu är det glest och rörigt."). Ringarna i tre
+ * kolumner lämnade stora tomma ytor, och texten under de valbara klipptes mitt i. Nu är varje verktyg ett kort i en lista, med gruppkortens
+ * radie och kant: ikonen i en ruta, namnet och en rad under. Det som finns i gruppen är fyllt, med läget på raden och (i) till höger. Det
+ * som kan läggas till är streckat, med beskrivningen på raden och Lägg till som en knapp på kortet.
+ * ⛔ TVÅ PÅ RADEN, SAMMA KORT ÖVERALLT (CP samma kväll: "visa korten två på en rad också, då behöver man inte scrolla om det är många",
+ * och om det valbara kortet: "Lägg till knappen kanske inte behövs ... kanske räcker med at man trycker på dom? och att det finns en ikon
+ * för att visa info?"). Beslutet, CP 22.25 ("Bra det kör vi på"): ett tryck på kortet gör det vanligaste, alltså öppnar ett installerat
+ * verktyg och lägger till ett valbart. (i) i övre högra hörnet på alla kort fäller ut vad verktyget är. Raden under namnet är läget på ett
+ * installerat kort och "+ Lägg till" på ett streckat, så att den som ser sidan första gången vet vad trycket gör. Beskrivningen står i (i).
+ * Panelen under ett kort är densamma som förut och hamnar fortfarande på raden under (`col-span-full`, `grid-flow-row-dense`).
+ */
+const KORTPAR = "m-0 grid list-none grid-cols-2 gap-2 p-0 grid-flow-row-dense md:grid-cols-3";
+/** Kortets yta: ikonen överst, namnet och raden under. `pr-12` lämnar plats åt (i) i hörnet. */
+const VERKTYGSKORT = "flex h-full min-h-24 w-full min-w-0 flex-col items-start gap-2 rounded-card p-3 pr-12 text-left transition-colors duration-(--duration-fast) ease-standard";
+const IKONRUTA = "relative flex size-10 shrink-0 items-center justify-center rounded-lg [&_svg]:size-5";
+const KORTNAMN = "block truncate text-etikett font-medium";
+/** Två rader, inte en: i halv bredd vid 390 px klipptes "Skatten förfaller 12 oktober" efter "1" (mätt i skalytan). */
+const KORTRAD = "line-clamp-2 break-words text-meta text-ink-secondary";
+/** (i) i det installerade kortets övre högra hörn. Träffytan är 44 px. */
+const INFO_HORN = "absolute top-0.5 right-0.5 flex size-11 items-center justify-center rounded-full";
 
 /**
  * De installerade verktygen som rutor: en länk per verktyg, till verktygets startsida (0.239.0), och en (i) som fäller ut en panel
@@ -262,33 +275,35 @@ function VerktygRutor({ poster, activeHref, onNavigate, ariaLabel, badgeText, sp
     knappar.current[href]?.focus();
   };
   return (
-    <ul aria-label={ariaLabel} data-verktygsrutor="" className={RUTNAT_TATT}>
+    <ul aria-label={ariaLabel} data-verktygsrutor="" className={KORTPAR}>
       {poster.flatMap((m, i) => {
         const aktiv = m.href === activeHref;
         const ar = oppen === `v:${m.href}`;
         const panelId = `${basId}-panel-${i}`;
+        const lage = m.info === undefined ? "" : m.info === null ? t.ingetNytt : text(m.info, sprak);
         const ruta = (
           <li key={m.href} data-verktyg={m.id} className="relative min-w-0">
             <a
               href={m.href}
               onClick={(e) => onNavigate?.(m.href, e)}
               aria-current={aktiv ? "page" : undefined}
-              className={cx(RUTA, "relative text-ink hover:bg-surface", KORT_FOKUS, aktiv && "ring-2 ring-accent")}
+              className={cx(VERKTYGSKORT, "border border-line bg-surface text-ink shadow-sm hover:bg-raised", KORT_FOKUS, (aktiv || ar) && "ring-2 ring-accent")}
             >
-              <span aria-hidden="true" className={cx(PLATTA, "border border-line bg-surface text-ink shadow-sm", ar && OPPEN_RING)}>
-                {m.icon ?? <HubIkon size={24} />}
+              <span aria-hidden="true" className={cx(IKONRUTA, "bg-accent/10 text-accent")}>
+                {m.icon ?? <HubIkon size={20} />}
               </span>
-              <span className={RUTNAMN}>{m.label}</span>
-              {/* ⛔ MÄRKET STÅR SIST I LÄNKEN OCH RITAS PÅ PLATTANS HÖRN. Låg det i plattan, före namnet, blev länkens namn "3 nya Ekonomi" i
-                  stället för "Ekonomi 3 nya": skärmläsaren läser i källans ordning. Rutan är `relative`, och den här rutan har plattans mått
-                  och läge (`top-2` är rutans `py-2`), så märkets egen placering (`icon`, övre högra hörnet) hamnar på plattan. */}
+              <span className="w-full min-w-0">
+                <span className={KORTNAMN}>{m.label}</span>
+                {lage ? <span data-verktyg-rad="" className={KORTRAD}>{lage}</span> : null}
+              </span>
+              {/* ⛔ MÄRKET STÅR SIST I LÄNKEN, så att länkens namn blir "Ekonomi 3 nya" och inte "3 nya Ekonomi": skärmläsaren läser i källans
+                  ordning. Det ritas på ikonrutans hörn (`top-3 left-3` är kortets `p-3`). */}
               {typeof m.badge === "number" && m.badge > 0 ? (
-                <span className="pointer-events-none absolute top-2 left-1/2 size-14 -translate-x-1/2">
+                <span className="pointer-events-none absolute top-3 left-3 size-10">
                   <OpsCountBadge count={m.badge} text={badgeText} placement="icon" />
                 </span>
               ) : null}
             </a>
-            {/* ⛔ ÖVRE VÄNSTRA HÖRNET: märket sitter på plattans övre högra hörn, och (i) ska inte skymma det. */}
             <button
               type="button"
               ref={(el) => {
@@ -305,11 +320,7 @@ function VerktygRutor({ poster, activeHref, onNavigate, ariaLabel, badgeText, sp
                   setOppen(null);
                 }
               }}
-              className={cx(
-                "absolute top-0 left-0 flex size-11 items-center justify-center rounded-full",
-                KORT_FOKUS,
-                ar ? "text-accent" : "text-ink-muted hover:text-ink",
-              )}
+              className={cx(INFO_HORN, KORT_FOKUS, ar ? "text-accent" : "text-ink-muted hover:text-ink")}
             >
               <InfoIkon size={16} />
             </button>
@@ -442,13 +453,14 @@ function VerktygPanel({ id, post, sprak, t, onNavigate, onStang }) {
  * @param {boolean} [props.visaAgarRad] Sant när rutorna står bredvid redan installerade verktyg och den som tittar inte får installera.
  * @param {string | null} props.oppen Nyckeln för den öppna panelen, delad med de installerade (en panel åt gången på sidan).
  * @param {(nyckel: string | null) => void} props.setOppen
+ * @param {Readonly<Record<string, import("react").ReactNode>>} [props.ikoner] Se `OpsGruppHubb`.
  */
-function ValbaraRutor({ moduler, sprak, t, installera, onNavigate, visaAgarRad = false, oppen, setOppen }) {
+function ValbaraRutor({ moduler, sprak, t, installera, onNavigate, visaAgarRad = false, oppen, setOppen, ikoner }) {
   const medVag = Boolean(installera && (installera.href || installera.onClick || installera.onInstallera));
   return (
     <section className="flex w-full flex-col gap-2 text-left">
       <h2 className="m-0 text-etikett font-medium text-ink">{t.valbara}</h2>
-      <ul aria-label={t.valbara} data-hubb-valbara="" className={RUTNAT_TATT}>
+      <ul aria-label={t.valbara} data-hubb-valbara="" className={KORTPAR}>
         {moduler.map((m) => (
           <ValbarPost
             key={m.id}
@@ -460,6 +472,7 @@ function ValbaraRutor({ moduler, sprak, t, installera, onNavigate, visaAgarRad =
             visaAgarRad={!medVag}
             ar={oppen === `l:${m.id}`}
             onVaxla={(ny) => setOppen(ny ? `l:${m.id}` : null)}
+            ikon={ikoner?.[m.id]}
           />
         ))}
       </ul>
@@ -482,8 +495,9 @@ function ValbaraRutor({ moduler, sprak, t, installera, onNavigate, visaAgarRad =
  * @param {boolean} props.visaAgarRad Sant när den som tittar inte får lägga till: panelen säger då att ägaren gör det.
  * @param {boolean} props.ar Panelen är öppen.
  * @param {(oppna: boolean) => void} props.onVaxla
+ * @param {import("react").ReactNode} [props.ikon] Appens ikon för ett tillägg utan kort (`OpsGruppHubb` `ikoner`).
  */
-function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, ar, onVaxla }) {
+function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, ar, onVaxla, ikon }) {
   const synsId = useId();
   const panelId = useId();
   const infoRef = useRef(/** @type {HTMLButtonElement | null} */ (null));
@@ -495,23 +509,26 @@ function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, a
   const etikett = `${installera?.etikett || t.installera} ${namn}`;
   const syns = arBaraTillagg(m) ? tillaggText(m, t, sprak) : "";
   const href = installera?.href ?? "";
+  const medVag = direkt || viaKlick || href !== "";
   const innehall = (
     <>
-      <span className={cx(PLATTA, "border-2 border-dashed border-ink-muted/50 text-ink-muted", ar && OPPEN_RING)}>
-        <span aria-hidden="true" className="flex items-center">
-          {upptagen ? <OpsSpinner size="sm" decorative /> : m.hubb?.ikon ? /** @type {import("react").ReactNode} */ (m.hubb.ikon) : <PlusIkon size={24} />}
-        </span>
+      <span aria-hidden="true" className={cx(IKONRUTA, "border border-dashed border-ink-muted/50 text-ink-muted")}>
+        {/* ⛔ KORTETS IKON, ANNARS APPENS (`ikoner`), ANNARS ETT PLUS (0.241.0). Datumomröstning och Bokning ritades med ett plus, eftersom ett tillägg
+            (`hubb: null`) inte har någon ikon i manifestet. Appen har dem redan (lifehub.app `APPIKON_UTAN_KORT`) och skickar in dem. */}
+        {upptagen ? <OpsSpinner size="sm" decorative /> : m.hubb?.ikon ? /** @type {import("react").ReactNode} */ (m.hubb.ikon) : ikon ?? <PlusIkon size={20} />}
       </span>
-      <span className={cx(RUTNAMN, "text-ink-secondary")}>{namn}</span>
-      {syns ? (
-        <span id={synsId} data-hubb-syns="" className="line-clamp-3 w-full break-words text-hjalp text-ink-secondary">
-          {syns}
-        </span>
-      ) : null}
+      <span className="w-full min-w-0">
+        <span className={cx(KORTNAMN, "text-ink")}>{namn}</span>
+        {/* Länkens och knappens namn är "Lägg till Ekonomi" (`aria-label`), så raden är bara för ögat. */}
+        {medVag ? (
+          <span aria-hidden="true" data-hubb-lagg-till="" className={cx(KORTRAD, "text-accent")}>
+            + {installera?.etikett || t.installera}
+          </span>
+        ) : null}
+      </span>
     </>
   );
-  const describedBy = syns ? synsId : undefined;
-  const klass = cx(RUTA, "cursor-pointer hover:bg-surface", KORT_FOKUS);
+  const klass = cx(VERKTYGSKORT, "border border-dashed border-ink-muted/50 text-ink-secondary", medVag && "cursor-pointer hover:bg-surface", KORT_FOKUS, ar && "ring-2 ring-accent");
   /** @type {import("react").ReactNode} */
   let ruta;
   if (direkt || viaKlick) {
@@ -519,7 +536,7 @@ function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, a
       <button
         type="button"
         aria-label={etikett}
-        aria-describedby={describedBy}
+        aria-describedby={syns ? synsId : undefined}
         aria-busy={upptagen || undefined}
         disabled={upptagen}
         data-valbar-ruta=""
@@ -531,13 +548,13 @@ function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, a
     );
   } else if (href !== "") {
     ruta = (
-      <a href={href} aria-label={etikett} aria-describedby={describedBy} data-valbar-ruta="" onClick={(e) => onNavigate?.(href, e)} className={klass}>
+      <a href={href} aria-label={etikett} aria-describedby={syns ? synsId : undefined} data-valbar-ruta="" onClick={(e) => onNavigate?.(href, e)} className={klass}>
         {innehall}
       </a>
     );
   } else {
     ruta = (
-      <div data-valbar-ruta="" className={RUTA}>
+      <div data-valbar-ruta="" className={klass}>
         {innehall}
       </div>
     );
@@ -553,6 +570,11 @@ function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, a
     <>
       <li data-hubb-valbar={m.id} className="relative min-w-0">
         {ruta}
+        {syns ? (
+          <span id={synsId} data-hubb-syns="" className="sr-only">
+            {syns}
+          </span>
+        ) : null}
         <button
           ref={infoRef}
           type="button"
@@ -567,7 +589,7 @@ function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, a
               onVaxla(false);
             }
           }}
-          className={cx("absolute top-0 left-0 flex size-11 items-center justify-center rounded-full", KORT_FOKUS, ar ? "text-accent" : "text-ink-muted hover:text-ink")}
+          className={cx(INFO_HORN, KORT_FOKUS, ar ? "text-accent" : "text-ink-muted hover:text-ink")}
         >
           <InfoIkon size={16} />
         </button>
@@ -669,9 +691,10 @@ function ValbarPost({ modul: m, sprak, t, installera, onNavigate, visaAgarRad, a
  * @param {string} [props.badgeText] Skärmläsarordet efter räknaren. Förval "nya" (sv), "new" (en).
  * @param {boolean} [props.ram] Ritas i `OpsView`. Förval sant.
  * @param {{ href?: string, onClick?: (id?: string) => void | Promise<unknown>, onInstallera?: (id: string) => void | Promise<unknown>, etikett?: string }} [props.installera] Vägen till modulvalet. Appen skickar den bara för den som får välja appar: ägaren, och sedan 0.128.0 en admin (0.87.0, lifehub.app#129). Ett tryck på en streckad ruta anropar `onInstallera` med appens id, annars `onClick` med appens id, eller så öppnas `href`. Ett löfte ur appen gör rutan upptagen tills det är klart. `etikett` är första ordet i rutans namn, förval "Lägg till" (sv), "Add" (en).
+ * @param {Readonly<Record<string, import("react").ReactNode>>} [props.ikoner] (0.241.0) Ikonen per modul-id för ett tillägg utan kort (`hubb: null`), på dess streckade kort. Ett kort med egen ikon (`hubb.ikon`) använder den. Utan ikon ritas ett plus.
  * @param {import("react").ReactNode} [props.atgard] (0.103.0) Åtgärden i sidans huvud, till exempel `<OpsVyAtgard>Skapa app</OpsVyAtgard>`.
  */
-export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak: sprakProp, info, badge, badgeText, ram = true, installera, atgard }) {
+export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak: sprakProp, info, badge, badgeText, ram = true, installera, atgard, ikoner }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -694,7 +717,7 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
   // ⛔ 0.239.0: rutorna som kan läggas till står UNDER tomläget, inte i det. Tomlägets yta centrerar sitt innehåll och krymper det till
   // sin bredd, och ett rutnät med tre kolumner i en krympt ruta blev en kolumn av avkortade namn. Samma sektion som i en grupp med verktyg.
   const valbarSektion = tillaggningsbara.length > 0 ? (
-    <ValbaraRutor moduler={tillaggningsbara} sprak={sprak} t={t} installera={installera} onNavigate={onNavigate} visaAgarRad={harInnehall} oppen={oppen} setOppen={setOppen} />
+    <ValbaraRutor moduler={tillaggningsbara} sprak={sprak} t={t} installera={installera} onNavigate={onNavigate} visaAgarRad={harInnehall} oppen={oppen} setOppen={setOppen} ikoner={ikoner} />
   ) : null;
   const innehall = (
     <div className="flex flex-col gap-4" data-grupphubb={grupp.id}>

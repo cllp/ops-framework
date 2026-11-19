@@ -157,7 +157,10 @@ function Kalenderrad({ k, syn, o, oppen, onOppna }) {
           ⛔ "VISA BARA DEN HÄR" (0.151.0) LIGGER I UTFÄLLNINGEN för en rad som syns, och som en egen rad under en som är dold: en dold rad har ingen utfällning, och just den är den
           man oftast vill se ensam. En synlig rad får ingen extra rad i den hopfällda listan. */}
       {syns ? (
-        <div className="-mt-1.5 flex flex-col gap-1 pr-3 pb-1 pl-9">
+        <div className="flex flex-col gap-1 pr-3 pb-1 pl-9">
+          {/* ⛔ RADEN UNDER BÖRJAR DÄR KALENDERRADENS YTA SLUTAR (0.241.0). Den var dragen 6 px upp (`-mt-1.5`) in i ytan, och när båda var tonade (vald rad och
+              hovring) låg två rundade ytor på varandra. CP 2026-11-18: "Hover i kalendrars meny överlappar varandras ramar. Ser lite grötigt ut." Mätt i
+              check-skalyta, avsnitt 52f. */}
           <button
             type="button"
             data-kalendervisning-knapp=""
@@ -192,7 +195,7 @@ function Kalenderrad({ k, syn, o, oppen, onOppna }) {
           </div>
         </div>
       ) : kanBara ? (
-        <div className="-mt-1.5 flex flex-col pr-3 pb-1 pl-9">{visaBaraKnapp}</div>
+        <div className="flex flex-col pr-3 pb-1 pl-9">{visaBaraKnapp}</div>
       ) : null}
     </div>
   );
