@@ -23,6 +23,13 @@ Mätt 2026-11-18 i lifehub.app vid ompinningen till 0.240.0: `components/OpsHub.
 - `check:delbarhet` vaktar att `VerktygPanel` och `ValbarPanel` inte följer med `OpsGruppHubb` in i startfilen. Grönt med ändringen, och `--bevisa` är rött som väntat mot paketet som en enda modul.
 - Prov: `hubb.test.jsx`, nio prov väntar nu in panelen (`findBy`). Röda med den lata panelen och synkrona frågor, gröna när de väntar in den, 103 av 103.
 
+### Nytt: `IKON_FOR.grepp`
+
+Greppet som drar ett kort (`useKortdragning`, 0.241.0) fick ingen nyckel i ikonlexikonet. Appens ärendetavla ritade det med en egen import av `GripVertical`, och appens vakt mot direkta lucide-importer blev röd vid ompinningen till 0.241.0, eftersom betydelsen saknade nyckel här.
+
+- `IKON_FOR.grepp` är `GripVertical`, samma bild för varje grepp som drar något.
+- Prov: `ikonlexikon.test.jsx`, rött utan nyckeln (render kastar), grönt med.
+
 ## 0.241.0
 
 **Verktyg som kort, helskärm för HTML-dokument, dra och släpp av kort och kalendermenyns rader.**

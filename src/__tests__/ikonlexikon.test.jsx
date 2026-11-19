@@ -27,6 +27,12 @@ describe("IKON_FOR (cllp/lifehub.app#634)", () => {
     expect(lucideKlass(skarm)).toBe("lucide-monitor");
   });
 
+  it("⛔ greppet som drar ett kort har en nyckel, så att appens tavla inte importerar GripVertical själv (0.242.0)", () => {
+    // Rött utan `grepp` i kartan: `IKON_FOR.grepp` är odefinierad och render kastar.
+    const { container } = render(<IKON_FOR.grepp />);
+    expect(lucideKlass(container)).toBe("lucide-grip-vertical");
+  });
+
   it("ett ärende ritas med ListChecks, inte med Inkorgens låda", () => {
     const { container: arende } = render(<ArendePlusIkon />);
     const { container: inkorg } = render(<IKON_FOR.inkorg />);
