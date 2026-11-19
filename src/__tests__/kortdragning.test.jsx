@@ -192,4 +192,99 @@ describe("useKortdragning", () => {
     await pek("pointerup", window, 300, 10, 1);
     expect(onSlapp).toHaveBeenCalledOnce();
   });
+
+  it("⛔ 0.243.0: en kopia av kortet följer pekaren under dragningen, och försvinner vid släppet", async () => {
+    const onSlapp = vi.fn();
+    render(<Tavla onSlapp={onSlapp} />);
+    layout();
+    expect(document.querySelector("[data-drag-skugga]")).toBeNull();
+    // Greppet tas 10 px in i kortet (a ligger på y 0), så kopian ska ligga 10 px ovanför pekaren hela vägen.
+    await pek("pointerdown", grepp("a"), 50, 10);
+    const skugga = /** @type {HTMLElement} */ (document.querySelector("[data-drag-skugga]"));
+    expect(skugga).not.toBeNull();
+    expect(skugga.getAttribute("data-drag-skugga")).toBe("a");
+    expect(skugga.getAttribute("aria-hidden")).toBe("true");
+    expect(skugga.style.pointerEvents).toBe("none");
+    // Kopian är inget kort och inget grepp: den får inte bli ett mål eller en ny dragning.
+    expect(skugga.hasAttribute("data-drag-kort")).toBe(false);
+    expect(skugga.querySelector("[data-drag-grepp]")).toBeNull();
+    expect(document.querySelector('[data-drag-kort="a"]')?.hasAttribute("data-drag-kalla")).toBe(true);
+    await pek("pointermove", window, 300, 130);
+    expect(skugga.style.transform).toContain("translate3d(250px, 120px, 0)");
+    await pek("pointerup", window, 300, 130);
+    expect(document.querySelector("[data-drag-skugga]")).toBeNull();
+    expect(document.querySelector('[data-drag-kort="a"]')?.hasAttribute("data-drag-kalla")).toBe(false);
+  });
+
+  it("⛔ 0.243.0: Escape tar också bort kopian", async () => {
+    render(<Tavla onSlapp={vi.fn()} />);
+    layout();
+    await pek("pointerdown", grepp("b"), 50, 60);
+    expect(document.querySelector("[data-drag-skugga]")).not.toBeNull();
+    act(() => {
+      fireEvent.keyDown(window, { key: "Escape" });
+    });
+    expect(document.querySelector("[data-drag-skugga]")).toBeNull();
+  });
+
+  it("⛔ 0.243.0: kroken ger kortets höjd, så att platsen kan ritas lika stor som kortet", async () => {
+    /** @type {number[]} */
+    const hojder = [];
+    function MedHojd() {
+      const { greppProps, hojd } = useKortdragning({ onSlapp: vi.fn() });
+      hojder.push(hojd);
+      return (
+        <section data-drag-kolumn="ny">
+          <article data-drag-kort="a">
+            <span {...greppProps("a", "ny")} />
+          </article>
+        </section>
+      );
+    }
+    render(<MedHojd />);
+    layout();
+    await pek("pointerdown", grepp("a"), 50, 10);
+    expect(hojder.at(-1)).toBe(40);
+    await pek("pointerup", window, 50, 10);
+    expect(hojder.at(-1)).toBe(0);
+  });
+
+  it("⛔ 0.243.0: tavlan ritas inte om när pekaren rör sig inom samma mål", async () => {
+    let ritningar = 0;
+    function Raknad() {
+      ritningar += 1;
+      const { greppProps, mal } = useKortdragning({ onSlapp: vi.fn() });
+      return (
+        <div data-mal={mal ? `${mal.kolumn}:${mal.index}` : ""}>
+          <section data-drag-kolumn="ny">
+            <article data-drag-kort="a">
+              <span {...greppProps("a", "ny")} />
+            </article>
+            <article data-drag-kort="b">
+              <span {...greppProps("b", "ny")} />
+            </article>
+          </section>
+          <section data-drag-kolumn="pagar">
+            <article data-drag-kort="c">
+              <span {...greppProps("c", "pagar")} />
+            </article>
+          </section>
+        </div>
+      );
+    }
+    const { container } = render(<Raknad />);
+    layout();
+    await pek("pointerdown", grepp("a"), 50, 10);
+    await pek("pointermove", window, 300, 30);
+    expect(container.firstElementChild?.getAttribute("data-mal")).toBe("pagar:1");
+    const efterForstaMalet = ritningar;
+    // Tio rörelser inom samma kolumn och plats: målet är detsamma, och ingen ny ritning ska ske.
+    for (let i = 0; i < 10; i += 1) await pek("pointermove", window, 300 + i, 31 + i);
+    expect(ritningar).toBe(efterForstaMalet);
+    // Ett nytt mål ritas.
+    await pek("pointermove", window, 50, 80);
+    expect(container.firstElementChild?.getAttribute("data-mal")).toBe("ny:1");
+    expect(ritningar).toBeGreaterThan(efterForstaMalet);
+    await pek("pointerup", window, 50, 80);
+  });
 });
