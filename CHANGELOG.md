@@ -9,6 +9,26 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.243.0
+
+**Dra och släpp på tavlan: kortet följer fingret, och tavlan ritas inte om för varje rörelse (cllp/lifehub.app#894).**
+
+CP 2026-11-19, om ärendetavlan i 0.242.0: "Se till att det är flygande lätt med drag and drop. Känns lite trögt idag och man ser inte objektet som man drar medans man drar."
+
+### Ändrat: `useKortdragning`
+
+- **En kopia av kortet följer pekaren** (`[data-drag-skugga]`), med samma avstånd till pekaren som när greppet togs, lyft med en skugga. Den flyttas med `transform` direkt i pekarhändelsen och inte genom React, så den följer i varje bildruta. Kopian är `aria-hidden` och har `pointer-events: none`, och den tas bort vid släpp, Escape, avbrott och när komponenten försvinner.
+- **Kortet på sin plats får `data-drag-kalla`**, så att appen kan visa var det kom ifrån.
+- **Kroken ger kortets höjd (`hojd`)**, så att platsen där kortet ska hamna kan ritas lika stor som kortet och inte som en linje.
+- **Målet sätts bara när kolumnen eller platsen byts.** Förut fick React ett nytt mål vid varje pekarhändelse, och en tavla med 121 kort ritades om upp till 60 gånger i sekunden. Jämförelsen görs mot målet kroken redan har, eftersom en `setState`-funktion som ger tillbaka samma värde ändå ritar om komponenten en gång.
+- Inget i API:t har tagits bort. `hojd` är nytt i det som kroken ger tillbaka.
+
+### Prov
+
+`kortdragning.test.jsx`: fyra nya prov (kopian följer pekaren och tas bort vid släpp, Escape tar bort kopian, höjden, och att tavlan inte ritas om inom samma mål). Alla fyra är röda mot 0.242.0 och gröna med ändringen, 17 av 17.
+
+---
+
 ## 0.242.0
 
 **(i)-panelerna på sidan Verktyg läses in lat, så att appens startfil krymper igen (#624).**
