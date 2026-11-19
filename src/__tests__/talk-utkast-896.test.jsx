@@ -138,10 +138,13 @@ describe("samtalssvar följer utkastet", () => {
 
 /* ══ Genom skalet ════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
 
-function falskInspelare() {
+/** @param {{ toppNiva?: number | null, tom?: boolean }} [val] `toppNiva` hamnar i diagnosen som inspelarens högsta nivå, `tom` ger 0 byte. */
+function falskInspelare({ toppNiva, tom = false } = {}) {
   return {
     starta: vi.fn(() => Promise.resolve()),
-    stoppa: vi.fn(() => Promise.resolve({ blob: new Blob(["ljud"], { type: "audio/webm" }), mimeType: "audio/webm", sekunder: 2 })),
+    stoppa: vi.fn(() =>
+      Promise.resolve({ blob: new Blob(tom ? [] : ["ljud"], { type: "audio/webm" }), mimeType: "audio/webm", sekunder: 2, ...(toppNiva !== undefined ? { diagnos: { toppNiva, logg: "" } } : {}) }),
+    ),
     kasta: vi.fn(),
     niva: () => 0.5,
   };
@@ -375,3 +378,58 @@ describe("appens igenkänning förbereds, och säger själv när personen är kl
     expect(vidare).not.toHaveBeenCalled();
   });
 });
+
+describe("tystnad efter ett svar avslutar röstsamtalet, utan fel (CP:s video 2026-11-19 22.08)", () => {
+  /**
+   * Ett följdvarv i röstsamtalet där personen trycker Klar utan att igenkänningen gett text. @param {any} inspelare @param {any} [igk]
+   * @returns {Promise<{ vidare: import("vitest").Mock }>}
+   */
+  async function klarUtanText(inspelare, igk = falskIgenkanning("Fråga")) {
+    const u = falskUpplasning();
+    const vidare = vi.fn();
+    Skal({ talk: { inspelare, onAgent: async () => ({ svar: async () => "Svar.", vidare }) }, igenkanning: igk, upplasning: u });
+    await tillAgenten();
+    await act(async () => u.pagar()?.losa());
+    await flush();
+    expect(lage()).toBe("lyssnar");
+    fireEvent.click(screen.getByRole("button", { name: /^(Klar|Done)/ }));
+    await flush();
+    await flush();
+    return { vidare };
+  }
+  const avslutat = () => screen.queryByText(/Inget mer hördes, så samtalet är avslutat/);
+
+  it("⛔ belagd tystnad (nivån aldrig över tystnadsgränsen): samtalet slutar med beskedet, utan felrad och utan menyn", async () => {
+    const { vidare } = await klarUtanText(falskInspelare({ toppNiva: 0.01 }));
+    expect(vidare).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Inget tal hördes/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Agent" })).toBeNull();
+    expect(avslutat()).toBeTruthy();
+  });
+
+  it("⛔ en tom inspelning är också belagd tystnad", async () => {
+    await klarUtanText(falskInspelare({ tom: true }));
+    expect(avslutat()).toBeTruthy();
+  });
+
+  // ⛔ GRANSKNINGEN AV 0.244.1 (P2): tom text med tal i ljudet är inte tystnad. Ljudet bevaras och går den vanliga vägen, och samtalet avslutas inte.
+  it("⛔ tom text men tal i ljudet: samtalet avslutas inte, ljudet går den vanliga vägen", async () => {
+    await klarUtanText(falskInspelare({ toppNiva: 0.5 }));
+    expect(avslutat()).toBeNull();
+  });
+
+  it("⛔ utan nivåmätare (WebKit) och med ljud är tystnaden inte belagd", async () => {
+    await klarUtanText(falskInspelare({ toppNiva: null }));
+    expect(avslutat()).toBeNull();
+  });
+
+  it("⛔ en igenkänning som faller när den stoppas är ett fel och inte tystnad, också med tomt ljud", async () => {
+    const igk = falskIgenkanning("Fråga");
+    const forsta = igk.stoppa;
+    let varv = 0;
+    igk.stoppa = vi.fn(() => (++varv === 1 ? forsta() : Promise.reject(new Error("igenkänningen föll"))));
+    await klarUtanText(falskInspelare({ tom: true }), igk);
+    expect(avslutat()).toBeNull();
+  });
+});
+

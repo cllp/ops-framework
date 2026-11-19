@@ -1202,9 +1202,12 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
           return;
         }
         // ⛔ TEXTEN OCH LJUDET STOPPAS SAMTIDIGT. Texten följer med bara om igenkänningen var hel hela vägen.
+        // Om igenkänningen föll när den stoppades. Då är tom text ett fel och inte tystnad (granskningen av 0.244.1, P2).
+        let igkFoll = false;
         const texten = Promise.resolve()
           .then(() => omgangsIgk.current?.stoppa() ?? "")
           .catch((fel) => {
+            igkFoll = true;
             rapporteraFel(fel, { yta: "OpsTalk", steg: "stoppa-text" });
             return "";
           })
@@ -1218,6 +1221,27 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
         Promise.all([ljudet, texten])
           .then(([ljud, hord]) => {
             if (mitt !== forsok.current || !monterad.current) return;
+            /*
+             * ⛔ TYSTNAD I ETT RÖSTSAMTAL AVSLUTAR SAMTALET, UTAN FEL (0.244.1, cllp/lifehub.app#896). CP:s video 2026-11-19 22.08: efter
+             * ett svar lyssnade TALK igen, han sa ingenting och tryckte Klar, och fältet visade "Inget tal hördes i inspelningen" och en meny
+             * med sju knappar. Ett samtal där personen inte har något mer att säga är slut, inte ett fel. Samma besked som när tystnaden
+             * gått ut (`rostIngetHordes`), och ingen felrapport: inget gick fel. Bara i ett röstsamtal som inte bytts till menyn (Något annat).
+             *
+             * ⛔ BARA BELAGD TYSTNAD (granskningen av 0.244.1, P2). Tom text är inte alltid tystnad: igenkänningen kan ha fallit, eller uteblivit
+             * medan inspelaren fick tal. Då finns ljud att rädda, och vägen nedanför bevarar det och erbjuder utskrift. Tystnad är belagd när
+             * igenkänningen inte föll och inget ljud finns att rädda: en omgång utan inspelare, en tom inspelning, eller en nivåmätare som aldrig
+             * kom över tystnadsgränsen (`barTystnad`). Utan mätare (WebKit) och med ljud är det inte belagt, och ljudet går den vanliga vägen.
+             */
+            const ingetLjud = bara || !(ljud.blob && ljud.blob.size > 0) || barTystnad(ljud.diagnos?.toppNiva);
+            if (rost.current && !direktAvRef.current && !(typeof hord === "string" && hord.trim()) && !igkFoll && ingetLjud) {
+              noteraSlut("tyst", ljud.diagnos?.logg ?? "");
+              senast.current = null;
+              setKanIgen(false);
+              setText("");
+              tillAgentenDirekt.current = false;
+              rostBesked("rostIngetHordes");
+              return undefined;
+            }
             /*
              * ⛔ EN OMGÅNG UTAN INSPELARE SOM INTE GAV TEXT (0.114.0, cllp/ops-framework#402): tom text, eller en app som under tiden slutat
              * ge `onAgent` (då skulle en tom blob gå till `onTalk`). Inget ljud finns. Fältet säger det med "Spela in i stället", och
