@@ -11,7 +11,7 @@ import { forraOmgangen, noteraOmgangsslut } from "../lib/talklogg.js";
 import { AgentIkon, AnteckningIkon, ArendePlusIkon, BockIkon, HandelsePlusIkon, KopieraIkon, KryssIkon, KugghjulIkon, HogtalareAvIkon, HogtalareIkon, LjudvagIkon, MeddelandeIkon, MikrofonIkon, StoppIkon, TradIkon } from "./icons.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
 import { useKopiera } from "./useKopiera.js";
-import { ROST_INGET_TAL_MS, ROST_MAX_VARV, ROST_SVAR_MAX_MS, ROST_TYSTNAD_MS, arKlarfras, lasUpplasningPa, sparaUpplasningPa, talkrostUr, upplasningensSprak, webblasarensUpplasning } from "../lib/talkrost.js";
+import { ROST_INGET_TAL_MS, ROST_MAX_VARV, ROST_SVAR_MAX_MS, ROST_TYSTNAD_MS, arKlarfras, helaMeningar, lasIOrdning, lasUpplasningPa, sparaUpplasningPa, talkrostUr, upplasningensSprak, webblasarensUpplasning } from "../lib/talkrost.js";
 import { OpsSpinner } from "./OpsSpinner.jsx";
 
 /**
@@ -297,6 +297,20 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
     if (igkRef.current === undefined) igkRef.current = webblasarensIgenkanning();
     return igkRef.current;
   };
+  /**
+   * ⛔ FÖRBEREDER APPENS IGENKÄNNING (0.244.0, cllp/lifehub.app#896). CP 2026-11-19: "Tar massa tid för agenten att vakna upp." Mätt samma kväll:
+   * Soniox hämtade nyckel och anslöt först när omgången började, och stoppet väntade över 3 s. `forbered` gör det i förväg: när fältet monteras,
+   * i trycket (före långtrycket) och efter varje omgång. Bara för en igenkänning appen gett, eftersom webbläsarens egen inte har något att hämta.
+   */
+  const forberedIgenkanning = (/** @type {string} */ nar) => {
+    const g = egenIgenkanning.current ? igkRef.current : null;
+    if (!g || typeof g.forbered !== "function") return;
+    try {
+      g.forbered();
+    } catch (fel) {
+      rapporteraFel(fel, { yta: "OpsTalk", steg: "igenkanning-forbered", nar });
+    }
+  };
   /** Igenkännarna som skapats, utan dubbletter: en egen igenkänning från appen är samma objekt i båda. */
   const skapadeIgk = () => /** @type {import("../lib/talk.js").Igenkanning[]} */ ([...new Set([igkRef.current, igkWebRef.current].filter((g) => g))]);
   /** Igenkänningen som den här omgången använder, eller `null`. Sätts vid start. @type {{ current: import("../lib/talk.js").Igenkanning | null }} */
@@ -326,6 +340,8 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
   const vagor = useRef(/** @type {ReturnType<typeof skapaIgenkanningsniva> | null} */ (null));
   const vagorna = () => (vagor.current ??= skapaIgenkanningsniva());
   const sistaLangd = useRef(0);
+  /** (0.244.0) Omgångens text som igenkänningen senast gav, för `rostSlut`. Nollas när omgången startar. */
+  const senasteText = useRef("");
   /** Nästa start ska vara en inspelning utan igenkänning ("Spela in i stället"). */
   const reservNasta = useRef(false);
   /** Nästa start är låst till ett inspelningsmål (Biblioteket, Röstinspelning): bara inspelning, för där behövs ljudet. */
@@ -457,7 +473,49 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
     });
     // ⛔ Väntan avbryts när den är över, vad som än avslutade den: källan stänger då sin prenumeration (`samtalssvar`).
     const avbryt = new AbortController();
-    Promise.race([Promise.resolve().then(() => talkrost.svar({ signal: avbryt.signal })), tak])
+    /*
+     * ⛔ MENING FÖR MENING MEDAN AGENTEN SKRIVER (0.244.0, cllp/lifehub.app#896). CP 2026-11-19: "Sedan samma gamla robot som läser sakta."
+     * Förut lästes svaret först när hela texten fanns. Ger appen ett utkast (`onUtkast`) läses varje hel mening när den kommer, i kö
+     * (`lasIOrdning`), och resten av det färdiga svaret sist. Uppläsaren hämtas en gång per svar: `upplasningNu` sätter raden om att
+     * uppläsning saknas, och den ska stå en gång.
+     */
+    /** @type {import("../lib/talkrost.js").Upplasning | null | undefined} */
+    let uppl;
+    const uppNu = () => {
+      if (uppl === undefined) uppl = upplasningNu();
+      return uppl;
+    };
+    /** @type {ReturnType<typeof lasIOrdning> | null} */
+    let ko = null;
+    const koNu = () => {
+      const u = uppNu();
+      if (!u) return null;
+      if (!ko) ko = lasIOrdning((t) => u.las(t, { sprak: upplasningensSprak(sprakRef.current) }), aktuell);
+      return ko;
+    };
+    /** Var i utkastet läsningen hunnit, och utkastet fram dit: det färdiga svaret ska börja likadant för att resten ska kunna läsas. */
+    let lastTill = 0;
+    let lastText = "";
+    /** @param {string} utkast */
+    const onUtkast = (utkast) => {
+      if (!aktuell()) return;
+      setRostSvar(utkast);
+      // ⛔ ETT NYTT VARV BÖRJAR OM. Agenten kan skriva en text före ett verktyg ("Jag kollar kalendern.") och sedan börja om i nästa varv: det
+      // som redan lästs var då en inledning, och läsningen följer det nya utkastet från början.
+      if (lastText && !utkast.startsWith(lastText)) {
+        lastTill = 0;
+        lastText = "";
+      }
+      const { meningar, till } = helaMeningar(utkast, lastTill);
+      if (meningar.length === 0) return;
+      const k = koNu();
+      if (!k) return;
+      lastTill = till;
+      lastText = utkast.slice(0, till);
+      for (const m of meningar) k.lagg(m);
+      setRostSteg("laser");
+    };
+    Promise.race([Promise.resolve().then(() => talkrost.svar({ signal: avbryt.signal, onUtkast })), tak])
       .finally(() => {
         clearTimeout(drojer);
         avbryt.abort();
@@ -471,26 +529,32 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
           return undefined;
         }
         setRostSvar(text);
-        const u = upplasningNu();
-        if (!u) {
+        const k = koNu();
+        if (!k) {
           lyssnaIgen(r);
           return undefined;
         }
+        /*
+         * ⛔ RESTEN AV DET FÄRDIGA SVARET. Börjar det som utkastet som redan lästs läses bara resten. Börjar det inte så läses HELA svaret: det
+         * som lästs var en inledning (text före ett verktyg), eller ett utkast servern bytte ut (mot kvittot på det som gjordes, eller ett svar
+         * loopen inte släppte igenom). Det färdiga svaret är det som gäller, och att höra det helt är bättre än att höra det halvt.
+         */
+        const last = lastText.trim();
+        if (lastTill > 0 && text.startsWith(last)) k.lagg(text.slice(last.length));
+        else k.lagg(text);
         setRostSteg("laser");
-        return Promise.resolve()
-          .then(() => u.las(text, { sprak: upplasningensSprak(sprakRef.current) }))
-          .then(
-            () => {
-              if (aktuell()) lyssnaIgen(r);
-            },
-            (fel) => {
-              if (!aktuell()) return;
-              // ⛔ Svaret står redan i fältet: samtalet fortsätter som text, och raden säger varför.
-              rapporteraFel(fel, { yta: "OpsTalk", steg: "upplasning", varv });
-              setRostNotis("rostKundeInteLasas");
-              lyssnaIgen(r);
-            },
-          );
+        return k.slut().then(
+          () => {
+            if (aktuell()) lyssnaIgen(r);
+          },
+          (fel) => {
+            if (!aktuell()) return;
+            // ⛔ Svaret står redan i fältet: samtalet fortsätter som text, och raden säger varför.
+            rapporteraFel(fel, { yta: "OpsTalk", steg: "upplasning", varv });
+            setRostNotis("rostKundeInteLasas");
+            lyssnaIgen(r);
+          },
+        );
       })
       .catch((fel) => {
         if (!aktuell()) return;
@@ -718,6 +782,8 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
   const skicka = useCallback(
     /** @param {import("../lib/talk.js").Talkhandelse} h */
     (h) => {
+      // ⛔ (0.244.0) Varje väg som kan starta en omgång förbereder igenkänningen först: ett tryck (före långtrycket) och en direkt start.
+      if (h.typ === "ner" || h.typ === "direkt") forberedIgenkanning(h.typ);
       const fore = lageRef.current.lage;
       const nasta = talkNasta(lageRef.current, h);
       lageRef.current = nasta;
@@ -876,6 +942,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
               planeraTak();
               // ⛔ TEXTEN BÖRJAR NÄR MIKROFONEN ÄR ÖPPEN, inte vid trycket. Ett fel här stoppar aldrig inspelningen.
               setText("");
+              senasteText.current = "";
               try {
                 omgangsIgk.current?.starta({
                   sprak: igenkanningensSprak(sprakRef.current),
@@ -884,6 +951,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
                       // Ny text är en puls, så hög som hur mycket som kom. Bara i en omgång utan inspelare: annars är det inspelaren som matar.
                       if (bara && t !== "" && t.length !== sistaLangd.current) vagorna().text(Math.max(1, Math.abs(t.length - sistaLangd.current)));
                       sistaLangd.current = t.length;
+                      senasteText.current = t;
                       setText(t);
                     }
                   },
@@ -897,6 +965,10 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
                         },
                       }
                     : {}),
+                  // ⛔ (0.244.0) Igenkänningen hörde själv att personen pratat klart: i ett röstsamtal går det sagda vidare direkt (se `rostSlut`).
+                  onSlut: () => {
+                    if (mitt === forsok.current && monterad.current) rostSlutRef.current();
+                  },
                   // ⛔ (0.213.0) Igenkänningens rapport bär omgången och förra omgången, så att den räcker ensam (se `igenkanningenFoll`).
                   sammanhang: () => igenkanningensSammanhang(bara),
                   // ⛔ Ett fel härifrån får aldrig vara tyst (regel 5): fältet säger att texten uteblir, och ljudet spelas in ändå.
@@ -1135,7 +1207,8 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
           .catch((fel) => {
             rapporteraFel(fel, { yta: "OpsTalk", steg: "stoppa-text" });
             return "";
-          });
+          })
+          .finally(() => forberedIgenkanning("efter-omgang"));
         const bara = barOmgang.current;
         // I en omgång utan inspelare finns inget ljud: bara klockan, och en tom blob som aldrig lämnas till appen.
         /** @type {Promise<{ blob: Blob, mimeType: string, sekunder: number, diagnos?: import("../lib/talk.js").Inspelningsdiagnos }>} */
@@ -1290,6 +1363,16 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
    */
   const rostLyssnar = tillstand.lage === "lyssnar" && rostSteg === "lyssnar" && omgangsText === true;
   const rostHarText = text.trim() !== "";
+  /**
+   * ⛔ IGENKÄNNINGEN SÄGER ATT PERSONEN ÄR KLAR (0.244.0, cllp/lifehub.app#896). Samma steg som tystnaden nedan, utan att vänta `ROST_TYSTNAD_MS`.
+   * Bara i ett röstsamtal som lyssnar och har text: i en vanlig omgång bestämmer personen själv när den är klar, och utan text finns inget att skicka.
+   */
+  const rostSlutRef = useRef(() => {});
+  rostSlutRef.current = () => {
+    // ⛔ TEXTEN UR REFEN, INTE UR `rostHarText`: slutet kommer ofta i samma ögonblick som sista ordet, före renderingen som visar det.
+    if (!rostLyssnar || senasteText.current.trim() === "" || lageRef.current.lage !== "lyssnar" || !rost.current) return;
+    skickaRef.current({ typ: "skicka" });
+  };
   useEffect(() => {
     if (!rostLyssnar) return undefined;
     const id = setTimeout(() => {
@@ -1301,6 +1384,12 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
     // `text` startar om väntan vid varje nytt ord. `rostBesked` läser bara refar.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rostLyssnar, rostHarText, text]);
+  // ⛔ (0.244.0) Appens igenkänning förbereds när fältet monteras, så att första trycket inte väntar på en nyckel och en anslutning.
+  useEffect(() => {
+    forberedIgenkanning("montering");
+    // `forberedIgenkanning` läser bara refar. En gång per montering.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Ett nytt tak medan en inspelning har ett tak satt: räkna om från starten (se `planeraTak`).
   useEffect(() => {
     if (tak.current) planeraTak();

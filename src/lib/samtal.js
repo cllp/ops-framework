@@ -827,17 +827,29 @@ export const AGENTSTATUS_ID = "agent";
 /** Agentens lägen, i den ordning de kommer. */
 export const AGENTLAGEN = /** @type {const} */ (["tanker", "skriver"]);
 
-/** Fälten statusdokumentet får bära. */
-export const AGENTSTATUSFALT = /** @type {const} */ (["lage", "sedan"]);
+/**
+ * Fälten statusdokumentet får bära.
+ *
+ * ⛔ `utkast` (0.244.0, lifehub.app#896, CP 2026-11-19: "Tar massa tid för agenten att vakna upp"): det agenten hittills skrivit, medan
+ * modellen strömmar. TALK läser första meningen medan resten skrivs, i stället för att vänta på hela svaret. Utkastet bor HÄR och inte i
+ * meddelandet, eftersom meddelandet skapas en gång och färdigt: en notis, inkorgen och varje trigger på meddelanden hade annars sett en halv
+ * text. Bara i läget "skriver", och bara servern skriver det (regeln `allow write: if false`).
+ */
+export const AGENTSTATUSFALT = /** @type {const} */ (["lage", "sedan", "utkast"]);
+
+/** Längsta utkastet i tecken. Ett svar som är längre läses färdigt ur meddelandet; utkastet är till för början. */
+export const AGENTUTKAST_MAX = 4000;
 
 /** Äldre än så är statusen ett fel och inte ett arbete, i millisekunder. */
 export const AGENTSTATUS_MAX_ALDER = 2 * 60 * 1000;
 
 /**
  * Bygger statusdokumentet som appens server skriver, eller kastar med skälet. Samma form som vyn läser.
+ * `utkast` (0.244.0) bara i läget "skriver", som en text, och högst `AGENTUTKAST_MAX` tecken: ett längre kastar i stället för att kapas
+ * tyst, så att servern vet att den skickat för mycket.
  *
- * @param {{ lage: string, sedan?: number }} d
- * @returns {{ lage: "tanker" | "skriver", sedan: number }}
+ * @param {{ lage: string, sedan?: number, utkast?: string }} d
+ * @returns {{ lage: "tanker" | "skriver", sedan: number, utkast?: string }}
  */
 export function byggAgentstatus(d) {
   const lage = rensa(d?.lage);
@@ -846,7 +858,24 @@ export function byggAgentstatus(d) {
   }
   const sedan = d.sedan ?? Date.now();
   if (!Number.isInteger(sedan)) throw new Error("byggAgentstatus: sedan är millisekunder, ett heltal.");
-  return Object.freeze({ lage: /** @type {"tanker" | "skriver"} */ (lage), sedan });
+  const l = /** @type {"tanker" | "skriver"} */ (lage);
+  if (d.utkast === undefined) return Object.freeze({ lage: l, sedan });
+  if (typeof d.utkast !== "string") throw new Error("byggAgentstatus: utkast är en text.");
+  if (l !== "skriver") throw new Error("byggAgentstatus: ett utkast finns bara när agenten skriver.");
+  if (d.utkast.length > AGENTUTKAST_MAX) throw new Error(`byggAgentstatus: utkastet är ${d.utkast.length} tecken, högst ${AGENTUTKAST_MAX}.`);
+  return Object.freeze({ lage: l, sedan, utkast: d.utkast });
+}
+
+/**
+ * Utkastet i ett statusdokument, eller `""` när det inte finns något att läsa: inget dokument, ett annat läge än "skriver", eller ett fält som
+ * inte är en text. Den som följer utkastet (TALK) läser det färdiga svaret ur meddelandet ändå, så ett utkast som saknas förlorar ingenting.
+ * @param {unknown} dok
+ * @returns {string}
+ */
+export function agentutkast(dok) {
+  if (!dok || typeof dok !== "object") return "";
+  const d = /** @type {Record<string, unknown>} */ (dok);
+  return d.lage === "skriver" && typeof d.utkast === "string" ? d.utkast : "";
 }
 
 /**

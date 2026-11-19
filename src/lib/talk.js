@@ -1128,7 +1128,9 @@ export function skapaIgenkanningsniva({ nu = () => Date.now() } = {}) {
 
 /**
  * @typedef {object} Igenkanning
- * @property {(val: { sprak: string, onText: (text: string) => void, onFel?: (kod: string) => void, onLjud?: (typ: "ljud" | "tal" | "tystnad") => void, sammanhang?: () => Record<string, unknown> }) => void} starta Börjar lyssna. `onText` får hela texten hittills.
+ * @property {(val: { sprak: string, onText: (text: string) => void, onFel?: (kod: string) => void, onLjud?: (typ: "ljud" | "tal" | "tystnad") => void, onSlut?: () => void, sammanhang?: () => Record<string, unknown> }) => void} starta Börjar lyssna. `onText` får hela texten hittills.
+ *   `onSlut` (0.244.0, cllp/lifehub.app#896) anropas när igenkänningen själv hör att personen pratat klart (Sonioxs `endpoint`). I ett
+ *   röstsamtal går det sagda då vidare direkt, i stället för efter `ROST_TYSTNAD_MS` tystnad. Valfri: utan den väntar fältet på tystnaden som förut.
  *   `onFel` (0.99.0) får en kod när igenkänningen inte går att starta eller faller med ett riktigt fel, så att fältet kan säga det.
  *   `onLjud` (0.115.0, cllp/lifehub.app#345) får webbläsarens egna ljudhändelser: `ljud` (`onsoundstart`), `tal` (`onspeechstart`) och
  *   `tystnad` (`onspeechend`). Valfri: en egen igenkänning från appen som inte känner till den får bara `onText`, och prickarna drivs då av texten ensam.
@@ -1138,6 +1140,10 @@ export function skapaIgenkanningsniva({ nu = () => Date.now() } = {}) {
  *   är sant när omgången bara kör igenkänningen (TALK med valen på WebKit) och falskt när en inspelare också har mikrofonen (ett låst mål,
  *   "Spela in i stället", Chrome). `false` gör omgången till en ren inspelning utan textyta, och `starta` anropas inte. Saknas den lyssnar
  *   igenkänningen alltid, som förut. Ett kast räknas som `false` och rapporteras. Händelsen står vid `kanLyssnaI` i `OpsTalk.jsx`.
+ * @property {() => void} [forbered] (0.244.0, cllp/lifehub.app#896) Förbereder nästa omgång utan att öppna mikrofonen: laddar det som behövs
+ *   och hämtar det som tar tid (Soniox: SDK:n och en nyckel). Anropas när fältet monteras, i trycket innan långtrycket startar omgången, och efter
+ *   varje omgång. Ska vara billig att anropa igen och får aldrig kasta: ett kast rapporteras och omgången startar som förut. CP 2026-11-19: "Tar
+ *   massa tid för agenten att vakna upp", och mätt samma kväll: stoppet väntade över 3 s på en nyckel och en anslutning som började först vid trycket.
  * @property {() => Promise<string>} stoppa Slutar och ger den slutliga texten, eller tom sträng när den inte går att lita på.
  * @property {() => void} kasta Slutar utan att vänta.
  * @property {() => Igenkanningsdiagnos} [diagnos] (0.114.0, cllp/ops-framework#402) Vad den här omgångens igenkänning gjorde, för felrapporten
