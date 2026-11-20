@@ -474,6 +474,37 @@ ${
 }
 
 /**
+ * Regeln för gruppens bild (0.246.0, cllp/lifehub.app#905). Se `lagringsregelfragment`.
+ * @param {{ prefix: string, medlemskap?: string }} k
+ */
+function gruppbildregel(k) {
+  const prefix = kontrolleraNamn(k.prefix, "gruppbilder.prefix");
+  const medlemskap = kontrolleraNamn(k.medlemskap ?? "memberships", "gruppbilder.medlemskap");
+  const vag = `/databases/(default)/documents/${medlemskap}/$(request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + gid)`;
+  return `    // ══ Ramverkets gruppbilder. GENERERAD, ändra inte för hand ══
+    //
+    // ⛔ GRUPPENS AKTIVA MEDLEMMAR LÄSER, ÄGARE OCH ADMIN SKRIVER. Samma två roller som får ändra gruppens \`bild\`.
+    // ⛔ BARA JPEG, PNG, WEBP OCH GIF, ALDRIG SVG: en SVG är en bild som bär skript. Under 2 MB, som profilbilden.
+    // ⛔ create/update SKILT FRÅN delete, samma skäl som profilbilderna: en radering har inget \`request.resource\`.
+    function opsGruppbildMedlemskap(gid) {
+      return request.auth != null && firestore.exists(${vag})
+        && firestore.get(${vag}).data.status == 'aktiv';
+    }
+    function opsGruppbildAdmin(gid) {
+      return opsGruppbildMedlemskap(gid)
+        && firestore.get(${vag}).data.roll in ['agare', 'admin'];
+    }
+    match /${prefix}/{gid}/{fil} {
+      allow read: if opsGruppbildMedlemskap(gid);
+      allow create, update: if opsGruppbildAdmin(gid)
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
+      allow delete: if opsGruppbildAdmin(gid);
+    }
+`;
+}
+
+/**
  * Storage-regelfragmentet: bara sin egen sökväg, bara bilder, en storleksgräns.
  *
  * ══ ⛔ VARFÖR RAMVERKET SKRIVER ÄVEN DE HÄR (#156) ══════════════════════
@@ -505,7 +536,12 @@ ${
  * ⛔ GRUPPENS EGNA PLATSER (0.155.0, cllp/ops-framework#469): `bibliotek.platser: true` släpper in platsen `plats~<grupp>~<id>` på samma sätt: gruppens medlemskap, tolkat ur platsen, och posten ska finnas med samma plats. Till
  * skillnad från de två ovan finns det inget objekt att slå upp, så Firestore-regeln för posten (`bibliotekregelfragment` med `platser: true`) prövar bara medlemskapet. Utan flaggan är texten byte för byte den förra.
  *
- * @param {{ prefix?: string, bibliotek?: { gruppPrefix: string, postPrefix: string, samling: string, medlemskap?: string, handelsefiler?: boolean, arendefiler?: boolean, platser?: boolean } }} [konfig]
+ * ⛔ GRUPPENS BILD (0.246.0, cllp/lifehub.app#905): `gruppbilder: { prefix, medlemskap? }` släpper in `/{prefix}/{groupId}/{fil}`. CP 2026-11-19: "EN sak som Rob saknade, möjligheten
+ * att ladda upp en bild till sin profil och en bild till sin grupp istället för ikoner och färg." `OpsGruppFormular` hade bildväljaren sedan 0.32.0, men ingen app kunde
+ * koppla in den, eftersom ingen regel tog emot filen. Gruppens aktiva medlemmar läser. Ägare och admin skriver och raderar, samma två roller som får ändra gruppens `bild`
+ * (`ADMINGRUPPFALT`). Bara JPEG, PNG, WebP och GIF, aldrig SVG (en bild som bär skript), och under 2 MB, samma tak som profilbilden. Utan nyckeln är texten byte för byte den förra.
+ *
+ * @param {{ prefix?: string, gruppbilder?: { prefix: string, medlemskap?: string }, bibliotek?: { gruppPrefix: string, postPrefix: string, samling: string, medlemskap?: string, handelsefiler?: boolean, arendefiler?: boolean, platser?: boolean } }} [konfig]
  *   `prefix` förval `"profilbilder"`. `bibliotek` lägger till filerna, med sökväg
  *   `/{gruppPrefix}/{groupId}/{postPrefix}/{postId}/{filnamn}` som appen namnger.
  * @returns {string}
@@ -537,7 +573,8 @@ export function lagringsregelfragment(konfig = {}) {
       allow delete: if request.auth != null && request.auth.uid == uid;
     }
 `;
-  if (!konfig.bibliotek) return profil;
+  const gruppbild = konfig.gruppbilder ? gruppbildregel(konfig.gruppbilder) : "";
+  if (!konfig.bibliotek) return profil + gruppbild;
   const grupp = kontrolleraNamn(konfig.bibliotek.gruppPrefix, "gruppPrefix");
   const postPrefix = kontrolleraNamn(konfig.bibliotek.postPrefix, "postPrefix");
   const samling = kontrolleraNamn(konfig.bibliotek.samling, "samling");
@@ -601,7 +638,7 @@ export function lagringsregelfragment(konfig = {}) {
         ? (gid.matches('${regelRegex(o.form)}') && opsFilArMedlem(opsFilMedlemsplats(gid)))
         : `).join("")}opsFilArMitt(gid) ? opsFilMitt(gid) : opsFilArMedlem(gid)`
       : "opsFilArMitt(gid) ? opsFilMitt(gid) : opsFilArMedlem(gid)";
-  return profil + `    // ══ Ramverkets biblioteksfiler. GENERERAD, ändra inte för hand ══
+  return profil + gruppbild + `    // ══ Ramverkets biblioteksfiler. GENERERAD, ändra inte för hand ══
     //
     // Medlemskapet är samma uppslag som Firestore: uid, avgränsare, grupp, status aktiv.
     // Posten måste finnas och höra till samma grupp. Objektet raderas av servern när
