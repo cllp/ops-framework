@@ -148,6 +148,10 @@ en inbjudan, Spara av ett trädnamn och skicka i chatten.
 startar ett anrop (`await`, `.then`, eller en `on...`-prop som JSDoc deklarerar med `Promise`) utan att knappen väntar. Den ser inte om
 snurran SYNS eller om verbet är rätt. Det mäts i en webbläsare (`check-skalyta`) och av dig.
 
+*I en app* läser vakten appens katalog: `node node_modules/ops-framework/scripts/check-vantar.mjs src --tak=N --golv-filer=N --golv-knappar=N`
+(0.245.0). Proven (`__tests__/`, `*.test.jsx`) räknas inte. Före 0.245.0 läste den ramverkets komponenter oavsett argument, så en app
+som körde den var grön utan att ha läst en enda av sina filer.
+
 ## Checklista före varje PR med UI
 
 Gå igenom den, och skriv i PR-texten vad som är avbockat och vad som medvetet inte är det.

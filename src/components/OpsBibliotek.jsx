@@ -264,6 +264,8 @@ const ORD_BIBLIOTEKLISTA = {
   slappKlarEn: { sv: "{namn} är tillagd.", en: "{namn} is added." },
   slappFelFil: { sv: "{namn}: {fel}", en: "{namn}: {fel}" },
   slappInteKopplad: { sv: "Uppladdningen är inte kopplad. Filerna är kvar på enheten.", en: "Uploading is not connected. The files are still on your device." },
+  // (0.245.0, cllp/lifehub.app#901) Knappen i det tomma biblioteket. Samma ord som "+ Ny" under Ljud när där bara finns uppladdningen.
+  laddaUpp: { sv: "Ladda upp", en: "Upload" },
 };
 
 /**
@@ -990,9 +992,35 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
 
   /** Bara filer räknas som något att släppa: en markerad text eller länk som dras över listan ska inte rita ramen. */
   const kanSlappa = Boolean(jag) && !inbaddad;
+  /**
+   * ⛔ ETT SLÄPP HAR EN MOTTAGARE (0.245.0, cllp/lifehub.app#900, CP 2026-11-19: "När man drar en fil till biblioteket så blir det en dubblett om
+   * man trycker på spara, för den kommer upp utan att spara."). Mätt: lifehub.app tar emot släpp på ytan runt Biblioteket sedan 2026-11-04
+   * (`BibliotekInklistring`, en ruta med namn, taggar och Spara), och 0.236.0 gav listan en egen mottagare som laddade upp direkt. Samma släpp
+   * blev då en post utan taggar direkt och en till med taggarna vid Spara. Mätningen bakom 0.236.0 ("Biblioteket hade inga `onDrop`") läste
+   * bara ramverket, inte appen runt det.
+   *
+   * Regeln är webbläsarens egen: den som tar ett släpp anropar `preventDefault`, och den som ser att det redan är gjort går undan. En app som
+   * lyssnar på ett element runt Biblioteket (`addEventListener`) hör släppet före listan, eftersom React tar emot sina händelser först vid
+   * roten. Då ritar listan ingen ram och laddar inte upp något. Utan en sådan mottagare är släppet som förut.
+   * @param {import("react").DragEvent} e
+   */
+  const redanTaget = (e) => e.nativeEvent.defaultPrevented;
+  /**
+   * ⛔ LADDA UPP I DET TOMMA BIBLIOTEKET (0.245.0, cllp/lifehub.app#901, CP 2026-11-19: "När biblioteket är tomt, skulle behöva en större Ladda
+   * upp, att man drar släpper är bra, men kanske en tydligare ladda upp."). På telefonen finns inget att dra från, så knappen är där den enda
+   * vägen från ett tomt bibliotek. Den öppnar filväljaren, och de valda filerna går samma väg som ett släpp (`laddaUppSlappta`): prövas, laddas
+   * upp en i taget, och beskeden står ovanför listan. Knappen ritas bara där ett släpp tas emot (`kanSlappa`) och uppladdningen är kopplad:
+   * ett tomläge som lovar en knapp som inte går är sämre än inget.
+   */
+  const kanLaddaUpp = kanSlappa && typeof onLaddaUpp === "function";
+  const uppladdningsFalt = useRef(/** @type {HTMLInputElement | null} */ (null));
   /** @param {import("react").DragEvent} e */
   const drarOver = (e) => {
     if (!kanSlappa || !Array.from(e.dataTransfer?.types ?? []).includes("Files")) return;
+    if (redanTaget(e)) {
+      if (drarFil) setDrarFil(false);
+      return;
+    }
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
     if (!drarFil) setDrarFil(true);
@@ -1463,8 +1491,9 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
               }}
               onDrop={(e) => {
                 if (!kanSlappa || !Array.from(e.dataTransfer?.types ?? []).includes("Files")) return;
-                e.preventDefault();
                 setDrarFil(false);
+                if (redanTaget(e)) return;
+                e.preventDefault();
                 void laddaUppSlappta(Array.from(e.dataTransfer.files ?? []));
               }}
               data-bibliotek-slapp={drarFil ? "drar" : undefined}
@@ -1496,6 +1525,22 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                 </ul>
               </div>
             ) : null}
+            {kanLaddaUpp ? (
+              <input
+                ref={uppladdningsFalt}
+                type="file"
+                multiple
+                aria-label={lord("laddaUpp")}
+                data-bibliotek-ladda-upp=""
+                className="hidden"
+                onChange={(e) => {
+                  const valda = Array.from(e.target.files ?? []);
+                  // Värdet nollas så att samma fil går att välja igen efter ett fel.
+                  e.target.value = "";
+                  void laddaUppSlappta(valda);
+                }}
+              />
+            ) : null}
             <Tabs.Content value={aktivFlik} data-bibliotek-panel="" aria-label={flikLista.find((f) => f.id === aktivFlik)?.namn ?? lord("flik_alla")} className="flex min-w-0 flex-col gap-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
               {fel ? (
                 <p role="alert" data-bibliotek-fel="">{fel}</p>
@@ -1506,6 +1551,12 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                   icon={inbaddad || sok || valda.length > 0 ? null : <IKON_FOR.bibliotek size={28} />}
                   title={inbaddad ? "Inga filer än." : sok || valda.length > 0 ? "Inga träffar." : poster.length === 0 ? "Biblioteket är tomt." : "Inget här ännu."}
                   description={inbaddad ? (tomText ?? TOM_FILER_FORVAL) : sok ? `Inget matchar "${sok}"${valda.length > 0 ? ` med ${valda.join(" och ")}` : ""}.` : valda.length > 0 ? `Inget här har ${valda.join(" och ")}.` : "Lägg till en anteckning, en länk, ett ljud eller en fil."}
+                  action={kanLaddaUpp && poster.length === 0 && !sok && valda.length === 0 ? (
+                    <OpsButton variant="primary" onClick={() => uppladdningsFalt.current?.click()}>
+                      <IKON_FOR.laddaUpp size={16} aria-hidden="true" />
+                      <span>{lord("laddaUpp")}</span>
+                    </OpsButton>
+                  ) : undefined}
                 />
               ) : (
                 <ul aria-label={lord("listaEtikett")} data-bibliotek-lista="" className="m-0 flex list-none flex-col gap-3 p-0">
