@@ -71,6 +71,12 @@ export { PLATSFALT_FORVALTAD, FORVALTNINGSFALT, platsnyckel, platsnamnFel, byggF
  * andra sanning om vad ett meddelande är, och huvudingången drar in React. Filerna är rena.
  */
 export { AGENT_NAMN, agentId, agentMedlemskap } from "../lib/grupp.js";
+/*
+ * ⛔ EN TEXTFIL I CHATTEN (0.246.0, cllp/lifehub.app#903). En lång inklistring blir en textbilaga, och agenten läser den som en del av meddelandet.
+ * Servern känner igen en textbilaga med samma funktion som bubblan (`arTextbilaga`), i stället för en egen lista över vilka typer som är text.
+ */
+export { TEXTFIL_FRAN, TEXTFIL_TYP, TEXTFIL_MAX_BYTE, textfilnamn, textSomBilaga, arTextbilaga, textensBorjan } from "../lib/textfil.js";
+export { bilagenyckel, BILAGA_TRADSKILJE } from "../lib/samtal.js";
 export { byggMeddelande, byggReaktion, REAKTIONSKODER, byggOmrostningsmeddelande, byggOmrostningsval, omrostningsrostnyckel, byggOmrostningsrost, summeraOmrostning, MAX_FRAGA, MAX_ALTERNATIVTEXT, MIN_ALTERNATIV_VID_START, MAX_ALTERNATIV_VID_START, MAX_ALTERNATIV, samtalsnyckel, MAX_MEDDELANDE, autonamn, tradensNamn, rensaForNamn, NAMNLOS_TRAD, AGENTSTATUS_ID, AGENTLAGEN, AGENTSTATUS_MAX_ALDER, AGENTUTKAST_MAX, byggAgentstatus, agentenNamnd, namnda, arNamnd, NAMNER_ALLA, MAX_NAMNER, amnesId, parnyckel, kravAmnesrubrik, amnesrubrik, MAX_AMNESRUBRIK, byggArendemottagare, ARENDEMOTTAGARSLAG, PROJEKTSAMTAL, arDelatSamtal, kravProjekttagg, delaSamtalsnyckel, projekttaggUr } from "../lib/samtal.js";
 
 /*

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { attachmentSize, bilagaTillBlob, isAudio, isImage } from "../lib/file.js";
 import { kommentarbilagaFel } from "../lib/handelsemodell.js";
+import { textensBorjan } from "../lib/textfil.js";
 import { forvalda } from "../lib/ord.js";
 import { FilIkon } from "./icons.jsx";
 import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
@@ -172,10 +173,25 @@ export function BilagaVisning({ bilaga, alt, marke = "data-kommentar-bilaga-visa
       </a>
     );
   }
+  /*
+   * ⛔ EN TEXTFIL VISAR SINA FÖRSTA RADER (0.246.0, cllp/lifehub.app#903). En lång text i chatten blir en fil, och med bara namnet hade man fått
+   * öppna den för att se vad den handlar om. Tre rader räcker för att känna igen den, och tråden förblir läsbar. Bara början avkodas
+   * (`textensBorjan`), och kan den inte läsas visas namnet som förut.
+   */
+  const borjan = textensBorjan(bilaga);
   return (
     <>
-      <button type="button" {...attr} data-bilaga-oppna="" aria-label={`${o.visa}: ${bilaga.namn}`} ref={knapp} onClick={oppna} className={`${filKlass} cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}>
-        {filInnehall}
+      <button type="button" {...attr} data-bilaga-oppna="" aria-label={`${o.visa}: ${bilaga.namn}`} ref={knapp} onClick={oppna} className={`${borjan ? filKlass.replace("items-center", "flex-col items-start") : filKlass} cursor-pointer text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}>
+        {borjan ? (
+          <>
+            <span className="flex min-w-0 max-w-full items-center gap-2">{filInnehall}</span>
+            <span data-textfil-borjan="" className="line-clamp-3 max-w-[28rem] whitespace-pre-line break-words text-ink-secondary">
+              {borjan}
+            </span>
+          </>
+        ) : (
+          filInnehall
+        )}
       </button>
       {stor ? (
         <OpsModal

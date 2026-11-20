@@ -4,7 +4,8 @@ import { forvalda, ordet } from "../lib/ord.js";
 import { cx } from "../lib/cx.js";
 import { formatDateTime, formatTime, formatRelativeDate } from "../lib/format.js";
 import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, bilagaUrDokument, kommentarbilagaFel } from "../lib/handelsemodell.js";
-import { readAttachment } from "../lib/file.js";
+import { readAttachment, sizeText } from "../lib/file.js";
+import { TEXTFIL_FRAN, textSomBilaga } from "../lib/textfil.js";
 import { arGastId } from "../lib/gast.js";
 import { arRelativAppadress } from "../lib/applank.js";
 import { AGENTSTATUS_MAX_ALDER, MAX_ALTERNATIV, MAX_ALTERNATIVTEXT, MAX_ALTERNATIV_VID_START, MAX_FRAGA, MAX_MEDDELANDE, MAX_TRADNAMN, MIN_ALTERNATIV_VID_START, RAKNARE_FRAN, REAKTIONSKODER, agentstatus, vackerAgenten, arDelatSamtal, projekttaggUr, jamforbar, summeraOmrostning, amnesrubrik, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
@@ -285,6 +286,10 @@ import { OpsVantar } from "./OpsVantar.jsx";
  * @property {string} [arkivFel] Förval "Samtalet kunde inte arkiveras.".
  * @property {string} [langd] (0.106.0, #386 skiva 5) Räknaren nära taket. `{n}` och `{max}` byts. Förval "{n} av {max} tecken".
  * @property {string} [forLang] (0.106.0) Raden när texten är över taket. `{over}` byts. Förval "Texten är {over} tecken för lång. Korta den för att skicka.".
+ * @property {string} [forLangFil] (0.246.0, lifehub.app#903) Samma rad när texten kan bli en fil. `{over}` byts. Förval "Texten är {over} tecken för lång för ett meddelande.".
+ * @property {string} [gorTillFil] (0.246.0, lifehub.app#903) Knappen i den raden. Förval "Gör till fil".
+ * @property {string} [textBlevFil] (0.246.0, lifehub.app#903) Raden när en lång inklistring blev en fil. Förval "Den långa texten blev en fil.".
+ * @property {string} [textfilForStor] (0.246.0, lifehub.app#903) När texten inte ryms ens som fil. `{storlek}` och `{tak}` byts. Förval "Texten är för stor även för en fil ({storlek}, taket är {tak}). Dela upp den.".
  * @property {string} [tillSenaste] (0.106.0, #386 skiva 4) Knappen när man läser bakåt. Förval "Till senaste".
  * @property {string} [nyaMeddelanden] `{n}` byts mot antalet nya sedan man lämnade slutet. Förval "{n} nya".
  * @property {string} [nyttSedanSist] Avdelaren i loggen, härledd ur läsmärket. Förval "Nytt sedan sist".
@@ -483,6 +488,10 @@ const ORD_MEDDELANDEN = {
   tillSenaste: { sv: "Till senaste", en: "Jump to latest" },
   langd: { sv: "{n} av {max} tecken", en: "{n} of {max} characters" },
   forLang: { sv: "Texten är {over} tecken för lång. Korta den för att skicka.", en: "The text is {over} characters too long. Shorten it to send." },
+  forLangFil: { sv: "Texten är {over} tecken för lång för ett meddelande.", en: "The text is {over} characters too long for a message." },
+  gorTillFil: { sv: "Gör till fil", en: "Make it a file" },
+  textBlevFil: { sv: "Den långa texten blev en fil.", en: "The long text became a file." },
+  textfilForStor: { sv: "Texten är för stor även för en fil ({storlek}, taket är {tak}). Dela upp den.", en: "The text is too large even for a file ({storlek}, the limit is {tak}). Split it up." },
   nyaMeddelanden: { sv: "{n} nya", en: "{n} new" },
   nyttSedanSist: { sv: "Nytt sedan sist", en: "New since last time" },
   sokPlats: { sv: "{i} av {n}", en: "{i} of {n}" },
@@ -1856,8 +1865,11 @@ const SKILJETECKEN = /^[.,:;!?)\]}…]$/u;
  *
  * `onSkicka` får `{ namner }` (de omnämnda) och skickar fältets text.
  *
- * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[] }) => void | Promise<void>, texter: Required<Meddelandetexter>, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, onOmrostning?: () => void, franBiblioteket?: Franbiblioteket, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void, maxTecken?: number, ram?: boolean, onRostSamtal?: () => void, rostUpptagen?: boolean }} props `onRostSamtal` (CP 2026-11-18): vågikonen, ett röstsamtal med agenten. Bara i ett agentsamtal i ett skal med TALK.
+ * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[] }) => void | Promise<void>, texter: Required<Meddelandetexter>, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, onOmrostning?: () => void, franBiblioteket?: Franbiblioteket, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void, maxTecken?: number, ram?: boolean, onRostSamtal?: () => void, rostUpptagen?: boolean, onTextfil?: (text: string) => boolean }} props `onRostSamtal` (CP 2026-11-18): vågikonen, ett röstsamtal med agenten. Bara i ett agentsamtal i ett skal med TALK.
  *   `onOmrostning` (cllp/lifehub.app#438): raden "Omröstning" i pluset. Med den ritas pluset också utan `onBifoga`.
+ *   `onTextfil` (0.246.0, cllp/lifehub.app#903): gör en lång text till en textfil i utkastet och svarar `true` när den blev det. Med den blir en inklistring
+ *   från `TEXTFIL_FRAN` tecken en fil i stället för text i fältet, och raden över taket får knappen "Gör till fil". `false` (en bilaga väntar redan, eller
+ *   texten ryms inte ens som fil) lämnar inklistringen till fältet som förut. Utan den (gästen, en chatt utan bilagor) händer ingenting nytt.
  *   `maxTecken` (0.132.0): taket i tecken. Förval `MAX_MEDDELANDE`; en gäst har ett lägre (`GASTSKRIV_MAX_TECKEN`). Räknaren och spärren på Skicka följer det.
  *   ⛔ EXPORTERAD FRÅN FILEN FÖR `OpsGastChatt`, INTE UR RAMVERKET (`src/index.js`): gästens skrivfält är chattens utan bilagor, mikrofon, omnämnanden och agent.
  *   `ram` (0.195.0): fältet står i en panel, med ett streck över sig (`border-t`) och panelens indrag (`px-3`). Förval sant, som i appens chatt, där strecket skiljer fältet från
@@ -1865,7 +1877,7 @@ const SKILJETECKEN = /^[.,:;!?)\]}…]$/u;
  *   skärmbilder av gästens chatt: "Du kan ta bort ett streck mellan här också vid chatten. avdelaren." och från telefonen: "Även i telefon finns det extra horisontella strecket som
  *   inte behövs. Sedan kanske skrivfältet kan vara lika brett som chattramen?"
  */
-export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onBifoga, onOmrostning, franBiblioteket, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent, maxTecken = MAX_MEDDELANDE, ram = true, onRostSamtal, rostUpptagen = false }) {
+export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onBifoga, onOmrostning, franBiblioteket, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent, maxTecken = MAX_MEDDELANDE, ram = true, onRostSamtal, rostUpptagen = false, onTextfil }) {
   const rostSprak = useOpsSprak();
   const ruta = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const listId = useId();
@@ -1983,6 +1995,7 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus =
    */
   const langd = text.trim().length;
   const forLang = langd > maxTecken;
+  const kanBliFil = Boolean(onTextfil) && !harBilaga;
   const visaRaknare = text.length >= maxTecken - RAKNARE_FRAN;
   const visaStopp = agentArbetar && Boolean(onStoppaAgent);
   /*
@@ -2040,13 +2053,20 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus =
         // (`onBifoga`): bilder som "bild", annat som "fil". En inklistring med bara text lämnas orörd till fältet, så att vanligt klistrande inte stjäls (samma regel som `OpsFilePicker`).
         // Utan `onBifoga` (en chatt utan bilagor) händer ingenting extra.
         onPaste={
-          onBifoga
+          onBifoga || onTextfil
             ? (e) => {
+                const klippt = e.clipboardData?.getData("text/plain") ?? "";
+                // ⛔ EN LÅNG TEXT BLIR EN FIL (0.246.0, cllp/lifehub.app#903). Från `TEXTFIL_FRAN` tecken går inklistringen till utkastet som en textfil i
+                // stället för in i fältet. Svarar `onTextfil` nej (en bilaga väntar redan, eller texten ryms inte ens som fil) klistras den in som förut.
+                if (onTextfil && klippt.length >= TEXTFIL_FRAN && onTextfil(klippt)) {
+                  e.preventDefault();
+                  return;
+                }
                 const filer = [...(e.clipboardData?.files ?? [])];
-                if (!filer.length) return;
+                if (!onBifoga || !filer.length) return;
                 // ⛔ TEXTEN VINNER. Excel, Numbers och Word lägger både texten och en bild av den i urklippet, och den som klistrar in därifrån
                 // vill ha texten. Bara ett urklipp utan text (en skärmbild, en kopierad bild) blir en bilaga.
-                if (e.clipboardData?.getData("text/plain")) return;
+                if (klippt) return;
                 e.preventDefault();
                 // ⛔ ETT ANROP MED ALLA FILERNA, som plusmenyns filval: fler än en ger utkastets synliga fel (`enBilaga`), i stället för att två
                 // anrop skriver över varandra och den ena bilagan försvinner tyst.
@@ -2145,14 +2165,30 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus =
       </div>
     </form>
     {visaRaknare ? (
-      <p
-        id={raknarId}
-        data-langdraknare={forLang ? "over" : "nara"}
-        role={forLang ? "alert" : "status"}
-        className={cx("m-0 shrink-0 px-4 pb-1.5 text-right text-liten tabular-nums", forLang ? "text-danger" : "text-ink-muted")}
-      >
-        {forLang ? t.forLang.replace("{over}", String(langd - maxTecken)) : t.langd.replace("{n}", String(text.length)).replace("{max}", String(maxTecken))}
-      </p>
+      <div className="flex shrink-0 items-center justify-end gap-2 px-4 pb-1.5">
+        <p
+          id={raknarId}
+          data-langdraknare={forLang ? "over" : "nara"}
+          role={forLang ? "alert" : "status"}
+          className={cx("m-0 text-right text-liten tabular-nums", forLang ? "text-danger" : "text-ink-muted")}
+        >
+          {forLang ? (kanBliFil ? t.forLangFil : t.forLang).replace("{over}", String(langd - maxTecken)) : t.langd.replace("{n}", String(text.length)).replace("{max}", String(maxTecken))}
+        </p>
+        {/* ⛔ GÖR TILL FIL (0.246.0, cllp/lifehub.app#903). Över taket behöver ingen korta sin text: den blir en textfil i utkastet och fältet töms.
+            Bara när ingen bilaga väntar, eftersom ett meddelande bär en. Svarar `onTextfil` nej står texten kvar och utkastet säger varför. */}
+        {forLang && kanBliFil ? (
+          <button
+            type="button"
+            data-gor-till-fil=""
+            onClick={() => {
+              if (onTextfil?.(text)) setText("");
+            }}
+            className="inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-base px-2 text-meta font-medium text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            {t.gorTillFil}
+          </button>
+        ) : null}
+      </div>
     ) : null}
     </>
   );
@@ -2480,6 +2516,7 @@ function useHarKamera() {
 function useBilageutkast(kalla, onBifogaProp, texter) {
   const [bilaga, setBilaga] = useState(/** @type {import("../lib/file.js").Bilaga | null} */ (null));
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
+  const [notis, setNotis] = useState(/** @type {string | null} */ (null));
   // ⛔ En fil som läses räknas som vald redan medan den läses: två snabba val hade annars båda kommit fram och den sista vunnit.
   const vantar = useRef(false);
   const kamera = useHarKamera();
@@ -2497,6 +2534,7 @@ function useBilageutkast(kalla, onBifogaProp, texter) {
   /** @param {File[]} filer @param {"bild" | "foto" | "fil"} _slag */
   const las = async (filer, _slag) => {
     setFel(null);
+    setNotis(null);
     if (bilaga || vantar.current) {
       setFel(texter.enBilagaRedan);
       return;
@@ -2518,29 +2556,63 @@ function useBilageutkast(kalla, onBifogaProp, texter) {
       vantar.current = false;
     }
   };
+  /*
+   * ⛔ EN LÅNG TEXT SOM FIL (0.246.0, cllp/lifehub.app#903). Samma utkast och samma prövning som en vald fil (`kommentarbilagaFel`), så en text som
+   * blivit fil skickas, visas och läses av regeln precis som en uppladdad textfil. Svarar `false` när den inte blev en fil: en bilaga väntar redan
+   * (inklistringen går då till fältet, inget besked behövs), eller texten ryms inte ens som fil (beskedet säger storleken och taket).
+   */
+  /** @param {string} text @returns {boolean} */
+  const somTextfil = (text) => {
+    if (bilaga || vantar.current) return false;
+    const r = textSomBilaga(text);
+    if ("tom" in r) return false;
+    if ("forStor" in r) {
+      setNotis(null);
+      setFel(texter.textfilForStor.replace("{storlek}", sizeText(r.forStor.byte)).replace("{tak}", sizeText(r.forStor.tak)));
+      return false;
+    }
+    const ogiltig = kommentarbilagaFel(r.bilaga);
+    if (ogiltig) {
+      setFel(texter.bilagaGarInteAttSkicka.replace("{skal}", ogiltig));
+      return false;
+    }
+    setFel(null);
+    setBilaga(r.bilaga);
+    setNotis(texter.textBlevFil);
+    return true;
+  };
   return {
     bilaga,
     fel,
+    notis,
     tom: () => {
       setBilaga(null);
       setFel(null);
+      setNotis(null);
     },
     onBifoga: med ? las : onBifogaProp,
+    onTextfil: med ? somTextfil : undefined,
     kamera,
   };
 }
 
 /**
  * Förhandsvisningen ovanför skrivfältet, och felet när filen inte gick att bifoga. Inget av det är tyst.
- * @param {{ bilaga: import("../lib/file.js").Bilaga | null, fel: string | null, onTaBort: () => void, texter: Required<Meddelandetexter> }} props
+ * `notis` (0.246.0, lifehub.app#903): en rad som säger att en lång inklistring blev en fil, så att det inte ser ut som att texten försvann.
+ * @param {{ bilaga: import("../lib/file.js").Bilaga | null, fel: string | null, notis?: string | null, onTaBort: () => void, texter: Required<Meddelandetexter> }} props
  */
-function Bilageutkast({ bilaga, fel, onTaBort, texter: t }) {
+function Bilageutkast({ bilaga, fel, notis = null, onTaBort, texter: t }) {
   if (!bilaga && !fel) return null;
   return (
     <div data-bilageutkast="" className="flex shrink-0 flex-col gap-1 border-t border-line px-3 pt-2">
       {fel ? (
         <p role="alert" data-bilagefel="" className="m-0 text-meta text-danger">
           {fel}
+        </p>
+      ) : null}
+      {bilaga && notis ? (
+        <p role="status" data-textfil-notis="" className="m-0 text-meta text-ink-muted">
+          {notis}
         </p>
       ) : null}
       {bilaga ? (
@@ -3072,7 +3144,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
       </div>
 
       {svarPa ? <SvararPaRad m={svarPa} namn={avNamnFor(namnFor, svarPa, uid, t.du, sprak)} onAvbryt={() => setSvarPa(null)} texter={t} /> : null}
-      <Bilageutkast bilaga={bilage.bilaga} fel={bilage.fel} onTaBort={bilage.tom} texter={t} />
+      <Bilageutkast bilaga={bilage.bilaga} fel={bilage.fel} notis={bilage.notis} onTaBort={bilage.tom} texter={t} />
       {nyOmrostning && omr.pa ? (
         <Omrostningsformular
           texter={t}
@@ -3097,6 +3169,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
         onEscape={svarPa ? () => setSvarPa(null) : undefined}
         platstext={samtal.slag === "grupp" ? t.skrivGrupp : samtal.slag === "projekt" ? t.skrivProjekt : samtal.slag === "agent" ? t.skrivAgent : t.skriv}
         onBifoga={bilage.onBifoga}
+        onTextfil={bilage.onTextfil}
         onOmrostning={omr.pa && !arNy ? () => setNyOmrostning(true) : undefined}
         franBiblioteket={franBiblioteket}
         harBilaga={Boolean(bilage.bilaga)}
@@ -3911,7 +3984,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
       <TillSenaste lage={lasposition} arbetar={arbetsord(agentlage)} texter={t} />
       </div>
 
-      <Bilageutkast bilaga={bilage.bilaga} fel={bilage.fel} onTaBort={bilage.tom} texter={t} />
+      <Bilageutkast bilaga={bilage.bilaga} fel={bilage.fel} notis={bilage.notis} onTaBort={bilage.tom} texter={t} />
       <Skrivfalt
         text={text}
         setText={setText}
@@ -3922,6 +3995,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor, flerOmnamnbara)}
         platstext={t.skrivTrad}
         onBifoga={bilage.onBifoga}
+        onTextfil={bilage.onTextfil}
         franBiblioteket={franBiblioteket}
         harBilaga={Boolean(bilage.bilaga)}
         kamera={bilage.kamera}

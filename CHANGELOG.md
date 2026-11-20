@@ -9,6 +9,20 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.246.0
+
+**Lång text i chatten blir en fil (cllp/lifehub.app#903).** CP 2026-11-19, i ett samtal med Lars: "Lång text i chatten. Lägg till som en fil, med storleksbegränsning istället."
+
+### Tillagt
+- **En inklistring från 2 000 tecken blir en textfil** (`TEXTFIL_FRAN`) i stället för text i fältet. Filen står i utkastet som vilken bilaga som helst, med raden "Den långa texten blev en fil.", och skickas med meddelandet. Samma mönster som Slack och Teams. Det man själv skriver flyttas aldrig. Väntar redan en bilaga (ett meddelande bär en) klistras texten in som förut.
+- **Över meddelandets tak (4 000 tecken) har raden under fältet knappen "Gör till fil"**, så att ingen behöver korta en text för att få skicka den. Utan bilagor i chatten (gästen) står raden som förut.
+- **En textfil i tråden visar sina tre första rader** under namnet, i bubblan och i utkastet. Ett tryck öppnar hela texten som förut. Gäller också uppladdade text- och CSV-filer och kommentarernas bilagor (samma `BilagaVisning`).
+- **`lib/textfil.js`**, också ur `node`-ingången: `textSomBilaga(text)` ger en bilaga i UTF-8 eller `{ forStor: { byte, tak } }`, aldrig en kapad fil; `textfilnamn` (första raden, högst 40 tecken, annars "Text.txt"); `textensBorjan` (bara början avkodas, UTF-8 med Windows-1252 som reserv, tomma rader räknas inte); `arTextbilaga`; `TEXTFIL_MAX_BYTE`. `node` exporterar också `bilagenyckel`, så att appens agent kan läsa filen.
+- **Taket** är bilagornas befintliga (`MAX_KOMMENTARBILAGA`, cirka 525 kB text). Över det säger utkastet storleken och taket, och texten går till fältet.
+
+### Prov
+- `textfil-903.test.jsx`, 14 prov. Mot 0.245.0 (komponenterna utan ändringen) faller de fem som mäter beteendet: inklistringen hamnade i fältet, en andra inklistring och en för stor text gav inget besked, "Gör till fil" fanns inte och bubblan visade bara namnet. Med ändringen 14 av 14.
+
 ## 0.245.0
 
 ### Tillagt

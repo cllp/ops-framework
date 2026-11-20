@@ -94,6 +94,7 @@ export { OpsSpelareProvider, OpsSpelaKnapp, OpsSpelarKontroller, useSpelare, ORD
 // ryms. `isImage` och `sizeText` behövs för att VISA en sparad bilaga, alltså
 // på andra sidan lagringen, där komponenten inte finns.
 export { isImage, isAudio, sizeText, attachmentSize } from "./lib/file.js";
+export { TEXTFIL_FRAN, TEXTFIL_TYP, TEXTFIL_MAX_BYTE, textfilnamn, textSomBilaga, arTextbilaga, textensBorjan } from "./lib/textfil.js";
 
 // ── Data ───────────────────────────────────────────────────────────────────
 export { OpsList, OpsListRow } from "./components/OpsList.jsx";
