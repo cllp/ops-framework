@@ -309,7 +309,7 @@ describe("knapparna i ramverket som väntar (inventeringen)", () => {
         onTaBortBild={onTaBortBild}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /Färg och ikon/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Bild, färg och ikon/ }));
     await provaVantar(() => screen.getByRole("button", { name: "Ta bort bilden" }), onTaBortBild, d.los);
   });
 

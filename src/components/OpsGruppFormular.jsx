@@ -80,6 +80,7 @@ import { useSkapaPanelStatus } from "./skapaPanelStatus.js";
  * @typedef {object} GruppFormularEtiketter
  * @property {string} [visuellIdentitet] "Visuell identitet".
  * @property {string} [fargOchIkon] "Färg och ikon".
+ * @property {string} [bildFargOchIkon] "Bild, färg och ikon": raden när gruppen kan få en bild (#905). Utan ordet bild letar den som vill byta ut ikonen mot en bild inte här.
  * @property {string} [visuellIdentitetHint]
  * @property {string} [farg] "Färg".
  * @property {string} [ikonEllerLogotyp]
@@ -154,6 +155,7 @@ const STANDARD = {
   sv: {
     visuellIdentitet: "Visuell identitet",
     fargOchIkon: "Färg och ikon",
+    bildFargOchIkon: "Bild, färg och ikon",
     visuellIdentitetHint: "Hur gruppen syns i listor och i gruppväljaren",
     farg: "Färg",
     ikonEllerLogotyp: "Ikon eller initialer",
@@ -211,7 +213,7 @@ const STANDARD = {
     taBortBild: "Ta bort bilden",
     bildFel: "Bilden kunde inte laddas upp.",
     bildForStor: "Bilden är för stor. Högst 2 MB.",
-    bildHintRedigera: "PNG, WebP eller JPEG, högst 2 MB. Bilden ersätter ikonen och initialerna.",
+    bildHintRedigera: "JPEG, PNG, WebP eller GIF, högst 2 MB. Bilden ersätter ikonen och initialerna.",
     sparaFelTitel: "Ändringarna kunde inte sparas",
     modulerRubrik: "Verktyg",
     modulerHint: "Ett verktyg med egen yta blir ett kort under Verktyg, i den ordning du installerar dem. Ett verktyg utan egen yta syns där det gör tillägg. Kalendern och inkorgen har gruppen alltid. Chatten är ett verktyg, med kort. Ikonen i huvudet, kopplingarna och verktygets egna inställningar öppnas i verktyget.",
@@ -225,6 +227,7 @@ const STANDARD = {
   en: {
     visuellIdentitet: "Visual identity",
     fargOchIkon: "Color and icon",
+    bildFargOchIkon: "Image, color and icon",
     visuellIdentitetHint: "How the group appears in lists and in the group switcher",
     farg: "Color",
     ikonEllerLogotyp: "Icon or initials",
@@ -282,7 +285,7 @@ const STANDARD = {
     taBortBild: "Remove image",
     bildFel: "The image could not be uploaded.",
     bildForStor: "The image is too large. 2 MB at most.",
-    bildHintRedigera: "PNG, WebP or JPEG, 2 MB at most. The image replaces the icon and initials.",
+    bildHintRedigera: "JPEG, PNG, WebP or GIF, 2 MB at most. The image replaces the icon and initials.",
     sparaFelTitel: "The changes could not be saved",
     modulerRubrik: "Tools",
     modulerHint: "A tool with its own page becomes a card under Tools, in the order you install them. A tool without one shows up where it adds to other pages. The group always has its calendar and inbox. Chat is a tool, with a card. The header icon, the connections and the tool's own settings open in the tool.",
@@ -543,7 +546,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
             <OpsIdentity name={namn.trim()} seed={befintlig?.id ?? "ny-grupp"} imageUrl={bild.url || undefined} size="lg" rund {...marke} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-etikett font-medium text-ink">{t.fargOchIkon}</span>
+            <span className="block text-etikett font-medium text-ink">{redigerar && onLaddaUppBild ? t.bildFargOchIkon : t.fargOchIkon}</span>
             <span className="block truncate text-meta text-ink-muted">{t.visuellIdentitetHint}</span>
           </span>
           <span aria-hidden="true" className={cx("shrink-0 text-ink-muted transition-transform duration-(--duration-fast)", identitetOppen && "rotate-180")}>
@@ -553,16 +556,18 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
 
         {identitetOppen ? (
           <div id={identitetId} className="mt-3 flex flex-col gap-3 rounded-base border border-line bg-canvas p-3">
-            <OpsGruppmarkeValjare namn={namn} seed={befintlig?.id ?? "ny-grupp"} farg={farg} ikon={ikon} onFarg={setFarg} onIkon={setIkon} sprak={sprak === "en" ? "en" : "sv"} t={t} idPrefix={identitetId} />
-            <div>
+            {/* ⛔ BILDEN FÖRST (#905). Den stod under ikonrutnätet, och på en telefon fick den som ville ha en bild rulla förbi ett tjugotal ikoner
+                för att hitta knappen. Redigeras en grupp utan uppladdning finns ingenting att säga här, och då ritas inget. */}
+            {!redigerar || onLaddaUppBild ? (
+              <div>
               {redigerar && onLaddaUppBild ? (
-                <div className="mt-3 flex flex-col gap-1" data-gruppbild="">
+                <div className="flex flex-col gap-1" data-gruppbild="">
                   <div className="flex flex-wrap items-center gap-2">
                     <label className="relative inline-flex">
                       <span className="sr-only">{bild.url ? t.bytBild : t.laddaUpp}</span>
                       <input
                         type="file"
-                        accept="image/png,image/webp,image/jpeg"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
                         disabled={bildArbete || upptagen}
                         className="peer absolute inset-0 size-full cursor-pointer opacity-0"
                         aria-label={bild.url ? t.bytBild : t.laddaUpp}
@@ -619,8 +624,10 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
                   ) : null}
                 </div>
               ) : null}
-              <p className="m-0 mt-2 text-hjalp text-ink-muted">{redigerar && onLaddaUppBild ? t.bildHintRedigera : redigerar ? "" : t.bildHint}</p>
-            </div>
+              <p className="m-0 mt-1 text-hjalp text-ink-muted">{redigerar ? t.bildHintRedigera : t.bildHint}</p>
+              </div>
+            ) : null}
+            <OpsGruppmarkeValjare namn={namn} seed={befintlig?.id ?? "ny-grupp"} farg={farg} ikon={ikon} onFarg={setFarg} onIkon={setIkon} sprak={sprak === "en" ? "en" : "sv"} t={t} idPrefix={identitetId} />
           </div>
         ) : null}
       </div>
