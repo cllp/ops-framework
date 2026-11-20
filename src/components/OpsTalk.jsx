@@ -319,7 +319,14 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
    * laddades om. Nu byts refarna när värdet byts. En omgång som pågår behåller sin egen (`omgangsIgk`), så den stoppas av den som startade den.
    */
   const igkVarde = useRef(igenkanning);
+  /**
+   * ⛔ DE TIDIGARE IGENKÄNNARNA STÄNGS OCKSÅ (granskningen av PR 634). En omgång som spelar in när appen byter behåller sin igenkännare, men Avbryt,
+   * avmonteringen och nästa starts `slapp` gick bara genom de nya refarna, så den gamlas mikrofon och anslutning stängdes aldrig av de vägarna.
+   * `skapadeIgk` tar därför med dem som fanns före bytet, och den som omgången kör.
+   */
+  const tidigareIgk = useRef(/** @type {Set<import("../lib/talk.js").Igenkanning>} */ (new Set()));
   if (igkVarde.current !== igenkanning) {
+    for (const g of [igkRef.current, igkWebRef.current]) if (g) tidigareIgk.current.add(g);
     igkVarde.current = igenkanning;
     const ny = igenkanning === true ? undefined : igenkanning && typeof igenkanning === "object" ? igenkanning : null;
     igkRef.current = ny;
@@ -327,7 +334,8 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
     egenIgenkanning.current = Boolean(igenkanning && typeof igenkanning === "object");
   }
   /** Igenkännarna som skapats, utan dubbletter: en egen igenkänning från appen är samma objekt i båda. */
-  const skapadeIgk = () => /** @type {import("../lib/talk.js").Igenkanning[]} */ ([...new Set([igkRef.current, igkWebRef.current].filter((g) => g))]);
+  const skapadeIgk = () =>
+    /** @type {import("../lib/talk.js").Igenkanning[]} */ ([...new Set([igkRef.current, igkWebRef.current, omgangsIgk.current, ...tidigareIgk.current].filter((g) => g))]);
   /** Igenkänningen som den här omgången använder, eller `null`. Sätts vid start. @type {{ current: import("../lib/talk.js").Igenkanning | null }} */
   const omgangsIgk = useRef(/** @type {import("../lib/talk.js").Igenkanning | null} */ (null));
   /** Omgången kör BARA igenkänningen och ingen inspelare (TALK med valen på WebKit). */
@@ -401,7 +409,13 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
   const upplasningRef = useRef(/** @type {import("../lib/talkrost.js").Upplasning | null | undefined} */ (upplasning === undefined ? undefined : upplasning || null));
   /** ⛔ SAMMA FÖR UPPLÄSNINGEN (0.248.0, #915): en ny från appen gäller från nästa svar. Ett svar som läses upp behåller sin (`uppl`, hämtad en gång per svar). */
   const upplasningVarde = useRef(upplasning);
+  /**
+   * ⛔ OCH DE TIDIGARE UPPLÄSARNA STOPPAS (granskningen av PR 634): ett svar som läses upp när appen byter behåller sin uppläsare, och stopp, en
+   * avslagen högtalare eller avmonteringen hade annars stoppat bara den nya, med det gamla ljudet kvar.
+   */
+  const tidigareUpplasare = useRef(/** @type {Set<import("../lib/talkrost.js").Upplasning>} */ (new Set()));
   if (upplasningVarde.current !== upplasning) {
+    if (upplasningRef.current) tidigareUpplasare.current.add(upplasningRef.current);
     upplasningVarde.current = upplasning;
     upplasningRef.current = upplasning === undefined ? undefined : upplasning || null;
   }
@@ -428,11 +442,14 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
   const upplasningPaRef = useRef(upplasningPa);
   upplasningPaRef.current = upplasningPa;
   const stoppaUpplasningen = () => {
-    try {
-      upplasningRef.current?.stoppa();
-    } catch (fel) {
-      rapporteraFel(fel, { yta: "OpsTalk", steg: "upplasning-stoppa" });
+    for (const u of new Set([upplasningRef.current, ...tidigareUpplasare.current])) {
+      try {
+        u?.stoppa();
+      } catch (fel) {
+        rapporteraFel(fel, { yta: "OpsTalk", steg: "upplasning-stoppa" });
+      }
     }
+    tidigareUpplasare.current.clear();
   };
   /** Samtalet slutar: inget sent svar eller uppläsning gör något mer. */
   const slutaRost = () => {

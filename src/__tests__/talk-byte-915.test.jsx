@@ -10,7 +10,8 @@ import { OpsAppShell } from "../components/OpsAppShell.jsx";
  * gång vid montering, så den första gruppens röst gällde tills sidan laddades om. Tre saker provas, alla genom skalet:
  *   1. en ny igenkänning används i nästa omgång och förbereds när den kommer;
  *   2. en omgång som pågår när bytet sker stoppas av den igenkänning som startade den;
- *   3. en ny uppläsning läser nästa svar.
+ *   3. en ny uppläsning läser nästa svar;
+ *   4. (granskningen av PR 634) en igenkännare eller uppläsare som var igång vid bytet stängs ändå av avbryt och avmontering.
  */
 
 function falskInspelare() {
@@ -129,5 +130,45 @@ describe("en ny uppläsning från appen", () => {
     expect(onAgent).toHaveBeenCalled();
     expect(u2.las).toHaveBeenCalledWith("Svaret.", expect.anything());
     expect(u1.las).not.toHaveBeenCalled();
+  });
+});
+
+describe("⛔ det som var igång vid bytet stängs ändå (granskningen av PR 634)", () => {
+  it("⛔ en omgång med a när appen ger b: avmonteringen kastar a", async () => {
+    const a = falskIgenkanning("Hej från A");
+    const b = falskIgenkanning("Hej från B");
+    const t = talk({ igenkanning: a });
+    const { rerender, unmount } = render(skal(t));
+    await flush();
+    fireEvent.click(huvudMikrofon());
+    await flush();
+    expect(a.starta).toHaveBeenCalledTimes(1);
+    rerender(skal({ ...t, igenkanning: b }));
+    await flush();
+    unmount();
+    expect(a.kasta).toHaveBeenCalled();
+  });
+
+  it("⛔ ett svar som läses upp av u1 när appen ger u2: avmonteringen stoppar u1", async () => {
+    const igk = falskIgenkanning("Fråga");
+    const u1 = { las: vi.fn(() => new Promise(() => {})), stoppa: vi.fn(), forbered: vi.fn() };
+    const u2 = falskUpplasning();
+    const onAgent = vi.fn(async () => ({ svar: async () => "Svaret.", vidare: vi.fn() }));
+    const t = talk({ igenkanning: igk, upplasning: u1, onAgent });
+    const { rerender, unmount } = render(skal(t));
+    await flush();
+    fireEvent.click(huvudMikrofon());
+    await flush();
+    klar();
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Agent" }));
+    await flush();
+    await flush();
+    expect(u1.las).toHaveBeenCalled();
+    rerender(skal({ ...t, upplasning: u2 }));
+    await flush();
+    u1.stoppa.mockClear();
+    unmount();
+    expect(u1.stoppa).toHaveBeenCalled();
   });
 });

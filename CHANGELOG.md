@@ -16,10 +16,11 @@ anteckningar är en version ingen kan välja att hoppa över.
 ### Ändrat
 - **En ny `igenkanning` gäller från nästa omgång**, och den förbereds (`forbered`) när den kommer. En omgång som pågår när värdet byts stoppas av den igenkänning som startade den.
 - **En ny `upplasning` läser nästa svar.** Ett svar som redan läses upp läses färdigt av den som började.
+- **Det som var igång vid bytet stängs ändå** (granskningen av PR 634): Avbryt, avmonteringen och nästa starts `slapp` går också genom igenkännaren som omgången kör och de som fanns före bytet, och stopp, en avslagen högtalare och avmonteringen stoppar också uppläsaren som läste när bytet kom.
 - Inget ändras för en app som ger samma objekt varje gång. Bytet styrs av identiteten, så en app som bygger ett nytt objekt i varje rendering byter i varje rendering: ge samma objekt så länge valet är detsamma.
 
 ### Prov
-- `talk-byte-915.test.jsx`, genom skalet: en ny igenkänning används i nästa omgång och förbereds, en omgång som pågår vid bytet stoppas av den som startade den, och en ny uppläsning läser nästa svar. Mot 0.247.0 röda 2 av 3, med ändringen gröna 3. Det tredje provet (omgången som pågår) är grönt också utan ändringen och vaktar att ändringen inte flyttar en pågående omgång.
+- `talk-byte-915.test.jsx`, genom skalet: en ny igenkänning används i nästa omgång och förbereds, en omgång som pågår vid bytet stoppas av den som startade den, och en ny uppläsning läser nästa svar. Mot 0.247.0 röda 2 av 3, med ändringen gröna 3. Det tredje provet (omgången som pågår) är grönt också utan ändringen och vaktar att ändringen inte flyttar en pågående omgång. Två prov till efter granskningen: en omgång med a som pågår när appen ger b kastas av avmonteringen, och ett svar som läses upp av u1 när appen ger u2 stoppas av avmonteringen. Mot förra versionen av ändringen röda 2 av 5, nu gröna 5 av 5.
 
 ## 0.247.0
 
