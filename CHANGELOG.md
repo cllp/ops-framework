@@ -9,6 +9,19 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.248.0
+
+**TALK följer en ny igenkänning och uppläsning från appen (cllp/lifehub.app#915).** CP 2026-11-20: "är soniox på i en grupp så är den på i alla ... det skall styras en och en." Appen ger en annan igenkänning när personen byter till en grupp som valt en annan röst, men skalet monterar inte om TALK vid ett gruppbyte. Till och med 0.247 lästes `talk.igenkanning` och `talk.upplasning` en gång, när fältet monterades, så den första gruppens röst gällde tills sidan laddades om.
+
+### Ändrat
+- **En ny `igenkanning` gäller från nästa omgång**, och den förbereds (`forbered`) när den kommer. En omgång som pågår när värdet byts stoppas av den igenkänning som startade den.
+- **En ny `upplasning` läser nästa svar.** Ett svar som redan läses upp läses färdigt av den som började.
+- **Det som var igång vid bytet stängs ändå** (granskningen av PR 634): Avbryt, avmonteringen och nästa starts `slapp` går också genom igenkännaren som omgången kör och de som fanns före bytet, och stopp, en avslagen högtalare och avmonteringen stoppar också uppläsaren som läste när bytet kom.
+- Inget ändras för en app som ger samma objekt varje gång. Bytet styrs av identiteten, så en app som bygger ett nytt objekt i varje rendering byter i varje rendering: ge samma objekt så länge valet är detsamma.
+
+### Prov
+- `talk-byte-915.test.jsx`, genom skalet: en ny igenkänning används i nästa omgång och förbereds, en omgång som pågår vid bytet stoppas av den som startade den, och en ny uppläsning läser nästa svar. Mot 0.247.0 röda 2 av 3, med ändringen gröna 3. Det tredje provet (omgången som pågår) är grönt också utan ändringen och vaktar att ändringen inte flyttar en pågående omgång. Två prov till efter granskningen: en omgång med a som pågår när appen ger b kastas av avmonteringen, och ett svar som läses upp av u1 när appen ger u2 stoppas av avmonteringen. Mot förra versionen av ändringen röda 2 av 5, nu gröna 5 av 5.
+
 ## 0.247.0
 
 **Appikonerna som inte ryms ligger bakom « i toppraden, inte i Meny (cllp/lifehub.app#909).** CP 2026-11-19 22:06: "När vi har många ikoner i toppraden kan vi fälla ut med en << som visar fler i sidled." Till och med 0.246 lades en appikon som inte rymdes som en rad i Meny. Därifrån syns den inte, och den som letar efter en app i toppraden letar inte i hamburgaren.
