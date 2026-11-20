@@ -12,9 +12,10 @@
  *      Tabellen i `HUVUDMENY_MAX` (1 vid 320, 2 vid 360, 3 vid 390 och 768, fler än 4 från 1024) är det här utfallet, och dold-klasserna i `HUVUDMENY_BREDDSTEG` är byggda på den.
  *   2. TAKET I BRUK, med fyra och med sju fästa appar (CP:s har sju), vid 15 bredder runt varje brytpunkt (320, 340, 359, 360, 375, 389, 390, 414, 600, 767, 768, 1000, 1023, 1024, 1280):
  *      a. Toppraden ska rymmas: ingen rullning, ingen klippning, inget överlapp (RÖTT annars, utom 320 px, se nedan).
- *      b. ⛔ VARJE APP STÅR PÅ EXAKT ETT STÄLLE: som synlig ikon i toppraden eller som synlig rad i Meny (bottenradens ark under 768 px, huvudets meny från 768 px).
- *         Aldrig på båda och aldrig på inget. Det är det som gör att en dold ikon inte försvinner.
- *      c. Med sju: de efter de första fyra står i Meny på alla bredder.
+ *      b. ⛔ VARJE APP STÅR PÅ EXAKT ETT STÄLLE: som synlig ikon i toppraden eller som synlig ikon bakom « (0.247.0, cllp/lifehub.app#909, CP: "fälla ut med en <<
+ *         som visar fler i sidled"). Aldrig på båda och aldrig på inget, och ALDRIG som en rad i Meny (bottenradens ark under 768 px, huvudets meny från 768 px), där appen låg
+ *         till och med 0.246. Det är det som gör att en dold ikon inte försvinner.
+ *      c. Med sju: de efter de första fyra står bakom « på alla bredder.
  *      d. ⛔ INGEN SYNLIG RUBRIK ÖVER DOLDA RADER (granskningen av 360f0ed): en avdelning i Meny som syns och har länkar ska ha minst en synlig länk. Mäts också utan Sök och
  *         Fråga (`utanSok`, som en app utan flyttade åtgärder), för annars är avdelningen "Appen" aldrig tom: de flyttas dit som rader som alltid syns. Fyra, tre och två
  *         fästa appar, och sju, vid alla bredder. Gäller bottenradens Meny (under 768 px) och "Fler appar" i huvudets meny (från 768 px).
@@ -23,8 +24,9 @@
  * 320 px: tabellen säger 1, och dold-klasserna visar 1 där också. Klungan tränger in 0 px. Mäts som alla andra bredder.
  *
  * ⛔ GOLV: minst 54 kapacitets- och 90 bruksmätpunkter måste ha hittat huvudet och minst en kontroll i det.
- * ⛔ BEVISET ÅT MOTSATT HÅLL (`--bevisa`), två gånger: (1) en dold-klass tas bort ur ikon 1 vid 320 px, och mätaren MÅSTE bli röd (raden klipps, appen står på två ställen).
- *    (2) den omvända klassen tas bort ur ikon 1:s rad i Meny vid 400 px, och mätaren MÅSTE bli röd (appen står på två ställen). En mätare som aldrig sett ett fel är ingen vakt (regel 4).
+ * ⛔ BEVISET ÅT MOTSATT HÅLL (`--bevisa`), tre gånger: (1) en dold-klass tas bort ur ikon 1 vid 320 px, och mätaren MÅSTE bli röd (raden klipps, appen står på två ställen).
+ *    (2) den omvända klassen tas bort ur ikon 1 bakom « vid 400 px, och mätaren MÅSTE bli röd (appen står på två ställen). (3) « döljs vid 400 px, och mätaren MÅSTE bli röd (de
+ *    dolda apparna står ingenstans). En mätare som aldrig sett ett fel är ingen vakt (regel 4).
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -138,6 +140,21 @@ async function synligaMenyrader(page, bredd) {
 const harRad = (rader, namn) => rader.some((r) => r.includes(namn));
 
 /**
+ * Öppnar « om den syns och ger namnen på apparna som SYNS i raden bakom den (0.247.0, #909). Stänger raden igen, så att Meny kan öppnas efteråt.
+ * @param {import("playwright").Page} page @returns {Promise<{ knapp: boolean, appar: string[] }>}
+ */
+async function bakomFler(page) {
+  const knapp = page.locator("header [data-huvudmeny-fler-knapp]");
+  if (!(await knapp.count()) || !(await knapp.isVisible())) return { knapp: false, appar: [] };
+  await knapp.click();
+  await page.waitForSelector("[data-huvudmeny-fler-rad]", { timeout: 4000 });
+  const appar = await page.$$eval("[data-huvudmeny-fler-rad] a", (as) => as.filter((a) => a.getBoundingClientRect().width > 0).map((a) => (a.getAttribute("aria-label") || a.textContent || "").trim()));
+  await page.keyboard.press("Escape");
+  await page.waitForSelector("[data-huvudmeny-fler-rad]", { state: "detached", timeout: 4000 }).catch(() => {});
+  return { knapp: true, appar };
+}
+
+/**
  * Mäter en bredd med `antal` fästa appar: raden, och var varje app står.
  * @param {number} bredd @param {number} antal @param {((page: import("playwright").Page) => Promise<void>) | undefined} [forandra] Ändrar sidan före mätningen (bara beviset). @param {boolean} [utanSok] Ingen Sök och Fråga: inga flyttade åtgärder i Meny.
  */
@@ -145,6 +162,7 @@ async function matBruk(bredd, antal, forandra, utanSok = false) {
   const { page, context, sidfel } = await rita(bredd, { lage: "tak", antal, utanSok });
   if (forandra) await forandra(page);
   const m = await page.evaluate(mat);
+  const fler = await bakomFler(page);
   const { rader, tomma } = await synligaMenyrader(page, bredd);
   await context.close();
   /** @type {string[]} */
@@ -155,16 +173,19 @@ async function matBruk(bredd, antal, forandra, utanSok = false) {
   const placering = [];
   for (const namn of APPNAMN.slice(0, antal)) {
     const iHuvud = m.apparIHuvudet.includes(namn);
+    const bakom = fler.appar.includes(namn);
     const iMeny = harRad(rader, namn);
-    placering.push(`${namn}:${iHuvud ? "H" : ""}${iMeny ? "M" : ""}`);
-    if (iHuvud && iMeny) f.push(`${namn} står på TVÅ ställen (toppraden och Meny)`);
-    if (!iHuvud && !iMeny) f.push(`${namn} står INGENSTANS (varken i toppraden eller i Meny)`);
+    placering.push(`${namn}:${iHuvud ? "H" : ""}${bakom ? "F" : ""}${iMeny ? "M" : ""}`);
+    if (iHuvud && bakom) f.push(`${namn} står på TVÅ ställen (toppraden och bakom «)`);
+    if (!iHuvud && !bakom) f.push(`${namn} står INGENSTANS (varken i toppraden eller bakom «)`);
+    if (iMeny) f.push(`${namn} står som en rad i Meny, och apparna ska ligga bakom « (#909)`);
   }
-  // Med fler än taket ska de efter de första `max` stå i Meny.
-  for (const namn of APPNAMN.slice(m.max, antal)) if (!harRad(rader, namn)) f.push(`${namn} (efter de första ${m.max}) saknas i Meny`);
+  if (fler.knapp && fler.appar.length === 0) f.push("« syns men har inga appar bakom sig");
+  // Med fler än taket ska de efter de första `max` stå bakom «.
+  for (const namn of APPNAMN.slice(m.max, antal)) if (!fler.appar.includes(namn)) f.push(`${namn} (efter de första ${m.max}) saknas bakom «`);
   if (m.apparIHuvudet.length > m.max) f.push(`${m.apparIHuvudet.length} appikoner i toppraden, taket är ${m.max}`);
   for (const d of tomma) f.push(`avdelningen "${d}" i Meny syns med sin rubrik men utan en enda synlig rad`);
-  return { m, f, placering, rader };
+  return { m, f, placering, rader, fler };
 }
 
 if (bevisa) {
@@ -181,47 +202,33 @@ if (bevisa) {
   }));
   console.log(`bevis 1: dold-klassen borttagen ur ikon 1 vid 320 px: ${ett.f.length ? `RÖTT som väntat (${ett.f.join(" | ")})` : "GRÖNT, och det är fel"}`);
   if (ett.f.length === 0) falsk.push("bevis 1");
-  // (2) Den omvända klassen borttagen ur ikon 1:s rad i Meny vid 400 px: appen står i toppraden och i Meny.
-  // Raden finns först när Meny är öppen, så klassen tas bort efter öppningen.
+  // (2) Den omvända klassen borttagen ur ikon 1 bakom « vid 400 px: Meddelanden står i toppraden och bakom «.
   {
     const { page, context } = await rita(400, { lage: "tak", antal: max });
     const m = await page.evaluate(mat);
-    await page.getByRole("navigation", { name: "Snabbnavigering" }).getByRole("button", { name: "Meny" }).click();
-    await page.waitForSelector('[role="dialog"]', { timeout: 4000 });
+    await page.locator("header [data-huvudmeny-fler-knapp]").click();
+    await page.waitForSelector("[data-huvudmeny-fler-rad]", { timeout: 4000 });
     await page.evaluate(() => {
-      for (const d of document.querySelectorAll('[role="dialog"] a')) {
-        const o = d.parentElement;
-        if (o && (d.textContent || "").includes("Meddelanden")) o.className = o.className.replace("min-[360px]:hidden", "");
-      }
+      const el = document.querySelector('[data-huvudmeny-fler-rad] [data-huvudmeny-fler-plats="1"]');
+      if (el) el.className = el.className.replace("min-[390px]:max-lg:hidden", "");
+      else throw new Error("ikon 1 saknar omslag bakom «");
     });
-    const rader = await page.$$eval('[role="dialog"] a', (as) => as.filter((a) => a.getBoundingClientRect().height > 0).map((a) => (a.textContent || "").trim()));
+    const bakom = await page.$$eval("[data-huvudmeny-fler-rad] a", (as) => as.filter((a) => a.getBoundingClientRect().width > 0).map((a) => (a.getAttribute("aria-label") || a.textContent || "").trim()));
     await context.close();
-    const dubbel = m.apparIHuvudet.includes("Meddelanden") && harRad(rader, "Meddelanden");
-    console.log(`bevis 2: den omvända klassen borttagen ur ikon 1:s rad i Meny vid 400 px: ${dubbel ? "RÖTT som väntat (Meddelanden står på TVÅ ställen)" : "GRÖNT, och det är fel"}`);
+    const dubbel = m.apparIHuvudet.includes("Meddelanden") && bakom.includes("Meddelanden");
+    console.log(`bevis 2: den omvända klassen borttagen ur ikon 1 bakom « vid 400 px: ${dubbel ? "RÖTT som väntat (Meddelanden står på TVÅ ställen)" : "GRÖNT, och det är fel"}`);
     if (!dubbel) falsk.push("bevis 2");
   }
-  // (3) Klassen på avdelningen "Appen" borttagen vid 600 px med tre fästa appar och utan Sök: rubriken står kvar över dolda rader.
+  // (3) « dold vid 400 px: de appar som inte ryms står ingenstans.
   {
-    const { page, context } = await rita(600, { lage: "tak", antal: 3, utanSok: true });
-    await page.getByRole("navigation", { name: "Snabbnavigering" }).getByRole("button", { name: "Meny" }).click();
-    await page.waitForSelector('[role="dialog"]', { timeout: 4000 });
-    const fore = await page.evaluate(() => {
-      const d = document.querySelector('[data-meny-avdelning="app"]');
-      return d ? d.getBoundingClientRect().height : -1;
-    });
-    await page.evaluate(() => {
-      const d = document.querySelector('[data-meny-avdelning="app"]');
-      if (d) d.className = d.className.replace(/min-\[\d+px\]:hidden/g, "");
-    });
-    const efter = await page.evaluate(() => {
-      const d = document.querySelector('[data-meny-avdelning="app"]');
-      if (!d) return { hojd: -1, synligaRader: -1 };
-      return { hojd: d.getBoundingClientRect().height, synligaRader: [...d.querySelectorAll("a")].filter((a) => a.getBoundingClientRect().height > 0).length };
-    });
-    await context.close();
-    const tom = fore === 0 && efter.hojd > 0 && efter.synligaRader === 0;
-    console.log(`bevis 3: avdelningens klass borttagen vid 600 px (tre appar, utan Sök): ${tom ? "RÖTT som väntat (rubriken syns ovanför noll synliga rader)" : "GRÖNT, och det är fel"} (höjd före ${fore}, efter ${efter.hojd}, synliga rader ${efter.synligaRader})`);
-    if (!tom) falsk.push("bevis 3");
+    const tre = await matBruk(400, max, (page) => page.evaluate(() => {
+      const el = document.querySelector("header [data-huvudmeny-fler]");
+      if (el) el.className = `${el.className} hidden`;
+      else throw new Error("« saknas vid 400 px");
+    }));
+    const ingenstans = tre.f.some((x) => x.includes("INGENSTANS"));
+    console.log(`bevis 3: « dold vid 400 px: ${ingenstans ? `RÖTT som väntat (${tre.f.join(" | ")})` : "GRÖNT, och det är fel"}`);
+    if (!ingenstans) falsk.push("bevis 3");
   }
   await browser.close();
   stada();
@@ -269,14 +276,17 @@ const kapVid = (bredd) => kapacitet[[...KAP_BREDDER].reverse().find((b) => b <= 
 const BRUK = [[Math.min(4, max), false], [7, false], [4, true], [3, true], [2, true], [7, true]];
 for (const [antal, utanSok] of BRUK) {
   for (const bredd of BRUKS_BREDDER) {
-    const { m, f, placering } = await matBruk(bredd, antal, undefined, utanSok);
+    const { m, f, placering, fler } = await matBruk(bredd, antal, undefined, utanSok);
     if (m.antal >= 2) punkter++;
     const synliga = m.apparIHuvudet.length;
     const cap = kapVid(bredd);
-    if (synliga > cap) f.push(`${synliga} synliga appikoner men bara ${cap} ryms vid ${bredd} px`);
-    const varning = synliga < Math.min(cap, antal, max) ? `  VARNING: ${synliga} syns men ${Math.min(cap, antal, max)} hade rymts` : "";
-    console.log(`bruk ${String(antal).padStart(1)} appar${utanSok ? " utan sök" : ""} ${String(bredd).padStart(4)} px: ${synliga} i toppraden (ryms ${cap}), längst ut ${m.langstUt.toFixed(0)} av ${m.inneKant === null ? "?" : m.inneKant.toFixed(0)}${f.length ? `  ROTT: ${f.join(" | ")}` : ""}${varning}`);
-    if (antal === 7 && !utanSok && (bredd === 360 || bredd === 768)) console.log(`   ${placering.join(" ")}   (H toppraden, M Meny)`);
+    // ⛔ « TAR EN PLATS (0.247.0, #909): ryms inte alla syns cap - 1 ikoner och «.
+    const platser = synliga + (fler.knapp ? 1 : 0);
+    if (platser > cap) f.push(`${synliga} synliga appikoner${fler.knapp ? " och «" : ""} men bara ${cap} platser vid ${bredd} px`);
+    const vantat = antal <= Math.min(cap, max) ? antal : Math.min(cap - 1, max);
+    const varning = synliga < vantat ? `  VARNING: ${synliga} syns men ${vantat} hade rymts${antal > vantat ? " bredvid «" : ""}` : "";
+    console.log(`bruk ${String(antal).padStart(1)} appar${utanSok ? " utan sök" : ""} ${String(bredd).padStart(4)} px: ${synliga} i toppraden${fler.knapp ? ` och « med ${fler.appar.length}` : ""} (ryms ${cap}), längst ut ${m.langstUt.toFixed(0)} av ${m.inneKant === null ? "?" : m.inneKant.toFixed(0)}${f.length ? `  ROTT: ${f.join(" | ")}` : ""}${varning}`);
+    if (antal === 7 && !utanSok && (bredd === 360 || bredd === 768)) console.log(`   ${placering.join(" ")}   (H toppraden, F bakom «, M Meny)`);
     for (const x of f) fel.push(`bruk ${antal} appar${utanSok ? " utan sök" : ""} ${bredd}: ${x}`);
   }
 }

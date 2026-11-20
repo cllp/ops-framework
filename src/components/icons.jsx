@@ -36,7 +36,7 @@
  */
 
 import { KALLMARKEN } from "../lib/kallmarken.js";
-import { Archive, ArchiveRestore, AudioLines, Volume2, VolumeX, Copy, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Play, Reply, SkipBack, SkipForward, Square, StickyNote, ThumbsUp, ArrowRight, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarRange, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Info, Layers, Lock, LogOut, MessagesSquare, Mic, SendHorizontal, MapPin, Menu, Minimize2, PanelRightOpen, Paperclip, Pencil, Smile, User, UserX, UsersRound, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, AudioLines, Volume2, VolumeX, Copy, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pause, Play, Reply, SkipBack, SkipForward, Square, StickyNote, ThumbsUp, ArrowRight, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarRange, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Info, Layers, Lock, LogOut, MessagesSquare, Mic, SendHorizontal, MapPin, Menu, Minimize2, PanelRightOpen, Paperclip, Pencil, Smile, User, UserX, UsersRound, Zap } from "lucide-react";
 import { IKON_FOR } from "./ikonlexikon.js";
 
 /** Reaktionen "tumme" (0.75.0). @param {{ size?: number }} props */
@@ -223,6 +223,11 @@ export function ChevronHogerIkon({ size = 16 }) {
 /** Tillbaka till föregående vy i en panel. @param {{ size?: number }} props */
 export function ChevronVansterIkon({ size = 16 }) {
   return <ChevronLeft size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** « i toppraden: fäller ut appikonerna som inte ryms (0.247.0, cllp/lifehub.app#909, CP: "en << som visar fler i sidled"). @param {{ size?: number }} props */
+export function DubbelChevronVansterIkon({ size = 20 }) {
+  return <ChevronsLeft size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**

@@ -9,6 +9,25 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.247.0
+
+**Appikonerna som inte ryms ligger bakom « i toppraden, inte i Meny (cllp/lifehub.app#909).** CP 2026-11-19 22:06: "När vi har många ikoner i toppraden kan vi fälla ut med en << som visar fler i sidled." Till och med 0.246 lades en appikon som inte rymdes som en rad i Meny. Därifrån syns den inte, och den som letar efter en app i toppraden letar inte i hamburgaren.
+
+### Ändrat
+- **« sist bland appikonerna** (`OpsHuvudmenyFler`) på de bredder där någon inte ryms. Ett tryck visar de dolda ikonerna på en vågrät rad direkt under toppraden, högerställd under knappen. Ett tryck på en ikon navigerar och stänger raden, och Escape och ett tryck utanför stänger den också.
+- **« tar en plats.** Ryms tre ikoner och gruppen har fyra, syns två och «. Ryms alla syns ingen «.
+- **Varje app står på exakt ett ställe på varje bredd:** i toppraden eller bakom «, aldrig båda, aldrig ingenstans och aldrig i Meny. Det styrs med CSS-klasser per bredd (`HUVUDMENY_BAND`, `huvudmenyFordelning`), inte med en mätning vid körning, så raden hoppar inte.
+- En grupp med fler än taket (CP:s hade sju) har resten bakom « på alla bredder. Taket man får välja är oförändrat (`HUVUDMENY_MAX` = 4).
+- Navigeringen "Fler verktyg" i huvudets meny och appraderna i bottenradens Meny finns inte längre. Flyttade åtgärder (Sök, Fråga) ligger kvar i Meny som förut.
+
+### Borttaget
+- `HUVUDMENY_BREDDSTEG` (internt). Ersatt av `HUVUDMENY_BAND` och `huvudmenyFordelning`, som också exporteras.
+
+### Prov
+- `huvudmeny-tak.test.jsx`: varje app på exakt ett ställe vid 15 bredder för 1, 2, 3, 4 och 7 appar, att « tar en plats, att en ensam app inte får någon «, att Meny inte har apprader, att ett tryck bakom « navigerar och stänger, och namnet på båda språken. Mot 0.246.1 röda 6 av 24, med ändringen gröna 24.
+- `scripts/huvudmeny-matt.mjs` (Chromium, byggd dist): 144 mätpunkter, inga brott och inga varningar. Bevisen åt andra hållet blir röda alla tre: en dold-klass borttagen vid 320 px (klipps och står på två ställen), den omvända klassen borttagen bakom « vid 400 px (två ställen), och « dold vid 400 px (två appar står ingenstans).
+- Kapaciteten vid 1024 px mättes till 5 appikoner, inte 6 som stod i `HUVUDMENY_MAX`:s tabell sedan 0.177.0. Fyra ikoner och « ryms där.
+
 ## 0.246.1
 
 **Gruppens bild går att hitta (cllp/lifehub.app#905).** Bildväljaren i `OpsGruppFormular` stod under ikonrutnätet, i en rad som hette "Färg och ikon". På en telefon fick den som ville ha en bild rulla förbi ett tjugotal ikoner, i en rad som inte nämnde bild. Sett i appens skärmbilder på 390 px, 2026-11-20.
