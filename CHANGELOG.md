@@ -14,7 +14,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 **Appikonerna som inte ryms ligger bakom « i toppraden, inte i Meny (cllp/lifehub.app#909).** CP 2026-11-19 22:06: "När vi har många ikoner i toppraden kan vi fälla ut med en << som visar fler i sidled." Till och med 0.246 lades en appikon som inte rymdes som en rad i Meny. Därifrån syns den inte, och den som letar efter en app i toppraden letar inte i hamburgaren.
 
 ### Ändrat
-- **« sist bland appikonerna** (`OpsHuvudmenyFler`) på de bredder där någon inte ryms. Ett tryck visar de dolda ikonerna på en rad till vänster om knappen, ovanpå toppraden. Ett tryck på en ikon navigerar och stänger raden, och Escape och ett tryck utanför stänger den också.
+- **« sist bland appikonerna** (`OpsHuvudmenyFler`) på de bredder där någon inte ryms. Ett tryck visar de dolda ikonerna på en vågrät rad direkt under toppraden, högerställd under knappen. Ett tryck på en ikon navigerar och stänger raden, och Escape och ett tryck utanför stänger den också.
 - **« tar en plats.** Ryms tre ikoner och gruppen har fyra, syns två och «. Ryms alla syns ingen «.
 - **Varje app står på exakt ett ställe på varje bredd:** i toppraden eller bakom «, aldrig båda, aldrig ingenstans och aldrig i Meny. Det styrs med CSS-klasser per bredd (`HUVUDMENY_BAND`, `huvudmenyFordelning`), inte med en mätning vid körning, så raden hoppar inte.
 - En grupp med fler än taket (CP:s hade sju) har resten bakom « på alla bredder. Taket man får välja är oförändrat (`HUVUDMENY_MAX` = 4).

@@ -11,8 +11,11 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  *
  * ══ ⛔ HÄNDELSEN: CP 2026-11-19 22:06, cllp/lifehub.app#909 ═══════════════════════════════════════════════════════════════════════
  * "När vi har många ikoner i toppraden kan vi fälla ut med en << som visar fler i sidled." Till och med 0.246 lades en appikon som inte rymdes som en rad i Meny. Därifrån
- * syns den inte, och den som letar efter en app i toppraden letar inte i hamburgaren. Nu står « sist bland appikonerna, och ett tryck visar de dolda ikonerna på en rad
- * till vänster om knappen, ovanpå toppraden.
+ * syns den inte, och den som letar efter en app i toppraden letar inte i hamburgaren. Nu står « sist bland appikonerna, och ett tryck visar de dolda ikonerna på en vågrät
+ * rad direkt under toppraden, högerställd under knappen.
+ *
+ * ⛔ UNDER, INTE BREDVID. Första versionen fällde ut raden till vänster om knappen, ovanpå toppraden. Skärmbilden vid 390 px visade att den då täckte de ikoner som
+ * syns, och att deras räknare stack fram under kanten. Under toppraden står raden fri, och de synliga ikonerna går fortfarande att trycka på.
  *
  * ⛔ VAD SOM ÄR DOLT AVGÖRS AV CSS, INTE AV EN MÄTNING. Skalet ger varje ikon i raden en klass som döljer den där den inte ryms, och samma ikon i raden här en klass som döljer den
  * där den syns i toppraden (`huvudmenyFordelning`). Knappen själv bär en klass som döljer den där alla ryms. En app står därför på exakt ett ställe på varje bredd, och raden
@@ -44,8 +47,8 @@ export function OpsHuvudmenyFler({ children, klass = "" }) {
         </Popover.Trigger>
         <Popover.Portal>
           <Popover.Content
-            side="left"
-            align="center"
+            side="bottom"
+            align="end"
             sideOffset={4}
             collisionPadding={8}
             aria-label={namn}
