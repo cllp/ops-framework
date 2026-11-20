@@ -212,7 +212,7 @@ describe("⛔ OpsGruppFormular i redigeringsläge", () => {
     const onLaddaUppBild = vi.fn(async () => ({ sokvag: "grupper/g1/ny.png", url: "https://x/ny.png" }));
     const { onSpara } = rita({ onLaddaUppBild });
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /Färg och ikon/ }));
+    await user.click(screen.getByRole("button", { name: /Bild, färg och ikon/ }));
     const fil = new File(["x"], "ny.png", { type: "image/png" });
     await user.upload(screen.getByLabelText("Ladda upp bild"), fil);
     await waitFor(() => expect(onLaddaUppBild).toHaveBeenCalledWith(fil));
@@ -225,7 +225,7 @@ describe("⛔ OpsGruppFormular i redigeringsläge", () => {
     const onLaddaUppBild = vi.fn(async () => { throw new Error("nej"); });
     rita({ onLaddaUppBild });
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /Färg och ikon/ }));
+    await user.click(screen.getByRole("button", { name: /Bild, färg och ikon/ }));
     const stor = new File([new Uint8Array(2 * 1024 * 1024 + 1)], "stor.png", { type: "image/png" });
     await user.upload(screen.getByLabelText("Ladda upp bild"), stor);
     expect(await screen.findByText("Bilden är för stor. Högst 2 MB.")).toBeInTheDocument();
@@ -238,12 +238,30 @@ describe("⛔ OpsGruppFormular i redigeringsläge", () => {
     const onTaBortBild = vi.fn(async () => {});
     const { onSpara } = rita({ bildUrl: "https://x/a.png", onLaddaUppBild: async () => ({ sokvag: "", url: "" }), onTaBortBild });
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /Färg och ikon/ }));
+    await user.click(screen.getByRole("button", { name: /Bild, färg och ikon/ }));
     await user.click(screen.getByRole("button", { name: "Ta bort bilden" }));
     await waitFor(() => expect(onTaBortBild).toHaveBeenCalled());
     skicka();
     await waitFor(() => expect(onSpara).toHaveBeenCalled());
     expect(onSpara.mock.calls[0][0].grupp.bild).toBe("");
+  });
+
+  it("⛔ bilden står först i raden, och raden heter Bild, färg och ikon (#905)", async () => {
+    // Rob, via CP 2026-11-19: en bild i stället för ikoner och färg. Knappen stod under ikonrutnätet, och raden hette bara Färg och ikon.
+    rita({ onLaddaUppBild: async () => ({ sokvag: "", url: "" }) });
+    await userEvent.setup().click(screen.getByRole("button", { name: /Bild, färg och ikon/ }));
+    const bild = /** @type {HTMLElement} */ (document.querySelector("[data-gruppbild]"));
+    const farg = screen.getByText("Färg", { selector: "label, span, p, legend, div" });
+    expect(bild.compareDocumentPosition(farg) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByLabelText("Ladda upp bild").getAttribute("accept")).toBe("image/jpeg,image/png,image/webp,image/gif");
+    expect(screen.getByText(/JPEG, PNG, WebP eller GIF, högst 2 MB/)).toBeInTheDocument();
+  });
+
+  it("utan uppladdning heter raden Färg och ikon, och ingen tom bildrad ritas", async () => {
+    rita();
+    await userEvent.setup().click(screen.getByRole("button", { name: /^Färg och ikon/ }));
+    expect(screen.queryByText(/högst 2 MB/)).toBeNull();
+    expect(screen.queryByText(/Bild, färg och ikon/)).toBeNull();
   });
 
   it("utan onSpara kastar redigeringsläget, och utan onLaddaUppBild finns ingen bildväljare", async () => {

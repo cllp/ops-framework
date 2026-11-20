@@ -9,6 +9,19 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.246.1
+
+**Gruppens bild går att hitta (cllp/lifehub.app#905).** Bildväljaren i `OpsGruppFormular` stod under ikonrutnätet, i en rad som hette "Färg och ikon". På en telefon fick den som ville ha en bild rulla förbi ett tjugotal ikoner, i en rad som inte nämnde bild. Sett i appens skärmbilder på 390 px, 2026-11-20.
+
+### Ändrat
+- **Raden heter "Bild, färg och ikon"** när appen ger `onLaddaUppBild` (etiketten `bildFargOchIkon`). Utan uppladdning heter den som förut.
+- **Bilden står först i raden**, före färg och ikon.
+- **Väljaren tar GIF**, som regeln (`lagringsregelfragment({ gruppbilder })`) redan tog. Raden under säger "JPEG, PNG, WebP eller GIF, högst 2 MB".
+- Redigeras en grupp utan uppladdning ritas ingen tom bildrad.
+
+### Prov
+- `gruppg2.test.jsx`: bilden före färgen i dokumentet, radens namn, `accept` och texten. Mot 0.246.0 röda 4 av 32 (det nya provet och de tre som öppnar raden med sitt nya namn). Provet för en grupp utan uppladdning är grönt mot båda: det vaktar villkoret som tillkom.
+
 ## 0.246.0
 
 **Lång text i chatten blir en fil (cllp/lifehub.app#903), och gruppens bild får en lagringsregel (#905).** CP 2026-11-19, i ett samtal med Lars: "Lång text i chatten. Lägg till som en fil, med storleksbegränsning istället."
