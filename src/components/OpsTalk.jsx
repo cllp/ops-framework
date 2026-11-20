@@ -302,6 +302,7 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
    * Soniox hämtade nyckel och anslöt först när omgången började, och stoppet väntade över 3 s. `forbered` gör det i förväg: när fältet monteras,
    * i trycket (före långtrycket) och efter varje omgång. Bara för en igenkänning appen gett, eftersom webbläsarens egen inte har något att hämta.
    */
+  const forberettForut = useRef(false);
   const forberedIgenkanning = (/** @type {string} */ nar) => {
     const g = egenIgenkanning.current ? igkRef.current : null;
     if (!g || typeof g.forbered !== "function") return;
@@ -311,6 +312,20 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
       rapporteraFel(fel, { yta: "OpsTalk", steg: "igenkanning-forbered", nar });
     }
   };
+  /**
+   * ⛔ EN NY IGENKÄNNING FRÅN APPEN GÄLLER FRÅN NÄSTA OMGÅNG (0.248.0, cllp/lifehub.app#915). Förut lästes `igenkanning` en gång, när fältet
+   * monterades. CP 2026-11-20: "är soniox på i en grupp så är den på i alla ... det skall styras en och en." Appen ger en annan igenkänning när
+   * personen byter till en grupp som valt en annan röst, men skalet monterar inte om TALK vid ett gruppbyte, så den gamla stod kvar tills sidan
+   * laddades om. Nu byts refarna när värdet byts. En omgång som pågår behåller sin egen (`omgangsIgk`), så den stoppas av den som startade den.
+   */
+  const igkVarde = useRef(igenkanning);
+  if (igkVarde.current !== igenkanning) {
+    igkVarde.current = igenkanning;
+    const ny = igenkanning === true ? undefined : igenkanning && typeof igenkanning === "object" ? igenkanning : null;
+    igkRef.current = ny;
+    igkWebRef.current = ny;
+    egenIgenkanning.current = Boolean(igenkanning && typeof igenkanning === "object");
+  }
   /** Igenkännarna som skapats, utan dubbletter: en egen igenkänning från appen är samma objekt i båda. */
   const skapadeIgk = () => /** @type {import("../lib/talk.js").Igenkanning[]} */ ([...new Set([igkRef.current, igkWebRef.current].filter((g) => g))]);
   /** Igenkänningen som den här omgången använder, eller `null`. Sätts vid start. @type {{ current: import("../lib/talk.js").Igenkanning | null }} */
@@ -384,6 +399,12 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
    * att samtalet slutat eller gått vidare gör ingenting.
    */
   const upplasningRef = useRef(/** @type {import("../lib/talkrost.js").Upplasning | null | undefined} */ (upplasning === undefined ? undefined : upplasning || null));
+  /** ⛔ SAMMA FÖR UPPLÄSNINGEN (0.248.0, #915): en ny från appen gäller från nästa svar. Ett svar som läses upp behåller sin (`uppl`, hämtad en gång per svar). */
+  const upplasningVarde = useRef(upplasning);
+  if (upplasningVarde.current !== upplasning) {
+    upplasningVarde.current = upplasning;
+    upplasningRef.current = upplasning === undefined ? undefined : upplasning || null;
+  }
   const upplasaren = () => {
     if (upplasningRef.current === undefined) upplasningRef.current = webblasarensUpplasning();
     return upplasningRef.current;
@@ -1410,10 +1431,11 @@ export function useTalk({ onTalk, onKlick, onAgent, onAnteckning, tillText, samt
   }, [rostLyssnar, rostHarText, text]);
   // ⛔ (0.244.0) Appens igenkänning förbereds när fältet monteras, så att första trycket inte väntar på en nyckel och en anslutning.
   useEffect(() => {
-    forberedIgenkanning("montering");
-    // `forberedIgenkanning` läser bara refar. En gång per montering.
+    forberedIgenkanning(forberettForut.current ? "byte" : "montering");
+    forberettForut.current = true;
+    // `forberedIgenkanning` läser bara refar. En gång per montering, och en gång till när appen ger en ny igenkänning (0.248.0, #915).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [igenkanning]);
   // Ett nytt tak medan en inspelning har ett tak satt: räkna om från starten (se `planeraTak`).
   useEffect(() => {
     if (tak.current) planeraTak();
