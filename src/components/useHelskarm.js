@@ -64,11 +64,31 @@ export function useHelskarm(yta) {
     return () => document.removeEventListener("fullscreenchange", vid);
   }, [lage, yta]);
 
+  /*
+   * ⛔ OCH EN BEGÄRAN SOM FORTFARANDE VÄNTAR AVSLUTAS NÄR DEN KOMMER FRAM (GPT:s granskning av PR 636). `requestFullscreen()` är asynkron. Lämnas vyn
+   * innan webbläsaren gått in i helskärm är `fullscreenElement` ännu tom vid avmonteringen, och en begäran som lyckas efteråt lägger sidan i helskärm
+   * utan någon kvar som äger den. Därför lyssnar avmonteringen en gång på `fullscreenchange` och `fullscreenerror`: blir det vårt element avslutas
+   * helskärmen, annars lämnas den (någon annans, eller ingen).
+   */
   useEffect(
     () => () => {
       const egen = agd.current;
       agd.current = null;
-      if (egen && document.fullscreenElement === egen) document.exitFullscreen?.()?.catch(() => {});
+      if (!egen) return;
+      const lamna = () => {
+        if (document.fullscreenElement === egen) document.exitFullscreen?.()?.catch(() => {});
+      };
+      if (document.fullscreenElement === egen) {
+        lamna();
+        return;
+      }
+      const sent = () => {
+        document.removeEventListener("fullscreenchange", sent);
+        document.removeEventListener("fullscreenerror", sent);
+        lamna();
+      };
+      document.addEventListener("fullscreenchange", sent);
+      document.addEventListener("fullscreenerror", sent);
     },
     [],
   );

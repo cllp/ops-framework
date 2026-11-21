@@ -14,7 +14,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 **Helskärmen avslutas när den vy som bad om den avmonteras (GPT:s granskning av cllp/lifehub.app PR 922, #921).** Tavlan lägger hela sidan (`document.documentElement`) i helskärm, och sidan finns kvar när tavlan avmonteras. Mätt i byggd Chromium på 390 och 1280: Helskärm, öppna ett kort med ikonen, tillbaka till tavlan. Då var sidan fortfarande i webbläsarens helskärm, och den nya tavlan saknade Stäng helskärm.
 
 ### Rättat
-- **`useHelskarm`** minns elementet den själv bad om helskärm för, och avslutar helskärmen när vyn avmonteras om det fortfarande är det elementet som är i helskärm. En helskärm som någon annan bett om lämnas orörd. PDF-vyn och kartan påverkas inte i praktiken: deras element tas bort ur sidan, och då lämnar webbläsaren helskärmen av sig själv.
+- **`useHelskarm`** minns elementet den själv bad om helskärm för, och avslutar helskärmen när vyn avmonteras om det fortfarande är det elementet som är i helskärm. Väntar begäran fortfarande när vyn avmonteras avslutas helskärmen när den kommer fram (GPT:s granskning av PR 636: `requestFullscreen()` är asynkron). En helskärm som någon annan bett om lämnas orörd. PDF-vyn och kartan påverkas inte i praktiken: deras element tas bort ur sidan, och då lämnar webbläsaren helskärmen av sig själv.
 
 ## 0.249.0
 
