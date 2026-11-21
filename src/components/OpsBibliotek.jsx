@@ -417,7 +417,7 @@ const ORD_BIBLIOTEKMARKERING = {
   nalaFast: { sv: "Nåla fast", en: "Pin" },
   taBortNalen: { sv: "Ta bort nålen", en: "Unpin" },
   nalad: { sv: "Nålad", en: "Pinned" },
-  naladStatus: { sv: "Nålad. Posten står överst för alla på platsen.", en: "Pinned. The post is at the top for everyone here." },
+  naladStatus: { sv: "Nålad. Posten står överst för alla på platsen.", en: "Pinned. The item is at the top for everyone here." },
   nalenBort: { sv: "Nålen är borttagen.", en: "The pin is removed." },
   nalFel: { sv: "Nålen kunde inte sparas.", en: "The pin could not be saved." },
   stjarnmark: { sv: "Stjärnmärk", en: "Star" },
