@@ -231,7 +231,8 @@ describe("kvittot för medlem, länkpost och nedladdning av", () => {
     urklipp();
     const knapp = sprak === "en" ? `Actions for ${rubrik}` : `Åtgärder för ${rubrik}`;
     await user.click(screen.getByRole("button", { name: knapp }));
-    await user.click(screen.getByRole("menuitem", { name: "Kopiera länk" }));
+    // (0.251.0, ops-framework#612) Menyraden följer språket. Förut stod den på svenska också med engelska valt.
+    await user.click(screen.getByRole("menuitem", { name: sprak === "en" ? "Copy link" : "Kopiera länk" }));
     expect(await screen.findByText(KVITTO[sprak])).toBeTruthy();
     expect(screen.queryByText(/15 minuter|15 minutes/)).toBeNull();
     return user;

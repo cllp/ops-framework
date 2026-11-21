@@ -9,6 +9,17 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.251.0
+
+**Biblioteket följer språket (cllp/ops-framework#612).** CP 2026-11-17, med engelska valt i appen: "Har engelska i systemet men modulen Bibliotek är på svenska". På samma skärm stod "Search...", "Paste" och "Tags" på engelska och rubriken "Bibliotek", knappen "Ny" och "Biblioteket är tomt." på svenska. Mätt: `OpsBibliotek.jsx` hade ordböcker, men 145 ställen i filen bar svensk text direkt i koden, och de följde aldrig språket.
+
+### Rättat
+- **All synlig text i `OpsBibliotek` står i `ORD_BIBLIOTEKLISTA` med svenska och engelska**: rubriken, Ny och dess meny, tomma lägen, menyn på en post, svepen, kvittona ("Flyttad till ..."), felen som visas i vyn, dialogerna Radera, Byt namn, Lägg i lista, Flytta eller kopiera och Dela länk, och formulärets etiketter. 143 texter flyttade till 112 nya ordposter. Den svenska texten är densamma som förut. Platshållare skrivs `{namn}` som i de befintliga orden.
+- **Förklaringen på en avstängd rad i en listas meny** har en engelsk text. Svenskan läses fortfarande ur `LISTA_I_LISTA_TEXT` och `LISTA_FLYTT_TEXT`, som är oförändrade.
+
+### Tillagt
+- **Vakten `check:bibliotek-text`** (`scripts/check-bibliotek-text.mjs`, i kedjan `check`): läser `OpsBibliotek.jsx` som syntax och räknar svensk text utanför en ordpost (ett objekt med både `sv` och `en`). Undantag: `new XxxError(...)`, `throw`, `console.*`, värdet i `data-*` och `className`, importer. Taket är 0 och får bara sjunka. Golvet är 500 JSX-noder, så att vakten aldrig blir grön av att inget lästes.
+
 ## 0.250.0
 
 **Tillbaka-knappen exporteras, så att ett ärende kan öppnas i appens egen vy med samma Tillbaka som panelerna (cllp/lifehub.app#933).** CP 2026-11-21: "Kanske bättre att öppna ärendet som det görs i TAM i sin egna vy, men med en pil tillbaka om man kommer från tavlan eller där man var." Vyn är appens, och utan exporten hade appen fått skriva en egen kopia av knappen.
