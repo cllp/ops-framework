@@ -29,6 +29,8 @@ export { OpsHub, OpsHubModul, OpsHubTillbaka, OpsGruppHubb } from "./components/
 export { useKortdragning } from "./components/useKortdragning.js";
 export { slappIndex, flyttaIOrdning, ordnaEfter } from "./lib/kortdragning.js";
 export { OpsVyAtgard } from "./components/OpsTillbaka.jsx";
+/* (0.250.0, cllp/lifehub.app#933) Tillbaka med chevron, samma knapp som i panelerna, för en vy som appen själv ritar. */
+export { OpsTillbakaKnapp } from "./components/TillbakaKnapp.jsx";
 export { OpsModulSida } from "./components/OpsModulSida.jsx";
 export { OpsApparArk, ORD_OPSAPPARARK } from "./components/OpsApparArk.jsx";
 export { OpsModulRam, ORD_OPSMODULRAM } from "./components/OpsModulRam.jsx";

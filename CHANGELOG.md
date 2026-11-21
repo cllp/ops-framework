@@ -9,6 +9,13 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.250.0
+
+**Tillbaka-knappen exporteras, så att ett ärende kan öppnas i appens egen vy med samma Tillbaka som panelerna (cllp/lifehub.app#933).** CP 2026-11-21: "Kanske bättre att öppna ärendet som det görs i TAM i sin egna vy, men med en pil tillbaka om man kommer från tavlan eller där man var." Vyn är appens, och utan exporten hade appen fått skriva en egen kopia av knappen.
+
+### Tillagt
+- **`OpsTillbakaKnapp`** (`onClick`, `etikett`, stängt API utan `className`): chevron, ordet och 44 px träffyta, samma komponent som `OpsSkapaPanel` och `OpsHandelsePanel` använder inifrån.
+
 ## 0.249.1
 
 **Helskärmen avslutas när den vy som bad om den avmonteras (GPT:s granskning av cllp/lifehub.app PR 922, #921).** Tavlan lägger hela sidan (`document.documentElement`) i helskärm, och sidan finns kvar när tavlan avmonteras. Mätt i byggd Chromium på 390 och 1280: Helskärm, öppna ett kort med ikonen, tillbaka till tavlan. Då var sidan fortfarande i webbläsarens helskärm, och den nya tavlan saknade Stäng helskärm.

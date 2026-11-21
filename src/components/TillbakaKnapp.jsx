@@ -11,7 +11,10 @@ import { ChevronVansterIkon } from "./icons.jsx";
  * justerade den ena (arbetsreglernas punkt 2), och en panel som går tillbaka med en annan knapp än nästa säger olika saker om
  * samma gest. Klasserna flyttades hit oförändrade, så check-skalyta avsnitt 15 och 26 mäter fortfarande samma pixlar.
  *
- * ⛔ INTERN: den exporteras inte ur paketet. Panelerna är det man importerar, knappen är en detalj i dem.
+ * ⛔ EXPORTERAS SEDAN 0.250.0 SOM `OpsTillbakaKnapp` (cllp/lifehub.app#933). Här stod att knappen var intern, eftersom panelerna var det man
+ * importerade. Sedan kom ett ärende som öppnas i appens egen vy: CP 2026-11-21, "öppna ärendet ... i sin egna vy, men med en pil tillbaka".
+ * Vyn är appens, eftersom ärendet är appens data. Utan exporten hade appen fått skriva en egen kopia av knappen, och två kopior glider isär
+ * (punkt 2). Panelerna använder den fortfarande inifrån, oförändrad.
  *
  * @param {{ onClick: () => void, etikett: string, className?: string }} props
  */
@@ -29,4 +32,15 @@ export function TillbakaKnapp({ onClick, etikett, className }) {
       <span>{etikett}</span>
     </button>
   );
+}
+
+/**
+ * Den exporterade knappen (0.250.0, cllp/lifehub.app#933). ⛔ UTAN `className`: ramverkets komponenter har ett stängt API (README, "Alla har ett
+ * stängt API"), och panelerna som behöver flytta knappen gör det inifrån med `TillbakaKnapp`. En app som fick en klass hade kunnat göra
+ * knappen till något annat än panelernas knapp, och då är vi tillbaka i två knappar.
+ *
+ * @param {{ onClick: () => void, etikett: string }} props
+ */
+export function OpsTillbakaKnapp({ onClick, etikett }) {
+  return <TillbakaKnapp onClick={onClick} etikett={etikett} />;
 }
