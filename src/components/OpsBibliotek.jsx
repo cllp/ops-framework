@@ -266,7 +266,148 @@ const ORD_BIBLIOTEKLISTA = {
   slappInteKopplad: { sv: "Uppladdningen är inte kopplad. Filerna är kvar på enheten.", en: "Uploading is not connected. The files are still on your device." },
   // (0.245.0, cllp/lifehub.app#901) Knappen i det tomma biblioteket. Samma ord som "+ Ny" under Ljud när där bara finns uppladdningen.
   laddaUpp: { sv: "Ladda upp", en: "Upload" },
+
+  // ══ ⛔ RESTEN AV VYNS TEXT (0.251.0, cllp/ops-framework#612) ══════════════════════════════════════════════════════════════
+  // CP 2026-11-17, med engelska valt i appen: "Har engelska i systemet men modulen Bibliotek är på svenska". Rubriken, "Ny", tomma lägen,
+  // menyerna, kvittona och dialogerna var skrivna direkt i komponenten och följde aldrig språket. `check-bibliotek-text` vaktar att de står här.
+  rubrikBibliotek: { sv: "Bibliotek", en: "Library" },
+  ny: { sv: "Ny", en: "New" },
+  nyPost: { sv: "Ny post", en: "New item" },
+  nyttLjud: { sv: "Nytt ljud", en: "New audio" },
+  laddaUppLjudfil: { sv: "Ladda upp ljudfil", en: "Upload audio file" },
+  spelaIn: { sv: "Spela in", en: "Record" },
+  spelaInLjud: { sv: "Spela in ljud", en: "Record audio" },
+  typ_anteckning: { sv: "Anteckning", en: "Note" },
+  typ_lank: { sv: "Länk", en: "Link" },
+  typ_fil: { sv: "Fil", en: "File" },
+  typ_lista: { sv: "Lista", en: "List" },
+  ny_anteckning: { sv: "Ny anteckning", en: "New note" },
+  ny_lank: { sv: "Ny länk", en: "New link" },
+  ny_fil: { sv: "Ny fil", en: "New file" },
+  ny_lista: { sv: "Ny lista", en: "New list" },
+  post: { sv: "Post", en: "Item" },
+  // Rubriken på ett ljud som laddats upp utan ett namn att ta rubriken ur.
+  ljudUtanNamn: { sv: "Ljud", en: "Audio" },
+  // Tomma lägen.
+  ingaFiler: { sv: "Inga filer än.", en: "No files yet." },
+  ingaTraffar: { sv: "Inga träffar.", en: "No matches." },
+  biblioteketTomt: { sv: "Biblioteket är tomt.", en: "The library is empty." },
+  ingetHar: { sv: "Inget här ännu.", en: "Nothing here yet." },
+  ingetMatchar: { sv: "Inget matchar \"{sok}\".", en: "Nothing matches \"{sok}\"." },
+  ingetMatcharMed: { sv: "Inget matchar \"{sok}\" med {taggar}.", en: "Nothing matches \"{sok}\" with {taggar}." },
+  ingetHarTaggar: { sv: "Inget här har {taggar}.", en: "Nothing here has {taggar}." },
+  // Bindeordet mellan taggarna i meningarna ovan, med mellanslagen.
+  och: { sv: " och ", en: " and " },
+  laggTillNagot: { sv: "Lägg till en anteckning, en länk, ett ljud eller en fil.", en: "Add a note, a link, a recording or a file." },
+  tomFilerForval: { sv: "Filer som läggs till här hör bara till händelsen.", en: "Files added here belong only to the event." },
+  trasigEn: { sv: "1 post kunde inte läsas och visas inte.", en: "1 item could not be read and is not shown." },
+  trasigaFler: { sv: "{antal} poster kunde inte läsas och visas inte.", en: "{antal} items could not be read and are not shown." },
+  laddarUppLjudfilen: { sv: "Laddar upp ljudfilen.", en: "Uploading the audio file." },
+  uppladdningAvbruten: { sv: "Uppladdningen blev inte klar", en: "The upload did not finish" },
+  // Menyn på en post.
+  redigera: { sv: "Redigera", en: "Edit" },
+  bytNamn: { sv: "Byt namn", en: "Rename" },
+  laggTillTagg: { sv: "Lägg till tagg", en: "Add tag" },
+  visaDetaljer: { sv: "Visa detaljer", en: "Show details" },
+  kommentera: { sv: "Kommentera", en: "Comment" },
+  laggILista: { sv: "Lägg i lista", en: "Add to list" },
+  // Svenskan är bibliotekslistans egen text (`biblioteklista.js`, exporterad), så att den står på ett ställe.
+  listaILista: { sv: LISTA_I_LISTA_TEXT, en: "A list cannot be inside a list." },
+  listaFlytt: { sv: LISTA_FLYTT_TEXT, en: "A list points to items in this group and is not moved." },
+  kopieraLank: { sv: "Kopiera länk", en: "Copy link" },
+  flyttaEllerKopiera: { sv: "Flytta eller kopiera", en: "Move or copy" },
+  flyttaEllerKopieraTill: { sv: "Flytta eller kopiera till", en: "Move or copy to" },
+  delaMed: { sv: "Dela med {namn}", en: "Share with {namn}" },
+  delaMedGrupp: { sv: "Dela med en grupp", en: "Share with a group" },
+  flyttaTillMitt: { sv: "Flytta till Mitt bibliotek", en: "Move to My library" },
+  kopieraTillMitt: { sv: "Kopiera till Mitt bibliotek", en: "Copy to My library" },
+  kopieraTillGrupp: { sv: "Kopiera till en annan grupp", en: "Copy to another group" },
+  kopieraTillPlats: { sv: "Kopiera till en plats", en: "Copy to a place" },
+  flytta: { sv: "Flytta", en: "Move" },
+  kopiera: { sv: "Kopiera", en: "Copy" },
+  arkivera: { sv: "Arkivera", en: "Archive" },
+  taFram: { sv: "Ta fram", en: "Restore" },
+  taFramUrArkivet: { sv: "Ta fram ur arkivet", en: "Restore from archive" },
+  radera: { sv: "Radera", en: "Delete" },
+  raderaNamn: { sv: "Radera {namn}", en: "Delete {namn}" },
+  raderaPosten: { sv: "Radera posten", en: "Delete the item" },
+  raderaFraga: { sv: "Radera posten? Den går inte att ångra.", en: "Delete the item? It cannot be undone." },
+  // Kvitton och fel.
+  arkiverad: { sv: "Arkiverad. Välj taggen {tagg} för att se arkivet.", en: "Archived. Choose the tag {tagg} to see the archive." },
+  framtagen: { sv: "Framtagen ur arkivet.", en: "Restored from the archive." },
+  arkiveras: { sv: "{namn} arkiveras.", en: "{namn} is archived." },
+  tasFram: { sv: "{namn} tas fram ur arkivet.", en: "{namn} is restored from the archive." },
+  tasBort: { sv: "{namn} tas bort.", en: "{namn} is deleted." },
+  flyttarTill: { sv: "Flyttar till {namn}…", en: "Moving to {namn}…" },
+  kopierarTill: { sv: "Kopierar till {namn}…", en: "Copying to {namn}…" },
+  flyttadTill: { sv: "Flyttad till {namn}.", en: "Moved to {namn}." },
+  kopieradTill: { sv: "Kopierad till {namn}.", en: "Copied to {namn}." },
+  namnEjSparat: { sv: "Namnet kunde inte sparas.", en: "The name could not be saved." },
+  postEjSparad: { sv: "Posten kunde inte sparas.", en: "The item could not be saved." },
+  uppladdningEjKopplad: { sv: "Uppladdningen är inte kopplad. Filen är kvar på enheten.", en: "Uploading is not connected. The file is still on your device." },
+  raderingEjKopplad: { sv: "Raderingen är inte kopplad. Posten är kvar.", en: "Deleting is not connected. The item is still here." },
+  flyttEjKopplad: { sv: "Flytten är inte kopplad. Posten är kvar.", en: "Moving is not connected. The item is still here." },
+  delningEjKopplad: { sv: "Delning är inte kopplad. Posten är kvar.", en: "Sharing is not connected. The item is still here." },
+  valjGrupp: { sv: "Välj en grupp.", en: "Choose a group." },
+  ingenPostVald: { sv: "Ingen post vald.", en: "No item selected." },
+  // Dialoger och formuläret.
+  forhandsvisning: { sv: "Förhandsvisning", en: "Preview" },
+  stang: { sv: "Stäng", en: "Close" },
+  avbryt: { sv: "Avbryt", en: "Cancel" },
+  spara: { sv: "Spara", en: "Save" },
+  rubrik: { sv: "Rubrik", en: "Title" },
+  nyttNamn: { sv: "Nytt namn", en: "New name" },
+  adress: { sv: "Adress", en: "Address" },
+  valjEnFil: { sv: "Välj en fil.", en: "Choose a file." },
+  valjFil: { sv: "Välj fil", en: "Choose file" },
+  bytFil: { sv: "Byt fil", en: "Change file" },
+  sparadFilBehalls: { sv: "Den sparade filen behålls.", en: "The saved file is kept." },
+  ingenFilVald: { sv: "Ingen fil vald.", en: "No file selected." },
+  rubrikSaknas: { sv: "Rubriken saknas.", en: "The title is missing." },
+  anteckningUtanText: { sv: "Anteckningen har ingen text.", en: "The note has no text." },
+  hamtarTitel: { sv: "Hämtar titel och artist.", en: "Fetching title and artist." },
+  ingenTitel: { sv: "Hittade ingen titel eller artist för länken. Skriv en rubrik själv.", en: "Found no title or artist for the link. Write a title yourself." },
+  omslagFel: { sv: "Omslaget kunde inte användas, så länken visas utan det.", en: "The cover could not be used, so the link is shown without it." },
+  titelFel: { sv: "Titeln gick inte att hämta: {skal}. Skriv en rubrik själv.", en: "The title could not be fetched: {skal}. Write a title yourself." },
+  oppnasIFonster: { sv: "Öppnas i ett eget fönster.", en: "Opens in a separate window." },
+  vilketBibliotek: { sv: "Vilket bibliotek", en: "Which library" },
+  vilketBibliotekNamn: { sv: "Vilket bibliotek: {namn}", en: "Which library: {namn}" },
+  delad: { sv: "Delad", en: "Shared" },
+  // Dialogen Dela länk.
+  ingress_fil: { sv: "Den som har länken kan se filen utan att logga in.", en: "Anyone with the link can see the file without signing in." },
+  ingress_anteckning: { sv: "Den som har länken kan läsa anteckningen utan att logga in.", en: "Anyone with the link can read the note without signing in." },
+  ingress_lank: { sv: "Den som har länken ser rubriken och en knapp till adressen, utan att logga in.", en: "Anyone with the link sees the title and a button to the address, without signing in." },
+  ingress_lista: {
+    sv: "Den som har länken ser hela listan, i listans ordning, utan att logga in. Ändrar du listan efteråt ändras den för alla som har länken.",
+    en: "Anyone with the link sees the whole list, in the list's order, without signing in. If you change the list afterwards, it changes for everyone with the link.",
+  },
+  objekt_fil: { sv: "filen", en: "the file" },
+  objekt_anteckning: { sv: "anteckningen", en: "the note" },
+  objekt_lank: { sv: "länken", en: "the link" },
+  objekt_lista: { sv: "listan", en: "the list" },
+  gammalLank: {
+    sv: "Det finns en länk till {objekt}, skapad med en äldre version. Den visades bara när den skapades. Behöver du adressen igen drar du tillbaka länken och skapar en ny.",
+    en: "There is a link to {objekt}, created with an older version. It was only shown when it was created. If you need the address again, withdraw the link and create a new one.",
+  },
+  gallerTill: { sv: "Gäller till {tid}.", en: "Valid until {tid}." },
+  tillatNedladdning: { sv: "Tillåt nedladdning", en: "Allow download" },
+  nedladdningHintLista: { sv: "Av som förval. Gäller alla filer i listan. Den som har länken kan se dem oavsett.", en: "Off by default. Applies to all files in the list. Anyone with the link can see them either way." },
+  nedladdningHintFil: { sv: "Av som förval. Den som har länken kan se filen oavsett.", en: "Off by default. Anyone with the link can see the file either way." },
+  gallerAllaFiler: { sv: "Gäller alla filer i listan.", en: "Applies to all files in the list." },
+  skapaLank: { sv: "Skapa länk", en: "Create link" },
+  svarUtanAdress: { sv: "Länken skapades men svaret saknade adressen. Stäng den och skapa en ny.", en: "The link was created but the reply had no address. Close it and create a new one." },
 };
+
+/**
+ * (0.251.0, cllp/ops-framework#612) Ett ord ur `ORD_BIBLIOTEKLISTA` på vyns språk, med platshållarna (`{namn}`) ifyllda. Samma form som `o` i `UtskriftKontroll`.
+ * @param {keyof typeof ORD_BIBLIOTEKLISTA} nyckel
+ * @param {string} sprak
+ * @param {Record<string, string | number>} [vard]
+ * @returns {string}
+ */
+function listord(nyckel, sprak, vard = {}) {
+  return Object.entries(vard).reduce((t, [n, v]) => t.split(`{${n}}`).join(String(v)), ordet(ORD_BIBLIOTEKLISTA, nyckel, sprak));
+}
 
 /**
  * Orden för nålen och stjärnan (0.187.0, cllp/lifehub.app#653), svenska och engelska, i en ordbok bredvid komponenten (som `ORD_TAGGAR`).
@@ -321,8 +462,8 @@ export const ORD_ANTECKNINGSFIL = {
  */
 const tusental = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 
-/** Statusraden efter en arkivering (#283). */
-const arkivtips = () => `Arkiverad. Välj taggen ${ARKIVTAGG} för att se arkivet.`;
+/** Statusraden efter en arkivering (#283). @param {string} sprak */
+const arkivtips = (sprak) => listord("arkiverad", sprak, { tagg: ARKIVTAGG });
 
 /**
  * Kan platsen ha "I repot" (0.217.0, cllp/lifehub.app#785)? Gruppens eget bibliotek (grupp-id:t, `ID_FORM`) och en egen plats (`plats~<grupp>~<id>`). Mitt bibliotek, en händelses och ett ärendes plats bär `~` och har aldrig något repo.
@@ -594,7 +735,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const [markerFel, setMarkerFel] = useState("");
   // ⛔ (cllp/lifehub.app#283) Tipset om arkivtaggen har gjort sitt när arkivet visas. Förut stod "Arkiverad. Välj taggen ..." kvar ovanför arkivet.
   useEffect(() => {
-    if (valdaTaggar.includes(ARKIVTAGG)) setStatus((s) => (s === arkivtips() ? "" : s));
+    if (valdaTaggar.includes(ARKIVTAGG)) setStatus((s) => (s === arkivtips(sprak) ? "" : s));
   }, [valdaTaggar]);
   // En plats som just skapats kan saknas i `platser` en stund (appens prenumeration är inte framme): växlaren ritar den ändå, med sitt namn.
   const [nyligen, setNyligen] = useState(/** @type {{ id: string, namn: string }[]} */ ([]));
@@ -609,7 +750,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const adresser = useFilAdresser(poster, vald, filUrl, hamtaAdress, adresserPaBegaran, begarda);
   useUppladdningsklocka(poster, vald);
   const adressFor = (/** @type {{ typ?: string, skapad?: number, fil?: { sokvag?: string, mime?: string, klar?: boolean } }} */ post) =>
-    losAdress(post, filUrl, hamtaAdress, adresser, adresserPaBegaran && !(vald?.fil?.sokvag && post?.fil?.sokvag === vald.fil.sokvag) && !(post?.fil?.sokvag && spelaNar[post.fil.sokvag]));
+    losAdress(post, sprak, filUrl, hamtaAdress, adresser, adresserPaBegaran && !(vald?.fil?.sokvag && post?.fil?.sokvag === vald.fil.sokvag) && !(post?.fil?.sokvag && spelaNar[post.fil.sokvag]));
   const spelareHar = useSpelare();
   const spelaPaBegaran = adresserPaBegaran && spelareHar
     ? (/** @type {any} */ post) => {
@@ -682,10 +823,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     //
     // ⛔ ETT FEL SYNS I KONSOLEN MED POSTENS ID, det sväljs inte. Listan visar längden ändå (`fylld`), men ett skrivfel som
     // försvinner ser ut som att det gick bra, och då vet ingen varför längden saknas nästa gång listan öppnas.
-    /** @type {Array<{ nyckel: string, vad: string, del: { durationMs?: number, peaks?: string } }>} */
+    /** @type {Array<{ nyckel: string, vad: "durationMs" | "peaks", del: { durationMs?: number, peaks?: string } }>} */
     const delar = [];
-    if (meta.durationMs) delar.push({ nyckel: `${id}:langd:${meta.durationMs}`, vad: "längden", del: { durationMs: meta.durationMs } });
-    if (meta.peaks) delar.push({ nyckel: `${id}:vag:${meta.peaks.length}`, vad: "vågen", del: { peaks: meta.peaks } });
+    if (meta.durationMs) delar.push({ nyckel: `${id}:langd:${meta.durationMs}`, vad: "durationMs", del: { durationMs: meta.durationMs } });
+    if (meta.peaks) delar.push({ nyckel: `${id}:vag:${meta.peaks.length}`, vad: "peaks", del: { peaks: meta.peaks } });
     const att = delar.filter((d) => !sparatMeta.current.has(d.nyckel));
     att.forEach((d) => sparatMeta.current.add(d.nyckel));
     att.reduce(
@@ -693,7 +834,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
         try {
           await cb({ id, ...d.del });
         } catch (e) {
-          console.error(`OpsBibliotek: ${d.vad} kunde inte sparas på posten ${id}.`, e);
+          // Namnet på delen står i anropet till konsolen: det är ett besked till den som felsöker, och `check-bibliotek-text` räknar det inte som vyns text.
+          console.error(`OpsBibliotek: ${d.vad === "durationMs" ? "längden" : "vågen"} kunde inte sparas på posten ${id}.`, e);
         }
       }),
       Promise.resolve(),
@@ -909,10 +1051,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       return;
     }
     if (typeof onLaddaUpp !== "function") {
-      setRostFel("Uppladdningen är inte kopplad. Filen är kvar på enheten.");
+      setRostFel(listord("uppladdningEjKopplad", sprak));
       return;
     }
-    const rubrik = rubrikUrFilnamn(fil.name, "Ljud");
+    const rubrik = rubrikUrFilnamn(fil.name, listord("ljudUtanNamn", sprak));
     /** @param {unknown} e */
     const visa = (e) => {
       setLaddarLjud(false);
@@ -1037,7 +1179,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   function korRadera() {
     if (!raderar) return;
     if (typeof onRadera !== "function") {
-      setRaderaFel("Raderingen är inte kopplad. Posten är kvar.");
+      setRaderaFel(listord("raderingEjKopplad", sprak));
       return;
     }
     try {
@@ -1091,7 +1233,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       return;
     }
     if (svar === false) {
-      setNamnFel("Namnet kunde inte sparas.");
+      setNamnFel(listord("namnEjSparat", sprak));
       return;
     }
     if (svar && typeof svar === "object" && typeof svar.then === "function") {
@@ -1101,7 +1243,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
         (/** @type {void | boolean} */ v) => {
           namnSparar.current = false;
           setNamnBusy(false);
-          if (v === false) setNamnFel("Namnet kunde inte sparas.");
+          if (v === false) setNamnFel(listord("namnEjSparat", sprak));
           else setByter(null);
         },
         (/** @type {unknown} */ e) => {
@@ -1136,10 +1278,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     const far = farAndra(post, jag);
     /** @type {import("./OpsAtgardsblad.jsx").Atgard[]} */
     const ut = [];
-    if (far && iDetalj && sattRedigera) ut.push({ id: "redigera", etikett: "Redigera", onValj: () => sattRedigera("redigera") });
-    if (far) ut.push({ id: "namn", etikett: "Byt namn", onValj: () => borjaNamn(post) });
+    if (far && iDetalj && sattRedigera) ut.push({ id: "redigera", etikett: lord("redigera"), onValj: () => sattRedigera("redigera") });
+    if (far) ut.push({ id: "namn", etikett: lord("bytNamn"), onValj: () => borjaNamn(post) });
     // ⛔ LÄGG TILL TAGG UR MENYN (0.165.0): kortet visar taggraden bara när posten har taggar. Utan taggar öppnar raden här fältet på kortet. Samma rätt som taggraden (`farAndra` och `onSpara`).
-    if (far && !iDetalj && typeof onSpara === "function" && synligaTaggar(post.taggar).length === 0) ut.push({ id: "tagg", etikett: "Lägg till tagg", onValj: () => setTaggarFor(post.id) });
+    if (far && !iDetalj && typeof onSpara === "function" && synligaTaggar(post.taggar).length === 0) ut.push({ id: "tagg", etikett: lord("laggTillTagg"), onValj: () => setTaggarFor(post.id) });
     // ⛔ DELA LÄNK FINNS PÅ ALLA FYRA TYPER (0.133.0, lifehub.app#356, CP 2026-10-18: "Vi skall ju ha en publik länk till varje artefakt"). Förut bara på en färdig fil (0.119.0).
     // Villkoret är oförändrat i övrigt: bara den som får ändra posten (`farAndra`: författaren, en admin eller en ägare, och i Mitt bibliotek bara ägaren), samma som servern kontrollerar,
     // så knappen lovar inget som funktionen sedan nekar. Det som skiljer är vad som går att dela (`arDelbar`): en fil som ännu laddas upp har ingenting att visa.
@@ -1148,12 +1290,12 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     }
     // ⛔ EN MUSIKLÄNK ÖPPNAS DIREKT VID ETT TRYCK (0.128.0), så detaljen nås härifrån. Utan raden gick det inte att komma åt Byt namn-formuläret, taggarna och Redigera för en sådan länk.
     // ⛔ INTE FÖR ETT HTML-DOKUMENT (0.192.0, #529): ett tryck på kortet öppnar redan förhandstitten. Raden stod här 0.159.0 till 0.191.0, när trycket öppnade helfönstret.
-    if (!iDetalj && oppnasDirekt(post)) ut.push({ id: "detaljer", etikett: "Visa detaljer", onValj: () => oppnaMed(post, "las") });
+    if (!iDetalj && oppnasDirekt(post)) ut.push({ id: "detaljer", etikett: lord("visaDetaljer"), onValj: () => oppnaMed(post, "las") });
     // ⛔ KOMMENTERA (0.191.0, lifehub.app#663): öppnar posten med fältet i fokus, i listan och i detaljen. Tråden är chattens, och samma rad för en medlem och en gäst.
     if (kanKommenteras(post)) {
       ut.push({
         id: "kommentera",
-        etikett: "Kommentera",
+        etikett: lord("kommentera"),
         onValj: () => {
           if (!iDetalj) oppnaMed(post, "las");
           setKommenteraFor(post.id);
@@ -1165,10 +1307,10 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     // ⛔ EN LISTA HAR RADEN OCKSÅ, AVSTÄNGD OCH MED SKÄL (0.133.0, CP 2026-10-20: tre typer med tre olika menyer ska bli en). Förut saknades raden på en lista, och en meny där en rad
     // ibland saknas utan förklaring ser olika ut utan att någon vet varför. Nu har alla fyra samma rader i samma ordning, och de två som inte gäller en lista syns som avstängda.
     if (Boolean(jag) && (jag?.status === undefined || jag?.status === "aktiv") && typeof onSpara === "function" && !beskrivObjektbibliotek(post.groupId)) {
-      if (post.typ === "lista") ut.push({ id: "lagg-i-lista", etikett: "Lägg i lista", avstangd: true, forklaring: LISTA_I_LISTA_TEXT, onValj: () => {} });
-      else ut.push({ id: "lagg-i-lista", etikett: "Lägg i lista", onValj: () => setLaggPost(post) });
+      if (post.typ === "lista") ut.push({ id: "lagg-i-lista", etikett: lord("laggILista"), avstangd: true, forklaring: lord("listaILista"), onValj: () => {} });
+      else ut.push({ id: "lagg-i-lista", etikett: lord("laggILista"), onValj: () => setLaggPost(post) });
     }
-    if (kanKopieraLank(post)) ut.push({ id: "kopiera", etikett: "Kopiera länk", onValj: () => kopieraPostensLank(post) });
+    if (kanKopieraLank(post)) ut.push({ id: "kopiera", etikett: lord("kopieraLank"), onValj: () => kopieraPostensLank(post) });
     // ⛔ LADDA NED EN ANTECKNING (0.209.0, cllp/lifehub.app#706, CP: "Skippa Word just nu, men ha med de andra"): Markdown, PDF och HTML, tre rader i följd eftersom menyn inte har
     // undermenyer. För den som får läsa posten, eftersom läsningen redan ger texten. Inte med `utanNedladdning` (gästens bibliotek när gruppen stängt av nedladdning) och inte för en tom anteckning.
     // ⛔ BARA I DETALJENS MENY, som Redigera: listans meny är kort (0.102.0, CP: "Kanske popup med en kortare meny"), och Ladda ned för en fil och ett ljud bor också i detaljen. Tre rader till på
@@ -1195,19 +1337,19 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     // ⛔ EN LISTA FLYTTAS ELLER KOPIERAS INTE TILL EN ANNAN PLATS (0.128.0): den pekar på poster på den här platsen. `flyttaBibliotekspost` kastar för den.
     // 0.133.0: raden syns avstängd, med skälet, när det finns en annan plats att flytta till. Utan en annan plats har ingen post något flyttval, och då är det inget att förklara.
     if (aktiv && post.typ === "lista" && (mitt || andra.length > 0)) {
-      ut.push({ id: "dela", etikett: "Flytta eller kopiera", avstangd: true, forklaring: LISTA_FLYTT_TEXT, onValj: () => {} });
+      ut.push({ id: "dela", etikett: lord("flyttaEllerKopiera"), avstangd: true, forklaring: lord("listaFlytt"), onValj: () => {} });
     }
     if (aktiv && post.typ !== "lista" && !flyttar.includes(post.id)) {
       // ⛔ `egen || far` STÅR KVAR SOM FÖRSVAR I DJUPET (granskningen av PR 366, KAN 10). I dag läser bara ägaren Mitt bibliotek, men
       // menyn ska inte lita på att reglerna alltid säger det.
       if (ensam && (egen || far)) {
-        if (andra.length === 1) ut.push({ id: "dela-grupp", etikett: `Dela med ${andra[0].namn}`, onValj: () => delaDirekt(post, andra[0], "flytta") });
-        else if (andra.length > 1) ut.push({ id: "dela", etikett: "Dela med en grupp", onValj: () => setDelar(post) });
+        if (andra.length === 1) ut.push({ id: "dela-grupp", etikett: listord("delaMed", sprak, { namn: andra[0].namn }), onValj: () => delaDirekt(post, andra[0], "flytta") });
+        else if (andra.length > 1) ut.push({ id: "dela", etikett: lord("delaMedGrupp"), onValj: () => setDelar(post) });
       } else if (!ensam) {
         if (mitt) {
           ut.push(egen
-            ? { id: "till-mitt", etikett: "Flytta till Mitt bibliotek", onValj: () => delaDirekt(post, mitt, "flytta") }
-            : { id: "kopia-mitt", etikett: "Kopiera till Mitt bibliotek", onValj: () => delaDirekt(post, mitt, "kopiera") });
+            ? { id: "till-mitt", etikett: lord("flyttaTillMitt"), onValj: () => delaDirekt(post, mitt, "flytta") }
+            : { id: "kopia-mitt", etikett: lord("kopieraTillMitt"), onValj: () => delaDirekt(post, mitt, "kopiera") });
         }
         // Fler platser i en ruta: författaren flyttar eller kopierar till Mitt bibliotek och de andra grupperna, en admin kopierar
         // till de andra grupperna.
@@ -1216,7 +1358,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
         // grupp, samma synlighet, ingenting nytt blir synligt för någon. Det är därför bara platser i SAMMA grupp (`gruppForPlats`) som en vanlig medlem får kopiera till; en annan grupp kräver förvaltare som förut.
         const platserIRutan = egen ? (mitt ? 1 : 0) + andra.length : far ? andra.length : andra.filter((g) => iSammaGrupp(post, g.id)).length;
         if (platserIRutan > 0) {
-          ut.push({ id: "dela", etikett: egen ? "Flytta eller kopiera" : far ? "Kopiera till en annan grupp" : "Kopiera till en plats", onValj: () => setDelar(post) });
+          ut.push({ id: "dela", etikett: lord(egen ? "flyttaEllerKopiera" : far ? "kopieraTillGrupp" : "kopieraTillPlats"), onValj: () => setDelar(post) });
         }
       }
     }
@@ -1230,18 +1372,18 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       const arkiverad = arArkiverad(post);
       ut.push({
         id: arkiverad ? "tafram" : "arkivera",
-        etikett: arkiverad ? "Ta fram ur arkivet" : "Arkivera",
+        etikett: lord(arkiverad ? "taFramUrArkivet" : "arkivera"),
         onValj: () => {
           Promise.resolve()
             .then(() => onSpara({ id: post.id, taggar: arkiverad ? (post.taggar ?? []).filter((t) => t !== ARKIVTAGG) : [...(post.taggar ?? []), ARKIVTAGG] }))
             .then(
-              () => setStatus(arkiverad ? "Framtagen ur arkivet." : arkivtips()),
+              () => setStatus(arkiverad ? listord("framtagen", sprak) : arkivtips(sprak)),
               (e) => setStatus(e instanceof Error && e.message ? e.message : String(e)),
             );
         },
       });
     }
-    if (far) ut.push({ id: "radera", etikett: "Radera", fara: true, onValj: () => fragaRadera(post.id) });
+    if (far) ut.push({ id: "radera", etikett: lord("radera"), fara: true, onValj: () => fragaRadera(post.id) });
     return ut;
   }
 
@@ -1278,19 +1420,19 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
    */
   function delaDirekt(post, mal, satt) {
     if (typeof onDela !== "function") {
-      setStatus("Flytten är inte kopplad. Posten är kvar.");
+      setStatus(listord("flyttEjKopplad", sprak));
       return;
     }
     if (flyttar.includes(post.id)) return;
     setFlyttar((f) => [...f, post.id]);
     const klar = () => setFlyttar((f) => f.filter((id) => id !== post.id));
-    setStatus(satt === "flytta" ? `Flyttar till ${mal.namn}…` : `Kopierar till ${mal.namn}…`);
+    setStatus(listord(satt === "flytta" ? "flyttarTill" : "kopierarTill", sprak, { namn: mal.namn }));
     Promise.resolve()
       .then(() => onDela({ id: post.id, groupId: mal.id, satt }))
       .then(
         () => {
           klar();
-          setStatus(satt === "flytta" ? `Flyttad till ${mal.namn}.` : `Kopierad till ${mal.namn}.`);
+          setStatus(listord(satt === "flytta" ? "flyttadTill" : "kopieradTill", sprak, { namn: mal.namn }));
         },
         (e) => {
           klar();
@@ -1309,17 +1451,17 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     // ⛔ ARKIVERA ÄR EN TAGG (0.163.0, lifehub.app#283): samma svep och samma Ångra som Radera, inget eget läge. Taggen döljer posten tills arkivtaggen väljs i filtret.
     const arkiv = typeof onSpara === "function" ? [{
       id: arkiverad ? "tafram" : "arkivera",
-      etikett: arkiverad ? "Ta fram" : "Arkivera",
-      angraMeddelande: arkiverad ? `${namnet} tas fram ur arkivet.` : `${namnet} arkiveras.`,
+      etikett: lord(arkiverad ? "taFram" : "arkivera"),
+      angraMeddelande: listord(arkiverad ? "tasFram" : "arkiveras", sprak, { namn: namnet }),
       onValj: () => onSpara({ id: post.id, taggar: arkiverad ? (post.taggar ?? []).filter((t) => t !== ARKIVTAGG) : [...(post.taggar ?? []), ARKIVTAGG] }),
     }] : [];
     return [...arkiv, {
       id: "radera",
-      etikett: "Radera",
+      etikett: lord("radera"),
       fara: true,
-      angraMeddelande: `${namnet} tas bort.`,
+      angraMeddelande: listord("tasBort", sprak, { namn: namnet }),
       onValj: () => {
-        if (typeof onRadera !== "function") throw new Error("Raderingen är inte kopplad. Posten är kvar.");
+        if (typeof onRadera !== "function") throw new Error(listord("raderingEjKopplad", sprak));
         return onRadera(post.id);
       },
     }];
@@ -1420,7 +1562,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const listTillbaka = inbaddad || utanHubb
     ? undefined
     : {
-        ...modulTillbaka({ namn: "Bibliotek", hubHref: /** @type {string} */ (hubHref), hubEtikett, onNavigate, sprak, modulId, ikon: <IKON_FOR.bibliotek size={18} /> }),
+        ...modulTillbaka({ namn: lord("rubrikBibliotek"), hubHref: /** @type {string} */ (hubHref), hubEtikett, onNavigate, sprak, modulId, ikon: <IKON_FOR.bibliotek size={18} /> }),
         ...(atgard ? { atgard } : {}),
       };
 
@@ -1509,16 +1651,16 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                 {slappLage.fel.map((f, i) => <li key={i}>{f}</li>)}
               </ul>
             ) : null}
-            {laddarLjud ? <div data-bibliotek-laddar-ljud=""><OpsVantar storlek="sm" text="Laddar upp ljudfilen." /></div> : null}
+            {laddarLjud ? <div data-bibliotek-laddar-ljud=""><OpsVantar storlek="sm" text={lord("laddarUppLjudfilen")} /></div> : null}
             {trasiga.length > 0 ? (
               <div role="status" data-bibliotek-trasiga={trasiga.length} className="text-meta text-ink-muted">
-                <p>{trasiga.length === 1 ? "1 post kunde inte läsas och visas inte." : `${trasiga.length} poster kunde inte läsas och visas inte.`}</p>
+                <p>{trasiga.length === 1 ? lord("trasigEn") : listord("trasigaFler", sprak, { antal: trasiga.length })}</p>
                 <ul>
                   {trasiga.map((t) => (
                     <li key={t.id} className="flex flex-col gap-2">
                       <span>{t.id}: {t.fel}</span>
                       {farAndra({ groupId: t.groupId, skapadAv: t.skapadAv }, jag) ? (
-                        <OpsButton variant="secondary" size="sm" ariaLabel={`Radera ${t.id}`} onClick={() => fragaRadera(t.id)}>Radera</OpsButton>
+                        <OpsButton variant="secondary" size="sm" ariaLabel={listord("raderaNamn", sprak, { namn: t.id })} onClick={() => fragaRadera(t.id)}>{lord("radera")}</OpsButton>
                       ) : null}
                     </li>
                   ))}
@@ -1549,8 +1691,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
               ) : synliga.length === 0 ? (
                 <OpsEmpty
                   icon={inbaddad || sok || valda.length > 0 ? null : <IKON_FOR.bibliotek size={28} />}
-                  title={inbaddad ? "Inga filer än." : sok || valda.length > 0 ? "Inga träffar." : poster.length === 0 ? "Biblioteket är tomt." : "Inget här ännu."}
-                  description={inbaddad ? (tomText ?? TOM_FILER_FORVAL) : sok ? `Inget matchar "${sok}"${valda.length > 0 ? ` med ${valda.join(" och ")}` : ""}.` : valda.length > 0 ? `Inget här har ${valda.join(" och ")}.` : "Lägg till en anteckning, en länk, ett ljud eller en fil."}
+                  title={lord(inbaddad ? "ingaFiler" : sok || valda.length > 0 ? "ingaTraffar" : poster.length === 0 ? "biblioteketTomt" : "ingetHar")}
+                  description={inbaddad ? (tomText ?? lord("tomFilerForval")) : sok ? (valda.length > 0 ? listord("ingetMatcharMed", sprak, { sok, taggar: valda.join(lord("och")) }) : listord("ingetMatchar", sprak, { sok })) : valda.length > 0 ? listord("ingetHarTaggar", sprak, { taggar: valda.join(lord("och")) }) : lord("laggTillNagot")}
                   action={kanLaddaUpp && poster.length === 0 && !sok && valda.length === 0 ? (
                     <OpsButton variant="primary" onClick={() => uppladdningsFalt.current?.click()}>
                       <IKON_FOR.laddaUpp size={16} aria-hidden="true" />
@@ -1612,9 +1754,9 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
         {importBesked ? <p role="status" data-bibliotek-import-besked="" className="m-0 text-etikett text-ink-secondary wrap-anywhere">{importBesked}</p> : null}
         {markerFel ? <p role="alert" data-bibliotek-markerfel="">{markerFel}</p> : null}
         {ljus ? (
-          <div role="dialog" aria-label="Förhandsvisning" data-bibliotek-ljus="" className="flex flex-col gap-2">
+          <div role="dialog" aria-label={lord("forhandsvisning")} data-bibliotek-ljus="" className="flex flex-col gap-2">
             <img src={ljus} alt="" />
-            <OpsButton variant="secondary" onClick={() => setLjus("")}>Stäng</OpsButton>
+            <OpsButton variant="secondary" onClick={() => setLjus("")}>{lord("stang")}</OpsButton>
           </div>
         ) : null}
       </div>
@@ -1626,16 +1768,16 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
             setRaderaFel("");
           }
         }}
-        title="Radera"
+        title={lord("radera")}
         size="sm"
         footer={(
           <>
-            <OpsButton variant="secondary" onClick={() => { setRaderar(null); setRaderaFel(""); }}>Avbryt</OpsButton>
-            <OpsButton variant="danger" onClick={korRadera}>Radera posten</OpsButton>
+            <OpsButton variant="secondary" onClick={() => { setRaderar(null); setRaderaFel(""); }}>{lord("avbryt")}</OpsButton>
+            <OpsButton variant="danger" onClick={korRadera}>{lord("raderaPosten")}</OpsButton>
           </>
         )}
       >
-        <p>Radera posten? Den går inte att ångra.</p>
+        <p>{lord("raderaFraga")}</p>
         {raderaFel ? <p role="alert">{raderaFel}</p> : null}
       </OpsModal>
       {/* ⛔ PDF AV EN ANTECKNING (0.209.0, #706) ÄR WEBBLÄSARENS UTSKRIFT AV DEN STATISKA SIDAN, i den avspärrade rutan (`OpsHtmlDokumentLat`, samma väg som ett HTML-dokuments "Spara som PDF").
@@ -1661,17 +1803,17 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       <OpsModal
         open={byter !== null}
         onOpenChange={(oppen) => { if (!oppen) setByter(null); }}
-        title="Byt namn"
+        title={lord("bytNamn")}
         size="sm"
         footer={(
           <>
-            <OpsButton variant="secondary" onClick={() => setByter(null)}>Avbryt</OpsButton>
-            <OpsButton variant="primary" onClick={sparaNamn} busy={namnBusy}>Spara</OpsButton>
+            <OpsButton variant="secondary" onClick={() => setByter(null)}>{lord("avbryt")}</OpsButton>
+            <OpsButton variant="primary" onClick={sparaNamn} busy={namnBusy}>{lord("spara")}</OpsButton>
           </>
         )}
       >
-        <OpsField label="Rubrik" error={namnFel || undefined}>
-          <OpsInput value={namnUtkast} onChange={setNamnUtkast} ariaLabel="Nytt namn" />
+        <OpsField label={lord("rubrik")} error={namnFel || undefined}>
+          <OpsInput value={namnUtkast} onChange={setNamnUtkast} ariaLabel={lord("nyttNamn")} />
         </OpsField>
       </OpsModal>
       <OpsModal
@@ -1696,12 +1838,12 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
               setStatus(text);
             }}
           />
-        ) : <p>Ingen post vald.</p>}
+        ) : <p>{lord("ingenPostVald")}</p>}
       </OpsModal>
       <OpsModal
         open={laggPost !== null}
         onOpenChange={(oppen) => { if (!oppen) setLaggPost(null); }}
-        title="Lägg i lista"
+        title={lord("laggILista")}
         size="sm"
       >
         {laggPost ? (
@@ -1715,12 +1857,12 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
               setStatus(text);
             }}
           />
-        ) : <p>Ingen post vald.</p>}
+        ) : <p>{lord("ingenPostVald")}</p>}
       </OpsModal>
       <OpsModal
         open={delar !== null}
         onOpenChange={(oppen) => { if (!oppen) setDelar(null); }}
-        title={delar && arMittBibliotek(delar.groupId) ? "Dela med en grupp" : delar && Boolean(jag) && delar.skapadAv?.uid === jag?.uid ? "Flytta eller kopiera" : "Kopiera"}
+        title={lord(delar && arMittBibliotek(delar.groupId) ? "delaMedGrupp" : delar && Boolean(jag) && delar.skapadAv?.uid === jag?.uid ? "flyttaEllerKopiera" : "kopiera")}
         size="sm"
       >
         {delar ? (
@@ -1737,7 +1879,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
               setStatus(text);
             }}
           />
-        ) : <p>Ingen post vald.</p>}
+        ) : <p>{lord("ingenPostVald")}</p>}
       </OpsModal>
     </Rot>
     </NedladdningKontext.Provider>
@@ -1772,13 +1914,8 @@ function InbaddadRot({ children }) {
  * "+ Ny" som i SessionStudios app: en knapp med kant och hörn som fälten, inte ett piller (0.102.0). `knappKlass` ritar alltid ett
  * piller, och på en telefon bröt pillret raden med sök och Taggar till två.
  */
-/** Meningen under "Inga filer än." i den inbäddade listan när appen inte säger något annat (`tomText`). Händelsens, eftersom det var den första. */
-const TOM_FILER_FORVAL = "Filer som läggs till här hör bara till händelsen.";
-
 const NY_KLASS = "inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-transparent px-4 text-etikett font-medium text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
-const TYPNAMN = /** @type {const} */ ({ anteckning: "Anteckning", lank: "Länk", fil: "Fil", lista: "Lista" });
-const NYTT_NAMN = /** @type {const} */ ({ anteckning: "Ny anteckning", lank: "Ny länk", fil: "Ny fil", lista: "Ny lista" });
 
 /**
  * @param {number | undefined} byte
@@ -1810,16 +1947,17 @@ function postAdress(post, filUrl) {
  * Synkron `filUrl` vinner. Annars sökvägens cachade svar, ett pågående anrop, eller att adressen saknas.
  *
  * @param {{ typ?: string, fil?: { sokvag?: string } }} post
+ * @param {string} sprak (0.251.0, #612) Språket för texten om en avbruten uppladdning.
  * @param {((post: { fil?: { sokvag?: string } }) => string) | undefined} filUrl
  * @param {((sokvag: string) => Promise<string>) | undefined} hamtaAdress
  * @param {{ klar: Record<string, string>, fel: Record<string, string> }} cache
  * @param {boolean} [paBegaran] (0.132.0) Adresserna hämtas bara för den öppna posten: en post som inte är öppen och inte redan hämtad har läget `pa-begaran`, och ingen text om att något saknas.
  * @returns {Adresslage}
  */
-function losAdress(post, filUrl, hamtaAdress, cache, paBegaran = false) {
+function losAdress(post, sprak, filUrl, hamtaAdress, cache, paBegaran = false) {
   // ⛔ EN UPPLADDNING SOM ALDRIG BLEV KLAR HÄMTAR INTE FÖR ALLTID (granskningen av PR 408). `klar: false` hoppar över hämtningen, och
   // utan en gräns stod "Hämtar filen." kvar för alla medlemmar när fliken stängts mitt i. Efter `UPPLADDNING_MAX_MS` säger posten det.
-  if (uppladdningAvbruten(/** @type {any} */ (post))) return { lage: "avbruten", adress: "", fel: TEXT_AVBRUTEN };
+  if (uppladdningAvbruten(/** @type {any} */ (post))) return { lage: "avbruten", adress: "", fel: listord("uppladdningAvbruten", sprak) };
   const synk = postAdress(post, filUrl);
   if (synk) return { lage: "klar", adress: synk, fel: "" };
   const sokvag = typeof post?.fil?.sokvag === "string" ? post.fil.sokvag.trim() : "";
@@ -1829,9 +1967,6 @@ function losAdress(post, filUrl, hamtaAdress, cache, paBegaran = false) {
   if (paBegaran) return { lage: "pa-begaran", adress: "", fel: "" };
   return { lage: "hamtar", adress: "", fel: "" };
 }
-
-/** Texten på en post vars uppladdning avbröts. Står i listan och i detaljen, och aldrig som "Hämtar". */
-const TEXT_AVBRUTEN = "Uppladdningen blev inte klar";
 
 /** Väntan i ms före varje nytt försök när filen ännu inte finns i lagringen. */
 const SAKNAS_FORSOK = [1500, 3000, 6000];
@@ -2044,7 +2179,7 @@ export function PlatsValjare({ platser, plats, onPlats, ny = null }) {
         }}
       >
         <Popover.Trigger
-          aria-label={`Vilket bibliotek: ${namn}`}
+          aria-label={listord("vilketBibliotekNamn", sprak, { namn })}
           className="inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-2 rounded-full border border-ink-secondary px-4 text-etikett font-medium text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           <span className="min-w-0 truncate">{namn}</span>
@@ -2074,7 +2209,7 @@ export function PlatsValjare({ platser, plats, onPlats, ny = null }) {
                     <OpsInput value={sok} onChange={setSok} type="search" ariaLabel={t("sokPlats")} placeholder={`${t("sokPlats")}...`} yta="fylld" />
                   </div>
                 ) : null}
-                <div role="menu" aria-label="Vilket bibliotek" onKeyDown={menyPilar}>
+                <div role="menu" aria-label={listord("vilketBibliotek", sprak)} onKeyDown={menyPilar}>
                   {synliga.map((p) => (
                     <button
                       key={p.id}
@@ -2286,7 +2421,7 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
                 </Fragment>
               ))}
               {delad ? <span aria-hidden="true">·</span> : null}
-              {delad ? <span data-bibliotek-delad="" className="inline-flex items-center gap-1"><Link2 size={12} aria-hidden="true" />Delad</span> : null}
+              {delad ? <span data-bibliotek-delad="" className="inline-flex items-center gap-1"><Link2 size={12} aria-hidden="true" />{listord("delad", sprak)}</span> : null}
               {/* ⛔ UTSKRIFTEN PÅGÅR (0.133.0): läget läses ur posten (`utskriftLage`), så markeringen står kvar också när man gått från detaljen och kommer tillbaka. */}
               {skriverUt ? <span data-bibliotek-skriver-ut="" className="inline-flex items-center gap-1"><OpsSpinner size="sm" decorative />{talkOrd("skriverUt", sprak)}</span> : null}
             </span>
@@ -2425,12 +2560,14 @@ function PostMark({ post, bildAdress = "" }) {
  * @param {{ flik: Exclude<Flik, "stjarna">, onSkapa: (typ: "anteckning" | "lank" | "fil" | "lista") => void, onRost: () => void, erbjudRost: boolean, onLaddaUppLjud: (fil: File) => void }} props
  */
 function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
+  const sprak = useOpsSprak();
+  const o = (/** @type {keyof typeof ORD_BIBLIOTEKLISTA} */ k) => ordet(ORD_BIBLIOTEKLISTA, k, sprak);
   const [oppen, setOppen] = useState(false);
   const ljudFalt = useRef(/** @type {HTMLInputElement | null} */ (null));
   const innehall = (
     <>
       <IKON_FOR.skapa size={16} aria-hidden="true" />
-      <span>Ny</span>
+      <span>{o("ny")}</span>
     </>
   );
   if (flik === "ljud") {
@@ -2439,7 +2576,7 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
         ref={ljudFalt}
         type="file"
         accept={LJUDFIL_ACCEPT}
-        aria-label="Ladda upp ljudfil"
+        aria-label={o("laddaUppLjudfil")}
         className="hidden"
         onChange={(e) => {
           const vald = e.target.files?.[0] ?? null;
@@ -2452,9 +2589,9 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
     if (!erbjudRost) {
       return (
         <>
-          <button type="button" aria-label="Ladda upp ljudfil" onClick={() => ljudFalt.current?.click()} className={NY_KLASS}>
+          <button type="button" aria-label={o("laddaUppLjudfil")} onClick={() => ljudFalt.current?.click()} className={NY_KLASS}>
             <IKON_FOR.laddaUpp size={16} aria-hidden="true" />
-            <span>Ladda upp</span>
+            <span>{o("laddaUpp")}</span>
           </button>
           {falt}
         </>
@@ -2463,12 +2600,12 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
     return (
       <>
         <Popover.Root open={oppen} onOpenChange={setOppen}>
-          <Popover.Trigger aria-label="Nytt ljud" aria-haspopup="menu" className={NY_KLASS}>
+          <Popover.Trigger aria-label={o("nyttLjud")} aria-haspopup="menu" className={NY_KLASS}>
             {innehall}
           </Popover.Trigger>
           <Popover.Portal>
             <Popover.Content align="end" sideOffset={4} className={cx("z-(--z-dropdown) min-w-44 p-1 max-h-(--radix-popover-content-available-height) overflow-y-auto overscroll-contain", radBehallare())}>
-              <div role="menu" aria-label="Nytt ljud">
+              <div role="menu" aria-label={o("nyttLjud")}>
                 <button
                   type="button"
                   role="menuitem"
@@ -2481,7 +2618,7 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
                   <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
                     <IKON_FOR.laddaUpp size={16} />
                   </span>
-                  <span className="min-w-0 flex-1 truncate">Ladda upp ljudfil</span>
+                  <span className="min-w-0 flex-1 truncate">{o("laddaUppLjudfil")}</span>
                 </button>
                 <button
                   type="button"
@@ -2495,7 +2632,7 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
                   <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
                     <Mic size={16} />
                   </span>
-                  <span className="min-w-0 flex-1 truncate">Spela in</span>
+                  <span className="min-w-0 flex-1 truncate">{o("spelaIn")}</span>
                 </button>
               </div>
             </Popover.Content>
@@ -2508,19 +2645,19 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
   if (flik !== "alla") {
     const typ = flik === "bild" ? "fil" : flik;
     return (
-      <button type="button" aria-label={NYTT_NAMN[typ]} onClick={() => onSkapa(typ)} className={NY_KLASS}>
+      <button type="button" aria-label={o(`ny_${typ}`)} onClick={() => onSkapa(typ)} className={NY_KLASS}>
         {innehall}
       </button>
     );
   }
   return (
     <Popover.Root open={oppen} onOpenChange={setOppen}>
-      <Popover.Trigger aria-label="Ny post" aria-haspopup="menu" className={NY_KLASS}>
+      <Popover.Trigger aria-label={o("nyPost")} aria-haspopup="menu" className={NY_KLASS}>
         {innehall}
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="end" sideOffset={4} className={cx("z-(--z-dropdown) min-w-44 p-1 max-h-(--radix-popover-content-available-height) overflow-y-auto overscroll-contain", radBehallare())}>
-          <div role="menu" aria-label="Ny post">
+          <div role="menu" aria-label={o("nyPost")}>
             {BIBLIOTEKTYPER.map((typ) => (
               <button
                 key={typ}
@@ -2535,7 +2672,7 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
                 <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
                   {typ === "anteckning" ? <FileText size={16} /> : typ === "lank" ? <Globe size={16} /> : typ === "lista" ? <ListIkon size={16} /> : <FilIkon size={16} />}
                 </span>
-                <span className="min-w-0 flex-1 truncate">{TYPNAMN[typ]}</span>
+                <span className="min-w-0 flex-1 truncate">{o(`typ_${typ}`)}</span>
               </button>
             ))}
             {erbjudRost ? (
@@ -2551,7 +2688,7 @@ function NyKnapp({ flik, onSkapa, onRost, erbjudRost, onLaddaUppLjud }) {
                 <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
                   <Mic size={16} />
                 </span>
-                <span className="min-w-0 flex-1 truncate">Spela in ljud</span>
+                <span className="min-w-0 flex-1 truncate">{o("spelaInLjud")}</span>
               </button>
             ) : null}
           </div>
@@ -2658,7 +2795,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
   useEffect(() => {
     if (blockeradNu) /** @type {HTMLElement | null | undefined} */ (kontroller.current?.querySelector("[data-spela-knapp]"))?.focus();
   }, [blockeradNu]);
-  const namn = post.fil?.namn ?? "Fil";
+  const namn = post.fil?.namn ?? o("typ_fil");
   const rad = `${namn}${filStorlek(post.fil?.byte) ? ` · ${filStorlek(post.fil?.byte)}` : ""}`;
   // ⛔ EN AVBRUTEN UPPLADDNING SÄGER DET OCH ERBJUDER RADERA (granskningen av PR 408), för den som får radera posten. Den raderar via
   // postens egen meny-rad (`menyFor`), så behörigheten är densamma som där.
@@ -2666,7 +2803,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
     return (
       <div data-bibliotek-fil="" data-bibliotek-avbruten="" className="flex flex-col items-start gap-2">
         <p role="status">{lage.fel}</p>
-        {onRadera ? <OpsButton variant="secondary" size="sm" onClick={onRadera}>Radera</OpsButton> : null}
+        {onRadera ? <OpsButton variant="secondary" size="sm" onClick={onRadera}>{o("radera")}</OpsButton> : null}
       </div>
     );
   }
@@ -2772,7 +2909,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
             <a href={htmlVy} target="_blank" rel="noopener noreferrer" data-bibliotek-oppna-html="" className="inline-flex min-h-11 min-w-0 max-w-full items-center gap-1.5 text-etikett text-accent underline underline-offset-2 md:min-h-8">
               <span className="min-w-0 break-words">{rad}</span>
               <ExternalLink size={14} aria-hidden="true" className="shrink-0" />
-              <span className="sr-only">{HTML_OPPNAS_I_FONSTER}</span>
+              <span className="sr-only">{o("oppnasIFonster")}</span>
             </a>
             <LaddaNedLank adress={adress} namn={post.fil.namn ?? namn} hamta={hamtaFil} sokvag={post.fil.sokvag} />
           </div>
@@ -2822,8 +2959,6 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
   );
 }
 
-/** Det skärmläsaren läser efter filnamnet när länken öppnar dokumentet i ett eget fönster (0.159.0). */
-const HTML_OPPNAS_I_FONSTER = "Öppnas i ett eget fönster.";
 
 /**
  * En adress som går att öppna, eller texten när den inte klarar `ADRESSFORM`.
@@ -3043,7 +3178,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
       setBild(bildGick ? rattBild : null);
       setBildFor(adress);
       if (!forslag) {
-        setUppslag({ lage: "fel", fel: "Hittade ingen titel eller artist för länken. Skriv en rubrik själv." });
+        setUppslag({ lage: "fel", fel: listord("ingenTitel", sprak) });
         return;
       }
       const nu = trimSomRegeln(rubrikRef.current);
@@ -3051,13 +3186,13 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
         autoRubrik.current = forslag;
         setRubrik(forslag);
       }
-      setUppslag({ lage: rattBild !== "" && !bildGick ? "notis" : "vilar", fel: rattBild !== "" && !bildGick ? "Omslaget kunde inte användas, så länken visas utan det." : "" });
+      setUppslag({ lage: rattBild !== "" && !bildGick ? "notis" : "vilar", fel: rattBild !== "" && !bildGick ? listord("omslagFel", sprak) : "" });
     } catch (e) {
       if (gammal()) return;
       setBild(null);
       setBildFor(adress);
       const skal = (e instanceof Error && e.message ? e.message : String(e)).replace(/[.\s]+$/, "");
-      setUppslag({ lage: "fel", fel: `Titeln gick inte att hämta: ${skal}. Skriv en rubrik själv.` });
+      setUppslag({ lage: "fel", fel: listord("titelFel", sprak, { skal }) });
     }
   }
 
@@ -3069,7 +3204,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
   }, [url]);
 
   const ljud = Boolean(post && post.typ === "fil" && filSort(post.fil?.mime) === "ljud");
-  const rubrikVy = skapar ? (typ === "anteckning" ? "Ny anteckning" : typ === "lank" ? "Ny länk" : typ === "lista" ? "Ny lista" : "Ny fil") : ljud && post ? ljudRubrik(post) : post?.rubrik ?? "Post";
+  const rubrikVy = skapar ? listord(typ === "anteckning" ? "ny_anteckning" : typ === "lank" ? "ny_lank" : typ === "lista" ? "ny_lista" : "ny_fil", sprak) : ljud && post ? ljudRubrik(post) : post?.rubrik ?? listord("post", sprak);
   const tomLage = /** @type {Adresslage} */ ({ lage: "saknas", adress: "", fel: "" });
   const filLage = post && typeof adressFor === "function" ? adressFor({ typ: post.typ, fil: post.fil, skapad: post.skapad }) : tomLage;
   const kopplad = typeof filUrl === "function" || filLage.lage !== "saknas";
@@ -3152,7 +3287,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
     try {
       const v = await onSpara(inmatning);
       if (v === false) {
-        setFormfel("Posten kunde inte sparas.");
+        setFormfel(listord("postEjSparad", sprak));
         return false;
       }
     } catch (e) {
@@ -3181,7 +3316,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
     const valdRubrik = trimSomRegeln(rubrik) || tolkad.rubrik;
     if (tolkad.forLang) {
       if (typeof onLaddaUpp !== "function") {
-        setFormfel("Uppladdningen är inte kopplad. Filen är kvar på enheten.");
+        setFormfel(listord("uppladdningEjKopplad", sprak));
         return false;
       }
       try {
@@ -3223,15 +3358,15 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
     }
     if (typ === "fil" && (valdFil || skapar)) {
       if (!valdFil) {
-        setFormfel("Välj en fil.");
+        setFormfel(listord("valjEnFil", sprak));
         return false;
       }
       if (!trimSomRegeln(rubrik)) {
-        setFormfel("Rubriken saknas.");
+        setFormfel(listord("rubrikSaknas", sprak));
         return false;
       }
       if (typeof onLaddaUpp !== "function") {
-        setFormfel("Uppladdningen är inte kopplad. Filen är kvar på enheten.");
+        setFormfel(listord("uppladdningEjKopplad", sprak));
         return false;
       }
       let svar;
@@ -3291,7 +3426,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
         (/** @type {void | boolean} */ v) => {
           if (v === false) {
             slapp();
-            setFormfel("Posten kunde inte sparas.");
+            setFormfel(listord("postEjSparad", sprak));
           }
           return v;
         },
@@ -3304,7 +3439,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
     }
     if (svar === false) {
       slapp();
-      setFormfel("Posten kunde inte sparas.");
+      setFormfel(listord("postEjSparad", sprak));
       return false;
     }
     return undefined;
@@ -3312,7 +3447,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
 
   const radera = post && !skapar ? menyFor(post, true, setLage).find((m) => m.id === "radera") : undefined;
   const innehall = typ === "anteckning" ? (
-    post?.text ? <OpsMarkdown text={post.text} dokument bildAdress={bildAdress} onBildFel={onBildFel} /> : <p className="text-etikett text-ink">Anteckningen har ingen text.</p>
+    post?.text ? <OpsMarkdown text={post.text} dokument bildAdress={bildAdress} onBildFel={onBildFel} /> : <p className="text-etikett text-ink">{listord("anteckningUtanText", sprak)}</p>
   ) : typ === "fil" && post ? (
     <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} onMeta={onMeta} onRadera={radera ? radera.onValj : undefined} hamtaFil={hamtaFil} htmlVy={htmlVyAdress(oppnaHtml, post)} pdfVy={pdfVyAdress(oppnaPdf, post)} versioner={htmlVersioner ? { lista: htmlVersioner, hamtaVersion: hamtaHtmlVersion, aterstall: aterstallHtml, nyVersion: nyHtmlVersion, kanAndra: farAndra(post, jag) } : undefined} />
   ) : typ === "lista" && post ? (
@@ -3346,24 +3481,24 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
 
   const redigering = (
     <>
-      <OpsField label="Rubrik" error={formfel && !trimSomRegeln(rubrik) ? formfel : undefined}>
-        <OpsInput value={rubrik} onChange={setRubrik} ariaLabel="Rubrik" />
+      <OpsField label={listord("rubrik", sprak)} error={formfel && !trimSomRegeln(rubrik) ? formfel : undefined}>
+        <OpsInput value={rubrik} onChange={setRubrik} ariaLabel={listord("rubrik", sprak)} />
       </OpsField>
       {typ === "anteckning" ? (
         // ⛔ BILDEN I ANTECKNINGEN (#696): textrutan, "Lägg till bild" och inklistringen av en bild. Utan `onLaggBildIAnteckning` är det samma ruta som förut.
         <AnteckningsTextLat text={text} setText={setText} post={post && !skapar ? post : null} onLaggBild={onLaggBildIAnteckning} sprak={sprak} onPagar={setBildLaddar} onEfterStangning={skrivInEfterStangning} />
       ) : typ === "fil" ? (
-        <OpsField label="Fil">
+        <OpsField label={listord("typ_fil", sprak)}>
           {/* ⛔ Det råa filfältet är dolt och knappen är ramverkets (0.95.0). Förut stod webbläsarens egen "Välj fil,
               ingen fil vald" synlig här. Namnet på den valda filen skrivs ut, och tomheten med (arbetsreglerna, punkt 5). */}
           <div className="flex flex-wrap items-center gap-2">
-            <OpsButton variant="secondary" onClick={() => filFalt.current?.click()}>{valdFil ? "Byt fil" : "Välj fil"}</OpsButton>
-            <span className="min-w-0 truncate text-etikett text-ink-muted">{valdFil ? valdFil.name : post && !skapar ? "Den sparade filen behålls." : "Ingen fil vald."}</span>
+            <OpsButton variant="secondary" onClick={() => filFalt.current?.click()}>{listord(valdFil ? "bytFil" : "valjFil", sprak)}</OpsButton>
+            <span className="min-w-0 truncate text-etikett text-ink-muted">{valdFil ? valdFil.name : listord(post && !skapar ? "sparadFilBehalls" : "ingenFilVald", sprak)}</span>
           </div>
           <input
             ref={filFalt}
             type="file"
-            aria-label="Fil"
+            aria-label={listord("typ_fil", sprak)}
             className="hidden"
             onChange={(e) => {
               const vald = e.target.files?.[0] ?? null;
@@ -3410,12 +3545,12 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
           />
         </OpsField>
       ) : typ === "lista" ? null : (
-        <OpsField label="Adress">
+        <OpsField label={listord("adress", sprak)}>
           {/* ⛔ INKLISTRAT ELLER LÄMNAT (0.128.0): OpsInput har varken onPaste eller onBlur, och händelserna bubblar, så de fångas här. Vanligt skrivande slår inte upp något. */}
           <div className="min-w-0" onPaste={() => { klistrade.current = true; }} onBlur={() => void slaUpp(urlRef.current)}>
-            <OpsInput value={url} onChange={setUrl} ariaLabel="Adress" placeholder="https://" tal={false} />
+            <OpsInput value={url} onChange={setUrl} ariaLabel={listord("adress", sprak)} placeholder="https://" tal={false} />
           </div>
-          {uppslag.lage === "hamtar" ? <div data-bibliotek-lankinfo="hamtar" className="m-0 text-meta text-ink-secondary"><OpsVantar storlek="sm" text="Hämtar titel och artist." /></div> : null}
+          {uppslag.lage === "hamtar" ? <div data-bibliotek-lankinfo="hamtar" className="m-0 text-meta text-ink-secondary"><OpsVantar storlek="sm" text={listord("hamtarTitel", sprak)} /></div> : null}
           {uppslag.lage === "fel" ? <p role="alert" data-bibliotek-lankinfo="fel" className="m-0 text-etikett text-danger wrap-anywhere">{uppslag.fel}</p> : null}
           {uppslag.lage === "notis" ? <p role="status" data-bibliotek-lankinfo="notis" className="m-0 text-meta text-ink-secondary">{uppslag.fel}</p> : null}
         </OpsField>
@@ -3423,7 +3558,7 @@ function Detalj({ post, skapar, startLage, onStang, onSpara, aktuellPost, onLadd
     </>
   );
 
-  const menyNamn = ljud && post ? ljudRubrik(post) : (post ? (trimSomRegeln(post.rubrik) || "Post") : rubrikVy);
+  const menyNamn = ljud && post ? ljudRubrik(post) : (post ? (trimSomRegeln(post.rubrik) || listord("post", sprak)) : rubrikVy);
   // ⛔ Via `skaparensNamn` (0.135.0, lifehub.app#409): en post som en personlig API-nyckel skrev heter "Skriven av Miranda via Byggagent."
   const skaparNamn = post ? skaparensNamn(post.skapadAv, sprak) : "";
   const metaText = lage === "las" && post ? detaljMeta(post, skaparNamn, sprak) : "";
@@ -3781,6 +3916,7 @@ function UtskriftKontroll({ post, jag, onSkrivUt, onSkrivUtIgen, onTaBortUtskrif
  * @param {{ id: string, grupper: readonly { id: string, namn: string }[], onDela?: (inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>, onKlar?: (text: string) => void, onStart?: (id: string) => void, onSlut?: (id: string) => void, kanFlytta?: boolean }} props `onStart` och `onSlut` lägger posten i listans spärr medan flytten pågår, också om rutan stängs under tiden (granskningen av PR 365, varv 2). `kanFlytta` är falskt för den som inte skrev posten: en admin kopierar men flyttar inte någon annans post.
  */
 function DelaKontroll({ id, grupper, onDela, onKlar, onStart, onSlut, kanFlytta = true }) {
+  const sprak = useOpsSprak();
   const [mal, setMal] = useState(grupper[0]?.id ?? "");
   const [fel, setFel] = useState("");
   const [pagar, setPagar] = useState(/** @type {"flytta" | "kopiera" | null} */ (null));
@@ -3789,11 +3925,11 @@ function DelaKontroll({ id, grupper, onDela, onKlar, onStart, onSlut, kanFlytta 
     if (pagar) return;
     if (satt === "flytta" && !kanFlytta) return;
     if (!mal) {
-      setFel("Välj en grupp.");
+      setFel(listord("valjGrupp", sprak));
       return;
     }
     if (typeof onDela !== "function") {
-      setFel("Delning är inte kopplad. Posten är kvar.");
+      setFel(listord("delningEjKopplad", sprak));
       return;
     }
     const namn = grupper.find((g) => g.id === mal)?.namn ?? mal;
@@ -3808,7 +3944,7 @@ function DelaKontroll({ id, grupper, onDela, onKlar, onStart, onSlut, kanFlytta 
         () => {
           setPagar(null);
           if (typeof onSlut === "function") onSlut(id);
-          if (typeof onKlar === "function") onKlar(satt === "flytta" ? `Flyttad till ${namn}.` : `Kopierad till ${namn}.`);
+          if (typeof onKlar === "function") onKlar(listord(satt === "flytta" ? "flyttadTill" : "kopieradTill", sprak, { namn }));
         },
         (e) => {
           setPagar(null);
@@ -3824,7 +3960,7 @@ function DelaKontroll({ id, grupper, onDela, onKlar, onStart, onSlut, kanFlytta 
           självt, trots att OpsSelect sade att den är förbjuden. `check-webblasarkontroller` fäller den nu. */}
       {/* ⛔ NAMNET ÄR DEN SYNLIGA ETIKETTEN. Här stod "Till" synligt och ett annat namn i `ariaLabel`, vilket OpsSelect förbjuder
           inne i en OpsField: den som hör namnet och den som ser etiketten fick två olika ord för samma fält. */}
-      <OpsField label="Flytta eller kopiera till">
+      <OpsField label={listord("flyttaEllerKopieraTill", sprak)}>
         <OpsSelect
           value={mal}
           onChange={setMal}
@@ -3833,24 +3969,21 @@ function DelaKontroll({ id, grupper, onDela, onKlar, onStart, onSlut, kanFlytta 
       </OpsField>
       {fel ? <p role="alert">{fel}</p> : null}
       <div className="flex gap-2">
-        {kanFlytta ? <OpsButton variant="secondary" busy={pagar === "flytta"} onClick={() => kor("flytta")}>Flytta</OpsButton> : null}
-        <OpsButton variant="secondary" busy={pagar === "kopiera"} onClick={() => kor("kopiera")}>Kopiera</OpsButton>
+        {kanFlytta ? <OpsButton variant="secondary" busy={pagar === "flytta"} onClick={() => kor("flytta")}>{listord("flytta", sprak)}</OpsButton> : null}
+        <OpsButton variant="secondary" busy={pagar === "kopiera"} onClick={() => kor("kopiera")}>{listord("kopiera", sprak)}</OpsButton>
       </div>
     </div>
   );
 }
 
 
-/** Det som står överst i dialogen Dela länk, per typ (0.133.0). */
-const DELA_INGRESS = /** @type {Record<string, string>} */ ({
-  fil: "Den som har länken kan se filen utan att logga in.",
-  anteckning: "Den som har länken kan läsa anteckningen utan att logga in.",
-  lank: "Den som har länken ser rubriken och en knapp till adressen, utan att logga in.",
-  lista: "Den som har länken ser hela listan, i listans ordning, utan att logga in. Ändrar du listan efteråt ändras den för alla som har länken.",
-});
-
-/** Vad en gammal länk gällde, till meningen "Det finns en länk till …" (0.133.0). */
-const DELA_OBJEKT = /** @type {Record<string, string>} */ ({ fil: "filen", anteckning: "anteckningen", lank: "länken", lista: "listan" });
+/**
+ * Typen som en del av en nyckel i `ORD_BIBLIOTEKLISTA`: det som står överst i dialogen Dela länk (`ingress_*`) och vad en gammal länk gällde (`objekt_*`), per typ (0.133.0).
+ * En okänd typ läses som en fil, som förut. (0.251.0, #612: texterna stod här på svenska och flyttade till ordboken.)
+ * @param {string} typ
+ * @returns {"fil" | "anteckning" | "lank" | "lista"}
+ */
+const delaTyp = (typ) => (typ === "anteckning" || typ === "lank" || typ === "lista" ? typ : "fil");
 
 /**
  * Dialogen för en publik länk till en post: en fil (0.119.0, lifehub.app#356), och sedan 0.133.0 en anteckning, en länk eller en lista. Reglaget för nedladdning finns för en fil och en lista (alla filer i den).
@@ -3912,7 +4045,7 @@ function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaL
     try {
       const svar = await onDelaLank({ postId: post.id, dagar: /** @type {number} */ (p.varde.dagar), nedladdning: harNedladdning && nedladdning, kod: p.varde.kod, gruppdel: p.varde.gruppdel, fildel: p.varde.sista });
       if (!svar || typeof svar.id !== "string" || svar.id === "" || typeof svar.url !== "string" || svar.url === "") {
-        throw new Error("Länken skapades men svaret saknade adressen. Stäng den och skapa en ny.");
+        throw new Error(listord("svarUtanAdress", sprak));
       }
       if (levande.current) setSkapad({ id: svar.id, url: svar.url, giltigTill: typeof svar.giltigTill === "number" ? svar.giltigTill : undefined, harKod: svar.harKod === true });
     } catch (e) {
@@ -3961,12 +4094,12 @@ function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaL
   if (!aktiv) {
     return (
       <div data-bibliotek-delalank="ny" className="flex flex-col gap-4">
-        <p className="m-0 text-etikett text-ink-secondary">{DELA_INGRESS[post.typ] ?? DELA_INGRESS.fil}</p>
+        <p className="m-0 text-etikett text-ink-secondary">{listord(`ingress_${delaTyp(post.typ)}`, sprak)}</p>
         <DelaLankFalt falt={falt} sprak={sprak} disabled={pagar !== null} />
-        {harNedladdning ? <OpsSwitch label="Tillåt nedladdning" hint={post.typ === "lista" ? "Av som förval. Gäller alla filer i listan. Den som har länken kan se dem oavsett." : "Av som förval. Den som har länken kan se filen oavsett."} checked={nedladdning} onChange={setNedladdning} /> : null}
+        {harNedladdning ? <OpsSwitch label={listord("tillatNedladdning", sprak)} hint={listord(post.typ === "lista" ? "nedladdningHintLista" : "nedladdningHintFil", sprak)} checked={nedladdning} onChange={setNedladdning} /> : null}
         {fel ? <p role="alert" className="m-0 text-etikett text-danger">{fel}</p> : null}
         <div className="flex gap-2">
-          <OpsButton variant="primary" busy={pagar === "skapa"} onClick={skapa}>Skapa länk</OpsButton>
+          <OpsButton variant="primary" busy={pagar === "skapa"} onClick={skapa}>{listord("skapaLank", sprak)}</OpsButton>
         </div>
       </div>
     );
@@ -3982,13 +4115,13 @@ function DelaLankKontroll({ post, gruppnamn, gruppdelForslag, delningar, onDelaL
         </ul>
       ) : (
         <>
-          <p className="m-0 text-etikett text-ink-secondary">Det finns en länk till {DELA_OBJEKT[post.typ] ?? "filen"}, skapad med en äldre version. Den visades bara när den skapades. Behöver du adressen igen drar du tillbaka länken och skapar en ny.</p>
-          {till ? <p className="m-0 text-etikett text-ink-muted">Gäller till {till}.</p> : null}
+          <p className="m-0 text-etikett text-ink-secondary">{listord("gammalLank", sprak, { objekt: listord(`objekt_${delaTyp(post.typ)}`, sprak) })}</p>
+          {till ? <p className="m-0 text-etikett text-ink-muted">{listord("gallerTill", sprak, { tid: till })}</p> : null}
         </>
       )}
       {/* ⛔ 0.128.0 (lifehub.app#356): fältet "Skicka till mejl" sitter under adressen, och bara när det finns en adress att skicka (en länk skapad med en äldre version har ingen) och appen kopplat mejlvägen. */}
       {aktiv.url && onMejlaLank ? <MejlaLank lank={{ id: aktiv.id, url: aktiv.url }} onMejlaLank={onMejlaLank} sprak={sprak} /> : null}
-      {harNedladdning ? <OpsSwitch label="Tillåt nedladdning" hint={post.typ === "lista" ? "Gäller alla filer i listan." : undefined} checked={nedNu} disabled={pagar !== null} onChange={bytNedladdning} /> : null}
+      {harNedladdning ? <OpsSwitch label={listord("tillatNedladdning", sprak)} hint={post.typ === "lista" ? listord("gallerAllaFiler", sprak) : undefined} checked={nedNu} disabled={pagar !== null} onChange={bytNedladdning} /> : null}
       {fel ? <p role="alert" className="m-0 text-etikett text-danger">{fel}</p> : null}
       <div className="flex gap-2">
         <OpsButton variant="danger" busy={pagar === "stang"} onClick={stang}>{ordet(ORD_DELALANK, "draTillbaka", sprak)}</OpsButton>

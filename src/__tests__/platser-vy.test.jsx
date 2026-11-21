@@ -158,7 +158,8 @@ describe("Raden Ny plats i växlaren", () => {
         <Vy egna={{ platser: [], onNy: vi.fn(async () => ({})) }} />
       </OpsSprakProvider>,
     );
-    const user = await oppnaVaxlaren();
+    // (0.251.0, ops-framework#612) Växlarens namn följer språket. Förut hette den "Vilket bibliotek" också på engelska.
+    const user = await oppnaVaxlaren(/Which library/);
     await user.click(screen.getByRole("menuitem", { name: "New place" }));
     await user.click(screen.getByRole("button", { name: "Create" }));
     expect(await screen.findByText("The place needs a name.")).toBeInTheDocument();
