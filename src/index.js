@@ -475,6 +475,12 @@ export { installningsSektioner } from "./components/installningsSektioner.jsx";
  */
 export { IKON_FOR } from "./components/ikonlexikon.js";
 /*
+ * ⛔ HELSKÄRMEN FÖR EN YTA SOM APPEN RITAR (0.249.0, cllp/lifehub.app#921). CP 2026-11-21 om Tavlan: "att den kan öppnas i helskärm, precis som html och pdf".
+ * Samma krok som PDF-vyn, HTML-dokumentet och kartan: webbläsarens helskärm där den finns, annars ett fast lager (iPhone ger inte ett element helskärm).
+ */
+export { useHelskarm } from "./components/useHelskarm.js";
+export { ORD_HELSKARM } from "./lib/helskarmord.js";
+/*
  * ⛔ MODULENS INSTÄLLNINGAR (0.88.0, en plats 0.89.0). Pinnen "Visa i huvudmenyn" skrivs på gruppen.
  * Modulens egna fält skrivs i en samling appen namnger. Reglagen ritas i modulramen, inte i gruppvyn.
  */

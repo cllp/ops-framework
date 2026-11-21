@@ -119,6 +119,12 @@ i `tokens/sessionstudio-profil.json` ("ikoner"). `tokens.css` sätter samma tal
 på `--icon-stroke-width` och en `.lucide { stroke-width: var(--icon-stroke-width) }`
 i `@layer base`, så en apps EGNA direkta lucide-importer följer med.
 
+⛔ **Helskärm för en yta som appen ritar: `useHelskarm` och `ORD_HELSKARM`** (0.249.0, cllp/lifehub.app#921). CP 2026-11-21 om Tavlan: "att den
+kan öppnas i helskärm, precis som html och pdf". `useHelskarm(yta)` ger `{ lage, oppna, avsluta }`, och `lage` är `false`, `"helskarm"` (webbläsarens
+helskärm för `yta.current`) eller `"fonster"` (webbläsaren gav ingen helskärm, som iPhone: anroparen ritar ytan som ett fast lager över hela skärmen).
+Anropa `oppna()` i trycket, eftersom webbläsaren bara släpper in helskärm i en användargest. Escape stänger lagret, och sidan bakom rullar inte medan
+det ligger över. `ORD_HELSKARM` är knappens två ord (`helskarm`, `avsluta`) på svenska och engelska, samma som PDF-vyn, HTML-dokumentet och kartan använder.
+
 ⛔ **Ikonlexikonet `IKON_FOR`: en betydelse, en ikon** (cllp/lifehub.app#634). Designgenomgången
 2026-11-04 såg skjutreglaget betyda filter, Inställningar och platsväljaren i Biblioteket, kugghjulet
 också Inställningar, och `Inbox` både Inkorgen och Ärenden. `IKON_FOR` (exporterad ur paketets index,
@@ -133,7 +139,7 @@ fryst) är det enda stället där en betydelse får en bild, och appen ska rita 
 | `inkorg` | `Inbox` | `mer` | `MoreHorizontal` |
 | `arende` | `ListChecks` | `temaLjust`, `temaMorkt`, `temaSystem` | `Sun`, `Moon`, `Monitor` |
 | `meddelande` | `MessageSquare` | `nal` (0.187.0, överst för alla) | `Pin` |
-| `stjarna` (0.187.0, personens egen) | `Star` | | |
+| `stjarna` (0.187.0, personens egen) | `Star` | `oppna` (0.249.0, öppna detaljen) | `ArrowUpRight` |
 
 `check-ikonlexikon` blir röd om två betydelser delar ikon (jämfört på identitet, så ett alias räknas)
 och om en fil i `src/components` eller `src/lib` importerar en ikon ur kartan direkt ur `lucide-react`.
