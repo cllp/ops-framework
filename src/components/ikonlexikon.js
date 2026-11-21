@@ -70,9 +70,10 @@
  * - (0.196.0) `laddaNed`: ladda ned en fil (`Download`), skild från `laddaUpp`.
  * - (0.198.0, cllp/ops-framework#536) `hemskarm`: lägg till på hemskärmen (`SquarePlus`), raden i gästens översikt. Inte `skapa`: inget nytt skapas i gruppen.
  * - (0.198.0) `integritet`: integritet och dina uppgifter (`Shield`), raden i gästens översikt.
+ * - (0.249.0, cllp/lifehub.app#921) `oppna`: öppna detaljen (`ArrowUpRight`), ikonen på Tavlans kort. Inte `helskarm`: en annan vy, inte samma yta större.
  */
 
-import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, CircleHelp, ClipboardPaste, FolderKanban, GitBranch, ImagePlus, Inbox, LayoutDashboard, LayoutGrid, Library, ListChecks, ListPlus, MessageSquare, Monitor, Moon, MoreHorizontal, Pin, Plus, Search, Settings, Shield, SlidersHorizontal, SquarePlus, Star, Sun, Upload, Users, Vote, Wallet, X, ZoomIn, ZoomOut, Maximize2, Download, GripVertical } from "lucide-react";
+import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, CircleHelp, ClipboardPaste, FolderKanban, GitBranch, ImagePlus, Inbox, LayoutDashboard, LayoutGrid, Library, ListChecks, ListPlus, MessageSquare, Monitor, Moon, MoreHorizontal, Pin, Plus, Search, Settings, Shield, SlidersHorizontal, SquarePlus, Star, Sun, Upload, Users, Vote, Wallet, X, ZoomIn, ZoomOut, Maximize2, Download, GripVertical, ArrowUpRight } from "lucide-react";
 
 /**
  * Betydelse till ikon. Fryst: en app som vill ha en annan bild för en betydelse ska ändra den här, inte skriva över den.
@@ -118,6 +119,7 @@ import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, Ci
  *   hemskarm: import("lucide-react").LucideIcon,
  *   integritet: import("lucide-react").LucideIcon,
  *   grepp: import("lucide-react").LucideIcon,
+ *   oppna: import("lucide-react").LucideIcon,
  * }>}
  */
 export const IKON_FOR = Object.freeze({
@@ -163,4 +165,7 @@ export const IKON_FOR = Object.freeze({
   // ⛔ GREPPET SOM DRAR ETT KORT (0.242.0, `useKortdragning` i 0.241.0). Appens ärendetavla ritade det med en egen import av `GripVertical`, och appens
   // vakt mot direkta lucide-importer blev röd, eftersom betydelsen saknade nyckel här. Samma bild för varje grepp som drar något.
   grepp: GripVertical,
+  // ⛔ ÖPPNA DETALJEN (0.249.0, cllp/lifehub.app#921). CP 2026-11-21 om Tavlans kort: "Ja till öppna ikonen." Kortet fälls ut med rubriken och öppnas med den
+  // här: posten eller ärendets detalj. Inte `helskarm` (`Maximize2`): det som öppnas är en annan vy, inte samma yta större.
+  oppna: ArrowUpRight,
 });

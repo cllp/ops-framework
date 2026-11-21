@@ -9,6 +9,15 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.249.0
+
+**Helskärmen exporteras, så att appen kan ge Tavlan samma helskärm som PDF och HTML (cllp/lifehub.app#921).** CP 2026-11-21: "En sak som jag önskar om Tavlan. Är att den kan öppnas i helskärm, precis som html och pdf", och sedan: "så att man slipper scrolla i sidled." Tavlan är appens vy, och helskärmen med sin reserv bodde i ramverket utan att exporteras.
+
+### Tillagt
+- **`useHelskarm(yta)`** exporteras: `{ lage, oppna, avsluta }`, där `lage` är `false`, `"helskarm"` eller `"fonster"`. Det är samma krok som PDF-vyn, HTML-dokumentet och kartan använder: webbläsarens helskärm där den finns, och annars ett fast lager som anroparen ritar över hela skärmen. Escape stänger lagret, och sidan bakom rullar inte.
+- **`ORD_HELSKARM`** exporteras: knappens två ord, Helskärm och Stäng helskärm, på svenska och engelska. Tavlan använder samma ord som de andra vyerna.
+- **`IKON_FOR.oppna`** (`ArrowUpRight`): öppna detaljen. CP om Tavlans kort: "Ja till öppna ikonen." Kortet fälls ut med rubriken och öppnas med ikonen, med ett tryck i stället för två. Inte `helskarm`: det som öppnas är en annan vy, inte samma yta större.
+
 ## 0.248.0
 
 **TALK följer en ny igenkänning och uppläsning från appen (cllp/lifehub.app#915).** CP 2026-11-20: "är soniox på i en grupp så är den på i alla ... det skall styras en och en." Appen ger en annan igenkänning när personen byter till en grupp som valt en annan röst, men skalet monterar inte om TALK vid ett gruppbyte. Till och med 0.247 lästes `talk.igenkanning` och `talk.upplasning` en gång, när fältet monterades, så den första gruppens röst gällde tills sidan laddades om.
