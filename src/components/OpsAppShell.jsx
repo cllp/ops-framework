@@ -15,7 +15,7 @@ import { Counter } from "./counter.jsx";
 import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, HusIkon, KryssIkon, MeddelandeIkon, MenuIcon, MikrofonIkon, PlusIkon, GruppIkon } from "./icons.jsx";
 import { OpsTalk, useTalk } from "./OpsTalk.jsx";
 import { AppNavigeringKontext } from "./appNavigering.js";
-import { TalkfaltKontext } from "./useTalkfalt.js";
+import { TalkfaltDiktering, TalkfaltKontext } from "./useTalkfalt.js";
 import { OpsTooltip } from "./OpsTooltip.jsx";
 import { kontrolleraSamtalet, kontrolleraSkickarText, talkForifyllt, talkKnappNamn } from "../lib/talk.js";
 import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
@@ -61,6 +61,9 @@ import { OVANFOR_PANEL, useRotmarke } from "../lib/panellager.js";
 const TALK_FORM = Object.freeze({ kind: "talk" });
 /** Målet "gruppen själv" i `OpsSkapaI` när gruppen saknar kalender. Har inte id-formen (`*`), så det kan aldrig krocka med en kalender. */
 const GRUPPEN_SOM_MAL = "*gruppen";
+
+/** (0.252.0, cllp/lifehub.app#915) Lägena där en omgång som ett fält bett om visas i fältet. I alla andra står TALK:s yta, som förut. */
+const DIKTERING_LAGEN = new Set(["lyssnar", "skickar"]);
 
 /**
  * En rad i en rullgardin: en modul (Hubs barn) med egna undersidor som fälls ut och in (0.30.1).
@@ -2165,10 +2168,47 @@ function OpsAppShellRitad({
   const rostSamtalRef = useRef(talkStyr.rostSamtal);
   rostSamtalRef.current = talkStyr.rostSamtal;
   // `upptagen` (granskningen av PR 605): mikrofonen bär `aria-disabled` medan en omgång pågår, så att den inte lovar något den inte gör.
+  /*
+   * ⛔ DET SAGDA I FÄLTET (0.252.0, cllp/lifehub.app#915). CP 2026-11-20: "Via Fråga agenten gick det inte att prata in, ingen ljudvåg syntes i
+   * textfältet." Mikrofonen i chattens fält startade den här omgången, men ytan lade sig över fältet. Ett fält som ber om det (`iFaltet`) får nu
+   * omgången visad i sig: `iFaltetEl` är det fältet, satt i samma tryck som omgången startar och glömt när omgången är över. Ytan ritas inte
+   * medan omgången lyssnar eller skriver in i just det fältet (`DIKTERING_LAGEN`), men i alla andra lägen ritas den som förut: ett fel, menyn
+   * efter ett avvisat Klar, och Något annat (fältet är då inte längre målet, `faltMal`) står på ytan och aldrig tyst.
+   * ⛔ BARA MED TEXT MEDAN MAN PRATAR (`medText`). Utan igenkänning finns ingen text att visa i fältet förrän servern skrivit ut ljudet, och den
+   * vägen (Skriver ut…, valen) är ytans. Då öppnas ytan som förut.
+   */
+  const [iFaltetEl, setIFaltetEl] = useState(/** @type {Element | null} */ (null));
+  const medTextRef = useRef(talkStyr.medText);
+  medTextRef.current = talkStyr.medText;
   const talkfaltVarde = useMemo(
     // (CP 2026-11-18) `rostSamtal`: vågikonen i agentens chatt börjar ett röstsamtal i skalets TALK, med chattens `vidare`.
-    () => (talkStyr.medAgent ? { tala: (/** @type {Element} */ el) => tillFaltRef.current(el), upptagen: talkStyr.upptagen, rostSamtal: (/** @type {import("../lib/talkrost.js").Talkrost["vidare"]} */ v) => rostSamtalRef.current(v) } : null),
+    () =>
+      talkStyr.medAgent
+        ? {
+            tala: (/** @type {Element} */ el, /** @type {{ iFaltet?: boolean } | undefined} */ val) => {
+              const startad = tillFaltRef.current(el);
+              if (startad && val?.iFaltet === true && medTextRef.current) setIFaltetEl(el);
+              return startad;
+            },
+            slapp: (/** @type {Element} */ el) => setIFaltetEl((nu) => (nu === el ? null : nu)),
+            upptagen: talkStyr.upptagen,
+            rostSamtal: (/** @type {import("../lib/talkrost.js").Talkrost["vidare"]} */ v) => rostSamtalRef.current(v),
+          }
+        : null,
     [talkStyr.medAgent, talkStyr.upptagen],
+  );
+  const dikteringLage = iFaltetEl && talkStyr.faltMal === iFaltetEl && DIKTERING_LAGEN.has(talkStyr.lage) ? /** @type {"lyssnar" | "skickar"} */ (talkStyr.lage) : null;
+  // `skickaIn` och `avbryt` byggs om i varje rendering av kroken: de läses ur en ref, så att fältet bara ritas om när det som syns ändras.
+  const klarRef = useRef(talkStyr.skickaIn);
+  klarRef.current = talkStyr.skickaIn;
+  const avbrytRef = useRef(talkStyr.avbryt);
+  avbrytRef.current = talkStyr.avbryt;
+  const dikteringVarde = useMemo(
+    () =>
+      dikteringLage && iFaltetEl
+        ? { el: iFaltetEl, lage: dikteringLage, text: talkStyr.text, textFel: talkStyr.textFel, niva: talkStyr.niva, klar: () => klarRef.current(), avbryt: () => avbrytRef.current() }
+        : null,
+    [dikteringLage, iFaltetEl, talkStyr.text, talkStyr.textFel, talkStyr.niva],
   );
   /**
    * ⛔ VALET GÄLLER EN INSPELNING, INTE SESSIONEN (0.94.3, lifehub.app#187). `valtInspelning` sattes av
@@ -2189,6 +2229,8 @@ function OpsAppShellRitad({
     if (talkStyr.lage === "vila" && forut !== "vila") {
       setValtInspelning(null);
       setLaastMal(null);
+      // (0.252.0, #915) Omgången i fältet är över: nästa omgång visas på ytan om inte fältet ber om det igen.
+      setIFaltetEl(null);
     }
   }, [talkStyr.lage]);
   // ⛔ EN LISTA FÖR FRÅGAN OCH ÅTGÄRDEN (cllp/ops-framework#391): `kanSpelaIn` och `oppnaInspelning` läser båda modulens mål härifrån.
@@ -2705,6 +2747,7 @@ function OpsAppShellRitad({
     <OpsSpelareProvider>
     <AppNavigeringKontext.Provider value={onNavigate ? onActivate : null}>
     <TalkfaltKontext.Provider value={talkfaltVarde}>
+    <TalkfaltDiktering.Provider value={dikteringVarde}>
     <OppnaSkapaKontext.Provider value={oppnaFranApp}>
     <OppnaHandelseKontext.Provider value={handelsepanel ? oppnaHandelse : null}>
     <RadkallorKontext.Provider value={radkallorKontrollerade}>
@@ -3283,7 +3326,8 @@ function OpsAppShellRitad({
 
       {talk || inspelningsMal.length > 0 ? (
         <OpsTalk
-          lage={talkStyr.lage}
+          // ⛔ (0.252.0, #915) Medan omgången visas i fältet ritas ingen yta. Allt annat läge, också ett fel, går hit som förut.
+          lage={dikteringVarde ? "vila" : talkStyr.lage}
           fel={talkStyr.fel}
           niva={talkStyr.niva}
           sekunder={talkStyr.sekunder}
@@ -3391,6 +3435,7 @@ function OpsAppShellRitad({
     </RadkallorKontext.Provider>
     </OppnaHandelseKontext.Provider>
     </OppnaSkapaKontext.Provider>
+    </TalkfaltDiktering.Provider>
     </TalkfaltKontext.Provider>
     </AppNavigeringKontext.Provider>
     </OpsSpelareProvider>

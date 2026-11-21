@@ -13,9 +13,40 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * `upptagen` (granskningen av PR 605): en omgång pågår, och mikrofonen bär `aria-disabled`.
  * (CP 2026-11-18) `rostSamtal(vidare)` börjar ett röstsamtal i skalets TALK: vågikonen i agentens chatt ger det sagda till `vidare`
  * (`vidareISamtal` i `src/lib/talkrost.js`), och svaret läses upp. Samma villkor som `tala`: bara när TALK har valen.
- * @type {import("react").Context<{ tala: (el: Element) => boolean, upptagen: boolean, rostSamtal?: (vidare: import("../lib/talkrost.js").Talkrost["vidare"]) => boolean } | null>}
+ * (0.252.0, cllp/lifehub.app#915) `tala(el, { iFaltet: true })` ber skalet visa omgången i fältet (`TalkfaltDiktering`), och `slapp(el)` säger att
+ * fältet avmonterats, så att skalets yta tar över.
+ * @type {import("react").Context<{ tala: (el: Element, val?: { iFaltet?: boolean }) => boolean, slapp?: (el: Element) => void, upptagen: boolean, rostSamtal?: (vidare: import("../lib/talkrost.js").Talkrost["vidare"]) => boolean } | null>}
  */
-export const TalkfaltKontext = createContext(/** @type {{ tala: (el: Element) => boolean, upptagen: boolean, rostSamtal?: (vidare: import("../lib/talkrost.js").Talkrost["vidare"]) => boolean } | null} */ (null));
+export const TalkfaltKontext = createContext(/** @type {{ tala: (el: Element, val?: { iFaltet?: boolean }) => boolean, slapp?: (el: Element) => void, upptagen: boolean, rostSamtal?: (vidare: import("../lib/talkrost.js").Talkrost["vidare"]) => boolean } | null} */ (null));
+
+/**
+ * ⛔ DET SAGDA I FÄLTET, INTE PÅ TALK:S YTA (0.252.0, cllp/lifehub.app#915). CP 2026-11-20 i telefonen: "Via Fråga agenten gick det inte att
+ * prata in, ingen ljudvåg syntes i textfältet", och 2026-11-21 00.05 om förslaget att fältet i samtalet med agenten ska visa det sagda medan man
+ * pratar: "Ja kör. Fullt ut".
+ *
+ * Mikrofonen i fältet öppnade skalets TALK, och TALK:s yta lade sig över skrivfältet: ljudvågen och texten stod i ytan, och fältet syntes inte
+ * förrän Klar. Ett fält som ber om det (`useTalkfalt(ref, { iFaltet: true })`, i dag chattens skrivfält med `talIFaltet`) får i stället omgången
+ * visad i sig själv: ljudvågen, texten medan den växer, Avbryt och Klar. Skalet ritar då ingen yta.
+ *
+ * ⛔ SAMMA OMGÅNG SOM TALK, INTE EN ANDRA RÖST (0.230.0:s skäl står kvar). Det är skalets `useTalk` som lyssnar, med appens `igenkanning`, så
+ * samma igenkänning gäller i fältet som i TALK (telefonens i appen, Soniox där gruppen valt det). Fältet visar bara omgången. Värdet är `null`
+ * utom medan en sådan omgång lyssnar eller skriver in: i alla andra lägen (ett fel, ett tillstånd som behöver menyn, ett fält som avmonterats)
+ * ritar skalet sin vanliga yta, så att inget fel blir tyst.
+ *
+ * @type {import("react").Context<Talkdiktering | null>}
+ */
+export const TalkfaltDiktering = createContext(/** @type {Talkdiktering | null} */ (null));
+
+/**
+ * @typedef {object} Talkdiktering
+ * @property {Element} el Fältet som omgången skriver i.
+ * @property {"lyssnar" | "skickar"} lage `lyssnar` medan man pratar, `skickar` medan det sagda skrivs in.
+ * @property {string} text Texten hittills.
+ * @property {string} textFel Igenkänningens fel medan man pratar, eller tom.
+ * @property {() => number} niva Nivån 0 till 1 för ljudvågen.
+ * @property {() => void} klar Skriver in det sagda i fältet (TALK:s Klar).
+ * @property {() => void} avbryt Slänger det sagda (TALK:s Avbryt).
+ */
 
 /**
  * Registrerar ett textfält som ett fält TALK kan skriva i (0.230.0, cllp/ops-framework#602). Se `src/lib/talkfalt.js` för hela flödet.
@@ -51,9 +82,15 @@ export const TalkfaltKontext = createContext(/** @type {{ tala: (el: Element) =>
  * ⛔ TANGENTBORDET (granskningen av PR 605). Med Tab och Enter har knappen fokus. Fokus går till TALK-ytans första knapp när ytan öppnats,
  * och står annars kvar på knappen. Medan en omgång pågår bär knappen `aria-disabled`.
  *
+ * ══ ⛔ 0.252.0: DET SAGDA I FÄLTET (`iFaltet`, cllp/lifehub.app#915) ═════════════════════════════════════════════════════════════
+ *
+ * Med `iFaltet: true` ber mikrofonen skalet visa omgången i fältet (`TalkfaltDiktering`), och kroken ger `diktering`: omgången när den skriver i
+ * just det här fältet, annars `null`. Fältet ritar ljudvågen och texten själv. Avmonteras fältet mitt i omgången släpps den (`slapp`), och skalets
+ * yta tar över med det som sagts hittills, så att ingenting lyssnar osynligt.
+ *
  * @param {import("react").RefObject<HTMLInputElement | HTMLTextAreaElement | null>} ref
- * @param {{ slag: "input" | "textarea", typ?: string, value: string | undefined, onChange: ((v: string) => void) | undefined, disabled: boolean, readOnly?: boolean, maxLength?: number, etikett?: string, ariaLabel?: string, placeholder?: string }} f
- * @returns {{ medOmslag: boolean, medMik: boolean, mik: (placering: "falt" | "rad-falt" | "plats" | "rad") => import("react").ReactNode }}
+ * @param {{ slag: "input" | "textarea", typ?: string, value: string | undefined, onChange: ((v: string) => void) | undefined, disabled: boolean, readOnly?: boolean, maxLength?: number, etikett?: string, ariaLabel?: string, placeholder?: string, iFaltet?: boolean }} f
+ * @returns {{ medOmslag: boolean, medMik: boolean, mik: (placering: "falt" | "rad-falt" | "plats" | "rad") => import("react").ReactNode, diktering: Talkdiktering | null }}
  */
 export function useTalkfalt(ref, f) {
   const kontext = useContext(TalkfaltKontext);
@@ -66,10 +103,17 @@ export function useTalkfalt(ref, f) {
   const kan = typeof f.onChange === "function" && !f.disabled && !f.readOnly && !(/** @type {readonly string[]} */ (UTAN_TAL)).includes(f.typ ?? "text");
   // ⛔ (granskningen av PR 605) Avmonteras fältet mitt i en omgång tas ramen bort med det, i stället för att stå kvar på ett element utanför
   // sidan tills omgången är över.
+  const kontextRef = useRef(kontext);
+  kontextRef.current = kontext;
   useEffect(() => {
     const el = ref.current;
-    return () => el?.removeAttribute(TALK_MAL);
+    return () => {
+      el?.removeAttribute(TALK_MAL);
+      // ⛔ (0.252.0, #915) Visades omgången i fältet tar skalets yta över, så att den inte fortsätter osynligt.
+      if (el) kontextRef.current?.slapp?.(el);
+    };
   }, [ref]);
+  const dikteringNu = useContext(TalkfaltDiktering);
   useEffect(() => {
     const el = ref.current;
     if (!el || !kan) return undefined;
@@ -112,7 +156,7 @@ export function useTalkfalt(ref, f) {
         if (!el) return;
         const knappHadeFokus = document.activeElement === e.currentTarget;
         // Ingen omgång startade (en pågår redan): ingenting ändras, och fokus står kvar där det stod.
-        if (!kontext.tala(el)) return;
+        if (!kontext.tala(el, lage.current.iFaltet ? { iFaltet: true } : undefined)) return;
         // ⛔ (granskningen av PR 606) Det fält som har fokus släpps, inte bara det här. Hade ett annat fält fokus stod tangentbordet kvar uppe och
         // markören blinkade i ett fält som inte fick texten: samma läge som CP:s "TALK kommer inte upp".
         const aktivt = document.activeElement;
@@ -139,5 +183,7 @@ export function useTalkfalt(ref, f) {
       }
     }
   }, [f.value, ref]);
-  return { medOmslag, medMik, mik };
+  // Omgången visas i det här fältet: ett annat fälts omgång är inte den här, och utan `iFaltet` visar fältet aldrig någon.
+  const diktering = f.iFaltet && dikteringNu && ref.current && dikteringNu.el === ref.current ? dikteringNu : null;
+  return { medOmslag, medMik, mik, diktering };
 }
