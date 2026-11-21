@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Helskärm för en yta, med ett fast lager som reserv (0.234.0, en sanning för PDF-vyn och kartan, regel 2).
@@ -14,15 +14,24 @@ import { useCallback, useEffect, useState } from "react";
  *     anroparen ritar ytan som ett fast lager över hela skärmen.
  *   - Lämnas helskärmen utan oss (Esc i webbläsaren, F11, en annan flik) är läget slut. Webbläsaren äger det läget.
  *   - I `fonster` stänger Escape lagret, och sidan bakom rullar inte medan lagret ligger över den.
+ *   - ⛔ AVMONTERAS ÄGAREN I HELSKÄRM AVSLUTAS HELSKÄRMEN (0.249.1, GPT:s granskning av cllp/lifehub.app PR 922). Tavlan lägger hela sidan
+ *     (`document.documentElement`) i helskärm, och sidan finns kvar när tavlan avmonteras. Mätt i byggd Chromium på 390 och 1280: öppna ett kort
+ *     med ikonen, gå tillbaka, och `document.fullscreenElement` var fortfarande sidan medan den nya tavlan saknade Stäng helskärm. Personen satt kvar
+ *     i webbläsarens helskärm utan utväg. Ett element som tas bort ur sidan lämnar helskärmen av sig självt (PDF-vyn, kartan), sidan gör det inte.
+ *     Därför minns kroken elementet den själv bad om (`agd`) och avslutar helskärmen vid avmonteringen bara om det fortfarande är det elementet
+ *     som är i helskärm. En helskärm någon annan bett om lämnas orörd.
  *
  * @param {{ current: HTMLElement | null }} yta Elementet som blir helskärm.
  * @returns {{ lage: false | "helskarm" | "fonster", oppna: () => void, avsluta: () => void }}
  */
 export function useHelskarm(yta) {
   const [lage, setLage] = useState(/** @type {false | "helskarm" | "fonster"} */ (false));
+  /** Elementet kroken själv bad om helskärm för, så att avmonteringen bara avslutar sin egen. */
+  const agd = useRef(/** @type {Element | null} */ (null));
 
   const avsluta = useCallback(() => {
     setLage(false);
+    agd.current = null;
     if (typeof document !== "undefined" && document.fullscreenElement && document.fullscreenElement === yta.current) document.exitFullscreen?.()?.catch(() => {});
   }, [yta]);
 
@@ -31,7 +40,11 @@ export function useHelskarm(yta) {
     const kan = Boolean(el) && typeof document !== "undefined" && Boolean(document.fullscreenEnabled) && typeof el?.requestFullscreen === "function";
     setLage(kan ? "helskarm" : "fonster");
     if (kan && el) {
-      const tillFonster = () => setLage((nu) => (nu ? "fonster" : nu));
+      agd.current = el;
+      const tillFonster = () => {
+        agd.current = null;
+        setLage((nu) => (nu ? "fonster" : nu));
+      };
       try {
         el.requestFullscreen()?.catch(tillFonster);
       } catch {
@@ -43,11 +56,42 @@ export function useHelskarm(yta) {
   useEffect(() => {
     if (lage !== "helskarm") return undefined;
     const vid = () => {
-      if (document.fullscreenElement !== yta.current) setLage(false);
+      if (document.fullscreenElement === yta.current) return;
+      agd.current = null;
+      setLage(false);
     };
     document.addEventListener("fullscreenchange", vid);
     return () => document.removeEventListener("fullscreenchange", vid);
   }, [lage, yta]);
+
+  /*
+   * ⛔ OCH EN BEGÄRAN SOM FORTFARANDE VÄNTAR AVSLUTAS NÄR DEN KOMMER FRAM (GPT:s granskning av PR 636). `requestFullscreen()` är asynkron. Lämnas vyn
+   * innan webbläsaren gått in i helskärm är `fullscreenElement` ännu tom vid avmonteringen, och en begäran som lyckas efteråt lägger sidan i helskärm
+   * utan någon kvar som äger den. Därför lyssnar avmonteringen en gång på `fullscreenchange` och `fullscreenerror`: blir det vårt element avslutas
+   * helskärmen, annars lämnas den (någon annans, eller ingen).
+   */
+  useEffect(
+    () => () => {
+      const egen = agd.current;
+      agd.current = null;
+      if (!egen) return;
+      const lamna = () => {
+        if (document.fullscreenElement === egen) document.exitFullscreen?.()?.catch(() => {});
+      };
+      if (document.fullscreenElement === egen) {
+        lamna();
+        return;
+      }
+      const sent = () => {
+        document.removeEventListener("fullscreenchange", sent);
+        document.removeEventListener("fullscreenerror", sent);
+        lamna();
+      };
+      document.addEventListener("fullscreenchange", sent);
+      document.addEventListener("fullscreenerror", sent);
+    },
+    [],
+  );
 
   /*
    * ⛔ SIDRAMENS RESERVERADE RULLNINGSLIST GÄLLER INTE YTAN I HELSKÄRM (mätt i `check-skalyta` 52c, samma som `OpsHtmlVy`, avsnitt 60). Tokens ger `html`

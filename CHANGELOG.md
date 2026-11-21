@@ -9,6 +9,13 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.249.1
+
+**Helskärmen avslutas när den vy som bad om den avmonteras (GPT:s granskning av cllp/lifehub.app PR 922, #921).** Tavlan lägger hela sidan (`document.documentElement`) i helskärm, och sidan finns kvar när tavlan avmonteras. Mätt i byggd Chromium på 390 och 1280: Helskärm, öppna ett kort med ikonen, tillbaka till tavlan. Då var sidan fortfarande i webbläsarens helskärm, och den nya tavlan saknade Stäng helskärm.
+
+### Rättat
+- **`useHelskarm`** minns elementet den själv bad om helskärm för, och avslutar helskärmen när vyn avmonteras om det fortfarande är det elementet som är i helskärm. Väntar begäran fortfarande när vyn avmonteras avslutas helskärmen när den kommer fram (GPT:s granskning av PR 636: `requestFullscreen()` är asynkron). En helskärm som någon annan bett om lämnas orörd. PDF-vyn och kartan påverkas inte i praktiken: deras element tas bort ur sidan, och då lämnar webbläsaren helskärmen av sig själv.
+
 ## 0.249.0
 
 **Helskärmen exporteras, så att appen kan ge Tavlan samma helskärm som PDF och HTML (cllp/lifehub.app#921).** CP 2026-11-21: "En sak som jag önskar om Tavlan. Är att den kan öppnas i helskärm, precis som html och pdf", och sedan: "så att man slipper scrolla i sidled." Tavlan är appens vy, och helskärmen med sin reserv bodde i ramverket utan att exporteras.
