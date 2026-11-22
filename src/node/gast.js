@@ -109,6 +109,7 @@ import {
   arGruppslag,
   GASTSKRIV_MAX_TECKEN,
   GASTSKRIV_PER_MINUT,
+  GASTUPPLADDNING_PER_DYGN,
   arGastId,
   GASTNAMNLOS,
   GASTGRUPPFUNKTIONER,
@@ -133,6 +134,7 @@ import {
   GASTPERSONFALT,
   GASTPERSONINBJUDANFALT,
   GASTGRUPPLISTFALT,
+  GASTPROJEKTLISTFALT,
   GASTPLATSNUMMER,
   GASTSESSIONSDAGAR,
   GASTSVARSFALT,
@@ -156,7 +158,7 @@ import {
   gastkontaktPaRad,
 } from "../lib/gast.js";
 import { MAX_GRUPPBESKRIVNING, agentId, medlemskapsId } from "../lib/grupp.js";
-import { arArkiverad, platsBibliotek, trimSomRegeln } from "../lib/bibliotek.js";
+import { MAX_BIBLIOTEKRUBRIK, POSTIDFORM, arArkiverad, filInmatningsfel, normaliseraMime, platsBibliotek, rubrikUrFilnamn, trimSomRegeln } from "../lib/bibliotek.js";
 import { KLOCKFORM, SVARSVAL, byggSvar, handelsefel, sammanstallSvar } from "../lib/handelsemodell.js";
 import { validateGruppkalendrar } from "../lib/kalendrar.js";
 import { gruppensRader } from "../lib/katalog.js";
@@ -268,6 +270,8 @@ export function gastInbjudningsId(d) {
  * @param {string} [d.andringsnyckel] KRÄVS för en `delta`-inbjudan: `andringsnyckel()` för händelsen som den är när brevet skickas. Övriga omfång bär inget sådant fält.
  * @param {boolean} [d.laddaNed] (0.203.0, lifehub.app#691) Får gästen ladda ned filer? Bara för en inbjudan till hela gruppen, och utelämnad är `false`: en ny gäst laddar inte ned
  *   förrän någon slagit på det. En sak bär aldrig fältet, och ett värde för en sak är ett fel.
+ * @param {boolean} [d.redigera] (0.254.0, lifehub.app#928 del 2) Får gästen ladda upp och ändra på projektets plats och skapa ärenden i projektet? Bara för en inbjudan till ett projekt, och utelämnad är `false`,
+ *   av samma skäl som `laddaNed`: en ny gäst får inte mer än det som slagits på. En gäst i hela gruppen och en sak bär aldrig fältet, och ett värde för dem är ett fel.
  * @returns {Record<string, any>}
  */
 export function byggGastinbjudan(d) {
@@ -290,6 +294,10 @@ export function byggGastinbjudan(d) {
   const grupp = arGruppslag(omfang);
   if (d.laddaNed !== undefined && typeof d.laddaNed !== "boolean") throw new Error("byggGastinbjudan: laddaNed ska vara sant eller falskt, eller utelämnas.");
   if (d.laddaNed !== undefined && !grupp) throw new Error("byggGastinbjudan: laddaNed gäller bara en inbjudan till hela gruppen. En sak har inget bibliotek att ladda ned ur.");
+  // ⛔ (0.254.0) `redigera` GÄLLER BARA ETT PROJEKT. En gäst i hela gruppen som fick skriva i gruppens bibliotek hade nått allt gruppen äger, och det har ingen bett om (CP: bara projektet).
+  const projekt = omfang.slag === "projekt";
+  if (d.redigera !== undefined && typeof d.redigera !== "boolean") throw new Error("byggGastinbjudan: redigera ska vara sant eller falskt, eller utelämnas.");
+  if (d.redigera !== undefined && !projekt) throw new Error("byggGastinbjudan: redigera gäller bara en inbjudan till ett projekt. Hela gruppens bibliotek och en sak rörs aldrig av en gäst.");
   if (delta && (typeof d.andringsnyckel !== "string" || d.andringsnyckel === "")) {
     throw new Error("byggGastinbjudan: en delta-inbjudan bär andringsnyckel (ur andringsnyckel()), det som SEQUENCE jämförs mot vid nästa utskick.");
   }
@@ -315,6 +323,8 @@ export function byggGastinbjudan(d) {
     ...(delta ? { deltasvar: null, sekvens: 0, andringsnyckel: d.andringsnyckel } : {}),
     // (0.203.0) Bara en gruppinbjudan, och bara `true` slår på: allt annat än ett uttryckligt ja är nej för en ny gäst.
     ...(grupp ? { laddaNed: d.laddaNed === true } : {}),
+    // (0.254.0) Bara en projektinbjudan, och bara `true` slår på, som `laddaNed`.
+    ...(projekt ? { redigera: d.redigera === true } : {}),
   };
 }
 
@@ -365,6 +375,24 @@ function felMedKod(kod, meddelande) {
  * @property {(arg: { groupId: string, tagg: string }) => Gastprojekturval | null | Promise<Gastprojekturval | null>} urval
  *   Projektet med taggen i gruppen, eller `null` när det inte finns eller är arkiverat (då når gästen ingenting). Anropas en gång per åtgärd, efter sessionen. ⛔ `handelse` och `arende` avgör vad gästen ser: de prövas
  *   rad för rad på servern, och en rad de inte släpper in lämnar aldrig tjänsten.
+ * @property {Gastprojektredigering} [redigering] (0.254.0, lifehub.app#928 del 2) Slår på att en projektgäst med `redigera` laddar upp, byter namn på och tar bort filer och anteckningar på projektets plats och
+ *   skapar ärenden i projektet. Utelämnad: `hamta` säger `redigera: false` och de fem åtgärderna svarar `nej`, också för en gäst vars rad har `redigera: true`.
+ */
+
+/**
+ * @typedef {object} Gastprojektredigering Appens skrivningar för en projektgäst som får ladda upp och ändra (0.254.0, lifehub.app#928 del 2). ⛔ RAMVERKET PRÖVAR, APPEN SKRIVER: sessionen, att inbjudan gäller ett
+ *   projekt och har `redigera: true`, att projektet finns, att posten ligger på projektets plats och är en fil eller en anteckning, takterna och texterna prövas här FÖRE varje anrop. Appen får bara anrop som redan
+ *   släppts in, och gör skrivningen i sin modell (sin bibliotekskälla, sin lagring, sin ärendemodell). `namn` är gästens namn som det visas (`GASTNAMNLOS` när inget finns), `gastId` gästens id, aldrig ett medlemsuid.
+ * @property {(arg: { groupId: string, tagg: string, plats: string, gastId: string, namn: string, filnamn: string, typ: string, storlek: number, rubrik: string }) => { id: string, url: string, huvuden: Record<string, string> } | Promise<{ id: string, url: string, huvuden: Record<string, string> }>} nyFil
+ *   Reserverar en uppladdning på `plats` och signerar en PUT-adress. Appen prövar sorten och storleken en gång till med sin egen regel och kastar ett `Error` med `kod` när den säger nej. `huvuden` är exakt de huvuden PUT:en måste bära.
+ * @property {(arg: { groupId: string, tagg: string, plats: string, gastId: string, namn: string, id: string }) => { postId: string } | Promise<{ postId: string }>} filKlar
+ *   Gör reservationen `id` till en post på `plats`, med gästen som skapare. ⛔ Appen prövar att reservationen är just den här gästens på just den platsen: `id` kommer ur gästens anrop.
+ * @property {(arg: { groupId: string, tagg: string, plats: string, post: Record<string, any>, rubrik: string, gastId: string, namn: string }) => void | Promise<void>} bytNamn
+ *   Byter rubrik på `post` (en fil eller en anteckning på `plats`). Rubriken är redan trimmad, inte tom och högst `MAX_BIBLIOTEKRUBRIK` tecken.
+ * @property {(arg: { groupId: string, tagg: string, plats: string, post: Record<string, any>, gastId: string, namn: string }) => void | Promise<void>} taBort Tar bort `post` (en fil eller en anteckning på `plats`), med filen i lagringen.
+ * @property {(arg: { groupId: string, tagg: string, gastId: string, namn: string, rubrik: string, text: string }) => { id: string } | Promise<{ id: string }>} skapaArende
+ *   Skapar ett ärende i projektet, med projektets tagg och gästen som skapare. Rubriken är trimmad och inte tom, texten trimmad och kanske tom, båda högst `GASTSKRIV_MAX_TECKEN`. Ramverket läser sedan raden ur
+ *   `grupp.arenden.samling` och bygger svaret med `grupp.arenden.bygg`, som i `arenden`.
  */
 
 /**
@@ -560,6 +588,16 @@ export function createGastService(konfig) {
     }
     if (grupp.projekt !== undefined && (!grupp.projekt || typeof grupp.projekt.urval !== "function")) {
       throw new Error(`${namn}: grupp.projekt är { urval }, en funktion som ger projektet med taggen och vad som hör till det. Ramverket känner inte appens projekt och gissar inget.`);
+    }
+    if (grupp.projekt?.redigering !== undefined) {
+      const r = grupp.projekt.redigering;
+      // ⛔ (0.254.0) ALLA FEM ELLER INGEN. En gäst som får ladda upp men inte ta bort det hen laddat upp, eller byta namn men inte ladda upp, hade fått knappar som säger nej, och vyn ritar alla eller ingen.
+      if (!r || typeof r !== "object") throw new Error(`${namn}: grupp.projekt.redigering är { nyFil, filKlar, bytNamn, taBort, skapaArende }, eller utelämnas.`);
+      for (const f of /** @type {const} */ (["nyFil", "filKlar", "bytNamn", "taBort", "skapaArende"])) {
+        if (typeof r[f] !== "function") throw new Error(`${namn}: grupp.projekt.redigering.${f} krävs, en funktion. Ramverket prövar och appen skriver, och alla fem krävs tillsammans: en gäst som får ladda upp ska också kunna ta bort.`);
+      }
+      // Ett ärende som gästen skapar läses tillbaka och byggs som de andra (`grupp.arenden`), så utan ärenden finns inget att bygga det med.
+      if (grupp.arenden === undefined) throw new Error(`${namn}: grupp.projekt.redigering kräver grupp.arenden. Ett ärende som gästen skapar läses tillbaka och visas genom grupp.arenden.bygg.`);
     }
     GS = {
       samlingar: gs,
@@ -1220,6 +1258,34 @@ export function createGastService(konfig) {
   }
 
   /**
+   * (0.254.0, lifehub.app#928 del 2, CP "kör") Slår på eller av att EN projektgäst får ladda upp och ändra: `pa` skrivs som radens `redigera`, och inget annat på raden ändras. Samma form som `sattNedladdning`.
+   *
+   * ⛔ BARA ETT PROJEKT. En inbjudan till hela gruppen och en sak nekas med `ogiltigt-omfang`: gruppens bibliotek och gruppens ärenden skriver ingen gäst i, och ett värde på en sådan rad hade varit ett löfte
+   * som ingen åtgärd håller (en tyst nedsläppsväg, regel 5).
+   *
+   * ⛔ BARA ÄGARE OCH ADMIN, som `sattNedladdning` och som att bjuda in. Att låta en gäst skriva i gruppens data är mer än att låta hen läsa, så det kräver minst samma roll, och samma krav för av som för på.
+   * En återkallad inbjudan får ändras: värdet står kvar och ger ingenting så länge raden är återkallad.
+   *
+   * @param {Record<string, any>} b `{ uid, id, pa }`, där `id` är inbjudans id och `pa` är `true` eller `false`.
+   * @returns {Promise<{ id: string, redigera: boolean }>}
+   */
+  async function sattRedigera(b) {
+    const uid = kravText(b?.uid, "uid", "sattRedigera");
+    const id = kravText(b?.id, "id", "sattRedigera");
+    if (typeof b?.pa !== "boolean") throw felMedKod("ogiltigt-omfang", "sattRedigera: pa ska vara sant eller falskt.");
+    const pa = b.pa;
+    if (!GASTINBJUDNINGSIDFORM.test(id)) throw felMedKod("finns-inte", "sattRedigera: id är en hash på 64 hextecken.");
+    const rad = await kalla.read(INB, id);
+    if (!rad) throw felMedKod("finns-inte", `sattRedigera: inbjudan "${id}" finns inte.`);
+    if (rad.omfang?.slag !== "projekt") throw felMedKod("ogiltigt-omfang", `sattRedigera: inbjudan "${id}" gäller inte ett projekt. Bara en gäst i ett projekt får ladda upp och ändra, och bara på projektets plats.`);
+    if (!(await forvaltar(uid, rad.groupId))) throw felMedKod("ej-behorig", `sattRedigera: ${uid} är inte aktiv ägare eller admin i gruppen "${rad.groupId}". Bara de ändrar vad en gäst får ändra.`);
+    // Villkorad på gruppen och omfånget: en rad som raderats under tiden ger `finns-inte`, och en uppdatering skapar den aldrig på nytt.
+    const { updated } = await uppdateraOm(INB, id, { groupId: rad.groupId }, { redigera: pa });
+    if (!updated) throw felMedKod("finns-inte", `sattRedigera: inbjudan "${id}" togs bort medan ändringen gjordes.`);
+    return { id, redigera: pa };
+  }
+
+  /**
    * Prövningen som `skickaOm` och `kopieraLank` delar (en sanning, regel 2): giltigt id, raden finns, medlemmen får förvalta den, ägare eller admin för en gruppinbjudan och inte återkallad.
    *
    * @param {Record<string, any>} b `{ uid, id }`.
@@ -1353,10 +1419,11 @@ export function createGastService(konfig) {
           // `harRostat` är appens kunskap om omröstningen: den säger ingenting om en delta-inbjudan.
           // (0.204.0) `laddaNed` på en gruppinbjudan är alltid `true` eller `false`: en rad utan fältet visas som `false`, eftersom den är det (`nedladdningTillaten`). Listan visar aldrig
           // något annat än det servern gör, och `null` ("följer gruppen") finns inte längre när gruppen inte är en del av regeln.
-          const visad = { ...r, laddaNed: r.laddaNed === true, titel: titlar.get(r.omfang?.handelseId) ?? null, status: gastStatus(r, { nu, harRostat: rostat.has(id) && r.omfang?.funktion !== "delta" }), omfang: r.omfang?.slag === "grupp" ? { slag: "grupp" } : r.omfang?.slag === "projekt" ? { slag: "projekt", tagg: r.omfang?.tagg } : { slag: r.omfang?.slag, funktion: r.omfang?.funktion, handelseId: r.omfang?.handelseId } };
+          const visad = { ...r, laddaNed: r.laddaNed === true, redigera: r.redigera === true, titel: titlar.get(r.omfang?.handelseId) ?? null, status: gastStatus(r, { nu, harRostat: rostat.has(id) && r.omfang?.funktion !== "delta" }), omfang: r.omfang?.slag === "grupp" ? { slag: "grupp" } : r.omfang?.slag === "projekt" ? { slag: "projekt", tagg: r.omfang?.tagg } : { slag: r.omfang?.slag, funktion: r.omfang?.funktion, handelseId: r.omfang?.handelseId } };
           // Svaret hör bara till en delta-rad: en omröstnings- och en gruppinbjudan har exakt fälten de hade före 0.146.0.
           // (0.203.0) Nedladdningen hör bara till en gruppinbjudan (`GASTGRUPPLISTFALT`), av samma skäl.
-          const falt = r.omfang?.funktion === "delta" ? [...GASTPERSONINBJUDANFALT, ...GASTDELTALISTFALT] : arGruppslag(r.omfang) ? [...GASTPERSONINBJUDANFALT, ...GASTGRUPPLISTFALT] : GASTPERSONINBJUDANFALT;
+          // (0.254.0) Om gästen får ladda upp och ändra hör bara till en projektrad (`GASTPROJEKTLISTFALT`), och raden är alltid `true` eller `false`.
+          const falt = r.omfang?.funktion === "delta" ? [...GASTPERSONINBJUDANFALT, ...GASTDELTALISTFALT] : r.omfang?.slag === "projekt" ? [...GASTPERSONINBJUDANFALT, ...GASTGRUPPLISTFALT, ...GASTPROJEKTLISTFALT] : arGruppslag(r.omfang) ? [...GASTPERSONINBJUDANFALT, ...GASTGRUPPLISTFALT] : GASTPERSONINBJUDANFALT;
           return Object.fromEntries(falt.map((f) => [f, /** @type {Record<string, any>} */ (visad)[f]]));
         });
         const status = inbjudningar.map((i) => i.status).sort((x, y) => ordning.indexOf(x) - ordning.indexOf(y))[0];
@@ -1583,7 +1650,7 @@ export function createGastService(konfig) {
    * Prövar en session: den finns, har inte stått oanvänd i `GASTSESSIONSDAGAR` dagar, och dess inbjudan finns och är aktiv. Läser inbjudan på nytt varje gång.
    *
    * @param {Record<string, any>} b `{ sessionsnyckel, krav?: { slag?, funktion } }`. `krav` är vad anropet gäller: en inbjudan som inte ger funktionen (eller inte är av slaget) nekas som en okänd session.
-   * @returns {Promise<{ ok: true, gastId: string, inbjudan: { id: string, groupId: string, slag: "sak" | "grupp" | "projekt", handelseId: string | null, funktion: string, namn: string, tagg?: string, laddaNed?: boolean } } | { ok: false, orsak: Gastorsak }>}
+   * @returns {Promise<{ ok: true, gastId: string, inbjudan: { id: string, groupId: string, slag: "sak" | "grupp" | "projekt", handelseId: string | null, funktion: string, namn: string, tagg?: string, laddaNed?: boolean, redigera?: boolean } } | { ok: false, orsak: Gastorsak }>}
    */
   async function session(b) {
     const nyckel = b?.sessionsnyckel;
@@ -1620,6 +1687,8 @@ export function createGastService(konfig) {
         ...(projektlage ? { tagg: /** @type {string} */ (rad.omfang.tagg) } : {}),
         // (0.203.0) Bara en gruppsession: gästens egen nedladdning. (0.204.0) Alltid `true` eller `false`, och en rad utan fältet är `false` (`nedladdningTillaten`). En sak har inget sådant fält.
         ...(grupplage ? { laddaNed: rad.laddaNed === true } : {}),
+        // (0.254.0) Bara en projektsession: om gästen får ladda upp och ändra. Alltid `true` eller `false`, och en rad utan fältet är `false`.
+        ...(projektlage ? { redigera: rad.redigera === true } : {}),
       },
     };
   }
@@ -1871,7 +1940,8 @@ export function createGastService(konfig) {
   /**
    * (0.215.0) `hamta` för en projektinbjudan: projektets namn som rubrik, funktionerna (`GASTPROJEKTFUNKTIONER` som tjänsten har) och kortet (`GASTPROJEKTKORTFALT`). Formen är gruppens (`funktion: "grupp"`),
    * så att sidan ritar samma vy. Ingen beskrivning av gruppen, och `kommentera` är falskt: en kommentar på en post skrivs i gruppens chatt, som en projektgäst inte ser.
-   * @param {{ gastId: string, inbjudan: { id: string, groupId: string, namn: string, tagg?: string, laddaNed?: boolean } }} s
+   * (0.254.0) `redigera`: gästen får ladda upp och ändra (`redigeringTillaten`), alltid `true` eller `false` för en projektgäst.
+   * @param {{ gastId: string, inbjudan: { id: string, groupId: string, namn: string, tagg?: string, laddaNed?: boolean, redigera?: boolean } }} s
    */
   async function hamtaProjekt(s) {
     if (!GS?.projekt) return nej();
@@ -1887,7 +1957,7 @@ export function createGastService(konfig) {
     const funktioner = GS.funktioner.filter((f) => /** @type {readonly string[]} */ (GASTPROJEKTFUNKTIONER).includes(f));
     // ⛔ (0.215.0, #760) INGET `gruppnamn` FÖR ETT PROJEKT: en projektgäst ser aldrig gruppens namn (skiva 1, brevet och sidan säger projektets). Mätt 2026-11-11: skiva 3 gav det här, och appens prov för skiva 1
     // ("hamta läcker GRUPPENS-NAMN") blev rött. Växlaren samlar projektet under projektets eget namn.
-    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", grupp: vitlista({ namn: text(p.namn), funktioner, nedladdning: nedladdningTillaten(s.inbjudan), kommentera: false, beskrivning: "", projekt: kort }, GASTGRUPPSVARSFALT.hamta) };
+    const svar = { ok: true, namn: s.inbjudan.namn, funktion: "grupp", grupp: vitlista({ namn: text(p.namn), funktioner, nedladdning: nedladdningTillaten(s.inbjudan), kommentera: false, beskrivning: "", projekt: kort, redigera: redigeringTillaten(s.inbjudan) }, GASTGRUPPSVARSFALT.hamta) };
     return Object.fromEntries(Object.entries(svar).filter(([k]) => /** @type {readonly string[]} */ (GASTSVARSFALT).includes(k)));
   }
 
@@ -1905,6 +1975,16 @@ export function createGastService(konfig) {
    */
   function nedladdningTillaten(inbjudan) {
     return inbjudan.laddaNed === true;
+  }
+
+  /**
+   * (0.254.0, lifehub.app#928 del 2) Får just den här projektgästen ladda upp och ändra? ⛔ TRE VILLKOR OCH ALLA PÅ SERVERN: inbjudan gäller ett projekt, radens `redigera` är exakt `true` (som `laddaNed`: allt annat
+   * är nej), och appen har gett skrivningarna (`grupp.projekt.redigering`). Utan den sista hade en gäst med `true` fått knappar som varje anrop säger nej till.
+   * @param {{ slag?: string, redigera?: boolean }} inbjudan Sessionens inbjudan (`session`).
+   * @returns {boolean}
+   */
+  function redigeringTillaten(inbjudan) {
+    return inbjudan.slag === "projekt" && inbjudan.redigera === true && Boolean(GS?.projekt?.redigering);
   }
 
   /**
@@ -2576,19 +2656,31 @@ export function createGastService(konfig) {
     /** @type {Record<string, any>[]} */
     const poster = [];
     for (const rad of egna) {
-      const ut = await a.bygg({ rad: { ...rad }, groupId });
-      if (!ut || typeof ut !== "object") continue;
-      const alla = (await a.kommentarer({ rad: { ...rad }, groupId })).slice().sort((x, y) => x.tid - y.tid || String(x.id).localeCompare(String(y.id)));
-      const senaste = alla.slice(-GASTARENDEKOMMENTARER_MAX);
-      poster.push(
-        vitlista(
-          // (0.215.0) `hosDig` bara för en projektgäst, som ser ärenden som inte ligger hos hen: vyn erbjuder Markera klart bara på dem som gör det. En gruppgäst ser bara sina, och raden är som förut.
-          { ...vitlista(ut, a.falt), id: rad.id, kommentarer: senaste.map((k) => arendekommentar(k, s.gastId)), ...(alla.length > senaste.length ? { fler: true } : {}), ...(p ? { hosDig: gastDelegerad(rad.mottagare, s.gastId) } : {}) },
-          GASTARENDEFALT,
-        ),
-      );
+      const ut = await arendeUt(s, rad);
+      if (ut) poster.push(ut);
     }
     return vitlista({ ok: true, poster, avkortad }, GASTGRUPPSVARSFALT.arenden);
+  }
+
+  /**
+   * Ett ärende som gästen ser det, fält för fält ur `GASTARENDEFALT`, eller `null` när appens `bygg` hoppar över raden. ⛔ ETT HEM (regel 2, 0.254.0): listan (`arenden`) och ett ärende gästen just skapat
+   * (`skapaArende`) byggs här, så att det nya ärendet ser ut exakt som det gör när listan hämtas om.
+   * @param {{ gastId: string, projekt?: Gastprojekturval | null }} s
+   * @param {Record<string, any>} rad
+   * @returns {Promise<Record<string, any> | null>}
+   */
+  async function arendeUt(s, rad) {
+    const a = /** @type {Gastarenden} */ (GS?.arenden);
+    const groupId = String(rad.groupId);
+    const ut = await a.bygg({ rad: { ...rad }, groupId });
+    if (!ut || typeof ut !== "object") return null;
+    const alla = (await a.kommentarer({ rad: { ...rad }, groupId })).slice().sort((x, y) => x.tid - y.tid || String(x.id).localeCompare(String(y.id)));
+    const senaste = alla.slice(-GASTARENDEKOMMENTARER_MAX);
+    return vitlista(
+      // (0.215.0) `hosDig` bara för en projektgäst, som ser ärenden som inte ligger hos hen: vyn erbjuder Markera klart bara på dem som gör det. En gruppgäst ser bara sina, och raden är som förut.
+      { ...vitlista(ut, a.falt), id: rad.id, kommentarer: senaste.map((k) => arendekommentar(k, s.gastId)), ...(alla.length > senaste.length ? { fler: true } : {}), ...(s.projekt ? { hosDig: gastDelegerad(rad.mottagare, s.gastId) } : {}) },
+      GASTARENDEFALT,
+    );
   }
 
   /**
@@ -2914,6 +3006,198 @@ export function createGastService(konfig) {
     }
   }
 
+  // ── En projektgäst laddar upp och ändrar (0.254.0, lifehub.app#928 del 2) ────────────────────────────────────────────
+
+  /*
+   * CP sa "kör" på förslaget i lifehub.app#928: en gäst i ett projekt ska kunna lägga in ritningar och foton, rätta en rubrik, ta bort det som blev fel och lägga upp ett ärende, utan att bli medlem. ⛔ BARA PROJEKTET
+   * OCH BARA DET: projektets plats i biblioteket (`s.plats`, ur inbjudan), filer och anteckningar på den, och nya ärenden med projektets tagg. Inte projektets kort eller inställningar, inte medlemmarna, inte gästerna,
+   * inte gruppens eget bibliotek och ingen annan plats. Ramverket prövar och appen skriver (`grupp.projekt.redigering`), samma delning som för ärendenas kommentarer: appen får bara anrop som redan släppts in.
+   *
+   * ⛔ DET GÄSTEN LADDAT UPP HÖR TILL PROJEKTET. En radering av gästen (`radera`, `raderaMig`) tar bort gästens uppgifter, men filerna och ärendena hen lagt in ligger kvar: de är projektets arbete och inte uppgifter om gästen,
+   * på samma sätt som en medlems filer ligger kvar när hen lämnar gruppen. Räknaren för uppladdningarna (`gastuppladdning|<inbjudan>`) tas bort med de andra räknarna.
+   */
+
+  /** Fälten en projektgäst aldrig skickar till de fem åtgärderna: plats, grupp, tagg och vem som skriver kommer ur inbjudan, aldrig ur anropet. */
+  const REDIGERING_ALDRIG = /** @type {const} */ (["groupId", "tagg", "plats", "gastId", "namn", "skapadAv", "av"]);
+
+  /**
+   * Sessionen för en projektgäst som får ladda upp och ändra, eller nejet. ⛔ VARJE VILLKOR PÅ NYTT, VARJE ANROP: sessionen och inbjudan (`gruppSession`, som också läser projektet), att det är ett projekt, att
+   * radens `redigera` är `true` och att appen gett skrivningarna (`redigeringTillaten`). En gäst vars `redigera` slagits av nekas vid nästa anrop, som en återkallad. Fält som gästen inte får skicka kastar.
+   * @param {Record<string, any>} b
+   * @param {"bibliotek" | "arenden"} funktion
+   * @param {string} vad Åtgärdens namn, för felen.
+   * @param {readonly string[]} [extra] Fler fält som åtgärden inte tar emot.
+   */
+  async function redigeringSession(b, funktion, vad, extra = []) {
+    const s = await gruppSession(b, funktion);
+    if (!s.ok) return s;
+    const r = GS?.projekt?.redigering;
+    if (!r || !s.projekt || !redigeringTillaten(s.inbjudan)) return nej();
+    for (const f of [...REDIGERING_ALDRIG, ...extra]) {
+      if (b?.[f] !== undefined) throw felMedKod("ogiltigt-omfang", `${vad}: "${f}" kan en gäst inte skicka. Platsen, projektet och vem som skriver kommer ur inbjudan.`);
+    }
+    return { ...s, projekt: /** @type {Gastprojekturval} */ (s.projekt), redigering: /** @type {Gastprojektredigering} */ (r), tagg: /** @type {string} */ (s.inbjudan.tagg), namn: text(s.inbjudan.namn) || GASTNAMNLOS };
+  }
+
+  /**
+   * En post på projektets plats som gästen får ändra: en fil eller en anteckning, och `null` för allt annat. ⛔ SAMMA PRÖVNING SOM LISTAN (`gastSerBibliotekspost` med platsen ur sessionen) och id:t ska vara postens eget:
+   * en post på gruppens egen plats, på ett annat projekts, i en annan grupp eller en som inte finns är samma `null`. En länk och en lista ändras inte av en gäst (de är medlemmarnas sätt att samla, inte gästens filer).
+   * @param {string} plats
+   * @param {unknown} postId
+   * @returns {Promise<Record<string, any> | null>}
+   */
+  async function gastensPost(plats, postId) {
+    if (typeof postId !== "string" || !POSTIDFORM.test(postId)) return null;
+    const post = await kalla.read(/** @type {any} */ (GS).samlingar.bibliotek, postId);
+    if (!gastSerBibliotekspost(post, plats) || post.id !== postId) return null;
+    return post.typ === "fil" || post.typ === "anteckning" ? post : null;
+  }
+
+  /**
+   * En rubrik i biblioteket som en gäst skriver: trimmad som regeln (`trimSomRegeln`), inte tom och högst `MAX_BIBLIOTEKRUBRIK` tecken, samma tak som en medlems rubrik.
+   * @param {unknown} v
+   * @param {string} vad
+   */
+  function gastRubrik(v, vad) {
+    if (typeof v !== "string") throw felMedKod("ogiltig-text", `${vad}: rubriken ska vara en text.`);
+    const r = trimSomRegeln(v);
+    if (r === "") throw felMedKod("ogiltig-text", `${vad}: rubriken är tom.`);
+    if (r.length > MAX_BIBLIOTEKRUBRIK) throw felMedKod("ogiltig-text", `${vad}: rubriken är ${r.length} tecken, taket är ${MAX_BIBLIOTEKRUBRIK}.`);
+    return r;
+  }
+
+  /**
+   * Steg ett av två i en uppladdning: appen reserverar en post på projektets plats och ger en signerad PUT-adress (`grupp.projekt.redigering.nyFil`). Gästen lägger filen där med exakt `huvuden` och anropar `laddaUppKlar`.
+   *
+   * ⛔ FILEN PRÖVAS MED BIBLIOTEKETS EGEN REGEL INNAN APPEN FRÅGAS (`filInmatningsfel`: namn, sort och storlek, samma som medlemmens Ny fil), och appen prövar en gång till med sin. ⛔ TAKET PER DYGN
+   * (`GASTUPPLADDNING_PER_DYGN`) reserveras före appens anrop och ges tillbaka om appen säger nej: en uppladdning som inte blev av ska inte kosta en av de tjugo.
+   *
+   * @param {Record<string, any>} b `{ sessionsnyckel, filnamn, typ, storlek, rubrik? }`. Utan rubrik får filen filnamnet utan ändelse (`rubrikUrFilnamn`).
+   */
+  async function laddaUpp(b) {
+    const s = await redigeringSession(b, "bibliotek", "laddaUpp", ["id", "postId", "url", "huvuden", "sokvag"]);
+    if (!s.ok) return s;
+    const filnamn = typeof b?.filnamn === "string" ? b.filnamn.trim() : "";
+    const typ = normaliseraMime(b?.typ);
+    const storlek = b?.storlek;
+    const filfel = filInmatningsfel({ namn: filnamn, mime: typ, byte: storlek });
+    if (filfel) throw felMedKod("ogiltig-fil", `laddaUpp: ${filfel}`);
+    const rubrik = b?.rubrik === undefined || (typeof b.rubrik === "string" && trimSomRegeln(b.rubrik) === "") ? rubrikUrFilnamn(filnamn, filnamn.slice(0, MAX_BIBLIOTEKRUBRIK)) : gastRubrik(b.rubrik, "laddaUpp");
+    const rakn = await reserveraRaknare(hash(`gastuppladdning|${s.inbjudan.id}`), { max: GASTUPPLADDNING_PER_DYGN, fonsterMs: DYGN_MS });
+    if (!rakn) return orsak("for-manga");
+    /** @type {any} */
+    let svar;
+    try {
+      svar = await s.redigering.nyFil({ groupId: s.inbjudan.groupId, tagg: s.tagg, plats: s.plats, gastId: s.gastId, namn: s.namn, filnamn, typ, storlek: /** @type {number} */ (storlek), rubrik });
+      const huvuden = svar?.huvuden;
+      const formfel =
+        !svar || typeof svar.id !== "string" || !POSTIDFORM.test(svar.id) ? "id saknas eller har fel form (POSTIDFORM)"
+          : typeof svar.url !== "string" || !svar.url.startsWith("https://") ? "url ska vara en https-adress"
+            : !huvuden || typeof huvuden !== "object" || Array.isArray(huvuden) || Object.values(huvuden).some((v) => typeof v !== "string") ? "huvuden ska vara { namn: text }"
+              : "";
+      // ⛔ ETT SVAR UTAN FORMEN ÄR ETT FEL I APPEN OCH KASTAR, aldrig en adress gästen får gissa vad den betyder.
+      if (formfel) throw new Error(`grupp.projekt.redigering.nyFil: ${formfel}.`);
+    } catch (fel) {
+      await aterlamna(RAKNARE, rakn.id, RAKNEFALT, rakn.fonster);
+      throw fel;
+    }
+    return vitlista({ ok: true, id: svar.id, url: svar.url, huvuden: { ...svar.huvuden } }, GASTGRUPPSVARSFALT.laddaUpp);
+  }
+
+  /**
+   * Steg två: filen ligger i lagringen, och appen gör reservationen till en post (`grupp.projekt.redigering.filKlar`). ⛔ POSTEN SOM APPEN GER TILLBAKA LÄSES OCH PRÖVAS: den ska ligga på projektets plats och vara en
+   * fil. Ett svar som pekar någon annanstans är ett fel i appen och kastar, eftersom gästen annars hade fått ett id till något hen inte ser.
+   * @param {Record<string, any>} b `{ sessionsnyckel, id }`, där `id` är `laddaUpp`-svarets `id`.
+   */
+  async function laddaUppKlar(b) {
+    const s = await redigeringSession(b, "bibliotek", "laddaUppKlar", ["postId", "url", "huvuden", "sokvag", "filnamn", "typ", "storlek", "rubrik"]);
+    if (!s.ok) return s;
+    const id = b?.id;
+    if (typeof id !== "string" || !POSTIDFORM.test(id)) return orsak("saknas");
+    const svar = await s.redigering.filKlar({ groupId: s.inbjudan.groupId, tagg: s.tagg, plats: s.plats, gastId: s.gastId, namn: s.namn, id });
+    const postId = svar?.postId;
+    const post = typeof postId === "string" ? await gastensPost(s.plats, postId) : null;
+    if (!post || post.typ !== "fil") throw new Error("grupp.projekt.redigering.filKlar: postId ska vara en fil på projektets plats. Svaret pekade på något gästen inte ser.");
+    return vitlista({ ok: true, postId }, GASTGRUPPSVARSFALT.laddaUppKlar);
+  }
+
+  /**
+   * Gästen byter rubrik på en fil eller en anteckning på projektets plats (`grupp.projekt.redigering.bytNamn`). ⛔ POSTEN OCH RUBRIKEN PRÖVAS FÖRE TAKTEN, som i `kommenteraArende`: ett nej på en post som inte är
+   * projektets kostar ingen av skrivningarna. Takten är gästens enda skrivtakt (`gastskriv`, `GASTSKRIV_PER_MINUT`), samma som chatten och kommentarerna.
+   * @param {Record<string, any>} b `{ sessionsnyckel, postId, rubrik }`.
+   */
+  async function bytNamnPost(b) {
+    const s = await redigeringSession(b, "bibliotek", "bytNamnPost", ["text", "fil", "url", "taggar", "typ"]);
+    if (!s.ok) return s;
+    const post = await gastensPost(s.plats, b?.postId);
+    if (!post) return orsak("saknas");
+    const rubrik = gastRubrik(b?.rubrik, "bytNamnPost");
+    const takt = await reserveraRaknare(hash(`gastskriv|${s.inbjudan.id}`), { max: GASTSKRIV_PER_MINUT, fonsterMs: MINUT_MS });
+    if (!takt) return orsak("for-manga");
+    try {
+      await s.redigering.bytNamn({ groupId: s.inbjudan.groupId, tagg: s.tagg, plats: s.plats, post: { ...post }, rubrik, gastId: s.gastId, namn: s.namn });
+    } catch (fel) {
+      await aterlamna(RAKNARE, takt.id, RAKNEFALT, takt.fonster);
+      throw fel;
+    }
+    return vitlista({ ok: true }, GASTGRUPPSVARSFALT.bytNamnPost);
+  }
+
+  /**
+   * Gästen tar bort en fil eller en anteckning på projektets plats (`grupp.projekt.redigering.taBort`). Samma prövning och samma takt som `bytNamnPost`. ⛔ VEM SOM SKAPAT POSTEN AVGÖR INTE: gästen arbetar i
+   * projektet, och en ritning som blev fel ska gästen kunna ta bort, som en medlem på platsen kan. Vyn frågar först.
+   * @param {Record<string, any>} b `{ sessionsnyckel, postId }`.
+   */
+  async function taBortPost(b) {
+    const s = await redigeringSession(b, "bibliotek", "taBortPost");
+    if (!s.ok) return s;
+    const post = await gastensPost(s.plats, b?.postId);
+    if (!post) return orsak("saknas");
+    const takt = await reserveraRaknare(hash(`gastskriv|${s.inbjudan.id}`), { max: GASTSKRIV_PER_MINUT, fonsterMs: MINUT_MS });
+    if (!takt) return orsak("for-manga");
+    try {
+      await s.redigering.taBort({ groupId: s.inbjudan.groupId, tagg: s.tagg, plats: s.plats, post: { ...post }, gastId: s.gastId, namn: s.namn });
+    } catch (fel) {
+      await aterlamna(RAKNARE, takt.id, RAKNEFALT, takt.fonster);
+      throw fel;
+    }
+    return vitlista({ ok: true }, GASTGRUPPSVARSFALT.taBortPost);
+  }
+
+  /**
+   * Gästen skapar ett ärende i projektet (`grupp.projekt.redigering.skapaArende`): rubrik och en text som kan vara tom, båda med chattens tak (`GASTSKRIV_MAX_TECKEN`), och chattens takt. Appen sätter projektets tagg och
+   * gästen som skapare. ⛔ ÄRENDET LÄSES TILLBAKA OCH PRÖVAS SOM I `arenden` (`gastensArende`: gruppen och projektets urval): ett ärende som appen skrev utanför projektet visas aldrig för gästen, och svaret är `nej`.
+   * Svaret byggs där listan byggs (`arendeUt`), så att det nya ärendet ser likadant ut när listan hämtas om.
+   * @param {Record<string, any>} b `{ sessionsnyckel, rubrik, text? }`.
+   */
+  async function skapaArende(b) {
+    const s = await redigeringSession(b, "arenden", "skapaArende", ["mottagare", "taggar", "status", "forfallodag", "bilaga", "id"]);
+    if (!s.ok) return s;
+    if (!GS?.arenden) return nej();
+    const rubrik = typeof b?.rubrik === "string" ? b.rubrik.trim() : "";
+    if (rubrik === "") throw felMedKod("ogiltig-text", "skapaArende: rubriken är tom.");
+    if (rubrik.length > GASTSKRIV_MAX_TECKEN) throw felMedKod("ogiltig-text", `skapaArende: rubriken är ${rubrik.length} tecken, taket är ${GASTSKRIV_MAX_TECKEN}.`);
+    if (b?.text !== undefined && typeof b.text !== "string") throw felMedKod("ogiltig-text", "skapaArende: texten ska vara en text, eller utelämnas.");
+    const t = typeof b?.text === "string" ? b.text.trim() : "";
+    if (t.length > GASTSKRIV_MAX_TECKEN) throw felMedKod("ogiltig-text", `skapaArende: texten är ${t.length} tecken, taket är ${GASTSKRIV_MAX_TECKEN}.`);
+    const takt = await reserveraRaknare(hash(`gastskriv|${s.inbjudan.id}`), { max: GASTSKRIV_PER_MINUT, fonsterMs: MINUT_MS });
+    if (!takt) return orsak("for-manga");
+    /** @type {any} */
+    let sparad;
+    try {
+      sparad = await s.redigering.skapaArende({ groupId: s.inbjudan.groupId, tagg: s.tagg, gastId: s.gastId, namn: s.namn, rubrik, text: t });
+    } catch (fel) {
+      await aterlamna(RAKNARE, takt.id, RAKNEFALT, takt.fonster);
+      throw fel;
+    }
+    if (!sparad || typeof sparad.id !== "string" || !ARENDEIDFORM.test(sparad.id)) throw new Error("grupp.projekt.redigering.skapaArende: svaret är { id }, ärendets id.");
+    const rad = await gastensArende(s, sparad.id);
+    if (!rad) return nej();
+    const arende = await arendeUt(s, rad);
+    if (!arende) return nej();
+    return vitlista({ ok: true, arende }, GASTGRUPPSVARSFALT.skapaArende);
+  }
+
   // ── Återkalla, ersätt och radera ─────────────────────────────────────────────────────────────────────────────────
 
   /**
@@ -3101,7 +3385,8 @@ export function createGastService(konfig) {
         await taBort(SESS, sr.id);
         sessioner++;
       }
-      for (const slag of ["gastanrop", "gastfil", "gastskriv"]) {
+      // (0.254.0) `gastuppladdning` också: räknaren är härledd ur inbjudan, och raden försvinner. Filerna gästen laddat upp ligger kvar (de är projektets, se `laddaUpp`).
+      for (const slag of ["gastanrop", "gastfil", "gastskriv", "gastuppladdning"]) {
         const rid = hash(`${slag}|${r.id}`);
         if (await kalla.read(RAKNARE, rid)) await taBort(RAKNARE, rid);
       }
@@ -3162,5 +3447,5 @@ export function createGastService(konfig) {
     return { ok: true };
   }
 
-  return { bjud, aterkalla, sattNedladdning, skickaOm, kopieraLank, lista, platser, los, prova, minaGruppgaster, oppnaGruppgast, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, oversikt, chatt, skrivChatt, kommenteraPost, kalender, handelse, svara, rosta, bibliotek, anteckningsbilder, fil, arenden, kommenteraArende, markeraArendeKlart, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
+  return { bjud, aterkalla, sattNedladdning, sattRedigera, skickaOm, kopieraLank, lista, platser, los, prova, minaGruppgaster, oppnaGruppgast, session, hamta, sattNamn, nyLank, stadaSessioner, deltaSvara, tidAndrad, oversikt, chatt, skrivChatt, kommenteraPost, kalender, handelse, svara, rosta, bibliotek, anteckningsbilder, fil, arenden, kommenteraArende, markeraArendeKlart, laddaUpp, laddaUppKlar, bytNamnPost, taBortPost, skapaArende, levandeGaster, aterkallaAlla, ersattAvMedlem, radera, raderaMig };
 }

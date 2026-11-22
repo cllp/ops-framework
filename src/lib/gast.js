@@ -287,6 +287,12 @@ export function tolkaGastMottagare(mottagare, levande) {
 export const GASTSKRIV_MAX_TECKEN = 1000;
 /** Högsta antal meddelanden en gäst skriver per inbjudan och minut. Räknas i `gastraknare`, som övriga gästräknare, och är strängare än läsningen (`GASTANROP_PER_MINUT`). */
 export const GASTSKRIV_PER_MINUT = 10;
+/**
+ * (0.254.0, lifehub.app#928 del 2) Högsta antal filer en projektgäst med `redigera` laddar upp per inbjudan och dygn. ⛔ EN EGEN RÄKNARE OCH INTE SKRIVTAKTEN: en uppladdning kostar lagring som ligger kvar,
+ * medan ett meddelande är några hundra byte. Tio i minuten hade varit fjortontusen filer om dygnet från en länk som läckt. Tjugo räcker för det CP beskrev (ritningar och foton i ett projekt), och mer är ett samtal
+ * med gruppen, inte en spärr att ta bort. Räknas i `gastraknare` som de andra (`gastuppladdning|<inbjudan>`), reserveras när uppladdningen börjar och ges tillbaka om appen säger nej.
+ */
+export const GASTUPPLADDNING_PER_DYGN = 20;
 
 /**
  * Sökvägen nya gästlänkar använder (CP 2026-11-06: `/guest`). Appen ritar sidan där före sin inloggningsgrind.
@@ -336,6 +342,9 @@ export const GASTFALT = /** @type {const} */ ([
   // (0.203.0, lifehub.app#691) Får gästen ladda ned filer ur gruppens bibliotek? BARA på en inbjudan till hela gruppen (`omfang.slag === "grupp"`), och då `true` eller `false`
   // (förval `false`). En sak har inget bibliotek att ladda ned ur och bär aldrig fältet. Sedan 0.204.0 är värdet hela regeln, och en rad utan fältet räknas som `false`.
   "laddaNed",
+  // (0.254.0, lifehub.app#928 del 2) Får gästen ladda upp och ändra på projektets plats och skapa ärenden i projektet? BARA på en inbjudan till ett projekt (`omfang.slag === "projekt"`), och då
+  // `true` eller `false` (förval `false`). En gäst i hela gruppen och en sak bär aldrig fältet: gruppens bibliotek är gruppens, och en sak har inget bibliotek. En rad utan fältet räknas som `false`.
+  "redigera",
 ]);
 
 /**
@@ -390,8 +399,10 @@ export const GASTGRUPPSVARSFALT = /** @type {const} */ ({
   /**
    * `hamta` för en gruppinbjudan: gruppens namn och funktionerna, (0.190.0) om gästen får ladda ned (`nedladdning`) och (0.192.0) gruppens befintliga beskrivning, tom när den saknas.
    * (0.215.0) För en projektgäst är `namn` projektets namn, `beskrivning` tom och `projekt` kortet (`GASTPROJEKTKORTFALT`). En gruppgäst har inget `projekt`.
+   * (0.254.0, lifehub.app#928 del 2) `redigera` bara för en projektgäst: gästen får ladda upp, byta namn på och ta bort filer och anteckningar på projektets plats och skapa ärenden i projektet.
+   * En gruppgäst har inget `redigera`, som hen inte har något `projekt`.
    */
-  hamta: ["namn", "funktioner", "nedladdning", "kommentera", "beskrivning", "projekt"],
+  hamta: ["namn", "funktioner", "nedladdning", "kommentera", "beskrivning", "projekt", "redigera"],
   /** Svaret på `chatt`. `fler`: det finns äldre meddelanden. `ingetNytt`: en ping där inget är nyare än `nyast`. `rot` (0.191.0): rotmeddelandet när gästen läser en tråd (`trad`), `null` när roten inte finns. */
   chatt: ["ok", "meddelanden", "fler", "ingetNytt", "rot"],
   /** Svaret på `skrivChatt`: meddelandet som det nu står i chatten, i samma form som en rad i `chatt`. */
@@ -419,6 +430,19 @@ export const GASTGRUPPSVARSFALT = /** @type {const} */ ({
    * gästen redan ser i `chatt`, `kalender` och `bibliotek` (samma filter).
    */
   oversikt: ["ok", "chatt", "kalender", "bibliotek"],
+  /**
+   * (0.254.0, lifehub.app#928 del 2) Svaret på `laddaUpp`, steg ett av två: `id` är appens reservation, `url` en signerad PUT-adress och `huvuden` exakt de huvuden appen kräver i PUT:en. Gästen lägger filen dit och
+   * anropar sedan `laddaUppKlar({ id })`. Bara en projektgäst med `redigera`.
+   */
+  laddaUpp: ["ok", "id", "url", "huvuden"],
+  /** (0.254.0) Svaret på `laddaUppKlar`, steg två: postens id på projektets plats. */
+  laddaUppKlar: ["ok", "postId"],
+  /** (0.254.0) Svaret på `bytNamnPost`. Vyn hämtar om biblioteket, så svaret bär bara att det gick. */
+  bytNamnPost: ["ok"],
+  /** (0.254.0) Svaret på `taBortPost`. */
+  taBortPost: ["ok"],
+  /** (0.254.0) Svaret på `skapaArende`: ärendet som gästen ser det, byggt som en rad i `arenden` (`GASTARENDEFALT`). */
+  skapaArende: ["ok", "arende"],
 });
 
 /**
@@ -466,8 +490,9 @@ export const GASTCHATTFALT = /** @type {const} */ (["id", "av", "text", "tid", "
 /**
  * Åtgärderna en gruppgäst anropar på servern (`POST /api/gast`), förutom `los`, `hamta`, `namn`, `nylank` och `raderaMig` som varje gäst har. Namnen står här och ingen annanstans (regel 2):
  * tjänstens metoder, appens vitlista för vad en handler släpper in, och vyns anrop läser samma lista.
+ * (0.254.0, lifehub.app#928 del 2) `laddaUpp`, `laddaUppKlar`, `bytNamnPost`, `taBortPost` och `skapaArende` svarar bara en projektgäst med `redigera` (och en app som gett `grupp.projekt.redigering`). Alla andra får `nej`.
  */
-export const GASTGRUPPATGARDER = /** @type {const} */ (["oversikt", "chatt", "skrivChatt", "kalender", "handelse", "svara", "rosta", "bibliotek", "anteckningsbilder", "fil", "arenden", "kommenteraArende", "markeraArendeKlart", "kommenteraPost"]);
+export const GASTGRUPPATGARDER = /** @type {const} */ (["oversikt", "chatt", "skrivChatt", "kalender", "handelse", "svara", "rosta", "bibliotek", "anteckningsbilder", "fil", "arenden", "kommenteraArende", "markeraArendeKlart", "kommenteraPost", "laddaUpp", "laddaUppKlar", "bytNamnPost", "taBortPost", "skapaArende"]);
 
 /**
  * Bygger gruppvyns `api` av appens ENDA anrop mot `/api/gast`. `anrop` får `{ atgard, sessionsnyckel, ...argument }` och ska svara med serverns JSON (`{ ok, ... }`); appens handler skickar
@@ -512,6 +537,13 @@ export const GASTPERSONINBJUDANFALT = /** @type {const} */ (["id", "omfang", "ti
 export const GASTGRUPPLISTFALT = /** @type {const} */ (["laddaNed"]);
 
 /**
+ * (0.254.0, lifehub.app#928 del 2) Det en inbjudan till ett PROJEKT har i medlemmens lista utöver `GASTPERSONINBJUDANFALT` och `GASTGRUPPLISTFALT`: om gästen får ladda upp och ändra (`redigera`).
+ * Bara på en projektrad, av samma skäl som `GASTGRUPPLISTFALT` bara står på en gruppinbjudan: en inbjudan till hela gruppen, en omröstning och en delta-inbjudan har exakt de fält de hade före 0.254.0.
+ * Alltid `true` eller `false`: en rad utan fältet går ut som `false`, eftersom den är det.
+ */
+export const GASTPROJEKTLISTFALT = /** @type {const} */ (["redigera"]);
+
+/**
  * Orsakerna till att en gäst inte släpps in, och inget annat.
  *
  * ⛔ `nej` ÄR ETT SVAR FÖR ALLT SOM SKULLE LÅTA EN OBEHÖRIG SKILJA FALL ÅT: okänt id, fel nyckel, fel adress, en sessionsnyckel som inte finns. Svaret är byte
@@ -552,6 +584,8 @@ export const GASTFELKODER = /** @type {const} */ ([
   "ej-konfigurerad",
   // (0.190.0) Nedladdningen är avstängd för gästen (sedan 0.204.0 bara inbjudans `laddaNed`, 0.190.0 till 0.203.0 också gruppens strömbrytare). `fil` svarar med den i stället för en adress med `attachment`.
   "nedladdning-av",
+  // (0.254.0, lifehub.app#928 del 2) Filen en projektgäst vill ladda upp har ett namn, en sort eller en storlek som biblioteket inte tar emot (`filInmatningsfel`, samma regel som medlemmens Ny fil).
+  "ogiltig-fil",
 ]);
 
 /**
