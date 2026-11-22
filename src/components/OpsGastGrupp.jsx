@@ -9,6 +9,11 @@ import { kortDatum } from "../lib/deladdatum.js";
 import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsBibliotek } from "./OpsBibliotek.jsx";
+import { OpsButton } from "./OpsButton.jsx";
+import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
+import { OpsModal } from "./OpsModal.jsx";
+import { filInmatningsfel, mimeForFil, rubrikUrFilnamn } from "../lib/bibliotek.js";
+import { laddaUppTillAdress } from "../data/filuppladdning.js";
 import { useFullHeight } from "../lib/fullHeight.js";
 import { useTangentbordTackt } from "../lib/tangentbord.js";
 import { cx } from "../lib/cx.js";
@@ -206,6 +211,18 @@ export const ORD_OPSGASTGRUPP = {
   projekt_arendenInga: { sv: "Inga ärenden", en: "No cases" },
   projekt_kort: { sv: "Projektet", en: "The project" },
   projekt_lage: { sv: "Status", en: "Status" },
+  // ── (0.254.0, cllp/lifehub.app#928 del 2) En projektgäst som får ladda upp och ändra (`grupp.redigera`): Ladda upp fil i biblioteket, Byt namn och Radera på en post, Nytt ärende bland ärendena. ──
+  laddaUppFil: { sv: "Ladda upp fil", en: "Upload file" },
+  laddarUpp: { sv: "Laddar upp…", en: "Uploading…" },
+  uppladdningFel: { sv: "Filen kunde inte laddas upp. Försök igen.", en: "The file could not be uploaded. Try again." },
+  fel_redigera: { sv: "Det går inte att ändra här längre, eller så finns det inte längre.", en: "This can no longer be changed here, or it no longer exists." },
+  nyttArende: { sv: "Nytt ärende", en: "New case" },
+  nyttArendeRubrik: { sv: "Rubrik", en: "Title" },
+  nyttArendeText: { sv: "Beskrivning", en: "Description" },
+  nyttArendeTomRubrik: { sv: "Skriv en rubrik.", en: "Write a title." },
+  skapa: { sv: "Skapa", en: "Create" },
+  skapar: { sv: "Skapar…", en: "Creating…" },
+  avbryt: { sv: "Avbryt", en: "Cancel" },
   vadKanJagGora: { sv: "Vad kan jag göra här?", en: "What can I do here?" },
 };
 
@@ -274,10 +291,13 @@ const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid
  * ⛔ NEKAS ETT ANROP (`aterkallad`, `nej`) ANROPAS `onNekad`, och sidan byter allt mot texten "Inbjudan är återkallad". Vyn visar aldrig kvar det som lästs när åtkomsten är borta.
  *
  * @param {object} props
- * @param {{ namn: string, funktioner: readonly string[], beskrivning?: string, nedladdning?: boolean, kommentera?: boolean, projekt?: { tagg?: string, status?: { sv?: string, en?: string }, texter?: ReadonlyArray<{ rubrik?: { sv?: string, en?: string }, text: string }> } }} props.grupp
+ * @param {{ namn: string, funktioner: readonly string[], beskrivning?: string, nedladdning?: boolean, kommentera?: boolean, redigera?: boolean, projekt?: { tagg?: string, status?: { sv?: string, en?: string }, texter?: ReadonlyArray<{ rubrik?: { sv?: string, en?: string }, text: string }> } }} props.grupp
  *   (0.215.0, cllp/lifehub.app#760) `projekt`: gästen är gäst i ett projekt. `namn` är då projektets namn, Översikt visar projektets kort (läget och texterna) i stället för gruppens beskrivning, orden säger projektet, och
  *   ingen svarsrad på en händelse (skiva 1). Chatt-fliken är projektets egen chatt, utan trådar (skiva 2). Tjänstens `hamta().grupp`. `beskrivning` är gruppens befintliga beskrivning, tom när den saknas. (0.190.0) `nedladdning: false`: nedladdningen är avstängd
  *   för gästen (sedan 0.204.0 bara inbjudans `laddaNed`), och varken biblioteket eller spelarens ark ritar Ladda ned. Utelämnad: som förut.
+ *   (0.254.0, cllp/lifehub.app#928 del 2) `redigera: true` för en projektgäst: biblioteket får Ladda upp fil (`api.laddaUpp`, en PUT till den signerade adressen, `api.laddaUppKlar`) och Byt namn och Radera på en fil eller en
+ *   anteckning (`api.bytNamnPost`, `api.taBortPost`), och Ärenden får Nytt ärende (`api.skapaArende`) och syns också innan projektet har något ärende. Gästen blir ingen medlem i vyn (`jag: null`): bara de här
+ *   åtgärderna ritas, aldrig delning, flytt eller arkiv. Utan `projekt` betyder `redigera` ingenting.
  * @param {ReturnType<typeof import("../lib/gast.js").gastGruppApi>} props.api Anropen mot servern, bundna till sessionen (`gastGruppApi(anrop, sessionsnyckel)`).
  * @param {(orsak: string) => void} [props.onNekad] Ett anrop nekades. Normalt `uppdatera` ur `renderGrupp`, som hämtar om sidan.
  * @param {(arg: { handelse: Record<string, any>, omrostning: Record<string, any>, rosta: (arg: { forslagId: string, val: string }) => Promise<void>, uppdatera: () => Promise<void> }) => import("react").ReactNode} [props.renderOmrostning]
@@ -292,6 +312,13 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   if (!api || typeof api.chatt !== "function") throw new Error("OpsGastGrupp: api krävs, anropen mot servern (gastGruppApi).");
   // ⛔ (0.215.0) EN PROJEKTGÄST ÄR SAMMA VY MED ANDRA ORD: `projekt_`-orden ersätter gruppens där de finns, före appens egna (`ord`), så att en app som skrivit om ett ord fortfarande vinner.
   const projekt = grupp.projekt && typeof grupp.projekt === "object" ? grupp.projekt : null;
+  // ⛔ (0.254.0) BARA EN PROJEKTGÄST, OCH BARA MED ETT UTTRYCKLIGT `true` (som servern, `redigeringTillaten`). Vyn är en artighet: tjänsten prövar samma sak vid varje anrop.
+  const redigerar = Boolean(projekt) && grupp.redigera === true;
+  if (redigerar) {
+    for (const a of /** @type {const} */ (["laddaUpp", "laddaUppKlar", "bytNamnPost", "taBortPost", "skapaArende"])) {
+      if (typeof (/** @type {any} */ (api))[a] !== "function") throw new Error(`OpsGastGrupp: api.${a} krävs när grupp.redigera är sant (gastGruppApi ger det).`);
+    }
+  }
   const grundord = forvalda(ORD_OPSGASTGRUPP, sprak);
   const projektord = projekt ? Object.fromEntries(Object.entries(grundord).filter(([k]) => k.startsWith("projekt_")).map(([k, v]) => [k.slice("projekt_".length), v])) : {};
   const t = { ...grundord, ...projektord, ...definierade(/** @type {Record<string, string>} */ (ord ?? {})) };
@@ -653,6 +680,124 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     setVantarPost(null);
   }, [vantarPost, bibliotek, poster]);
 
+  // ── En projektgäst som laddar upp och ändrar (0.254.0, cllp/lifehub.app#928 del 2) ──────────────────────────────────────
+
+  /**
+   * Ett nej på en ändring är tvetydigt, som på ett ärende (`arendeNej`): sessionen kan vara borta, `redigera` kan ha slagits av, eller posten har tagits bort. Listan hämtas om, och DEN avgör om åtkomsten är borta.
+   * @param {unknown} e
+   * @param {"bibliotek" | "arenden"} flik
+   * @returns {Promise<Error>}
+   */
+  const redigeraNej = async (e, flik) => {
+    if (e instanceof GastFel && (e.orsak === "nej" || e.orsak === "aterkallad")) {
+      await ladda(flik);
+      return new Error(t.fel_redigera);
+    }
+    if (e instanceof GastFel && e.orsak === "saknas") {
+      await ladda(flik, { tyst: true });
+      return new Error(t.fel_redigera);
+    }
+    return new Error(felText(e));
+  };
+
+  const filvaljare = useRef(/** @type {HTMLInputElement | null} */ (null));
+  const [laddarUpp, setLaddarUpp] = useState(false);
+  const [uppladdningFel, setUppladdningFel] = useState(/** @type {string | null} */ (null));
+  /**
+   * Laddar upp en fil i tre steg: servern reserverar och ger en signerad adress (`laddaUpp`), filen läggs där med exakt de huvuden servern gav (en PUT), och servern gör den till en post (`laddaUppKlar`). Sedan hämtas
+   * biblioteket om. ⛔ FILEN PRÖVAS HÄR FÖRST med bibliotekets regel (`filInmatningsfel`, samma som servern), så att en fil som inte tas emot får sitt skäl vid knappen i stället för ett anrop som säger nej.
+   * Ett fel står vid knappen, aldrig tyst, och knappen väntar under hela uppladdningen ("Laddar upp…").
+   * @param {File} fil
+   */
+  const laddaUppFil = async (fil) => {
+    setUppladdningFel(null);
+    const typ = mimeForFil(fil.name, fil.type);
+    const filfel = filInmatningsfel({ namn: fil.name, mime: typ, byte: fil.size });
+    if (filfel) {
+      setUppladdningFel(filfel);
+      return;
+    }
+    setLaddarUpp(true);
+    try {
+      /** @type {any} */
+      let steg1;
+      try {
+        steg1 = await kor("laddaUpp", { filnamn: fil.name, typ, storlek: fil.size, rubrik: rubrikUrFilnamn(fil.name, fil.name) }, { utanNekad: true });
+      } catch (e) {
+        throw await redigeraNej(e, "bibliotek");
+      }
+      // PUT:en går genom datalagret (`laddaUppTillAdress`), som kastar både när anropet inte kom fram och när lagringen nekade. Gästen får en mening, inte statuskoden.
+      try {
+        await laddaUppTillAdress(steg1.url, steg1.huvuden, fil);
+      } catch {
+        throw new Error(t.uppladdningFel);
+      }
+      try {
+        await kor("laddaUppKlar", { id: steg1.id }, { utanNekad: true });
+      } catch (e) {
+        throw await redigeraNej(e, "bibliotek");
+      }
+      await ladda("bibliotek", { tyst: true });
+    } catch (e) {
+      if (levande.current) setUppladdningFel(e instanceof Error && e.message ? e.message : t.uppladdningFel);
+    } finally {
+      if (levande.current) setLaddarUpp(false);
+    }
+  };
+
+  /** Byt namn och Radera i biblioteket (`OpsBibliotek`, `gastAndring`). Listan hämtas om efteråt, så att det som står är servern. */
+  const gastAndring = redigerar
+    ? {
+        onBytNamn: async (/** @type {{ id: string, rubrik: string }} */ { id, rubrik }) => {
+          try {
+            await kor("bytNamnPost", { postId: id, rubrik }, { utanNekad: true });
+          } catch (e) {
+            throw await redigeraNej(e, "bibliotek");
+          }
+          if (levande.current) setValdPost((/** @type {any} */ v) => (v && v.id === id ? { ...v, rubrik } : v));
+          await ladda("bibliotek", { tyst: true });
+        },
+        onTaBort: async (/** @type {{ id: string }} */ { id }) => {
+          try {
+            await kor("taBortPost", { postId: id }, { utanNekad: true });
+          } catch (e) {
+            throw await redigeraNej(e, "bibliotek");
+          }
+          if (levande.current) setValdPost((/** @type {any} */ v) => (v && v.id === id ? null : v));
+          await ladda("bibliotek", { tyst: true });
+        },
+      }
+    : null;
+
+  // Nytt ärende: formuläret ligger i en dialog bakom knappen (interaktionsdesign 3), och dialogen står kvar med felet tills ärendet är skapat.
+  const [nyttArende, setNyttArende] = useState(false);
+  const [arendeRubrik, setArendeRubrik] = useState("");
+  const [arendeText, setArendeText] = useState("");
+  const [arendeFel, setArendeFel] = useState(/** @type {string | null} */ (null));
+  const oppnaNyttArende = () => {
+    setArendeRubrik("");
+    setArendeText("");
+    setArendeFel(null);
+    setNyttArende(true);
+  };
+  const skapaArende = async () => {
+    setArendeFel(null);
+    if (arendeRubrik.trim() === "") {
+      setArendeFel(t.nyttArendeTomRubrik);
+      return;
+    }
+    try {
+      await kor("skapaArende", { rubrik: arendeRubrik, ...(arendeText.trim() ? { text: arendeText } : {}) }, { utanNekad: true });
+    } catch (e) {
+      const fel = await redigeraNej(e, "arenden");
+      if (levande.current) setArendeFel(fel.message);
+      return;
+    }
+    if (!levande.current) return;
+    setNyttArende(false);
+    await ladda("arenden", { tyst: true });
+  };
+
   const kalender = /** @type {any} */ (data.kalender);
   /*
    * ══ ⛔ GÄSTENS KALENDER ÄR EN LISTA ÖVER DET SOM ÄR PÅ GÅNG, INGEN MÅNAD (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del C) ═══════════════
@@ -784,6 +929,26 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     if (fel.bibliotek) return <OpsGastFelrad data="gast-bibliotek-fel" text={felOrd(fel.bibliotek)} forsokIgen={t.forsokIgen} onForsokIgen={() => void ladda("bibliotek")} />;
     return (
       <div data-gast-bibliotek="" className="flex min-w-0 flex-col gap-3">
+        {redigerar ? (
+          <div data-gast-ladda-upp="" className="flex min-w-0 flex-col gap-1">
+            {/* Filväljaren är dold, och knappen öppnar den. Knappen väntar under hela uppladdningen (`busy`), eftersom anropet startar när en fil valts och inte i klicket. */}
+            <input
+              ref={filvaljare}
+              type="file"
+              hidden
+              data-gast-ladda-upp-fil=""
+              onChange={(e) => {
+                const valt = e.target.files?.[0];
+                e.target.value = "";
+                if (valt) void laddaUppFil(valt);
+              }}
+            />
+            <div>
+              <OpsButton variant="secondary" size="sm" busy={laddarUpp} busyLabel={t.laddarUpp} onClick={() => filvaljare.current?.click()}>{t.laddaUppFil}</OpsButton>
+            </div>
+            {uppladdningFel ? <p role="alert" data-gast-ladda-upp-fel="" className="m-0 text-etikett text-danger wrap-anywhere">{uppladdningFel}</p> : null}
+          </div>
+        ) : null}
         <OpsBibliotek
           poster={poster}
           laddar={!bibliotek || Boolean(laddar.bibliotek)}
@@ -800,6 +965,7 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
           utanHubb
           utanNedladdning={grupp.nedladdning === false}
           kommentarer={kommentarer}
+          gastAndring={gastAndring}
         />
         {bibliotek && bibliotek.poster.length === 0 ? <p data-gast-bibliotek-tom="" role="status" className="m-0 text-etikett text-ink-muted">{t.bibliotekTom}</p> : null}
         {bibliotek?.avkortad ? <p role="status" data-gast-bibliotek-avkortad="" className="m-0 text-meta text-ink-muted">{t.bibliotekAvkortad.replace("{n}", String(bibliotek.poster.length))}</p> : null}
@@ -810,7 +976,8 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
   // ⛔ ÄRENDEFLIKEN FINNS BARA MED MINST ETT DELEGERAT ÄRENDE (skiva 3), eller när hämtningen föll: ett fel som tystades vore en flik som saknas utan att någon fick veta varför.
   const arendeData = /** @type {{ poster: any[], avkortad?: boolean } | undefined} */ (data.arenden);
   // (0.192.0, #675) Också medan en ny hämtning pågår i den öppna fliken: en ny hämtning rensar felet, och utan raden hade fliken försvunnit under gästen.
-  const visaArenden = funktioner.includes("arenden") && ((arendeData?.poster.length ?? 0) > 0 || Boolean(fel.arenden) || (flik === "arenden" && Boolean(laddar.arenden)));
+  // (0.254.0) En projektgäst som får skapa ärenden ser fliken också innan projektet har något: annars hade det första ärendet inte gått att skapa.
+  const visaArenden = funktioner.includes("arenden") && (redigerar || (arendeData?.poster.length ?? 0) > 0 || Boolean(fel.arenden) || (flik === "arenden" && Boolean(laddar.arenden)));
   const synliga = funktioner.filter((f) => f !== "arenden" || visaArenden);
   // Översikt är alltid först och är inte en behörighet. En sparad ärendeflik som inte längre har något att visa faller tillbaka hit.
   const ordning = ["oversikt", ...synliga];
@@ -1112,7 +1279,38 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     ) : f === "bibliotek" ? (
       bibliotekInnehall()
     ) : (
-      <OpsGastArenden {...(projekt ? { ord: projektArendeord(sprak) } : {})} poster={arendeData?.poster ?? []} avkortad={Boolean(arendeData?.avkortad)} onKommentera={kommenteraArende} onKlar={markeraArendeKlart} laddar={!arendeData && !fel.arenden} fel={fel.arenden} onForsokIgen={() => void ladda("arenden")} sprak={sprak} />
+      <div data-gast-arendeflik="" className="flex min-w-0 flex-col gap-3">
+        {redigerar ? (
+          <div>
+            <OpsButton variant="secondary" size="sm" onClick={oppnaNyttArende}>{t.nyttArende}</OpsButton>
+          </div>
+        ) : null}
+        <OpsGastArenden {...(projekt ? { ord: projektArendeord(sprak) } : {})} poster={arendeData?.poster ?? []} avkortad={Boolean(arendeData?.avkortad)} onKommentera={kommenteraArende} onKlar={markeraArendeKlart} laddar={!arendeData && !fel.arenden} fel={fel.arenden} onForsokIgen={() => void ladda("arenden")} sprak={sprak} />
+        {redigerar ? (
+          <OpsModal
+            open={nyttArende}
+            onOpenChange={setNyttArende}
+            title={t.nyttArende}
+            size="sm"
+            closeLabel={t.avbryt}
+            footer={(
+              <>
+                <OpsButton variant="secondary" onClick={() => setNyttArende(false)}>{t.avbryt}</OpsButton>
+                <OpsButton variant="primary" busyLabel={t.skapar} onClick={skapaArende}>{t.skapa}</OpsButton>
+              </>
+            )}
+          >
+            <div data-gast-nytt-arende="" className="flex flex-col gap-3">
+              <OpsField label={t.nyttArendeRubrik} error={arendeFel ?? undefined}>
+                <OpsInput value={arendeRubrik} onChange={setArendeRubrik} maxLength={GASTSKRIV_MAX_TECKEN} />
+              </OpsField>
+              <OpsField label={t.nyttArendeText}>
+                <OpsTextarea value={arendeText} onChange={setArendeText} maxLength={GASTSKRIV_MAX_TECKEN} rows={4} />
+              </OpsField>
+            </div>
+          </OpsModal>
+        ) : null}
+      </div>
     );
 
   // ⛔ SPRÅKET GÄLLER HELA GÄSTENS TRÄD (0.190.0, QA fynd 4 i cllp/lifehub.app#658): komponenterna som läser språket ur sammanhanget

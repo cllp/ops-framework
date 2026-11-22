@@ -540,9 +540,15 @@ describe("⛔ en delta-gäst ser aldrig resten av gruppen", () => {
     kommenteraPost: (t, k) => t.kommenteraPost({ sessionsnyckel: k, postId: "p-pdf", text: "Hej" }),
     // 0.207.0 (cllp/lifehub.app#696): bilderna i en anteckning, när gästen öppnar den.
     anteckningsbilder: (t, k) => t.anteckningsbilder({ sessionsnyckel: k, postId: "p-not" }),
+    // 0.254.0 (cllp/lifehub.app#928 del 2): en projektgäst som får ladda upp och ändra. Ett nej för en delta-gäst redan vid sessionen.
+    laddaUpp: (t, k) => t.laddaUpp({ sessionsnyckel: k, filnamn: "a.pdf", typ: "application/pdf", storlek: 10 }),
+    laddaUppKlar: (t, k) => t.laddaUppKlar({ sessionsnyckel: k, id: "u1" }),
+    bytNamnPost: (t, k) => t.bytNamnPost({ sessionsnyckel: k, postId: "p-pdf", rubrik: "Nytt" }),
+    taBortPost: (t, k) => t.taBortPost({ sessionsnyckel: k, postId: "p-pdf" }),
+    skapaArende: (t, k) => t.skapaArende({ sessionsnyckel: k, rubrik: "Nytt ärende" }),
   };
 
-  it("alla fjorton gruppåtgärder är ett nej för en delta-gäst, och samma anrop fungerar för en gruppgäst (positiv kontroll)", async () => {
+  it("alla nitton gruppåtgärder är ett nej för en delta-gäst, och samma anrop fungerar för en gruppgäst (positiv kontroll)", async () => {
     const h = bygg();
     const d = await deltaGast(h);
     const gr = await gruppGast(h);

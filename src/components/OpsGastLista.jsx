@@ -111,13 +111,14 @@ export const ORD_OPSGASTLISTA = {
   },
   bekraftaGruppKnapp: { sv: "Bjud in", en: "Invite" },
   // ── (0.215.0, cllp/lifehub.app#760 skiva 1) Listan på ett projekts sida (`projekt`): samma lista och samma dialog, med orden om projektet. Orden byter gruppens med samma namn utan `projekt_`. ──
+  // (0.254.0, lifehub.app#928 del 2) Ingressen säger också att uppladdning och ändring är av tills någon slår på det, av samma skäl som nedladdningen står där: förvalet ska synas där man bjuder in.
   projekt_ingressGrupp: {
-    sv: "En gäst får ett mejl med en länk och ser bara det här projektet, utan konto: projektets kort, chatt, ärenden, filer och kalender. Inte gruppens chatt och inget annat i gruppen. Ladda ned filer får gästen bara om det slås på. Gästen tar en av gruppens gästplatser.",
-    en: "A guest gets an email with a link and sees only this project, without an account: the project's card, chat, cases, files and calendar. Not the group's chat and nothing else in the group. The guest may download files only if that is switched on. The guest takes one of the group's guest places.",
+    sv: "En gäst får ett mejl med en länk och ser bara det här projektet, utan konto: projektets kort, chatt, ärenden, filer och kalender. Inte gruppens chatt och inget annat i gruppen. Ladda ned filer får gästen bara om det slås på, och ladda upp och ändra filer och skapa ärenden bara om det slås på. Gästen tar en av gruppens gästplatser.",
+    en: "A guest gets an email with a link and sees only this project, without an account: the project's card, chat, cases, files and calendar. Not the group's chat and nothing else in the group. The guest may download files only if that is switched on, and may upload and edit files and create cases only if that is switched on. The guest takes one of the group's guest places.",
   },
   projekt_ingressGruppTelefon: {
-    sv: "En gäst får en länk som du delar, till exempel som sms, och ser bara det här projektet, utan konto: projektets kort, chatt, ärenden, filer och kalender. Inte gruppens chatt och inget annat i gruppen. Gästen tar en av gruppens gästplatser.",
-    en: "A guest gets a link that you share, for example as a text message, and sees only this project, without an account: the project's card, chat, cases, files and calendar. Not the group's chat and nothing else in the group. The guest takes one of the group's guest places.",
+    sv: "En gäst får en länk som du delar, till exempel som sms, och ser bara det här projektet, utan konto: projektets kort, chatt, ärenden, filer och kalender. Inte gruppens chatt och inget annat i gruppen. Ladda upp och ändra filer och skapa ärenden får gästen bara om det slås på. Gästen tar en av gruppens gästplatser.",
+    en: "A guest gets a link that you share, for example as a text message, and sees only this project, without an account: the project's card, chat, cases, files and calendar. Not the group's chat and nothing else in the group. The guest may upload and edit files and create cases only if that is switched on. The guest takes one of the group's guest places.",
   },
   projekt_ingaGrupp: { sv: "Inga gäster har bjudits in till projektet.", en: "No guests have been invited to the project." },
   projekt_bjudGrupp: { sv: "Bjud in gäst till projektet", en: "Invite a guest to the project" },
@@ -158,6 +159,8 @@ export const ORD_OPSGASTLISTA = {
   nyLankPagar: { sv: "Skapar…", en: "Creating…" },
   // ── Nedladdning per gäst (0.203.0, lifehub.app#691): av som förval, i formuläret och på varje gruppinbjudan ──
   laddaNed: { sv: "Får ladda ned filer", en: "May download files" },
+  // ── (0.254.0, lifehub.app#928 del 2) Uppladdning och ändring per projektgäst: av som förval, bara på en projektrad på projektets sida ──
+  redigera: { sv: "Får ladda upp och ändra", en: "May upload and edit" },
   // ── Hopfällbara gästkort i gruppläget (0.204.0, CP 2026-11-08) ──
   visaDetaljer: { sv: "Visa detaljer för {vem}", en: "Show details for {vem}" },
   nyLankKlar: { sv: "En ny länk är skapad. Den gäller i {dagar} dagar, och den förra länken fungerar inte längre. Dela den nya.", en: "A new link has been created. It is valid for {dagar} days, and the previous link no longer works. Share the new one." },
@@ -409,6 +412,7 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt, fel = "" })
  * @property {"kommer" | "kommerInte" | "kanske" | null} [deltasvar] (0.146.0) Se `Gast`.
  * @property {"aterkallad" | "utgangen" | "har-rostat" | "inloggad" | "vantar"} [status]
  * @property {boolean} [laddaNed] (0.203.0) Bara en gruppinbjudan (`GASTGRUPPLISTFALT`): gästens egen nedladdning. (0.204.0) Alltid `true` eller `false` från tjänsten; något annat ritas som av.
+ * @property {boolean} [redigera] (0.254.0) Bara en projektinbjudan (`GASTPROJEKTLISTFALT`): får gästen ladda upp och ändra. Alltid `true` eller `false` från tjänsten; något annat ritas som av.
  */
 
 /**
@@ -449,6 +453,9 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt, fel = "" })
  * @param {(arg: { id: string, pa: boolean }) => void | Promise<unknown>} [props.onNedladdning] (0.203.0, lifehub.app#691) Slår på eller av nedladdning för en gäst (tjänstens `sattNedladdning`). Ger ett reglage
  *   Får ladda ned filer på varje gruppinbjudan, påslaget när raden har `laddaNed: true` och avslaget annars, och en
  *   återkallad går inte att ändra. Utelämnad: inget reglage. Bara i gruppläget. (0.204.0) Reglaget är hela regeln: ingen inställning på gruppen står över det.
+ * @param {(arg: { id: string, pa: boolean }) => void | Promise<unknown>} [props.onRedigera] (0.254.0, lifehub.app#928 del 2) Slår på eller av att en projektgäst får ladda upp och ändra (tjänstens `sattRedigera`). Ger reglaget
+ *   Får ladda upp och ändra på varje inbjudan till projektet, påslaget när raden har `redigera: true` och avslaget annars, och en återkallad går inte att ändra. Reglaget väntar medan löftet pågår, och ett fel står vid
+ *   gästen. ⛔ Bara med `projekt`: på gruppens lista finns inget projekt att ändra i, och tjänsten nekar en gruppinbjudan. Utelämnad: inget reglage.
  * @param {boolean} [props.medTelefon] (0.197.0, cllp/lifehub.app#661) Ger valet E-post eller Telefon i gruppens inbjudan. Kräver `onBjudGrupp` och `onKopieraLank`: utan länken når en telefoninbjudan ingen.
  *   ⛔ Ett val appen slår på, inget förval: en app vars `onBjudGrupp` bara skickar en adress hade fått en Telefon-knapp som alltid nekas.
  * @param {(arg: { id: string }) => void | Promise<unknown>} [props.onSkickaOm]
@@ -469,7 +476,7 @@ export function GastBekraftelse({ bekrafta, t, onBekrafta, onAvbryt, fel = "" })
  * @param {string} [props.sprak]
  * @param {Partial<Record<keyof typeof ORD_OPSGASTLISTA, string>>} [props.ord] Egna texter, som vinner över ordboken.
  */
-export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud, onBjudGrupp, onNedladdning, onSkickaOm, onKopieraLank, onAterkalla, onAterkallaAlla, onRadera, onGorTillMedlem, gruppnamn, projekt, medTelefon = false, utanRubrik = false, nu, sprak = "sv", ord }) {
+export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud, onBjudGrupp, onNedladdning, onRedigera, onSkickaOm, onKopieraLank, onAterkalla, onAterkallaAlla, onRadera, onGorTillMedlem, gruppnamn, projekt, medTelefon = false, utanRubrik = false, nu, sprak = "sv", ord }) {
   if (personer !== undefined && gaster !== undefined) {
     throw new Error("OpsGastLista: ange antingen gaster (en omröstning) eller personer (hela gruppen), inte båda. Två listor över samma gäster hade kunnat säga olika saker.");
   }
@@ -498,13 +505,15 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
   if (medTelefon && (onBjudGrupp === undefined || onKopieraLank === undefined)) {
     throw new Error("OpsGastLista: medTelefon kräver onBjudGrupp och onKopieraLank. Inget sms skickas, så länken är det enda som når en gäst med telefonnummer.");
   }
-  for (const [namn, f] of /** @type {const} */ ([["onBjud", onBjud], ["onBjudGrupp", onBjudGrupp], ["onNedladdning", onNedladdning], ["onSkickaOm", onSkickaOm], ["onKopieraLank", onKopieraLank], ["onAterkalla", onAterkalla], ["onAterkallaAlla", onAterkallaAlla], ["onRadera", onRadera], ["onGorTillMedlem", onGorTillMedlem]])) {
+  for (const [namn, f] of /** @type {const} */ ([["onBjud", onBjud], ["onBjudGrupp", onBjudGrupp], ["onNedladdning", onNedladdning], ["onRedigera", onRedigera], ["onSkickaOm", onSkickaOm], ["onKopieraLank", onKopieraLank], ["onAterkalla", onAterkalla], ["onAterkallaAlla", onAterkallaAlla], ["onRadera", onRadera], ["onGorTillMedlem", onGorTillMedlem]])) {
     if (f !== undefined && typeof f !== "function") throw new Error(`OpsGastLista: ${namn} måste vara en funktion (eller utelämnas).`);
   }
   if (projekt !== undefined) {
     if (!gruppLage) throw new Error("OpsGastLista: projekt hör till gruppläget (personer). En omröstning har inget projekt.");
     if (!projekt || typeof projekt.tagg !== "string" || projekt.tagg === "") throw new Error("OpsGastLista: projekt är { tagg }, projektets tagg.");
   }
+  // ⛔ (0.254.0) UPPLADDNING OCH ÄNDRING FINNS BARA I ETT PROJEKT. Ett reglage på gruppens lista hade lovat en gäst i hela gruppen något som tjänsten nekar (`sattRedigera`: ogiltigt-omfang).
+  if (onRedigera !== undefined && projekt === undefined) throw new Error("OpsGastLista: onRedigera hör till listan på ett projekts sida (projekt). En gäst i hela gruppen laddar inte upp eller ändrar.");
   // ⛔ (0.215.0) PÅ ETT PROJEKTS SIDA ÄR ORDEN PROJEKTETS: `projekt_`-orden ersätter gruppens med samma namn, före appens egna.
   const grundord = forvalda(ORD_OPSGASTLISTA, sprak);
   const projektord = projekt ? Object.fromEntries(Object.entries(grundord).filter(([k]) => k.startsWith("projekt_")).map(([k, v]) => [k.slice("projekt_".length), v])) : {};
@@ -911,6 +920,13 @@ export function OpsGastLista({ gaster, personer, platser, harRostat = [], onBjud
                                 // eftersom gruppen inte längre är en del av regeln.
                                 <div data-gast-laddaned={i.laddaNed === true ? "pa" : "av"}>
                                   <OpsSwitch label={t.laddaNed} checked={i.laddaNed === true} disabled={aterkallad} onChange={(v) => pa(p.gastId, onNedladdning, { id: i.id, pa: v })} />
+                                </div>
+                              ) : null}
+                              {onRedigera && projekt && i.omfang.slag === "projekt" ? (
+                                // (0.254.0, lifehub.app#928 del 2) Om projektgästen får ladda upp och ändra. Bara en projektrad, och allt som inte är `true` är av, samma som servern (`redigeringTillaten`).
+                                // Löftet lämnas tillbaka till reglaget (`pa`), som då väntar och inte tar ett andra tryck förrän svaret kommit (`OpsSwitch`, `useLofteVantan`); ett fel står vid gästen.
+                                <div data-gastlista-redigera={i.redigera === true ? "pa" : "av"}>
+                                  <OpsSwitch label={t.redigera} checked={i.redigera === true} disabled={aterkallad} onChange={(v) => pa(p.gastId, onRedigera, { id: i.id, pa: v })} />
                                 </div>
                               ) : null}
                               {lankar[i.id] && !aterkallad ? <GastLank lank={lankar[i.id]} vem={vem} t={t} sprak={sprak} gruppnamn={gruppnamn} telefon={personTelefon} /> : null}

@@ -343,6 +343,9 @@ const ORD_BIBLIOTEKLISTA = {
   flyttadTill: { sv: "Flyttad till {namn}.", en: "Moved to {namn}." },
   kopieradTill: { sv: "Kopierad till {namn}.", en: "Copied to {namn}." },
   namnEjSparat: { sv: "Namnet kunde inte sparas.", en: "The name could not be saved." },
+  // (0.254.0) Gästens namnbyte prövas här och inte med `inmatningsfel`, som kräver hela posten: gästen skickar bara rubriken.
+  namnSaknas: { sv: "Rubriken saknas.", en: "The title is missing." },
+  namnForLangt: { sv: "Rubriken får vara högst {max} tecken.", en: "The title can be at most {max} characters." },
   postEjSparad: { sv: "Posten kunde inte sparas.", en: "The item could not be saved." },
   uppladdningEjKopplad: { sv: "Uppladdningen är inte kopplad. Filen är kvar på enheten.", en: "Uploading is not connected. The file is still on your device." },
   raderingEjKopplad: { sv: "Raderingen är inte kopplad. Posten är kvar.", en: "Deleting is not connected. The item is still here." },
@@ -592,8 +595,13 @@ const repoplatsForm = (plats) => typeof plats === "string" && (arPlatsBibliotek(
  *   inte kan dras tillbaka. En länkpost kopierar sin egen adress som förut, och gästens fil sin signerade adress (gäller en kvart).
  *   ⛔ EN FUNKTION OCH INTE EN BAS (0.221.0 ersätter 0.220.0:s `postlankBas`): med basen byggde biblioteket länken själv, och `bibliotekslank` följde med
  *   in i appens startfiler (lifehub.app:s `check:jsstorlek` 479 gzippade byte över taket). Appen bygger länken där den ändå har koden.
+ * @param {{ onBytNamn: (inmatning: { id: string, rubrik: string }) => Promise<unknown>, onTaBort: (inmatning: { id: string }) => Promise<unknown> } | null} [props.gastAndring] (0.254.0, cllp/lifehub.app#928 del 2)
+ *   En projektgäst som får ladda upp och ändra (`OpsGastGrupp`, `grupp.redigera`). Ger Byt namn och Radera i menyn och i detaljen för en fil eller en anteckning, och INGET annat: inte Redigera, inte taggar,
+ *   inte Dela länk, inte Flytta eller Kopiera, inte Nåla fast och inte Arkivera, eftersom gästens tjänst bara har de två (`bytNamnPost`, `taBortPost`). Dialogerna är medlemmens (samma fråga före Radera, samma fält
+ *   för namnet) och väntar på löftet; ett fel står i dialogen. ⛔ BARA MED `jag: null`: gästen är ingen medlem, och att ge hen ett påhittat medlemskap hade öppnat varje meny som `farAndra` släpper in, utan någon
+ *   tjänst bakom dem. Utelämnad: som förut.
  */
-export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, repoLasare, onLaggRepoFil, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null, onLaggBildIAnteckning, bildIAnteckningAdress, bildIAnteckningFel, postlank }) {
+export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, trasiga: trasigaProp = [], laddar: laddarProp = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onFyllLjud, onSpelaIn, inspelare, filUrl, hamtaAdress, hamtaFil, htmlVersioner, hamtaHtmlVersion, aterstallHtml, nyHtmlVersion, oppnaHtml, oppnaPdf, grupper = [], onDela, platser = [], plats, onPlats, onSkrivUt, onSkrivUtIgen, onTaBortUtskrift, onAnteckningAvUtskrift, onGorForslag, delningar = [], delningGruppdel, gruppnamn: gruppnamnProp, onDelaLank, onAndraNedladdning, onAterkalla, onMejlaLank, onLankInfo, githubLasare, repoLasare, onLaggRepoFil, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null, inbaddad = false, tomText, utanHubb = false, adresserPaBegaran = false, gruppTaggar = [], egnaPlatser = null, stjarnor, onStjarna, huvudRad, utanNedladdning = false, kommentarer = null, onLaggBildIAnteckning, bildIAnteckningAdress, bildIAnteckningFel, postlank, gastAndring = null }) {
   if (kalla !== undefined && (posterProp !== undefined || felProp !== null || laddarProp !== false || (Array.isArray(trasigaProp) && trasigaProp.length > 0))) {
     throw new Error("OpsBibliotek: kalla och poster/fel/trasiga/laddar kan inte ges tillsammans. Med kalla läser vyn själv, och två sanningar om samma lista hade låtit den ena vinna tyst.");
   }
@@ -602,6 +610,12 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   }
   if (jag === undefined) {
     throw new Error("OpsBibliotek: jag krävs, den inloggades aktiva medlemskap i gruppen ({ uid, roll }), eller null när personen inte är medlem. Utan propen ser en medlem ut som en som bara får läsa.");
+  }
+  if (gastAndring !== null && (typeof gastAndring !== "object" || typeof gastAndring.onBytNamn !== "function" || typeof gastAndring.onTaBort !== "function")) {
+    throw new Error("OpsBibliotek: gastAndring är { onBytNamn, onTaBort } (0.254.0), två funktioner som ger löften, eller utelämnas.");
+  }
+  if (gastAndring !== null && jag !== null) {
+    throw new Error("OpsBibliotek: gastAndring hör till gästens bibliotek (jag: null). En medlem byter namn och raderar genom onSpara och onRadera, och båda på en gång hade gett två vägar för samma sak.");
   }
   // ⛔ EN HÄNDELSES ELLER ETT ÄRENDES BIBLIOTEK FINNS INTE BLAND PLATSERNA (0.121.0, 0.122.0, lifehub.app#366). Platsväljaren och Flytta-menyn bygger på listorna appen ger, och en
   // plats som hamnat där är en plats man kan flytta en fil in i eller ut ur: ett synlighetsbeslut utan objektets villkor. Kastar hellre än filtrerar tyst.
@@ -1169,6 +1183,13 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   };
 
   /**
+   * (0.254.0) Får gästen byta namn på och radera posten (`gastAndring`)? Bara en fil eller en anteckning: det är de två som gästens tjänst ändrar (`bytNamnPost`, `taBortPost`), och en länk eller en lista hade fått ett
+   * val som servern säger nej till.
+   * @param {{ typ?: string } | null | undefined} post
+   */
+  const gastFar = (post) => Boolean(gastAndring) && (post?.typ === "fil" || post?.typ === "anteckning");
+
+  /**
    * @param {string} id
    */
   function fragaRadera(id) {
@@ -1178,6 +1199,12 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
 
   function korRadera() {
     if (!raderar) return;
+    // ⛔ (0.254.0) GÄSTENS RADERING GÅR TILL GÄSTENS TJÄNST (`gastAndring.onTaBort`), aldrig till `onRadera`: med `jag: null` är den här vägen den enda som kan ha öppnat dialogen.
+    if (gastAndring) {
+      return Promise.resolve()
+        .then(() => gastAndring.onTaBort({ id: raderar }))
+        .then(() => setRaderar(null), (e) => setRaderaFel(e instanceof Error ? e.message : String(e)));
+    }
     if (typeof onRadera !== "function") {
       setRaderaFel(listord("raderingEjKopplad", sprak));
       return;
@@ -1207,6 +1234,37 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
 
   function sparaNamn() {
     if (!byter || namnSparar.current) return;
+    // ⛔ (0.254.0) GÄSTENS NAMNBYTE BÄR BARA RUBRIKEN (`gastAndring.onBytNamn`): servern byter rubrik och inget annat, så posten skickas inte med. Rubriken prövas som medlemmens (trimmad, inte tom, högst taket).
+    if (gastAndring) {
+      const rubrik = trimSomRegeln(namnUtkast);
+      if (!rubrik) {
+        setNamnFel(listord("namnSaknas", sprak));
+        return;
+      }
+      if (rubrik.length > MAX_BIBLIOTEKRUBRIK) {
+        setNamnFel(listord("namnForLangt", sprak, { max: String(MAX_BIBLIOTEKRUBRIK) }));
+        return;
+      }
+      setNamnFel("");
+      namnSparar.current = true;
+      setNamnBusy(true);
+      const id = byter.id;
+      Promise.resolve()
+        .then(() => gastAndring.onBytNamn({ id, rubrik }))
+        .then(
+          () => {
+            namnSparar.current = false;
+            setNamnBusy(false);
+            setByter(null);
+          },
+          (/** @type {unknown} */ e) => {
+            namnSparar.current = false;
+            setNamnBusy(false);
+            setNamnFel(e instanceof Error && e.message ? e.message : String(e));
+          },
+        );
+      return;
+    }
     const inmatning = byter.typ === "anteckning"
       ? { id: byter.id, typ: byter.typ, rubrik: namnUtkast, text: byter.text ?? "" }
       : byter.typ === "fil"
@@ -1279,7 +1337,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     /** @type {import("./OpsAtgardsblad.jsx").Atgard[]} */
     const ut = [];
     if (far && iDetalj && sattRedigera) ut.push({ id: "redigera", etikett: lord("redigera"), onValj: () => sattRedigera("redigera") });
-    if (far) ut.push({ id: "namn", etikett: lord("bytNamn"), onValj: () => borjaNamn(post) });
+    // (0.254.0) En projektgäst med `gastAndring` får Byt namn och Radera på en fil eller en anteckning, och inget annat i menyn.
+    if (far || gastFar(post)) ut.push({ id: "namn", etikett: lord("bytNamn"), onValj: () => borjaNamn(post) });
     // ⛔ LÄGG TILL TAGG UR MENYN (0.165.0): kortet visar taggraden bara när posten har taggar. Utan taggar öppnar raden här fältet på kortet. Samma rätt som taggraden (`farAndra` och `onSpara`).
     if (far && !iDetalj && typeof onSpara === "function" && synligaTaggar(post.taggar).length === 0) ut.push({ id: "tagg", etikett: lord("laggTillTagg"), onValj: () => setTaggarFor(post.id) });
     // ⛔ DELA LÄNK FINNS PÅ ALLA FYRA TYPER (0.133.0, lifehub.app#356, CP 2026-10-18: "Vi skall ju ha en publik länk till varje artefakt"). Förut bara på en färdig fil (0.119.0).
@@ -1383,7 +1442,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
         },
       });
     }
-    if (far) ut.push({ id: "radera", etikett: lord("radera"), fara: true, onValj: () => fragaRadera(post.id) });
+    if (far || gastFar(post)) ut.push({ id: "radera", etikett: lord("radera"), fara: true, onValj: () => fragaRadera(post.id) });
     return ut;
   }
 

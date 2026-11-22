@@ -9,6 +9,30 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.254.0
+
+**En gäst i ett projekt kan få ladda upp och ändra (cllp/lifehub.app#928 del 2).** CP sa "kör" på förslaget: en extern i ett projekt ska kunna lägga in ritningar och foton, rätta en rubrik, ta bort det som blev fel och lägga upp ett ärende, utan att bli medlem. Fram till nu kunde en projektgäst bara läsa, kommentera ärenden och skriva i projektets chatt. Reglaget är per gäst och av som förval, som nedladdningen (0.203.0), och det gäller bara projektets plats i biblioteket och nya ärenden i projektet: inte projektets kort eller inställningar, inte medlemmarna, inte gästerna och inget utanför projektet.
+
+### Tillagt
+- **`redigera` på en projektinbjudan** (`GASTFALT`): `true` eller `false`, förval `false`. `byggGastinbjudan({ redigera })` tar det bara för ett projekt och kastar för hela gruppen och en sak. `session`, `hamta` (`grupp.redigera`) och medlemmens `lista` (`GASTPROJEKTLISTFALT`, bara på en projektrad) bär det. En gruppinbjudan och en sak har aldrig fältet.
+- **`sattRedigera({ uid, id, pa })`**, som `sattNedladdning`: bara aktiv ägare eller admin, och `ogiltigt-omfang` för allt som inte är ett projekt.
+- **Fem gäståtgärder** (`GASTGRUPPATGARDER`, svaren i `GASTGRUPPSVARSFALT`): `laddaUpp` (`{ ok, id, url, huvuden }`, en signerad PUT), `laddaUppKlar` (`{ ok, postId }`), `bytNamnPost` och `taBortPost` (`{ ok }`, en fil eller en anteckning på projektets plats) och `skapaArende` (`{ ok, arende }`, byggt som en rad i `arenden`). Bara en projektgäst med `redigera: true`; alla andra får `nej`.
+- **`grupp.projekt.redigering`** (`{ nyFil, filKlar, bytNamn, taBort, skapaArende }`): alla fem eller ingen, och den kräver `grupp.arenden`. Ramverket prövar sessionen, projektet, platsen, posten, texterna och takterna; appen skriver. Utan den säger `hamta` `redigera: false` och åtgärderna `nej`.
+- **`GASTUPPLADDNING_PER_DYGN`** (20 per inbjudan): uppladdningarnas egen takt, reserverad före appens `nyFil` och tillbakagiven när appen säger nej. Namnbyte, borttagning och nytt ärende delar chattens skrivtakt (`GASTSKRIV_PER_MINUT`).
+- Felkoden **`ogiltig-fil`** (`GASTFELKODER`): filen har ett namn, en sort eller en storlek som biblioteket inte tar emot (`filInmatningsfel`).
+- **`OpsGastLista` `onRedigera({ id, pa })`**: reglaget **Får ladda upp och ändra** på varje projektinbjudan, bara med `projekt` (annars kastar den). Projektets ingress säger att uppladdning och ändring bara gäller när det slagits på.
+- **`OpsGastGrupp` med `grupp.redigera: true`**: Ladda upp fil i biblioteket (prövas först, sedan reservation, PUT och klart, med "Laddar upp…" och felet vid knappen), Byt namn och Radera på en fil eller en anteckning, och Nytt ärende i en dialog bakom en knapp. Ärendefliken syns också innan projektet har ett ärende.
+- **`OpsBibliotek` `gastAndring={{ onBytNamn, onTaBort }}`**: Byt namn och Radera för en gäst, och inget annat i menyn. Bara med `jag: null`: gästen görs aldrig till en påhittad medlem, eftersom `farAndra` då hade öppnat delning, flytt och arkiv som gästen saknar tjänst för.
+- `gastBehorighetsrader` säger vad en projektgäst med `redigera` får göra.
+
+### Ändrat
+- Raderingen av en gäst tar också bort räknaren `gastuppladdning`. ⛔ Filerna och ärendena gästen lagt in ligger kvar: de hör till projektet, som en medlems filer gör när hen lämnar.
+
+### Prov
+- `gast-projekt-redigera.test.js` (29): modellen, `byggGastinbjudan`, `sattRedigera` (roll och omfång), `lista` och `hamta`, de fem åtgärderna med `redigera` på, och nej med det av, för en gruppgäst, för en post utanför platsen, en länk och en lista, för en återkallad och för en gäst vars `redigera` slagits av; fält som inte får skickas, ett borttaget projekt, fil- och textprövningen, appens svar utan form, ett ärende utanför projektet, båda takterna, raderingen och konfigurationen.
+- `gast-projekt-redigera-vy.test.jsx` (11): reglaget i listan (följer värdet, väntar, felet vid gästen, återkallad, bara projektrader, kastar utan `projekt`), uppladdningen med PUT och väntan, en fil som inte tas emot och en PUT som faller, Byt namn och Radera och inget annat, ett nej i dialogen, Nytt ärende, och att inget av det finns utan `redigera` eller för en gruppgäst.
+- `gast-delta.test.js`: de fem nya åtgärderna står i listan över gruppåtgärder som en delta-gäst ska få nej på (nu nitton). Listan jämförs mot `GASTGRUPPATGARDER` och blev röd när åtgärderna kom till, vilket var avsikten.
+
 ## 0.253.0
 
 **En inbjudan kan gälla en person i stället för en adress (cllp/lifehub.app#871).** CP 2026-11-21: man ska kunna hitta personer i LifeHub på namn när man bjuder in, och spärren från 2026-11-17 i #871 säger att inbjudan går till den riktiga adressen utan att den som bjuder in ser den. Mätt 2026-11-22: en inbjudan lagrade adressen i `invitations/{id}.epost`, och gruppens ägare och admin får läsa raden. En inbjudan via sökningen hade alltså visat adressen för den som bjöd in.
