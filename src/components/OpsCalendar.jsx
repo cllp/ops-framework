@@ -767,7 +767,8 @@ function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna, oppnaExtern,
       ) : null}
       {alla.length === 0 ? <p className="m-0 px-0.5 py-1 text-hjalp text-ink-secondary">Inga poster den här dagen.</p> : null}
       <ul className="m-0 flex list-none flex-col gap-1 p-0">
-        {alla.map((e) => {
+        {/* ⛔ DOLDA SIST (0.255.0, cllp/lifehub.app#944). Inom de synliga och inom de dolda gäller dagens klockordning (`perDay`). */}
+        {[...alla.filter((e) => synliga.has(e.id)), ...alla.filter((e) => !synliga.has(e.id))].map((e) => {
           const dold = !synliga.has(e.id);
           return (
             <li key={e.id} data-titt-rad={dold ? "dold" : "synlig"} className={cx("flex items-start gap-2 rounded-md px-1 py-1", ((e.handelseId && oppna) || (!e.handelseId && lasbara.has(e.id))) && "relative", dold && DOLD_RAD_KLASS)}>

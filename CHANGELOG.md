@@ -9,6 +9,19 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.255.0
+
+**Kalenderns dag står i klockans ordning (cllp/lifehub.app#944).** CP 2026-11-22, Kalendern i gruppen TAM den 23 november: rutan och kortet visade 13:30, en heldagsuppgift, 13:00 och 10:30, i den ordning händelserna skapats. Ramverket la dagens poster i den ordning appen skickade dem och sorterade aldrig, och klockslaget fanns bara som text i `not`. Nu står det som saknar klockslag först (heldag, uppgifter, fakturor och en flerdagspost de dagar den inte börjar), i appens ordning, sedan det med klockslag efter starttid. I snabbtitten står dolda poster sist.
+
+### Tillagt
+- **`CalendarEntry.tid`**: starttiden `HH:MM` på dagen `date`. Den sorterar, den ritas inte: klockslaget i raden är fortfarande appens `not`. Saknas den läses `extern.tid`. Ett värde som inte är `HH:MM` räknas som inget, och en heldag har aldrig ett klockslag.
+- **`klockslag(post, dag)`** och **`iKlockordning(lista, dag)`** i `lib/calendar.js`, som `perDay` använder.
+
+### Ändrat
+- **`perDay`** sorterar varje dag (stabilt: lika tider behåller appens ordning). Dagpanelen, snabbtitten och rutan i rutnätet följer. Här stod förut "ordningen inom dagen är den inskickade"; skälet och händelsen står vid funktionen.
+- **`postTillRad`** sätter `tid` för en post med klockslag, så egna kalendrar sorteras utan något i appen.
+- **Snabbtitten** ritar synliga poster före dolda.
+
 ## 0.254.0
 
 **En gäst i ett projekt kan få ladda upp och ändra (cllp/lifehub.app#928 del 2).** CP sa "kör" på förslaget: en extern i ett projekt ska kunna lägga in ritningar och foton, rätta en rubrik, ta bort det som blev fel och lägga upp ett ärende, utan att bli medlem. Fram till nu kunde en projektgäst bara läsa, kommentera ärenden och skriva i projektets chatt. Reglaget är per gäst och av som förval, som nedladdningen (0.203.0), och det gäller bara projektets plats i biblioteket och nya ärenden i projektet: inte projektets kort eller inställningar, inte medlemmarna, inte gästerna och inget utanför projektet.
