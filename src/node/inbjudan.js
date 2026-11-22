@@ -78,6 +78,22 @@ export function inbjudningsId(groupId, epost) {
   return `${g}${MEDLEMSKAPSAVGRANSARE}${createHash("sha256").update(e).digest("hex")}`;
 }
 
+/**
+ * Id:t för en inbjudan till en person (`forUid`, 0.253.0, lifehub.app#871): grupp-id:t, avgränsaren och SHA-256 av `uid:` och uid:t.
+ * ⛔ PREFIXET `uid:` SKILJER DEN FRÅN EN ADRESS. En adress har alltid ett `@`, ett uid med prefixet har inget, så hashen av den ena
+ * kan aldrig vara hashen av den andra, och en inbjudan till en person och en till en adress får aldrig samma rad.
+ * @param {string} groupId
+ * @param {string} uid
+ * @returns {string}
+ */
+export function inbjudningsIdForPerson(groupId, uid) {
+  const g = typeof groupId === "string" ? groupId.trim() : "";
+  const u = typeof uid === "string" ? uid.trim() : "";
+  if (!g || !u) throw new Error("inbjudningsIdForPerson: både groupId och uid krävs.");
+  if (g.includes(MEDLEMSKAPSAVGRANSARE)) throw new Error(`inbjudningsIdForPerson: groupId "${g}" innehåller avgränsaren "${MEDLEMSKAPSAVGRANSARE}".`);
+  return `${g}${MEDLEMSKAPSAVGRANSARE}${createHash("sha256").update(`uid:${u}`).digest("hex")}`;
+}
+
 /** @param {string} groupId @param {string} id */
 const redanVantande = (groupId, id) =>
   `bjudIn: adressen har redan en väntande inbjudan i gruppen "${groupId}" (${id}). Skicka om den i stället för att bjuda in igen.`;
@@ -268,7 +284,7 @@ export function inbjudningstjanst(konfig, namn) {
     /**
      * Ägaren eller en admin bjuder in en e-postadress till en grupp.
      *
-     * @param {{ avUid: string, groupId: string, epost: string, roll?: string, skapadAv?: any, tokenHash?: string }} b
+     * @param {{ avUid: string, groupId: string, epost?: string, forUid?: string, visas?: string, roll?: string, skapadAv?: any, tokenHash?: string }} b
      *   ⛔ `typ` FINNS INTE LÄNGRE (0.82.0, #313), och ett anrop som ändå skickar den kastar. Den bestämde typen på
      *   medlemskapet grenen för en befintlig person skrev, och den grenen är borttagen. Accepten skriver `typ: "person"`.
      *   `tokenHash` (0.80.1): SHA-256 i hex av koden appen mejlar, eller utelämnad. Koden själv kommer aldrig hit.
@@ -282,9 +298,18 @@ export function inbjudningstjanst(konfig, namn) {
       const avUid = typeof b?.avUid === "string" ? b.avUid.trim() : "";
       const groupId = typeof b?.groupId === "string" ? b.groupId.trim() : "";
       const epost = epostform(b?.epost);
+      /*
+       * ⛔ EN ADRESS ELLER EN PERSON (0.253.0, lifehub.app#871). `forUid` är en person som redan finns i LifeHub och som hittades i
+       * sökningen. Raden bär då uid:t och den maskerade adressen (`visas`), aldrig adressen, eftersom gruppens ägare och admin får
+       * läsa `invitations` och den som bjuder in inte ska se personens adress. Appen mejlar själv till den riktiga adressen.
+       */
+      const forUid = typeof b?.forUid === "string" ? b.forUid.trim() : "";
+      const visas = typeof b?.visas === "string" ? b.visas.trim() : "";
       if (!avUid) throw new Error("bjudIn: avUid krävs, alltså vem som bjuder in. Utan den går ägarskapet inte att kontrollera.");
       if (!groupId) throw new Error("bjudIn: groupId krävs.");
-      if (!epost) throw new Error("bjudIn: epost krävs. Det är det enda en inbjudan har att matcha på innan personen finns.");
+      if (epost && forUid) throw new Error("bjudIn: epost och forUid går inte att skicka båda. En inbjudan gäller en adress eller en person.");
+      if (!epost && !forUid) throw new Error("bjudIn: epost krävs. Det är det enda en inbjudan har att matcha på innan personen finns.");
+      if (forUid && !visas) throw new Error("bjudIn: visas krävs med forUid, alltså den maskerade adressen som listan visar.");
 
       /*
        * ⛔ `typ` KASTAR, DEN IGNORERAS INTE (0.82.0, granskningen av PR 314, KAN 4). Den bestämde typen på medlemskapet
@@ -346,8 +371,9 @@ export function inbjudningstjanst(konfig, namn) {
        * den som bjöd in kunde inte se skillnad på "inbjudan finns" och "inbjudan skickades". Ett omutskick
        * är ett eget steg med en ny kod, och det är det felet säger.
        */
-      const nyttId = inbjudningsId(groupId, epost);
-      const rader = (await kalla.list(INBJUDNINGAR, { where: { epost } })).filter((/** @type {Record<string, any>} */ i) => i.groupId === groupId);
+      const nyttId = forUid ? inbjudningsIdForPerson(groupId, forUid) : inbjudningsId(groupId, epost);
+      const rader = (await kalla.list(INBJUDNINGAR, { where: forUid ? { forUid } : { epost } })).filter((/** @type {Record<string, any>} */ i) => i.groupId === groupId);
+      const mottagare = forUid ? { forUid, visas } : { epost };
       const tid = nuMs();
       const rad = raden(rader, nyttId, tid);
 
@@ -394,8 +420,8 @@ export function inbjudningstjanst(konfig, namn) {
         /** @type {Record<string, unknown>} */
         const villkor = { status };
         if (typeof rad.giltigTill === "string") villkor.giltigTill = rad.giltigTill;
-        const ny = byggInbjudan({ id: rad.id, epost, groupId, roll, status: "vantar", skapadAv: b.skapadAv ?? {}, tokenHash, giltigTill: giltigTillFran(tid) });
-        const data = { status: ny.status, roll: ny.roll, tokenHash: ny.tokenHash, giltigTill: ny.giltigTill, skapadAv: ny.skapadAv };
+        const ny = byggInbjudan({ id: rad.id, ...mottagare, groupId, roll, status: "vantar", skapadAv: b.skapadAv ?? {}, tokenHash, giltigTill: giltigTillFran(tid) });
+        const data = { status: ny.status, roll: ny.roll, tokenHash: ny.tokenHash, giltigTill: ny.giltigTill, skapadAv: ny.skapadAv, ...(forUid ? { visas: ny.visas } : {}) };
         const { updated, row } = await uppdateraOm(INBJUDNINGAR, rad.id, villkor, data);
         if (!updated) throw new Error(efterKapplopp(groupId, rad.id, row));
         return { resultat: "inbjudan", id: rad.id, ateroppnad: true, fran: utgangen ? "utgangen" : status };
@@ -407,7 +433,7 @@ export function inbjudningstjanst(konfig, namn) {
        */
       const inbjudan = byggInbjudan({
         id: nyttId,
-        epost,
+        ...mottagare,
         groupId,
         roll,
         status: "vantar",
@@ -476,8 +502,17 @@ export function inbjudningstjanst(konfig, namn) {
         bara = new Set(b.bara.map((x) => x.trim()));
       }
       const nu = nuMs();
+      /*
+       * ⛔ OCKSÅ INBJUDNINGARNA TILL PERSONEN (0.253.0, lifehub.app#871): de bär `forUid` och ingen adress, och uid:t ur inloggningen är
+       * redan bevisat. De två listorna kan inte överlappa (en rad har adress eller person, `byggInbjudan`), men id:t avgör ändå, en gång.
+       */
+      /** @type {Map<string, Record<string, any>>} */
+      const perId = new Map();
+      for (const i of [...(await kalla.list(INBJUDNINGAR, { where: { epost } })), ...(await kalla.list(INBJUDNINGAR, { where: { forUid: uid } }))]) {
+        if (i && typeof i.id === "string") perId.set(i.id, i);
+      }
       /** @type {Array<Record<string, any>>} */
-      const listade = (await kalla.list(INBJUDNINGAR, { where: { epost } })).filter((/** @type {Record<string, any>} */ i) => i.status === "vantar" && (!bara || bara.has(i.id)));
+      const listade = [...perId.values()].filter((/** @type {Record<string, any>} */ i) => i.status === "vantar" && (!bara || bara.has(i.id)));
       const vantande = listade.filter((i) => !arUtgangen(i, nu));
       const utgangna = listade.filter((i) => arUtgangen(i, nu)).map((i) => i.groupId);
 
