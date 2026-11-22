@@ -181,7 +181,9 @@ export const MAX_PRESENTATION = 500;
 /**
  * @typedef {object} Inbjudan
  * @property {string} id
- * @property {string} epost Gemener. Se noten i `byggInbjudan`.
+ * @property {string} [epost] Gemener. Se noten i `byggInbjudan`. Saknas när inbjudan gäller en person (`forUid`).
+ * @property {string} [forUid] (0.253.0, lifehub.app#871) Personen inbjudan gäller, när den skickades via sökningen. Då saknas `epost`.
+ * @property {string} [visas] (0.253.0) Den maskerade adressen listan visar för en inbjudan med `forUid`, till exempel `ka***@exempel.se`.
  * @property {string} groupId
  * @property {"agare"|"admin"|"medlem"} roll
  * @property {"vantar"|"accepterad"|"aterkallad"} status
@@ -327,7 +329,7 @@ export const MEDLEMSKAPSFALT = ["id", "userId", "groupId", "roll", "typ", "statu
  * ⛔ `mejlId` (0.234.0). CP 2026-11-16: "Inbjudan status, om den inte har svarat." och "vi måste kunna läsa mailkön". Appen sparar en referens till köns
  * rad i `mejl`: `null` när inbjudan skapas och när den skickas om, rad-id:t när brevet är köat. Utan fältet i listan hade `byggInbjudan` avvisat varje sådan rad.
  */
-export const INBJUDNINGSFALT = ["id", "epost", "groupId", "roll", "status", "skapadAv", "tokenHash", "giltigTill", "skickad", "antalSkickade", "mejlId"];
+export const INBJUDNINGSFALT = ["id", "epost", "forUid", "visas", "groupId", "roll", "status", "skapadAv", "tokenHash", "giltigTill", "skickad", "antalSkickade", "mejlId"];
 
 /**
  * @param {string} samling
@@ -959,8 +961,21 @@ export function byggInbjudan(d) {
   if (!id) throw new Error("invitations: id krävs.");
   avvisaOkanda("invitations", rad, INBJUDNINGSFALT, id);
 
+  /*
+   * ⛔ EN ADRESS ELLER EN PERSON, ALDRIG BÅDA OCH ALDRIG INGEN (0.253.0, cllp/lifehub.app#871). En inbjudan via sökningen i
+   * LifeHub gäller en person som redan finns, och den som bjuder in får inte se personens adress (spärren 2026-11-17 i #871).
+   * Raden bär då `forUid` och en maskerad adress att visa (`visas`), och ingen adress: `invitations` går att läsa för gruppens
+   * ägare och admin, så en adress på raden vore en adress för dem. Accepten matchar `forUid` mot inloggningens uid, som redan är
+   * bevisat, i stället för adressen.
+   */
   const epost = rensa(rad.epost).toLowerCase();
-  if (!epost) throw new Error(`invitations: epost krävs för "${id}". Det är det enda inbjudan har att matcha på innan personen finns.`);
+  const forUid = rensa(rad.forUid);
+  const visas = rensa(rad.visas);
+  if (epost && forUid) throw new Error(`invitations: "${id}" har både epost och forUid. En inbjudan gäller en adress eller en person, inte båda.`);
+  if (!epost && !forUid) throw new Error(`invitations: epost krävs för "${id}", eller forUid för en inbjudan till en person. Utan någon av dem går inbjudan inte att matcha.`);
+  if (forUid && !visas) throw new Error(`invitations: visas krävs för "${id}" när inbjudan gäller en person (forUid), så att listan har något att visa i stället för adressen.`);
+  if (visas && !forUid) throw new Error(`invitations: visas hör bara till en inbjudan med forUid ("${id}"). En inbjudan med adress visar adressen.`);
+  if (forUid && forUid.includes(MEDLEMSKAPSAVGRANSARE)) throw new Error(`invitations: forUid för "${id}" innehåller "${MEDLEMSKAPSAVGRANSARE}".`);
   const groupId = rensa(rad.groupId);
   if (!groupId) throw new Error(`invitations: groupId krävs för "${id}".`);
 
@@ -1009,7 +1024,7 @@ export function byggInbjudan(d) {
   return Object.freeze({
     ...(rad.mejlId !== undefined ? { mejlId: rad.mejlId } : {}),
     id,
-    epost,
+    ...(forUid ? { forUid, visas } : { epost }),
     groupId,
     roll: /** @type {Inbjudan["roll"]} */ (roll),
     status: /** @type {Inbjudan["status"]} */ (status),

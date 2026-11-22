@@ -9,6 +9,22 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.253.0
+
+**En inbjudan kan gälla en person i stället för en adress (cllp/lifehub.app#871).** CP 2026-11-21: man ska kunna hitta personer i LifeHub på namn när man bjuder in, och spärren från 2026-11-17 i #871 säger att inbjudan går till den riktiga adressen utan att den som bjuder in ser den. Mätt 2026-11-22: en inbjudan lagrade adressen i `invitations/{id}.epost`, och gruppens ägare och admin får läsa raden. En inbjudan via sökningen hade alltså visat adressen för den som bjöd in.
+
+### Tillagt
+- **`bjudIn({ forUid, visas })`**: en inbjudan till en person som redan finns. Raden bär uid:t (`forUid`) och en maskerad adress att visa (`visas`), och ingen adress. Appen mejlar själv till personens riktiga adress. `epost` och `forUid` tillsammans kastar, och `forUid` utan `visas` kastar.
+- **Accepten matchar också `forUid` mot inloggningens uid**, som redan är bevisat. Någon annan med samma adress som den maskerade blir inte medlem.
+- `inbjudningsIdForPerson(groupId, uid)`: id:t för en sådan rad. Prefixet `uid:` gör att det aldrig blir samma som id:t för en adress.
+- `byggInbjudan` tar `forUid` och `visas`, och kräver precis en av `epost` och `forUid`.
+
+### Ändrat
+- `Inbjudan.epost` är valfri i typen: den saknas på en rad med `forUid`. En app som läser `epost` på varje rad ska läsa `visas` när `forUid` finns.
+
+### Prov
+- `inbjudan-person-871.test.js` (7): raden utan adress, ett andra klick, adress och person samtidigt, id:n som inte krockar, accepten för rätt uid och inte för någon annan, och `byggInbjudan`. Mot 0.252.0 röda 7 av 7. De befintliga inbjudningsproven (83) är gröna oförändrade.
+
 ## 0.252.0
 
 **Det sagda står i skrivfältet medan man pratar, i de samtal appen väljer (cllp/lifehub.app#915).** CP 2026-11-20 i telefonen, i SessionStudio: "Via Fråga agenten gick det inte att prata in, ingen ljudvåg syntes i textfältet." Mätt i appens mätbygge (Chromium, 390 px) 2026-11-21: mikrofonen i skrivfältet fanns sedan 0.233.0 och startade skalets TALK med fältet som mål, men TALK:s yta lade sig över skrivfältet. Ljudvågen och texten stod alltså i ytan, och fältet syntes inte förrän Klar. Beslutet, CP 2026-11-21 00.05 ("Ja kör. Fullt ut"): i samtalet med agenten står det sagda i fältet med ljudvåg medan man pratar, och personen trycker Skicka själv, som TALK redan gör i samtal med människor.
