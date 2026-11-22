@@ -108,6 +108,10 @@ export const ORD_TALK = {
   skickasTill: { sv: "Skickas till", en: "Send to" },
   skickar: { sv: "Sparar…", en: "Saving…" },
   platstext: { sv: "Prata, så syns texten här", en: "Speak, and the text appears here" },
+  // (0.252.0, cllp/lifehub.app#915) Det sagda i fältet: raden för skärmläsaren medan man pratar, och knapparna i fältet.
+  iFaltetLyssnar: { sv: "Lyssnar. Det du säger skrivs in i fältet när du trycker Klar.", en: "Listening. What you say goes into the field when you press Done." },
+  iFaltetKlar: { sv: "Klar, skriv in i fältet", en: "Done, put it in the field" },
+  iFaltetAvbryt: { sv: "Avbryt talet", en: "Cancel speaking" },
   felOkant: { sv: "Något gick fel.", en: "Something went wrong." },
   felSpara: { sv: "Det inspelade kunde inte sparas.", en: "The recording could not be saved." },
   felIngetKvar: { sv: "Inget ljud finns kvar att spara.", en: "No audio is left to save." },

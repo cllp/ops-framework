@@ -9,6 +9,24 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.252.0
+
+**Det sagda står i skrivfältet medan man pratar, i de samtal appen väljer (cllp/lifehub.app#915).** CP 2026-11-20 i telefonen, i SessionStudio: "Via Fråga agenten gick det inte att prata in, ingen ljudvåg syntes i textfältet." Mätt i appens mätbygge (Chromium, 390 px) 2026-11-21: mikrofonen i skrivfältet fanns sedan 0.233.0 och startade skalets TALK med fältet som mål, men TALK:s yta lade sig över skrivfältet. Ljudvågen och texten stod alltså i ytan, och fältet syntes inte förrän Klar. Beslutet, CP 2026-11-21 00.05 ("Ja kör. Fullt ut"): i samtalet med agenten står det sagda i fältet med ljudvåg medan man pratar, och personen trycker Skicka själv, som TALK redan gör i samtal med människor.
+
+⛔ **0.230.0:s skäl står kvar.** 0.230.0 tog bort skrivfältets egen röst, eftersom den spelade in själv (`MediaRecorder`, som saknas i appens webbvy) medan TALK fungerade på samma enhet: två röster, och bara den ena fungerade. Här finns ingen andra röst. Det är skalets `useTalk`-omgång, med appens `igenkanning` (telefonens i appen, Soniox där gruppen valt det), som lyssnar. Fältet visar bara omgången.
+
+### Tillagt
+- **`talIFaltet`** på `OpsMeddelanden`, `OpsSamtal` och `OpsTrad`: en lista med samtalens slag (`grupp`, `personer`, `agent`, `projekt`). I de samtalen visar mikrofonen i skrivfältet omgången i fältet: ljudvågen (samma prickar som TALK), texten medan den växer, Avbryt och Klar där Skicka stod. Klar skriver in det sagda där markören stod (samma väg som förut), och ingenting skickas. En tråd följer sitt samtals slag. Ett okänt slag eller en annan typ än en lista kastar. Förval tomt: mikrofonen öppnar TALK:s yta som före 0.252.0.
+- **Skalets yta tar över när fältet inte kan visa omgången**, så att inget blir tyst: vid ett fel, efter Något annat, när fältet avmonteras mitt i omgången (med det som sagts hittills) och när ingen text kan komma medan man pratar (ingen igenkänning; då är det ytans väg med utskriften som gäller). Igenkänningens fel medan man pratar står under fältet (`role="alert"`).
+- `useTalkfalt(ref, { iFaltet: true })` och `TalkfaltDiktering` (internt): fältet ber skalet visa omgången i sig, och skalet ger omgången (läge, text, nivå, Klar, Avbryt) bara till det fältet. `useTalk()` ger `faltMal`, fältet omgången skriver i.
+- Orden `iFaltetLyssnar`, `iFaltetKlar` och `iFaltetAvbryt` i `ORD_TALK`, på svenska och engelska.
+
+### Ändrat
+- `TalkPrickar` bor i `TalkPrickar.jsx`, så att skrivfältet kan rita den utan att dra in TALK i gästens chatt, som delar skrivfältet. `TALK_PRICKAR` exporteras som förut.
+
+### Prov
+- `tal-i-faltet-915.test.jsx` (10), genom skalet med en falsk igenkänning: ljudvågen och texten i fältet utan yta, Klar skriver in och skickar inget, Avbryt slänger, igenkänningens fel sägs, ytan tar över när fältet avmonteras och utan igenkänning, agentsamtalet visar i fältet och samtalet med en människa inte, och ett okänt slag kastar. Mot 0.251.0 röda 7 av 10. De tre gröna i båda (utan `talIFaltet`, utan igenkänning, samtalet med en människa) vaktar villkoren och sågs röda mot en ändring som tog bort vart och ett av dem: `slapp` borttagen gav rött i avmonteringsprovet, villkoret `medText` borttaget gav rött i provet utan igenkänning, och `talIFaltet` utan slagets prövning gav rött i provet med en människa.
+
 ## 0.251.0
 
 **Biblioteket följer språket (cllp/ops-framework#612).** CP 2026-11-17, med engelska valt i appen: "Har engelska i systemet men modulen Bibliotek är på svenska". På samma skärm stod "Search...", "Paste" och "Tags" på engelska och rubriken "Bibliotek", knappen "Ny" och "Biblioteket är tomt." på svenska. Mätt: `OpsBibliotek.jsx` hade ordböcker, men 145 ställen i filen bar svensk text direkt i koden, och de följde aldrig språket.

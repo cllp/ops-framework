@@ -7904,7 +7904,14 @@ async function bibliotekKarta() {
       if (skarmbild) await page.screenshot({ path: skarmbild.replace("{bredd}", String(vp.width)) });
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `bibliotek-karta-helskarm-${vp.width}.png`) });
       await page.getByRole("button", { name: "Stäng helskärm" }).click();
-      await page.waitForTimeout(300);
+      // Vänta på villkoret, inte på en fast tid (cllp/lifehub.app#915, regel 14). Webbläsarens helskärm släpps asynkront: läget i React är null direkt,
+      // men rutan har fönstrets höjd tills webbläsaren lämnat helskärmen. Mätt 2026-11-22 på 974c052: CI gav (i) rött med höjden 900 efter 300 ms,
+      // samma commit ensam lokalt gav 4091 kontroller utan brott. En karta som aldrig går tillbaka är fortfarande röd: väntan slutar efter 3 s, och
+      // kravet nedan läser läget och höjden som de är då.
+      await page.waitForFunction(() => {
+        const r = document.querySelector("[data-karta]");
+        return !!r && r.getAttribute("data-karta-helskarm") === null && r.getBoundingClientRect().height < window.innerHeight;
+      }, null, { timeout: 3000 }).catch(() => {});
       const efter = await page.evaluate(() => {
         const r = /** @type {HTMLElement} */ (document.querySelector("[data-karta]"));
         return { lage: r.getAttribute("data-karta-helskarm"), h: r.getBoundingClientRect().height };

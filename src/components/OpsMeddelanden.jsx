@@ -32,6 +32,7 @@ import { OpsMottagare } from "./OpsMottagare.jsx";
 import { OpsSkapaRubrik } from "./OpsSkapaRubrik.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { TalkfaltKontext, useTalkfalt } from "./useTalkfalt.js";
+import { TalkPrickar } from "./TalkPrickar.jsx";
 import { talkOrd } from "../lib/talk.js";
 import { vidareISamtal } from "../lib/talkrost.js";
 import { REAKTIONSVY, reaktionsnamnPa } from "./reaktionsvy.js";
@@ -901,9 +902,14 @@ export function texterPa(sprak, texter) {
  *   läggs till i skrivfältet i samtalet med id `samtal`, när det står valt (`OpsSamtal`, `tillagg`). Till exempel det man sade i TALK i en
  *   tråd med människor. ⛔ INGENTING SKICKAS: personen läser och trycker Skicka själv. Ett felhört ord i en grupp går inte att ta tillbaka.
  *   `nyckel` skiljer ett tillägg från nästa: samma nyckel läggs in en gång, också när samtalet öppnas igen.
+ * @param {ReadonlyArray<"grupp" | "personer" | "agent" | "projekt">} [props.talIFaltet] (0.252.0, cllp/lifehub.app#915) Samtalen vars skrivfält
+ *   visar det sagda i fältet: mikrofonen i fältet ritar ljudvågen och texten medan man pratar, i stället för TALK:s yta, och Klar skriver in det.
+ *   ⛔ INGENTING SKICKAS: personen trycker Skicka själv. Samma omgång och igenkänning som TALK (skalets `useTalk`), så det kräver ett skal med
+ *   TALK och valen, som mikrofonen. En tråd följer sitt samtals slag. Förval tom: mikrofonen öppnar TALK:s yta, som före 0.252.0.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, projektnamn, medlemmar, valt, nytt, valtAgent, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onStoppaAgent, onBifoga, franBiblioteket, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast, meddelandeHref, flerOmnamnbara, skrivfaltTillagg }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, projektnamn, medlemmar, valt, nytt, valtAgent, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onStoppaAgent, onBifoga, franBiblioteket, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent, onForslag, nyttUtkast, meddelandeHref, flerOmnamnbara, skrivfaltTillagg, talIFaltet: talIFaltetProp }) {
   kravRam(ram, "OpsMeddelanden");
+  const talIFaltet = kontrolleraTalIFaltet(talIFaltetProp, "OpsMeddelanden");
   kontrolleraTillagg(skrivfaltTillagg, "OpsMeddelanden: skrivfaltTillagg", true);
   if (onForslag !== undefined && typeof onForslag !== "function") throw new Error(`OpsMeddelanden: onForslag ska vara en funktion, fick ${typeof onForslag}.`);
   if (nyttUtkast !== undefined && typeof nyttUtkast !== "string") throw new Error(`OpsMeddelanden: nyttUtkast ska vara en sträng, fick ${typeof nyttUtkast}.`);
@@ -1388,7 +1394,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, projektnamn, me
             groupId={groupId}
             agent={nyAgent}
             utkast={nyttUtkast}
-            samtalsprops={{ postkort, onStoppaAgent, namnFor, medlemmar, sprak, texter: t, onBifoga, franBiblioteket, mejl, onVisaAgent, onForslag, meddelandeHref, flerOmnamnbara }}
+            samtalsprops={{ postkort, onStoppaAgent, namnFor, medlemmar, sprak, texter: t, onBifoga, franBiblioteket, mejl, onVisaAgent, onForslag, meddelandeHref, flerOmnamnbara, talIFaltet }}
             marke={<OpsIdentity name={namn.get(nyAgent)?.namn || t.agent} seed={nyAgent} size="md" icon={AgentIkon} rund />}
             onTillbaka={() => valj(null, { agent: nyAgent })}
             onSkapat={(s, m) => {
@@ -1441,6 +1447,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, projektnamn, me
             onVisaAgent={onVisaAgent}
             meddelandeHref={meddelandeHref}
             flerOmnamnbara={flerOmnamnbara}
+            talIFaltet={talIFaltet}
           />
         ) : vald?.ej && groupId ? (
           <OppnaGruppchatt key={vald.samtal.id} kalla={kalla} uid={uid} groupId={groupId} tagg={vald.samtal.slag === "projekt" ? projekttaggUr(vald.samtal.id, groupId) : null} texter={t} onOppnad={(s) => laggIn(s)} />
@@ -1476,6 +1483,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, projektnamn, me
             onForslag={onForslag}
             meddelandeHref={meddelandeHref}
             flerOmnamnbara={flerOmnamnbara}
+            talIFaltet={talIFaltet}
             {...(iAmne && amnesAgent ? { amne: { agentnamn: namnFor(amnesAgent), onTillbaka: () => valj(null, { agent: amnesAgent }), onAndrat: lasOm } } : {})}
           />
         ) : (
@@ -1860,12 +1868,15 @@ const SKILJETECKEN = /^[.,:;!?)\]}…]$/u;
  *     Utan den nyckeln lämnas filerna till appens `onBifoga`, och plus ritas bara om den skickats;
  *   - stopp när agenten arbetar, bara med `onStoppaAgent`. Under en inspelning står TALK:s yta i fältets plats, med sitt eget Avbryt.
  *
- * ⛔ INGEN MIKROFON I SKRIVFÄLTET (0.230.0, cllp/ops-framework#602). TALK är den enda röstknappen: står markören här när man trycker på TALK
- * skrivs det sagda in i fältet (`useTalkfalt`), och ingenting skickas av sig självt. Se kommentaren i funktionen.
+ * ⛔ INGEN EGEN RÖST I SKRIVFÄLTET (0.230.0, cllp/ops-framework#602). TALK är den enda omgången: står markören här när man trycker på TALK
+ * skrivs det sagda in i fältet (`useTalkfalt`), och ingenting skickas av sig självt. Mikrofonen i pillret (0.232.0) startar skalets omgång,
+ * och med `talIFaltet` (0.252.0) visas den omgången i fältet i stället för på TALK:s yta. Se kommentaren i funktionen.
  *
  * `onSkicka` får `{ namner }` (de omnämnda) och skickar fältets text.
  *
- * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[] }) => void | Promise<void>, texter: Required<Meddelandetexter>, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, onOmrostning?: () => void, franBiblioteket?: Franbiblioteket, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void, maxTecken?: number, ram?: boolean, onRostSamtal?: () => void, rostUpptagen?: boolean, onTextfil?: (text: string) => boolean }} props `onRostSamtal` (CP 2026-11-18): vågikonen, ett röstsamtal med agenten. Bara i ett agentsamtal i ett skal med TALK.
+ * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[] }) => void | Promise<void>, texter: Required<Meddelandetexter>, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, onOmrostning?: () => void, franBiblioteket?: Franbiblioteket, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void, maxTecken?: number, ram?: boolean, onRostSamtal?: () => void, rostUpptagen?: boolean, onTextfil?: (text: string) => boolean, talIFaltet?: boolean }} props `onRostSamtal` (CP 2026-11-18): vågikonen, ett röstsamtal med agenten. Bara i ett agentsamtal i ett skal med TALK.
+ *   `talIFaltet` (0.252.0, cllp/lifehub.app#915): mikrofonen visar omgången i fältet, med ljudvågen och texten medan man pratar, Avbryt och Klar, i stället
+ *   för på TALK:s yta. Klar skriver in det sagda i fältet, och personen trycker Skicka själv. Samma omgång och igenkänning som TALK (`TalkfaltDiktering`).
  *   `onOmrostning` (cllp/lifehub.app#438): raden "Omröstning" i pluset. Med den ritas pluset också utan `onBifoga`.
  *   `onTextfil` (0.246.0, cllp/lifehub.app#903): gör en lång text till en textfil i utkastet och svarar `true` när den blev det. Med den blir en inklistring
  *   från `TEXTFIL_FRAN` tecken en fil i stället för text i fältet, och raden över taket får knappen "Gör till fil". `false` (en bilaga väntar redan, eller
@@ -1877,7 +1888,7 @@ const SKILJETECKEN = /^[.,:;!?)\]}…]$/u;
  *   skärmbilder av gästens chatt: "Du kan ta bort ett streck mellan här också vid chatten. avdelaren." och från telefonen: "Även i telefon finns det extra horisontella strecket som
  *   inte behövs. Sedan kanske skrivfältet kan vara lika brett som chattramen?"
  */
-export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onBifoga, onOmrostning, franBiblioteket, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent, maxTecken = MAX_MEDDELANDE, ram = true, onRostSamtal, rostUpptagen = false, onTextfil }) {
+export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onBifoga, onOmrostning, franBiblioteket, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent, maxTecken = MAX_MEDDELANDE, ram = true, onRostSamtal, rostUpptagen = false, onTextfil, talIFaltet = false }) {
   const rostSprak = useOpsSprak();
   const ruta = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const listId = useId();
@@ -1926,7 +1937,14 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus =
    * fokus, och bara i ett skal med TALK (`TalkfaltKontext`): gästens chatt har inget skal och ingen knapp. Den spelar inte in själv, så felet
    * ovan kan inte komma tillbaka: det är skalets omgång, samma som TALK-knappens.
    */
-  const talkFalt = useTalkfalt(ruta, { slag: "textarea", value: text, onChange: (v) => { setText(v); setFraga(null); }, disabled: false, etikett: undefined, ariaLabel: t.skriv, placeholder: platstext ?? t.skriv });
+  const talkFalt = useTalkfalt(ruta, { slag: "textarea", value: text, onChange: (v) => { setText(v); setFraga(null); }, disabled: false, etikett: undefined, ariaLabel: t.skriv, placeholder: platstext ?? t.skriv, iFaltet: talIFaltet });
+  /*
+   * ⛔ DET SAGDA I FÄLTET (0.252.0, cllp/lifehub.app#915). CP 2026-11-20 i telefonen: "Via Fråga agenten gick det inte att prata in, ingen ljudvåg
+   * syntes i textfältet." Med `talIFaltet` visar fältet skalets omgång i sig själv medan den lyssnar: ljudvågen, texten medan den växer, Avbryt och
+   * Klar. Klar skriver in det sagda där markören stod (samma väg som förut, `falt.skriv`), och Skicka är fortfarande personens tryck. Ytan tar över
+   * vid ett fel, så att det aldrig blir tyst (`TalkfaltDiktering`).
+   */
+  const diktering = talkFalt.diktering;
   /** @param {string} v @param {number} markor */
   const las = (v, markor) => {
     if (!omnamnande) return setFraga(null);
@@ -2114,12 +2132,50 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus =
         aria-autocomplete={omnamnande ? "list" : undefined}
         // ⛔ 16 PX PÅ TELEFON (0.106.0, #386 skiva 5): iOS Safari zoomar in på ett fält med mindre text när det får fokus, och sidan står
         // sedan inzoomad. `text-brod` är 16 px, `md:text-etikett` behåller 14 px på dator, som bubblorna.
-        className="min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-3xl bg-transparent px-3.5 py-2.5 text-brod text-ink outline-none placeholder:text-ink-muted md:text-etikett"
+        className={cx("min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-3xl bg-transparent px-3.5 py-2.5 text-brod text-ink outline-none placeholder:text-ink-muted md:text-etikett", diktering && "hidden")}
       />
-      {talkFalt.mik("plats")}
+      {diktering ? (
+        <>
+          {/* ⛔ Texten medan den växer, i brödtextens storlek som i fältet. Skärmläsaren får en fast rad och inte varje nytt ord. */}
+          <div data-diktering={diktering.lage} className="min-h-11 min-w-0 flex-1 px-3.5 py-2.5 text-brod md:text-etikett">
+            <span className="sr-only" role="status">{talkOrd("iFaltetLyssnar", rostSprak)}</span>
+            {diktering.text ? <span data-diktering-text="" className="whitespace-pre-wrap break-words text-ink">{diktering.text}</span> : <span aria-hidden="true" className="text-ink-muted">{talkOrd("platstext", rostSprak)}</span>}
+          </div>
+          <span data-diktering-vag="" className="flex h-11 w-16 shrink-0 items-center">
+            <TalkPrickar niva={diktering.niva} lyssnar={diktering.lage === "lyssnar"} skickar={diktering.lage === "skickar"} />
+          </span>
+          <button
+            type="button"
+            data-diktering-avbryt=""
+            aria-label={talkOrd("iFaltetAvbryt", rostSprak)}
+            onClick={() => diktering.avbryt()}
+            className="group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-secondary hover:text-ink focus-visible:outline-none"
+          >
+            <span className="inline-flex size-9 items-center justify-center rounded-full bg-surface group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent">
+              <KryssIkon size={14} />
+            </span>
+          </button>
+          <button
+            type="button"
+            data-diktering-klar=""
+            aria-label={talkOrd("iFaltetKlar", rostSprak)}
+            aria-busy={diktering.lage === "skickar" || undefined}
+            aria-disabled={diktering.lage === "skickar" || undefined}
+            onClick={() => {
+              if (diktering.lage === "lyssnar") diktering.klar();
+            }}
+            className="group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none aria-disabled:cursor-default"
+          >
+            <span className="inline-flex size-9 items-center justify-center rounded-full bg-accent text-accent-contrast group-hover/knapp:bg-accent-hover group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent">
+              {diktering.lage === "skickar" ? <OpsSpinner size="sm" tone="current" decorative /> : <BockIkon size={16} />}
+            </span>
+          </button>
+        </>
+      ) : null}
+      {diktering ? null : talkFalt.mik("plats")}
       {/* ⛔ VÅGIKONEN (CP 2026-11-18): ett röstsamtal med agenten i det här samtalet. `aria-disabled` och inte `disabled` medan en omgång pågår,
           så att fokus inte försvinner, som fältets mikrofon. */}
-      {onRostSamtal ? (
+      {onRostSamtal && !diktering ? (
         <OpsTooltip content={talkOrd("rostSamtalTips", rostSprak)}>
           <button
             type="button"
@@ -2137,7 +2193,7 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus =
           </button>
         </OpsTooltip>
       ) : null}
-      {visaStopp ? (
+      {visaStopp && !diktering ? (
         <button
           type="button"
           data-stopp="agent"
@@ -2151,6 +2207,8 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus =
           </span>
         </button>
       ) : null}
+      {/* ⛔ Medan det sagda visas i fältet står Klar där Skicka står: ett tryck på Skicka hade skickat texten utan det man just sa. */}
+      {diktering ? null : (
       <button
         type="submit"
         aria-label={t.skicka}
@@ -2162,8 +2220,14 @@ export function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus =
           {skickar ? <OpsSpinner size="sm" tone="current" decorative /> : <SkickaIkon size={16} />}
         </span>
       </button>
+      )}
       </div>
     </form>
+    {diktering?.textFel ? (
+      <p data-diktering-fel="" role="alert" className="m-0 shrink-0 px-4 pb-1.5 text-liten text-danger">
+        {diktering.textFel}
+      </p>
+    ) : null}
     {visaRaknare ? (
       <div className="flex shrink-0 items-center justify-end gap-2 px-4 pb-1.5">
         <p
@@ -2647,6 +2711,23 @@ function agentDeltagare(samtal, uid, medlemmar) {
   return m?.userId ?? "";
 }
 
+/** (0.252.0, cllp/lifehub.app#915) Samtalens slag, som `talIFaltet` får nämna. */
+const TAL_I_FALTET_SLAG = Object.freeze(["grupp", "personer", "agent", "projekt"]);
+
+/**
+ * `talIFaltet` prövad (0.252.0, cllp/lifehub.app#915): en lista med samtalens slag, eller ingenting. ⛔ ETT OKÄNT SLAG KASTAR: ett felstavat
+ * "agen" hade annars gett en mikrofon som tyst öppnar TALK:s yta, alltså precis det som appen bad om att slippa.
+ * @param {unknown} varde @param {string} vem
+ * @returns {ReadonlyArray<"grupp" | "personer" | "agent" | "projekt">}
+ */
+function kontrolleraTalIFaltet(varde, vem) {
+  if (varde === undefined) return [];
+  if (!Array.isArray(varde)) throw new Error(`${vem}: talIFaltet ska vara en lista med samtalens slag (${TAL_I_FALTET_SLAG.join(", ")}), fick ${varde === null ? "null" : typeof varde}.`);
+  const okanda = varde.filter((v) => !TAL_I_FALTET_SLAG.includes(v));
+  if (okanda.length) throw new Error(`${vem}: talIFaltet känner inte igen ${okanda.map((v) => JSON.stringify(v)).join(", ")}. Slagen är ${TAL_I_FALTET_SLAG.join(", ")}.`);
+  return /** @type {ReadonlyArray<"grupp" | "personer" | "agent" | "projekt">} */ (varde);
+}
+
 /**
  * Kastar när ett tillägg till skrivfältet (0.226.0, cllp/ops-framework#592) inte har sin form. `medSamtal`: `OpsMeddelanden` kräver
  * samtalets id, `OpsSamtal` gör det inte (den är samtalet).
@@ -2706,6 +2787,7 @@ function kontrolleraTillagg(varde, vem, medSamtal) {
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Gör namn och ikon i ett agentsamtal till en knapp.
  * @param {MeddelandeHref} [props.meddelandeHref] (lifehub.app#712) Appens väg till ett meddelande, för "Kopiera länk" i menyn. Ramverket känner aldrig appens rutter. Utan den finns inte raden.
  * @param {ReadonlyArray<Omnamnbar>} [props.flerOmnamnbara] (lifehub.app#723) Fler som går att nämna med @, utöver de aktiva medlemmarna: appens API-agenter, vars medlemskap står som "avslutad". De läggs bara till @-listan och påverkar aldrig agentval, mottagare eller medlemslistor. Nämnandet skrivs som vanligt i `namner` (id). Utan den är listan exakt som förut.
+ * @param {ReadonlyArray<"grupp" | "personer" | "agent" | "projekt">} [props.talIFaltet] (0.252.0, cllp/lifehub.app#915) Samtalens slag vars skrivfält visar det sagda i fältet. Se `OpsMeddelanden`.
  * @param {{ agentnamn: string, onTillbaka: () => void, onAndrat?: () => void }} [props.amne] (0.106.0, #386) Samtalet är ett ämne med
  *   agenten: huvudet visar ämnets rubrik och Arkivera, och en rad överst leder tillbaka till agentens samtal. Kräver `amnen` på källan.
  * @param {boolean} [props.ny] (0.106.0) Ämnet är inte skrivet än (`nyttAmne`). Ingenting läses, och första Skicka skapar samtalet och
@@ -2715,7 +2797,8 @@ function kontrolleraTillagg(varde, vem, medSamtal) {
  *   med ett mellanslag när fältet inte är tomt, och fältet får fokus. Läggs in när `nyckel` ändras och första gången den finns: samma nyckel
  *   två gånger lägger in texten en gång. ⛔ INGENTING SKICKAS: personen trycker Skicka själv.
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastTill: lastTillProp, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onStoppaAgent, onBifoga: onBifogaProp, franBiblioteket, mejl, onVisaAgent, onForslag, meddelandeHref, flerOmnamnbara, amne: amneProp, ny = false, onSkapat, tillagg }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastTill: lastTillProp, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onStoppaAgent, onBifoga: onBifogaProp, franBiblioteket, mejl, onVisaAgent, onForslag, meddelandeHref, flerOmnamnbara, amne: amneProp, ny = false, onSkapat, tillagg, talIFaltet: talIFaltetProp }) {
+  const talIFaltet = kontrolleraTalIFaltet(talIFaltetProp, "OpsSamtal");
   kontrolleraTillagg(tillagg, "OpsSamtal: tillagg", false);
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
@@ -3178,6 +3261,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik: rubrikProp, marke, lastT
         onStoppaAgent={onStoppaAgent ? () => onStoppaAgent(samtal.id) : undefined}
         onRostSamtal={onRostSamtal}
         rostUpptagen={Boolean(talkKontext?.upptagen)}
+        talIFaltet={talIFaltet.includes(samtal.slag)}
       />
       </div>
       {info ? (
@@ -3617,8 +3701,10 @@ export function Meddelanderader({ meddelanden, uid, namnFor: namnForProp, medlem
  * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Agentens avatar i tråden öppnar inställningarna.
  * @param {MeddelandeHref} [props.meddelandeHref] (lifehub.app#712) Appens väg till ett meddelande, för "Kopiera länk" i menyn. Ramverket känner aldrig appens rutter. Utan den finns inte raden.
  * @param {ReadonlyArray<Omnamnbar>} [props.flerOmnamnbara] (lifehub.app#723) Fler som går att nämna med @, utöver de aktiva medlemmarna: appens API-agenter, vars medlemskap står som "avslutad". De läggs bara till @-listan och påverkar aldrig agentval, mottagare eller medlemslistor. Nämnandet skrivs som vanligt i `namner` (id). Utan den är listan exakt som förut.
+ * @param {ReadonlyArray<"grupp" | "personer" | "agent" | "projekt">} [props.talIFaltet] (0.252.0, cllp/lifehub.app#915) Samtalens slag vars skrivfält visar det sagda i fältet. Se `OpsMeddelanden`.
  */
-export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onStoppaAgent, onBifoga: onBifogaProp, franBiblioteket, mejl, onLyftTillMinnet, minneHref, onVisaAgent, meddelandeHref, flerOmnamnbara }) {
+export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onStoppaAgent, onBifoga: onBifogaProp, franBiblioteket, mejl, onLyftTillMinnet, minneHref, onVisaAgent, meddelandeHref, flerOmnamnbara, talIFaltet: talIFaltetProp }) {
+  const talIFaltet = kontrolleraTalIFaltet(talIFaltetProp, "OpsTrad");
   if (!harTradar(kallan)) throw new Error("OpsTrad: källan har inga trådar. Skicka `tradar` till createSamtalskalla, med samma namn som till samtalsregelfragment.");
   const kalla = kallan;
   const sprakKontext = useOpsSprak();
@@ -4001,6 +4087,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         kamera={bilage.kamera}
         agentArbetar={agentArbetar(agentlage)}
         onStoppaAgent={onStoppaAgent ? () => onStoppaAgent(samtal.id, tid) : undefined}
+        talIFaltet={talIFaltet.includes(samtal.slag)}
       />
       </div>
       {info ? (
