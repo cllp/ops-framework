@@ -140,6 +140,38 @@ export function formatDate(value, choice = {}) {
  */
 export const STANDARD_TIDSZON = "Europe/Stockholm";
 
+/**
+ * Tidszonens förskjutning mot UTC i millisekunder vid en tidpunkt.
+ * @param {number} t @param {string} tz
+ */
+function forskjutning(t, tz) {
+  const delar = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).formatToParts(new Date(t));
+  /** @param {string} typ */
+  const v = (typ) => Number((delar.find((p) => p.type === typ) || { value: "0" }).value);
+  return Date.UTC(v("year"), v("month") - 1, v("day"), v("hour"), v("minute"), v("second")) - (t - (t % 1000));
+}
+
+/**
+ * Tidpunkten (ms) för en lokal tid i tidszonen. Två varv, så att en tid nära sommartidsskiftet får skiftets förskjutning och inte
+ * gissningens.
+ *
+ * ⛔ FLYTTAD HIT UR `tillganglighet.js` (0.256.0, cllp/lifehub.app#888). Jobbens schema (`lib/jobb.js`) räknar "06:15 i Stockholm" till en
+ * tidpunkt på samma sätt som tillgängligheten räknar en dags början, och sommartidsräkning är precis den sortens kod som glider isär
+ * när den finns i två exemplar (regel 2). Månad och dag får gå över (32 januari blir 1 februari), som i `Date.UTC`.
+ *
+ * Utfallet vid skiftet, mätt i `jobb.test.js`: en tid som inte finns (02:30 när klockan ställs fram) blir tiden en timme senare, och en
+ * tid som finns två gånger (02:30 när klockan ställs tillbaka) blir den andra.
+ *
+ * @param {number} y @param {number} mo @param {number} d @param {number} h @param {number} mi @param {number} s @param {string} tz
+ * @returns {number}
+ */
+export function lokalTidpunkt(y, mo, d, h, mi, s, tz) {
+  const naiv = Date.UTC(y, mo - 1, d, h, mi, s);
+  let t = naiv - forskjutning(naiv, tz);
+  t = naiv - forskjutning(t, tz);
+  return t;
+}
+
 /** @type {Map<string, Intl.DateTimeFormat>} */
 const TIDSSTAMPELFORMAT = new Map();
 

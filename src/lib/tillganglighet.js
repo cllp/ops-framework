@@ -1,4 +1,6 @@
 import { STANDARD_TIDSZON } from "./kalendrar.js";
+// ⛔ ZONRÄKNINGEN BOR I `format.js` SEDAN 0.256.0 (cllp/lifehub.app#888): jobbens schema räknar samma lokala tid till en tidpunkt, och två kopior av sommartidsräkningen hade glidit isär (regel 2).
+import { lokalTidpunkt as lokalTill } from "./format.js";
 
 /**
  * Tillgängligheten en dag: vem i gruppen som är borta eller upptagen, och varför (0.61.0, cllp/ops-framework#259 skiva 1).
@@ -63,29 +65,6 @@ const MED_ZON = /(Z|[+-]\d{2}:?\d{2})$/;
 // ⛔ KOLON I ZONEN (±hh:mm): Safari ger NaN för "+0200", och README lovar ±hh:mm.
 const ISO_MED_ZON = /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d)(?:\.\d+)?)?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
 const LAGEN = new Set(["dold", "upptagen", "delad"]);
-
-/**
- * Tidszonens förskjutning mot UTC i millisekunder vid en tidpunkt.
- * @param {number} t @param {string} tz
- */
-function forskjutning(t, tz) {
-  const delar = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).formatToParts(new Date(t));
-  /** @param {string} typ */
-  const v = (typ) => Number((delar.find((p) => p.type === typ) || { value: "0" }).value);
-  return Date.UTC(v("year"), v("month") - 1, v("day"), v("hour"), v("minute"), v("second")) - (t - (t % 1000));
-}
-
-/**
- * Tidpunkten för en lokal tid i tidszonen. Två varv, så att en tid nära sommartidsskiftet får skiftets förskjutning och inte
- * gissningens.
- * @param {number} y @param {number} mo @param {number} d @param {number} h @param {number} mi @param {number} s @param {string} tz
- */
-function lokalTill(y, mo, d, h, mi, s, tz) {
-  const naiv = Date.UTC(y, mo - 1, d, h, mi, s);
-  let t = naiv - forskjutning(naiv, tz);
-  t = naiv - forskjutning(t, tz);
-  return t;
-}
 
 /** @param {string} dag @param {string} falt */
 function datumdelar(dag, falt) {
