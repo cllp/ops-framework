@@ -46,8 +46,10 @@ import {
   appForTyp,
   appfilterNyckel,
   lasDoldaAppar,
+  plusDagar,
+  veckansDagar,
 } from "../lib/calendar.js";
-import { ArsvyIkon, ChevronNedIkon, KalenderIkon, KryssIkon, PlusIkon, ReglageIkon, SokIkon, TillganglighetIkon, VeckonummerIkon } from "./icons.jsx";
+import { ArsvyIkon, ChevronHogerIkon, ChevronNedIkon, ChevronVansterIkon, KalenderIkon, KryssIkon, PlusIkon, ReglageIkon, SokIkon, TillganglighetIkon, VeckonummerIkon } from "./icons.jsx";
 import { LatGrans } from "./LatGrans.jsx";
 import { OpsVantar } from "./OpsVantar.jsx";
 
@@ -226,7 +228,10 @@ const SVEPSTEG = 40;
  * stängkryss två centimeter till höger, och två knappar med samma verkan får
  * läsaren att leta efter skillnaden.
  *
- * @param {{ dayKey: string, onTaBort: (dayKey: string) => void, order: number, locale: string }} props
+ * ⛔ (0.257.0, cllp/lifehub.app#890) UTAN `onTaBort` INGET KRYSS. Veckolägets översikt visar veckans dagar med poster utan att någon valt dem, och ett kryss som tar bort
+ * en dag ur ett urval som inte finns hade varit en knapp utan verkan.
+ *
+ * @param {{ dayKey: string, onTaBort: ((dayKey: string) => void) | null, order: number, locale: string }} props
  */
 function Datumpiller({ dayKey, onTaBort, order, locale }) {
   const text = dateText(dayKey, locale);
@@ -242,12 +247,13 @@ function Datumpiller({ dayKey, onTaBort, order, locale }) {
        */
       // ⛔ pr-6 OCH INTE px-3.5 (0.53.0): krysset står i hörnet och täckte slutet av datumet ("12 oktobe"), syns på CP:s
       // skärmbild 2026-10-04. Mätt i check-skalyta: textens högerkant ligger till vänster om märket.
-      className="ops-contrast-panel relative mr-2 mb-1 inline-flex shrink-0 animate-svep items-center rounded-full bg-contrast-panel py-1.5 pr-6 pl-3.5 text-etikett font-semibold text-ink shadow-md"
+      className={cx("ops-contrast-panel relative mr-2 mb-1 inline-flex shrink-0 animate-svep items-center rounded-full bg-contrast-panel py-1.5 pl-3.5 text-etikett font-semibold text-ink shadow-md", onTaBort ? "pr-6" : "pr-3.5")}
     >
       {text}
       {/* ⛔ KRYSSET ÄR ETT RUNT MÄRKE I PILLRETS HÖRN, PÅ VARJE PILLER (0.37.0), som SS-appen (`DayDetailPanel.js`, top -8,
           right -8, 20 px). 0.36.0 hade krysset bara när flera dagar var valda, med skälet att det annars gör samma sak som
           panelens stängkryss; SS-appen har det ändå, och CP:s förebild är SS-appen. 44 px träffyta runt märket. */}
+      {onTaBort ? (
       <button
         type="button"
         onClick={() => onTaBort(dayKey)}
@@ -258,6 +264,7 @@ function Datumpiller({ dayKey, onTaBort, order, locale }) {
           <KryssIkon size={10} />
         </span>
       </button>
+      ) : null}
     </span>
   );
 }
@@ -523,9 +530,12 @@ const DAGPANEL_TAK = 0.75;
  *
  * ⛔ TOMT ÄR ETT SVAR (punkt 5). En vald dag utan poster säger "Inga poster", och antalet står som noll.
  *
- * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void, onSkapa?: () => void, locale: string, arMin: (e: import("../lib/calendar.js").CalendarEntry) => boolean, lager?: import("react").ReactNode, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void, lasbara: ReadonlySet<string>, ramarForDag: (dayKey: string) => ReadonlyArray<{ id: string, namn: string, kulor: number }> | undefined }} props
+ * ⛔ (0.257.0, cllp/lifehub.app#890) `oversikt`: veckolägets lista över veckans dagar med poster, när ingen dag är vald. Den är inget urval, så den har varken stängkryss,
+ * Escape eller kryss i pillren: allt det hade tagit bort något ingen valt, och knappen hade inte gjort någonting.
+ *
+ * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void, onSkapa?: () => void, locale: string, arMin: (e: import("../lib/calendar.js").CalendarEntry) => boolean, lager?: import("react").ReactNode, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void, lasbara: ReadonlySet<string>, ramarForDag: (dayKey: string) => ReadonlyArray<{ id: string, namn: string, kulor: number }> | undefined, oversikt?: boolean }} props
  */
-function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin, lager, oppna, oppnaExtern, lasbara, ramarForDag }) {
+function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin, lager, oppna, oppnaExtern, lasbara, ramarForDag, oversikt = false }) {
   const flera = days.length > 1;
   const title = flera ? `${days.length} dagar` : dateText(days[0].dayKey, locale);
   const name = flera ? `Poster för ${days.length} valda dagar` : `Poster den ${title}`;
@@ -547,9 +557,10 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
     const vid = (e) => {
       if (e.key === "Escape") onClose();
     };
+    if (oversikt) return undefined;
     window.addEventListener("keydown", vid);
     return () => window.removeEventListener("keydown", vid);
-  }, [onClose]);
+  }, [onClose, oversikt]);
 
   /*
    * ⛔ GRUPP OCH MINA SOM RUBRIKER, BARA NÄR BÅDA FINNS (SS-appen: en dag med bara gruppens poster har ingen rubrik). En post
@@ -571,11 +582,12 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
       <div className="flex items-start gap-2 pt-3.5">
         <div data-datumpiller-rad="" className="flex min-w-0 flex-1 flex-wrap content-start gap-x-1 gap-y-2">
           {days.map((d, i) => (
-            <Datumpiller key={d.dayKey} dayKey={d.dayKey} onTaBort={onTaBort} order={i} locale={locale} />
+            <Datumpiller key={d.dayKey} dayKey={d.dayKey} onTaBort={oversikt ? null : onTaBort} order={i} locale={locale} />
           ))}
         </div>
         {/* ⛔ KRYSSET BÄR RUBRIKEN I SITT NAMN. "Stäng" ensamt säger inte vad som
             stängs för den som lyssnar sig igenom sidan. */}
+        {oversikt ? null : (
         <button
           type="button"
           onClick={onClose}
@@ -587,6 +599,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
         >
           <KryssIkon size={14} />
         </button>
+        )}
       </div>
 
       {/* ⛔ KALENDRARNA MED RAM, när några inte får plats på dagen (0.151.0): lagerbrickan säger "+N", och här står vilka. En rad per dag, med datum när flera dagar är valda. */}
@@ -1240,6 +1253,53 @@ export function kantluft(veckonummer) {
   return `max(${BRICKA_MINSTA_OVERHANG}px, calc((${kolumner * BRICKA_GRANS + g}px - 100%) / ${kolumner - 2}))`;
 }
 
+/**
+ * (0.257.0, cllp/lifehub.app#890) Veckolägets ord, på båda språken som årsvyns (`ORD_ARSVY_LAT`): kalendern väljer språk ur `locale`.
+ * @type {Record<"vecka" | "forra" | "nasta" | "denna" | "till" | "tom", { sv: string, en: string }>}
+ */
+export const ORD_VECKA = {
+  vecka: { sv: "Vecka", en: "Week" },
+  forra: { sv: "Föregående vecka", en: "Previous week" },
+  nasta: { sv: "Nästa vecka", en: "Next week" },
+  denna: { sv: "Den här veckan", en: "This week" },
+  till: { sv: "till", en: "to" },
+  tom: { sv: "Inget den här veckan.", en: "Nothing this week." },
+};
+
+/**
+ * Veckolägets rubrik: veckans nummer, dess första och sista dag, och knapparna bakåt, framåt och till veckan med idag (0.257.0, cllp/lifehub.app#890).
+ *
+ * ⛔ "DEN HÄR VECKAN" FINNS BARA NÄR MAN ÄR NÅGON ANNANSTANS. I veckan med idag gör knappen ingenting, och en knapp som inte gör något lär den som tryckt att inget gör något.
+ * @param {{ veckodagar: string[], locale: string, arIdagsVecka: boolean, onForra: () => void, onNasta: () => void, onIdag: () => void }} props
+ */
+function Veckorubrik({ veckodagar, locale, arIdagsVecka, onForra, onNasta, onIdag }) {
+  const sp = String(locale).toLowerCase().startsWith("en") ? "en" : "sv";
+  const [a, m, d] = veckodagar[0].split("-").map(Number);
+  const forsta = veckodagar[0];
+  const sista = veckodagar[6];
+  const nr = isoVecka(a, m - 1, d);
+  const pil = "flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-secondary hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  return (
+    <div data-kalender-veckorubrik="" className="flex items-center gap-1 pb-1">
+      <button type="button" aria-label={ORD_VECKA.forra[sp]} onClick={onForra} className={pil}>
+        <ChevronVansterIkon size={18} />
+      </button>
+      <h3 className="m-0 flex min-w-0 flex-1 flex-col items-center text-center">
+        <span className="text-titel text-ink font-display">{`${ORD_VECKA.vecka[sp]} ${nr}`}</span>
+        <span className="text-meta text-ink-secondary">{`${dateText(forsta, locale)} ${ORD_VECKA.till[sp]} ${dateText(sista, locale)} ${sista.slice(0, 4)}`}</span>
+      </h3>
+      {arIdagsVecka ? null : (
+        <button type="button" data-kalender-denna-vecka="" onClick={onIdag} className="min-h-11 shrink-0 cursor-pointer rounded-full px-3 text-meta font-medium text-accent hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+          {ORD_VECKA.denna[sp]}
+        </button>
+      )}
+      <button type="button" aria-label={ORD_VECKA.nasta[sp]} onClick={onNasta} className={pil}>
+        <ChevronHogerIkon size={18} />
+      </button>
+    </div>
+  );
+}
+
 /** Nyckeln veckonumrens val sparas under, per enhet. */
 export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
 
@@ -1308,6 +1368,10 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  * @param {(manader: { forsta: string, sista: string }) => void} [props.onSynligaManader] (0.74.0, #284) Vilka månader som syns,
  *   som `YYYY-MM`, när rullningen har stannat (`SYNLIGA_MANADER_VILA_MS`) och en gång vid start. Aldrig medan rullningen pågår, och
  *   bara när intervallet ändrats. För en app som hämtar data för det synliga fönstret, så att den inte läser kalenderns DOM.
+ * @param {"manad" | "vecka"} [props.lage] (0.257.0, cllp/lifehub.app#890) Förval `"manad"`, den löpande månadsvyn. `"vecka"` ritar EN vecka ur samma rutnät (samma rutor, band, märken och
+ *   dagpanel) med Föregående, Nästa och Den här veckan, och listar veckans dagar med poster i dagpanelen tills en dag väljs. ⛔ CP godkände 18 nov ett veckoläge i gästvyn med
+ *   beslutet "Återanvänd ramverkets kalendervy. Bygg ingen ny." Därför ett läge här och ingen andra kalender: filter, sök, märken och panelen är desamma i båda, och ett fel som
+ *   rättas i månaden är rättat i veckan. Ett annat värde kastar, eftersom en tyst månadsvy hade sett ut som att veckan fungerade.
  * @param {boolean} [props.arsvy] (0.237.0, cllp/lifehub.app#874) En liten knapp "Visa året" i verktygsraden som fäller ut året i helskärm, ett band
  *   per kalender och dag för heldag och flera dagar. Ett tryck på en dag eller en månad stänger året och visar den här. ⛔ PÅ SOM FÖRVAL (CP 2026-11-17:
  *   "Den får vara på från början ... Ingen kommer att slå på den annars."). `arsvy={false}` tar bort knappen.
@@ -1342,6 +1406,7 @@ export function OpsCalendar({
   filterMinne,
   onSynligaManader,
   arsvy = true,
+  lage = "manad",
 }) {
   if (!ariaLabel) {
     throw new Error("OpsCalendar: ariaLabel krävs. Ett rutnät med tal är osynligt för den som inte ser det.");
@@ -1353,6 +1418,8 @@ export function OpsCalendar({
       "OpsCalendar: propen `lager` är borttagen i 0.134.0 (cllp/lifehub.app#402). Skicka kalendrarna, också Ärenden, som rader i `kalendrar` med `sektion`, `marke` och `avFranStart`, och `kalenderMinne` för valet (vilka som syns och hur: Händelser, Ram eller Båda). Sparade val flyttas av appen, se CHANGELOG 0.134.0.",
     );
   }
+  if (lage !== "manad" && lage !== "vecka") throw new Error(`OpsCalendar: lage är "manad" eller "vecka", inte "${String(lage)}".`);
+  const arVecka = lage === "vecka";
   const zon = useMemo(() => kontrolleraTidszon(tidszon), [tidszon]);
   const oppnaHandelse = useHandelseOppnare(onOppnaHandelse);
   if (!oppnaHandelse && entries.some((e) => e && e.handelseId)) {
@@ -1391,6 +1458,15 @@ export function OpsCalendar({
    * Det felet ser ut som att knappen inte fungerar.
    */
   const [chosen, setValda] = useState(/** @type {string[]} */ ([]));
+  // (0.257.0) Veckolägets vecka, som dess måndag. Startar i veckan med idag.
+  const [veckaStart, setVeckaStart] = useState(() => veckansDagar(todayDayKey)[0]);
+  const veckodagar = useMemo(() => veckansDagar(veckaStart), [veckaStart]);
+  const idagsVecka = veckansDagar(todayDayKey)[0];
+  /** Byter vecka och släpper urvalet, så att översikten följer med till den nya veckan. @param {string} mandag */
+  const bytVecka = useCallback((/** @type {string} */ mandag) => {
+    setVeckaStart(mandag);
+    setValda([]);
+  }, []);
   const [typ, setTyp] = useState("alla");
   const [status, setStatus] = useState("alla");
   const [sokOppen, setSokOppen] = useState(false);
@@ -1740,7 +1816,15 @@ export function OpsCalendar({
    * ⛔ SORTERAT PÅ DATUM OCH INTE PÅ TRYCKORDNING. Markerar man den 25:e och sedan den 12:e läser man ändå panelen
    * uppifrån och ner. ⛔ OCH EN VALD DAG UTAN POSTER STÅR KVAR (0.36.0): den är vald för att något ska skapas där.
    */
-  const days = useMemo(() => [...chosen].sort().map((dayKey) => ({ dayKey, entries: byKey.get(dayKey) || [] })), [chosen, byKey]);
+  /*
+   * ⛔ (0.257.0) VECKOLÄGET UTAN VALD DAG VISAR VECKANS DAGAR MED POSTER. Rutnätet är en rad, och en titel ryms inte i en ruta på en telefon: utan listan hade veckan bara varit
+   * prickar. Väljs en dag gäller urvalet som i månaden. En dag utan poster står inte med i översikten, eftersom ingen valt den.
+   */
+  const veckoOversikt = arVecka && chosen.length === 0;
+  const days = useMemo(
+    () => (veckoOversikt ? veckodagar.filter((d) => byKey.has(d)) : [...chosen].sort()).map((dayKey) => ({ dayKey, entries: byKey.get(dayKey) || [] })),
+    [veckoOversikt, veckodagar, chosen, byKey],
+  );
   const panelOppen = days.length > 0;
   // ⛔ PLATSEN ÖPPNAS AV DAGPANELEN ELLER SNABBTITTEN (0.73.0, bolag-ops#568). Luften under rutnätet och Idag-knappens läge läser samma höjd.
   const platsOppen = panelOppen || titt !== null;
@@ -1934,6 +2018,7 @@ export function OpsCalendar({
               onAr={setArVisat}
               onValjDag={(dag) => {
                 stangAr();
+                setVeckaStart(veckansDagar(dag)[0]);
                 setValda([dag]);
                 visaManad(dag.slice(0, 7));
               }}
@@ -1999,8 +2084,83 @@ export function OpsCalendar({
           </div>
         ) : null}
 
-        {/* ⛔ TAKET GÖR KALENDERN TILL SIN EGEN RULLE. `relative` är inte prydnad: månadsblocken mäter sin plats med
-            `offsetTop`, alltså mot närmaste positionerade förälder. */}
+        {arVecka ? (
+          /*
+           * ══ ⛔ VECKAN ÄR EN RAD UR MÅNADENS RUTNÄT (0.257.0, cllp/lifehub.app#890) ══════════════════════════════════════════
+           *
+           * Samma veckodagsrad, samma `Band`, samma `Dagruta` och samma dra-markering som månaden, för de sju dagar `veckansDagar` ger. Ingen egen rulle och
+           * ingen full höjd: en rad behöver inte rullas, och dagpanelen ligger under raden i stället för att flyta över ett rutnät som inte finns.
+           */
+          <div data-kalender-vecka={veckaStart} style={/** @type {any} */ ({ "--ops-kantluft": kantluft(veckonummer) })} className="relative bg-canvas px-(--ops-kantluft) sm:px-1">
+            <Veckorubrik
+              veckodagar={veckodagar}
+              locale={locale}
+              arIdagsVecka={veckaStart === idagsVecka}
+              onForra={() => bytVecka(plusDagar(veckaStart, -7))}
+              onNasta={() => bytVecka(plusDagar(veckaStart, 7))}
+              onIdag={() => bytVecka(idagsVecka)}
+            />
+            <div className={cx("grid gap-1 pt-1 pb-2 sm:gap-1.5", gridKlass)}>
+              {veckonummer ? <span className="py-1 text-center text-liten text-ink-muted">v</span> : null}
+              {weekdayNames(locale).map((d) => (
+                <span key={d} className="py-1 text-center text-liten font-medium uppercase tracking-widest text-ink-muted sm:text-hjalp">
+                  {d}
+                </span>
+              ))}
+            </div>
+            <div data-veckorad="" className={cx("relative grid gap-1 sm:auto-rows-[minmax(5rem,auto)] sm:gap-1.5 [--ops-bandtopp:1.75rem] sm:[--ops-bandtopp:2.25rem]", gridKlass)}>
+              {(() => {
+                const bitar = bandIVecka(veckodagar, rutPoster);
+                const filerPerDag = reserveradeFiler(bitar);
+                const [fa, fm, fd] = veckodagar[0].split("-").map(Number);
+                return (
+                  <>
+                    {veckonummer ? (
+                      <span data-veckonummer="" className="flex items-start justify-center pt-2 text-meta font-medium tabular-nums text-ink-muted">
+                        v{isoVecka(fa, fm - 1, fd)}
+                      </span>
+                    ) : null}
+                    <Band bitar={bitar} veckonummer={veckonummer} />
+                    {veckodagar.map((dayKey, j) => {
+                      const pa = byKey.get(dayKey) || [];
+                      const paRuta = rutaPerDag.get(dayKey) || [];
+                      const ram = ramDagar.get(dayKey);
+                      const appDekor = dagdekor ? dagdekor(dayKey) : undefined;
+                      return (
+                        <Dagruta
+                          key={dayKey}
+                          day={Number(dayKey.slice(8, 10))}
+                          dayKey={dayKey}
+                          entries={pa}
+                          markerade={paRuta.filter((e) => !arBand(e))}
+                          spann={paRuta.filter((e) => typeof e.endDate === "string" && e.endDate > e.date)}
+                          enkla={paRuta.filter((e) => !(typeof e.endDate === "string" && e.endDate > e.date))}
+                          isToday={dayKey === todayDayKey}
+                          forbi={dayKey < todayDayKey}
+                          chosen={chosen.includes(dayKey)}
+                          forhand={!!svep && svep.has(dayKey)}
+                          sok={traffDagar ? (traffDagar.has(dayKey) ? "traff" : "miss") : ""}
+                          bandhojd={bandplats(filerPerDag[j])}
+                          pekare={pekareFor(dayKey)}
+                          dekor={ram && !(appDekor && appDekor.ram) ? { ...appDekor, ...ram.dekor } : appDekor}
+                          sprak={String(locale).toLowerCase().startsWith("en") ? "en" : undefined}
+                        />
+                      );
+                    })}
+                  </>
+                );
+              })()}
+            </div>
+            {/* ⛔ TOMT ÄR ETT SVAR (punkt 5): en vecka utan poster säger det, i stället för en rad rutor utan något under. */}
+            {veckoOversikt && days.length === 0 ? (
+              <p role="status" data-kalender-vecka-tom="" className="m-0 py-3 text-etikett text-ink-muted">
+                {ORD_VECKA.tom[String(locale).toLowerCase().startsWith("en") ? "en" : "sv"]}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+        /* ⛔ TAKET GÖR KALENDERN TILL SIN EGEN RULLE. `relative` är inte prydnad: månadsblocken mäter sin plats med
+            `offsetTop`, alltså mot närmaste positionerade förälder. */
         <div
           ref={rulleRef}
           data-kalender-rulle=""
@@ -2122,12 +2282,13 @@ export function OpsCalendar({
               luften går de sista raderna inte att rulla fram ovanför den (SS-appen `paddingBottom: DAY_PANEL_HEIGHT`). */}
           {platsOppen ? <div aria-hidden="true" data-panelluft="" style={{ height: panelHojd }} className="lg:hidden" /> : null}
         </div>
+        )}
 
         {/* ⛔ `absolute` I KOLUMNENS HÖRN, inte `sticky` i flödet: knappen hör till rutnätet och ska stå still medan det
             rullar under den. Pilen pekar åt det håll idag ligger (SS `CalView.jsx:176-194`). */}
         {/* ⛔ MITT ÖVER RUTNÄTET, MÖRK, OCH OVANFÖR DAGPANELEN NÄR DEN ÄR ÖPPEN (0.37.0), som SS-appen: pillret "Idag" med pil
             flyter centrerat över rutnätet. 0.36.0 hade det i hörnet nere till höger, där det hamnade ovanpå korten. */}
-        {showBack ? (
+        {showBack && !arVecka ? (
           <button
             type="button"
             data-idagknapp=""
@@ -2155,7 +2316,7 @@ export function OpsCalendar({
         style={/** @type {import("react").CSSProperties} */ ({ "--ops-dagpanel-max": `${Math.round(ytan * DAGPANEL_TAK)}px` })}
         className={cx(
           "shrink-0 lg:w-75 lg:overflow-visible xl:w-90",
-          platsOppen && "max-lg:absolute max-lg:inset-x-0 max-lg:-bottom-6 max-lg:z-(--z-sticky) max-lg:max-h-(--ops-dagpanel-max) max-lg:overflow-y-auto max-lg:overscroll-contain",
+          platsOppen && !arVecka && "max-lg:absolute max-lg:inset-x-0 max-lg:-bottom-6 max-lg:z-(--z-sticky) max-lg:max-h-(--ops-dagpanel-max) max-lg:overflow-y-auto max-lg:overscroll-contain",
         )}
       >
         {titt ? (
@@ -2177,6 +2338,7 @@ export function OpsCalendar({
             statusWords={statusWords}
             onClose={() => setValda([])}
             onTaBort={(n) => setValda((f) => f.filter((x) => x !== n))}
+            oversikt={veckoOversikt}
             onSkapa={skapa}
             locale={locale}
             arMin={arMin}

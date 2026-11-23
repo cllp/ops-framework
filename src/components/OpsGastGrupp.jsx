@@ -6,7 +6,6 @@ import { gastBehorighetsrader } from "../lib/gastBehorighet.js";
 import { GASTBESOKSOMRADEN, lasGastBesok, lasGastFlik, skrivGastBesok, skrivGastFlik } from "../lib/gastminne.js";
 import { kommentarRotId } from "../lib/postkommentar.js";
 import { kortDatum } from "../lib/deladdatum.js";
-import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsBibliotek } from "./OpsBibliotek.jsx";
 import { OpsButton } from "./OpsButton.jsx";
@@ -27,8 +26,8 @@ import { OpsEmpty } from "./OpsEmpty.jsx";
 import { ORD_OPSGASTARENDEN, OpsGastArenden } from "./OpsGastArenden.jsx";
 import { OpsGastChatt } from "./OpsGastChatt.jsx";
 import { OpsGastFelrad } from "./OpsGastFelrad.jsx";
+import { OpsGastKalender } from "./OpsGastKalender.jsx";
 import { OpsHandelsePanel } from "./OpsHandelsePanel.jsx";
-import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { useGastsidaInfo } from "./gastsidaInfo.js";
 import { OpsSprakProvider } from "./OpsSprak.jsx";
 import { OpsSpelareProvider } from "./OpsSpelare.jsx";
@@ -151,6 +150,15 @@ export const ORD_OPSGASTGRUPP = {
   paGangEtikett: { sv: "På gång", en: "Coming up" },
   kalenderAvkortad: { sv: "Kalendern visar de första {n} händelserna. Det finns fler.", en: "The calendar shows the first {n} events. There are more." },
   kalenderEjVisade: { sv: "{n} händelser visas inte, eftersom deras tid inte går att läsa.", en: "{n} events are not shown, because their time cannot be read." },
+  // (0.257.0, cllp/lifehub.app#890) Kalenderns lägen och filter.
+  kalenderLageEtikett: { sv: "Visa kalendern som", en: "Show the calendar as" },
+  kalenderLista: { sv: "Lista", en: "List" },
+  kalenderManad: { sv: "Månad", en: "Month" },
+  kalenderVecka: { sv: "Vecka", en: "Week" },
+  kalenderFilterEtikett: { sv: "Filter", en: "Filter" },
+  kalenderVisaPasserade: { sv: "Visa passerade", en: "Show past" },
+  kalenderIngetFilter: { sv: "Inget med det här filtret.", en: "Nothing matches this filter." },
+  kalenderLasfel: { sv: "Kalendern gick inte att visa. Ladda om sidan.", en: "The calendar could not be shown. Reload the page." },
   laddar: { sv: "Hämtar", en: "Loading" },
   tillbaka: { sv: "Tillbaka", en: "Back" },
   handelseSaknas: { sv: "Händelsen finns inte längre.", en: "The event no longer exists." },
@@ -260,9 +268,6 @@ function sammanfoga(a, b) {
   return [...per.values()].sort((x, y) => x.tid - y.tid || String(x.id).localeCompare(String(y.id)));
 }
 
-/** @param {{ tid?: string | null, slutTid?: string | null }} h @param {string} till */
-const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid}` : h.tid) : undefined);
-
 /**
  * Hela gruppen för en gäst: det bantade gränssnittet (0.132.0, cllp/lifehub.app#389, skiva 2). Tre flikar och ingenting annat: chatt, kalender och bibliotek, och en fjärde, Ärenden, bara när gästen har minst ett ärende delegerat till sig (skiva 3, CP 2026-10-20). Gästen ser aldrig gruppens ärendelista (den kan bära sådant som inte rör gästen), bara de ärenden servern valt ut på gästens `gastId`.
  *
@@ -278,7 +283,7 @@ const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid
  *
  * ══ ⛔ VYERNA ÄR MEDLEMMENS, MED `jag: null` ══════════════════════════════════════════════════════════════════════════════
  *
- * Kalendern är en lista över det som är på gång (0.190.0, ingen månadsvy för gäster) och händelsen `OpsHandelsePanel` utan penna eller flytt, svaren `OpsSvarSummor` (summor och mitt eget svar, inga namn), biblioteket `OpsBibliotek` med `jag: null` (ingen Ny, ingen
+ * Kalendern är Lista, Månad och Vecka (0.257.0, `OpsGastKalender`; 0.190.0 till 0.256.0 bara en lista) och händelsen `OpsHandelsePanel` utan penna eller flytt, svaren `OpsSvarSummor` (summor och mitt eget svar, inga namn), biblioteket `OpsBibliotek` med `jag: null` (ingen Ny, ingen
  * redigering, ingen radering, ingen delning) och `adresserPaBegaran` (en signering per öppnad fil, aldrig en per post i listan). (0.207.0, cllp/lifehub.app#696 skiva 2) Bilderna i en
  * anteckning hämtas när gästen öppnar den (`api.anteckningsbilder`, `bildIAnteckningAdress`), aldrig med listan; under tiden står "Hämtar bilden.". Chatten är medlemmens bubblor med chattens skrivfält utan bilagor, mikrofon och agent (`OpsGastChatt`): gästen får skriva (CP 2026-10-20), och
  * servern märker meddelandet Gäst.
@@ -303,11 +308,13 @@ const tidText = (h, till) => (h.tid ? (h.slutTid ? `${h.tid} ${till} ${h.slutTid
  * @param {(arg: { handelse: Record<string, any>, omrostning: Record<string, any>, rosta: (arg: { forslagId: string, val: string }) => Promise<void>, uppdatera: () => Promise<void> }) => import("react").ReactNode} [props.renderOmrostning]
  *   Appens omröstning på ett datum (förslagen och rösterna). `rosta` anropar tjänstens `rosta` och hämtar om händelsen. Utan den visas en text om att omröstningen inte går att visa, när en händelse har en.
  * @param {number} [props.intervallMs] Chattens ping. Förval 30 000. `0` stänger av den.
+ * @param {(namn: string) => import("react").ReactNode} [props.ritaTypIkon] (0.257.0, cllp/lifehub.app#890) Appens ikon för en händelsetyps ikonnamn (`kalender`-svarets `typer`), i den storlek en rad har
+ *   (16 px), samma som medlemmens kalender (`kindIcon`). Ramverket känner inte appens ikonlista. Utan den ritas typens färg som en prick, med ordet i raden.
  * @param {Date} [props.idag] Bara för prov: kalenderns idag.
  * @param {string} [props.sprak]
  * @param {Partial<Record<keyof typeof ORD_OPSGASTGRUPP, string>>} [props.ord]
  */
-export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallMs = 30_000, idag, sprak = "sv", ord }) {
+export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, ritaTypIkon, intervallMs = 30_000, idag, sprak = "sv", ord }) {
   if (!grupp || typeof grupp.namn !== "string" || !Array.isArray(grupp.funktioner)) throw new Error("OpsGastGrupp: grupp är { namn, funktioner } ur tjänstens hamta().grupp.");
   if (!api || typeof api.chatt !== "function") throw new Error("OpsGastGrupp: api krävs, anropen mot servern (gastGruppApi).");
   // ⛔ (0.215.0) EN PROJEKTGÄST ÄR SAMMA VY MED ANDRA ORD: `projekt_`-orden ersätter gruppens där de finns, före appens egna (`ord`), så att en app som skrivit om ett ord fortfarande vinner.
@@ -800,32 +807,16 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
 
   const kalender = /** @type {any} */ (data.kalender);
   /*
-   * ══ ⛔ GÄSTENS KALENDER ÄR EN LISTA ÖVER DET SOM ÄR PÅ GÅNG, INGEN MÅNAD (0.190.0, CP 2026-11-05 i cllp/lifehub.app#658, del C) ═══════════════
+   * ══ ⛔ GÄSTENS KALENDER: LISTA, MÅNAD OCH VECKA (0.257.0, cllp/lifehub.app#890) ═══════════════════════════════════════════
    *
-   * CP: "Skall bara kunna läsa va och således bara en kalendervy som är lista eller?" En gäst lägger inte in något: hen läser, svarar och röstar. Månadsvyn tyngde
-   * vyn utan att ge gästen något att göra, och den stryks för gäster (regel 13). Först det som saknar datum (en omröstning om datumet), sedan det som är på gång
-   * i tidsordning: en händelse som slutar i dag eller senare. Det som har varit visas inte.
+   * 0.190.0 strök månaden för gäster (CP 2026-11-05: "Skall bara kunna läsa va och således bara en kalendervy som är lista eller?"). 18 nov godkände CP en riktig kalender i gästvyn: Lista,
+   * Månad och Vecka, filter på händelsetyp och Visa passerade, och typens ikon och färg. Fliken är `OpsGastKalender`, och Månad och Vecka är ramverkets `OpsCalendar`. Gästen läser fortfarande
+   * bara: ingen kalender har skapa, flytt eller inställningar, och ett tryck öppnar händelsen här nedan som förut.
    */
   const idagStr = useMemo(() => {
     const d = idag ?? new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }, [idag]);
-  const paGang = useMemo(() => {
-    if (!kalender) return [];
-    const utanDatum = kalender.handelser.filter((/** @type {any} */ h) => !h.datum);
-    const kommande = kalender.handelser
-      .filter((/** @type {any} */ h) => h.datum && String(h.slutDatum ?? h.datum) >= idagStr)
-      .sort((/** @type {any} */ a, /** @type {any} */ b) => String(a.datum).localeCompare(String(b.datum)) || (a.heldag ? -1 : 0) - (b.heldag ? -1 : 0) || String(a.tid ?? "").localeCompare(String(b.tid ?? "")) || String(a.id).localeCompare(String(b.id)));
-    return [...utanDatum, ...kommande];
-  }, [kalender, idagStr]);
-  /** När, på en rad: "lör 7 nov 2026 · 18:00 till 20:00", till slutdatum när den är flera dagar, och "Datum ej satt" utan datum. @param {Record<string, any>} h */
-  const nartext = (h) => {
-    if (!h.datum) return DATUM_EJ_SATT[sprak === "en" ? "en" : "sv"];
-    const till = sprak === "en" ? "to" : "till";
-    const dagar = h.slutDatum && h.slutDatum !== h.datum ? `${kortDatum(h.datum, sprak)} ${till} ${kortDatum(h.slutDatum, sprak)}` : kortDatum(h.datum, sprak);
-    const tid = h.heldag ? "" : tidText(h, till);
-    return tid ? `${dagar} · ${tid}` : dagar;
-  };
 
   /** @param {Record<string, any>} h */
   const handelseVy = (h) => ({
@@ -842,89 +833,83 @@ export function OpsGastGrupp({ grupp, api, onNekad, renderOmrostning, intervallM
     kravSvar: h.kravSvar === true && !projekt,
   });
 
-  const kalenderInnehall = () => {
-    if (handelseId) {
-      if (detalj === "saknas") {
-        return (
-          <div data-gast-handelse-saknas="">
-            <OpsHandelsePanel handelse={null} onTillbaka={tillKalendern} sprak={sprak} tillbakaEtikett={t.tillbaka} saknasTitel={t.handelseSaknas} saknasText="" />
-          </div>
-        );
-      }
-      if (detaljFel) {
-        return (
-          <div className="flex flex-col gap-3">
-            <button type="button" onClick={tillKalendern} className="w-fit cursor-pointer text-etikett text-accent underline">{t.tillbaka}</button>
-            <p role="alert" data-gast-handelse-fel="" className="m-0 text-etikett text-danger">{detaljFel}</p>
-          </div>
-        );
-      }
-      if (!detalj) return <OpsHandelsePanel handelse={null} laddar onTillbaka={tillKalendern} sprak={sprak} tillbakaEtikett={t.tillbaka} />;
-      const h = detalj.handelse;
+  /** Händelsens panel, när en händelse är öppen. @returns {import("react").ReactNode} */
+  const handelseInnehall = () => {
+    if (detalj === "saknas") {
       return (
-        <div data-gast-handelse="" className="flex min-w-0 flex-col gap-4">
-          <OpsHandelsePanel
-            handelse={handelseVy(h)}
-            sprak={sprak}
-            tillbakaEtikett={t.tillbaka}
-            onTillbaka={tillKalendern}
-            svar={
-              // (0.215.0) En projektgäst svarar inte i skiva 1: servern skickar inga summor, och vyn ritar ingen svarsrad (inte heller felet "kunde inte hämtas").
-              h.kravSvar === true && !projekt ? (
-                detalj.svar ? (
-                  <OpsSvarSummor summa={detalj.svar} onSvara={svara} rubrik={t.rubrikSvar} />
-                ) : (
-                  <p role="alert" className="m-0 text-etikett text-danger">{t.svarSaknas}</p>
-                )
-              ) : undefined
-            }
-          />
-          {svarFel ? <p role="alert" data-gast-svar-fel="" className="m-0 text-etikett text-danger">{svarFel}</p> : null}
-          {detalj.omrostning ? (
-            renderOmrostning ? (
-              <div data-gast-omrostning="" className="mx-auto w-full max-w-4xl px-4">
-                {renderOmrostning({
-                  handelse: h,
-                  omrostning: detalj.omrostning,
-                  rosta: async ({ forslagId, val }) => {
-                    await kor("rosta", { handelseId: h.id, forslagId, val });
-                    await hamtaHandelse(h.id);
-                  },
-                  uppdatera: () => hamtaHandelse(h.id),
-                })}
-              </div>
-            ) : (
-              <p data-gast-omrostning-ejstodd="" className="m-0 px-4 text-etikett text-ink-muted">{t.omrostningEjStodd}</p>
-            )
-          ) : null}
+        <div data-gast-handelse-saknas="">
+          <OpsHandelsePanel handelse={null} onTillbaka={tillKalendern} sprak={sprak} tillbakaEtikett={t.tillbaka} saknasTitel={t.handelseSaknas} saknasText="" />
         </div>
       );
     }
-    if (fel.kalender) return <OpsGastFelrad data="gast-kalender-fel" text={felOrd(fel.kalender)} forsokIgen={t.forsokIgen} onForsokIgen={() => void ladda("kalender")} />;
-    if (!kalender || laddar.kalender) return <OpsEmpty busy title={t.laddar} busyLabel={t.laddar} />;
+    if (detaljFel) {
+      return (
+        <div className="flex flex-col gap-3">
+          <button type="button" onClick={tillKalendern} className="w-fit cursor-pointer text-etikett text-accent underline">{t.tillbaka}</button>
+          <p role="alert" data-gast-handelse-fel="" className="m-0 text-etikett text-danger">{detaljFel}</p>
+        </div>
+      );
+    }
+    if (!detalj) return <OpsHandelsePanel handelse={null} laddar onTillbaka={tillKalendern} sprak={sprak} tillbakaEtikett={t.tillbaka} />;
+    const h = detalj.handelse;
     return (
-      <div data-gast-kalender="" className="flex min-w-0 flex-col gap-3">
-        {paGang.length === 0 ? (
-          // ⛔ TOMT ÄR EN TYST RAD (0.190.0, QA fynd 9): inte en stor ruta som tar lika mycket plats som innehållet hade gjort.
-          <p role="status" data-gast-kalender-tom="" className="m-0 text-etikett text-ink-muted">{t.ingetPaGang}</p>
-        ) : (
-          <OpsList ariaLabel={t.paGangEtikett}>
-            {paGang.map((/** @type {any} */ h) => (
-              <OpsListRow key={h.id} interactive onClick={() => oppnaHandelse(h.id)} ariaLabel={h.titel}>
-                <span data-gast-pagang={h.id} data-ejsatt={h.datum ? undefined : ""} className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="text-etikett font-medium text-ink wrap-anywhere">{h.titel}</span>
-                  <span className="text-meta text-ink-secondary">{nartext(h)}</span>
-                </span>
-              </OpsListRow>
-            ))}
-          </OpsList>
-        )}
-        {kalender.avkortad ? <p role="status" data-gast-kalender-avkortad="" className="m-0 text-meta text-ink-muted">{t.kalenderAvkortad.replace("{n}", String(kalender.handelser.length))}</p> : null}
-        {kalender.ejVisade > 0 ? <p role="status" data-gast-kalender-ejvisade="" className="m-0 text-meta text-ink-muted">{t.kalenderEjVisade.replace("{n}", String(kalender.ejVisade))}</p> : null}
+      <div data-gast-handelse="" className="flex min-w-0 flex-col gap-4">
+        <OpsHandelsePanel
+          handelse={handelseVy(h)}
+          sprak={sprak}
+          tillbakaEtikett={t.tillbaka}
+          onTillbaka={tillKalendern}
+          svar={
+            // (0.215.0) En projektgäst svarar inte i skiva 1: servern skickar inga summor, och vyn ritar ingen svarsrad (inte heller felet "kunde inte hämtas").
+            h.kravSvar === true && !projekt ? (
+              detalj.svar ? (
+                <OpsSvarSummor summa={detalj.svar} onSvara={svara} rubrik={t.rubrikSvar} />
+              ) : (
+                <p role="alert" className="m-0 text-etikett text-danger">{t.svarSaknas}</p>
+              )
+            ) : undefined
+          }
+        />
+        {svarFel ? <p role="alert" data-gast-svar-fel="" className="m-0 text-etikett text-danger">{svarFel}</p> : null}
+        {detalj.omrostning ? (
+          renderOmrostning ? (
+            <div data-gast-omrostning="" className="mx-auto w-full max-w-4xl px-4">
+              {renderOmrostning({
+                handelse: h,
+                omrostning: detalj.omrostning,
+                rosta: async ({ forslagId, val }) => {
+                  await kor("rosta", { handelseId: h.id, forslagId, val });
+                  await hamtaHandelse(h.id);
+                },
+                uppdatera: () => hamtaHandelse(h.id),
+              })}
+            </div>
+          ) : (
+            <p data-gast-omrostning-ejstodd="" className="m-0 px-4 text-etikett text-ink-muted">{t.omrostningEjStodd}</p>
+          )
+        ) : null}
       </div>
     );
   };
 
+  const kalenderInnehall = () => {
+    if (fel.kalender && !handelseId) return <OpsGastFelrad data="gast-kalender-fel" text={felOrd(fel.kalender)} forsokIgen={t.forsokIgen} onForsokIgen={() => void ladda("kalender")} />;
+    if ((!kalender || laddar.kalender) && !handelseId) return <OpsEmpty busy title={t.laddar} busyLabel={t.laddar} />;
+    const vyn = kalender ? <OpsGastKalender kalender={kalender} sprak={sprak} t={t} idag={idagStr} idagDatum={idag} onOppna={oppnaHandelse} ritaTypIkon={ritaTypIkon} minne={sida?.minne ?? null} /> : null;
+    /*
+     * ⛔ (0.257.0) KALENDERN STÅR KVAR, DOLD, MEDAN HÄNDELSEN ÄR ÖPPEN. Läget, filtret, veckan och månadens rullning är kalenderns eget tillstånd, och Tillbaka ska visa samma kalender som
+     * gästen lämnade (samma skäl som skalets dolda vy för medlemmen, `OpsCalendar` #543). Till 0.256.0 var kalendern en lista utan tillstånd och ritades om.
+     */
+    return (
+      <>
+        {handelseId ? handelseInnehall() : null}
+        {/* Samma plats i trädet med och utan händelse, annars monteras kalendern om och tillståndet går förlorat. */}
+        <div hidden={Boolean(handelseId)} data-gast-kalender-plats="" className="min-w-0">
+          {vyn}
+        </div>
+      </>
+    );
+  };
   const bibliotekInnehall = () => {
     if (fel.bibliotek) return <OpsGastFelrad data="gast-bibliotek-fel" text={felOrd(fel.bibliotek)} forsokIgen={t.forsokIgen} onForsokIgen={() => void ladda("bibliotek")} />;
     return (

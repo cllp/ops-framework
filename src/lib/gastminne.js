@@ -5,6 +5,7 @@
  * (och `OpsDeladHandelse`) in i startfilen, 10 kB gzip före första vyn (mätt med `check:jsstorlek` i lifehub.app). Sidan och hubben delar det här formatet (regel 2) utan att dela komponent.
  */
 import { GASTGRUPPFUNKTIONER, GASTINBJUDNINGSIDFORM, GASTNYCKELFORM } from "./gast.js";
+import { GASTKALENDERLAGEN } from "./gastkalender.js";
 
 /** Nyckeln en gästs session sparas under, per inbjudan. Sessionen ligger i webbläsarens minne och inte i adressen. */
 export const sessionsnyckelFor = (/** @type {string} */ id) => `ops-gast:${id}`;
@@ -53,6 +54,38 @@ export function skrivGastFlik(minne, id, flik) {
     minne.skriv(gastFlikNyckel(id), flik);
   } catch {
     /* Flikbytet gäller ändå. */
+  }
+}
+
+/** (0.257.0, cllp/lifehub.app#890) Nyckeln för gästkalenderns senaste läge (Lista, Månad, Vecka), per enhet. CP:s beslut 18 nov: "Senaste valet sparas." */
+export const GASTKALENDERLAGE = "ops-gast:kalenderlage";
+
+/**
+ * Gästkalenderns sparade läge, eller `null` när inget giltigt finns. Ett värde som inte är ett läge läses som inget (regel 5), och vyn väljer då efter skärmen.
+ * @param {{ las: (k: string) => string | null } | null | undefined} minne
+ * @returns {(typeof GASTKALENDERLAGEN)[number] | null}
+ */
+export function lasGastKalenderlage(minne) {
+  if (!minne) return null;
+  let v = null;
+  try {
+    v = minne.las(GASTKALENDERLAGE);
+  } catch {
+    return null;
+  }
+  return /** @type {readonly string[]} */ (GASTKALENDERLAGEN).includes(/** @type {string} */ (v)) ? /** @type {(typeof GASTKALENDERLAGEN)[number]} */ (v) : null;
+}
+
+/**
+ * Minns läget. Skriver bara ett ord ur `GASTKALENDERLAGEN`. Ett minne som kastar stoppar inte bytet.
+ * @param {{ skriv: (k: string, v: string) => void } | null | undefined} minne @param {string} lage
+ */
+export function skrivGastKalenderlage(minne, lage) {
+  if (!minne || !/** @type {readonly string[]} */ (GASTKALENDERLAGEN).includes(lage)) return;
+  try {
+    minne.skriv(GASTKALENDERLAGE, lage);
+  } catch {
+    /* Bytet gäller ändå. */
   }
 }
 

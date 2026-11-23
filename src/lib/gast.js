@@ -407,8 +407,11 @@ export const GASTGRUPPSVARSFALT = /** @type {const} */ ({
   chatt: ["ok", "meddelanden", "fler", "ingetNytt", "rot"],
   /** Svaret på `skrivChatt`: meddelandet som det nu står i chatten, i samma form som en rad i `chatt`. */
   skrivChatt: ["ok", "meddelande"],
-  /** Svaret på `kalender`. */
-  kalender: ["ok", "handelser", "kalendrar", "avkortad", "ejVisade"],
+  /**
+   * Svaret på `kalender`. (0.257.0, cllp/lifehub.app#890) `typer`: händelsetyperna som någon av `handelser` har (`GASTHANDELSETYPFALT`), tom när appen inte gett `grupp.handelsetyper`.
+   * Bara typerna i bruk: gruppens hela katalog är gruppens inställning och inget gästen behöver för att läsa sin kalender.
+   */
+  kalender: ["ok", "handelser", "kalendrar", "typer", "avkortad", "ejVisade"],
   /** Svaret på `handelse`. */
   handelse: ["ok", "handelse", "svar", "omrostning"],
   /** Svaret på `bibliotek`. */
@@ -511,8 +514,22 @@ export function gastGruppApi(anrop, sessionsnyckel) {
 /** Det en gäst ser i stället för namnet på en avsändare som inte längre finns bland gruppens medlemskap. Utskrivet, aldrig tomt (regel 5). */
 export const GASTTIDIGAREMEDLEM = "Tidigare medlem";
 
-/** Fälten på en händelse i gästens kalender. Ur appens händelse listas bara titel, beskrivning och plats (`grupp.handelseSida`), resten är ramverkets `HANDELSEKONTRAKT`. */
-export const GASTHANDELSEFALT = /** @type {const} */ (["id", "titel", "beskrivning", "plats", "datum", "slutDatum", "tid", "slutTid", "heldag", "kalenderId", "kravSvar", "ejSatt"]);
+/**
+ * Fälten på en händelse i gästens kalender. Ur appens händelse listas bara titel, beskrivning, plats och typ (`grupp.handelseSida`), resten är ramverkets `HANDELSEKONTRAKT`.
+ * (0.257.0, cllp/lifehub.app#890) `typ` är typens id och inget annat, `null` när händelsen saknar typ. I `kalender` är den också `null` när typen inte finns i svarets `typer`, där namnet,
+ * ikonen och färgen står en gång per typ.
+ */
+export const GASTHANDELSEFALT = /** @type {const} */ (["id", "titel", "beskrivning", "plats", "datum", "slutDatum", "tid", "slutTid", "heldag", "kalenderId", "kravSvar", "ejSatt", "typ"]);
+
+/**
+ * (0.257.0, cllp/lifehub.app#890) Fälten på en händelsetyp i gästens kalender: id, namnet på båda språken (`{ sv, en }`, `en` utelämnad när typen saknar den), ikonens namn och platsen i
+ * slagpaletten (`farg`, 1 till 3). ⛔ ALDRIG typens texter, ordning, kategori eller något annat appen har på raden: CP godkände ikon och färg i gästens lista och kalender (18 nov), inget mer.
+ * Ikonen är ett NAMN, och appen ritar det (`OpsGastGrupp ritaTypIkon`): ramverket känner inte appens ikonlista.
+ */
+export const GASTHANDELSETYPFALT = /** @type {const} */ (["id", "namn", "ikon", "farg"]);
+
+/** (0.257.0) Formen på en händelsetyps ikonnamn: Lucides namn i kebab (`list-todo`, `building-2`), som appens ikonlista. */
+export const GASTTYPIKONFORM = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** Fälten på en gruppkalender i gästens svar. */
 export const GASTKALENDERFALT = /** @type {const} */ (["id", "namn", "farg"]);

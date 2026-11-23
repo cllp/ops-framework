@@ -317,7 +317,7 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     expect(api.chatt).toHaveBeenCalledTimes(1);
   });
 
-  it("⛔ kalendern är en lista över det som är på gång, ingen månadsvy: utan datum först, sedan i tidsordning, och det som varit visas inte (0.190.0, del C)", async () => {
+  it("⛔ listan är förvald där skärmen inte säger att den är bred: utan datum först, sedan i tidsordning, och det som varit visas inte (0.190.0, del C; 0.257.0 Lista är förvald i mobil)", async () => {
     const m = apiMed({
       kalender: async () => ({
         ok: true,
@@ -333,9 +333,9 @@ describe("OpsGastGrupp: det bantade gränssnittet", () => {
     // Golv: tre rader. Fika (utan datum) först, sedan Möte och Repetition i tidsordning. Förra mötet (1 oktober) står inte med.
     const rader = [...lista.querySelectorAll("[data-gast-pagang]")];
     expect(rader.map((r) => r.getAttribute("data-gast-pagang"))).toEqual(["h-ejsatt", "h-mote", "h-fri"]);
-    expect(rader.map((r) => r.lastElementChild?.textContent)).toEqual(["Datum ej satt", "mån 2 nov 2026 · 18:00 till 20:00", "mån 9 nov 2026"]);
+    expect(rader.map((r) => r.querySelector(".text-meta")?.textContent)).toEqual(["Datum ej satt", "mån 2 nov 2026 · 18:00 till 20:00", "mån 9 nov 2026"]);
     expect(screen.queryByText("Förra mötet")).toBeNull();
-    // Ingen månad: inget rutnät, inga veckodagar, ingen väg att lägga in något.
+    // Listan och inte månaden (jsdom har ingen `matchMedia`, alltså ingen bred skärm): inget rutnät, inga veckodagar, ingen väg att lägga in något.
     expect(screen.queryByRole("grid")).toBeNull();
     expect(document.querySelector("[data-ops-kalender], [data-kalender-manad]")).toBeNull();
     expect(screen.queryByRole("button", { name: /Ny händelse|Lägg till/ })).toBeNull();

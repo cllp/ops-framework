@@ -464,6 +464,22 @@ export function isoVecka(ar, month, day) {
 }
 
 /**
+ * Veckan som en dag ligger i, måndag till söndag, som sju datumsträngar (0.257.0, cllp/lifehub.app#890).
+ *
+ * ⛔ VECKOLÄGET I `OpsCalendar` ÄR EN RAD UR SAMMA RUTNÄT, INTE EN ANDRA KALENDER. CP godkände 18 nov Lista, Månad och Vecka i gästvyn, och beslutet
+ * säger "Återanvänd ramverkets kalendervy. Bygg ingen ny." Månadsrutnätet räknar sina rader per månad (`monthGrid`), så en vecka som börjar i oktober
+ * och slutar i november finns där som två halva rader. Veckoläget behöver hela veckan, och därför räknas den här, via `plusDagar` (UTC, ingen
+ * sommartidsövergång ger samma dag två gånger), med måndag först som resten av filen.
+ * @param {string} dag `YYYY-MM-DD` @returns {string[]}
+ */
+export function veckansDagar(dag) {
+  const [a, m, d] = dag.split("-").map(Number);
+  const veckodag = (new Date(Date.UTC(a, m - 1, d)).getUTCDay() + 6) % 7;
+  const mandag = plusDagar(dag, -veckodag);
+  return Array.from({ length: 7 }, (_, i) => plusDagar(mandag, i));
+}
+
+/**
  * Fönstret kalendern ritar: första dagen i den tidigaste månaden till sista dagen i den senaste.
  *
  * ⛔ EN FUNKTION SOM BÅDE VYN OCH APPENS LÄSVÄG ANVÄNDER. `/kalender` läste Idags 60 dagar framåt och ingenting

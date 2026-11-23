@@ -175,7 +175,7 @@ const SAMLINGAR_ATT_SOKA = [`samtal/${GRUPP}|grupp/meddelanden`, "gastinbjudning
  * @param {boolean} [val.utanArenden] Appen har ingen ärendedelegering till gäster (skiva 3 av).
  * @param {Record<string, any[]>} [val.extra]
  */
-function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arendeFalt = null, extra = {}, signeringsfel = null, kommenteraFel = null, lankvalv = null, farLaddaNed = undefined, kommentarer = false, filer = null } = {}) {
+function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arendeFalt = null, extra = {}, signeringsfel = null, kommenteraFel = null, lankvalv = null, farLaddaNed = undefined, kommentarer = false, filer = null, handelsetyper = undefined } = {}) {
   const grund = createMemorySource({ ...seed(), ...extra });
   const kalla = omslut(grund);
   let nu = NU;
@@ -243,7 +243,8 @@ function bygg({ omslut = (k) => k, utanGrupp = false, utanArenden = false, arend
             samlingar: { grupper: "groups", samtal: "samtal", meddelanden: "meddelanden", bibliotek: "bibliotek", svar: "svar", ...(kommentarer ? { tradar: "tradar" } : {}) },
             ...(kommentarer ? { bibliotekBas: "https://app.exempel.se/bibliotek" } : {}),
             lagring: { signeradAdress: signera, ...(filer ? { finns } : {}) },
-            handelseSida: (h) => ({ titel: h.rubrik, beskrivning: h.text, plats: h.plats }),
+            handelseSida: (h) => ({ titel: h.rubrik, beskrivning: h.text, plats: h.plats, typ: h.typ }),
+            ...(handelsetyper !== undefined ? { handelsetyper } : {}),
             ...(utanArenden ? {} : { arenden: arendeFalt ? { ...arenden, falt: arendeFalt } : arenden }),
             ...(farLaddaNed !== undefined ? { farLaddaNed } : {}),
             omrostning: {
@@ -990,6 +991,59 @@ describe("chatten: hela historiken, bara gruppens samtal, och agenten syns inte"
   });
 });
 
+describe("händelsetyperna i gästens kalender (0.257.0, cllp/lifehub.app#890)", () => {
+  /** Appens katalog, med fält gästen aldrig ska se (texter, ordning, kategori) och en typ ingen händelse har. */
+  const KATALOG = [
+    { id: "flyg", namn: { sv: "Flyg", en: "Flights" }, ikon: "trending-up", farg: 3, ordning: 0, kategori: "faktum", texter: { row: { sv: "Flyg" }, lofte: { sv: "HEMLIGT-LOFTE" } } },
+    { id: "boende", namn: "Boende", ikon: "building-2", farg: 1, ordning: 1 },
+    { id: "oanvand", namn: { sv: "OANVAND-TYP" }, ikon: "clock", farg: 2 },
+  ];
+  /** @param {any} h */
+  async function medTyper(h) {
+    await h.grund.update("handelser", "h-mote", { typ: "flyg" });
+    await h.grund.update("handelser", "h-fri", { typ: "boende" });
+    await h.grund.update("handelser", "h-ejsatt", { typ: "finns-inte" });
+  }
+
+  it("svaret bär bara typerna i bruk, fält för fält (id, namn, ikon, färg), och händelsen bara typens id; en typ som inte finns i katalogen blir null", async () => {
+    const hamta = vi.fn(async () => KATALOG);
+    const h = bygg({ handelsetyper: hamta });
+    await medTyper(h);
+    const g = await gruppGast(h);
+    const k = await h.tjanst.kalender({ sessionsnyckel: g.sessionsnyckel });
+    expect(hamta).toHaveBeenCalledWith({ groupId: GRUPP });
+    expect(k.typer).toEqual([
+      { id: "flyg", namn: { sv: "Flyg", en: "Flights" }, ikon: "trending-up", farg: 3 },
+      { id: "boende", namn: { sv: "Boende" }, ikon: "building-2", farg: 1 },
+    ]);
+    expect(Object.fromEntries(k.handelser.map((x) => [x.id, x.typ]))).toEqual({ "h-mote": "flyg", "h-fri": "boende", "h-ejsatt": null });
+    const text = JSON.stringify(k);
+    for (const hemligt of ["HEMLIGT-LOFTE", "OANVAND-TYP", "ordning", "kategori", "texter", "finns-inte"]) expect(text).not.toContain(hemligt);
+  });
+
+  it("utan grupp.handelsetyper är typer tom och katalogen läses inte, också när händelserna har typ", async () => {
+    const h = bygg();
+    await medTyper(h);
+    const g = await gruppGast(h);
+    const k = await h.tjanst.kalender({ sessionsnyckel: g.sessionsnyckel });
+    expect(k.typer).toEqual([]);
+    expect(k.handelser.every((x) => x.typ === null)).toBe(true);
+  });
+
+  it("⛔ en typ med en färg utanför slagpaletten eller ett ikonnamn som inte är ett namn kastar, i stället för att ritas grå", async () => {
+    for (const fel of [{ id: "flyg", namn: "Flyg", farg: 7 }, { id: "flyg", namn: "Flyg", ikon: "<svg onload=x>" }, { id: "flyg", namn: "" }]) {
+      const h = bygg({ handelsetyper: async () => [fel] });
+      await medTyper(h);
+      const g = await gruppGast(h);
+      await expect(h.tjanst.kalender({ sessionsnyckel: g.sessionsnyckel })).rejects.toThrow(/grupp\.handelsetyper/);
+    }
+  });
+
+  it("grupp.handelsetyper som inte är en funktion stoppas när tjänsten byggs", () => {
+    expect(() => bygg({ handelsetyper: [] })).toThrow(/grupp\.handelsetyper är en funktion/);
+  });
+});
+
 describe("kalendern, händelsen, svaret och rösten", () => {
   it("kalendern har gruppens händelser i datumordning, med lägena Datum ej satt och heldag, utan arkiverade, trasiga och andra gruppers, och skriver ut vad som inte visas", async () => {
     const h = bygg();
@@ -997,7 +1051,7 @@ describe("kalendern, händelsen, svaret och rösten", () => {
     const k = await h.tjanst.kalender({ sessionsnyckel: g.sessionsnyckel });
     expect(k.ok).toBe(true);
     expect(k.handelser.map((x) => x.id)).toEqual(["h-mote", "h-fri", "h-ejsatt"]);
-    expect(k.handelser[0]).toEqual({ id: "h-mote", titel: "Möte", beskrivning: "Vi ses i salen", plats: "Salen", datum: "2026-11-02", slutDatum: null, tid: "18:00", slutTid: "20:00", heldag: false, kalenderId: null, kravSvar: true, ejSatt: false });
+    expect(k.handelser[0]).toEqual({ id: "h-mote", titel: "Möte", beskrivning: "Vi ses i salen", plats: "Salen", datum: "2026-11-02", slutDatum: null, tid: "18:00", slutTid: "20:00", heldag: false, kalenderId: null, kravSvar: true, ejSatt: false, typ: null });
     expect(k.handelser[1]).toMatchObject({ heldag: true, tid: null });
     expect(k.handelser[2]).toMatchObject({ datum: null, ejSatt: true, kravSvar: true });
     expect(k.avkortad).toBe(false);

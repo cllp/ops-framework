@@ -95,6 +95,8 @@ const SKALEN = [
   { skal: "OpsKarta", lata: ["OpsKartaVy"], via: "OpsKarta", paket: ["maplibre-gl"] },
   // 0.237.1: årsvyn (cllp/lifehub.app#874) hamnade i appens startfil i 0.237.0, 3 119 byte gzip över lifehub.app:s tak. Den hämtas när den öppnas.
   { skal: "OpsCalendar", lata: ["OpsKalenderAr", "arsband"], via: "OpsCalendar" },
+  // 0.257.0 (cllp/lifehub.app#890): gästens Månad och Vecka är ramverkets `OpsCalendar`. Gästsidan öppnar på Översikt, och Lista är förvald i mobil, så kalendern hämtas när Månad eller Vecka väljs.
+  { skal: "OpsGastGrupp", lata: ["OpsCalendar", "OpsGastKalenderRutnat"], via: "OpsGastKalender" },
   // 0.238.2: gruppens kulörväljare drog in hela färgväljaren (reglage, palett, omfång, kontrastpar) i appens startfil i 0.238.0, 14 419 byte gzip över lifehub.app:s tak.
   { skal: "OpsGruppmarkeValjare", lata: ["OpsFargval", "hallbarLjushet"], via: "OpsFargvalLat" },
   // 0.242.0 (#624): (i)-panelerna på sidan Verktyg låg i `OpsHub` från 0.240.0, och lifehub.app:s startfil växte med 1 961 byte gzip. Sidan Verktyg är `OpsGruppHubb`, och panelerna ritas först efter ett tryck på (i).
