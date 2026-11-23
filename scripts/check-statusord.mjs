@@ -100,6 +100,11 @@ const UNDANTAG = [
     fras: "mörkt läge",
     skal: "temats mörka läge, samma betydelse som undantaget för theme.js. Skälet i felmeddelandet är just att en hex inte följer med när temat byter, så ordet är oundvikligt där.",
   },
+  {
+    fil: "src/components/OpsJobb.jsx",
+    fras: "Läge för {jobb}",
+    skal: "ett återkommande jobbs läge (av, prov, skarpt, cllp/lifehub.app#888): hur jobbet körs, inte en status på en post. Ordet är designens och fältets (`lage`), och \"Status\" hade lästs som senaste utfallet, som står på raden under.",
+  },
 ];
 
 /**
