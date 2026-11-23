@@ -134,7 +134,7 @@ export function OpsGastKalender({ kalender, sprak, t, idag, idagDatum, onOppna, 
             <Typmarke typ={visning(h)} ritaTypIkon={ritaTypIkon} />
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="text-etikett font-medium text-ink wrap-anywhere">{h.titel}</span>
-              <span className="text-meta text-ink-secondary">{underrad(h)}</span>
+              <span data-gast-nar="" className="text-meta text-ink-secondary">{underrad(h)}</span>
             </span>
           </span>
         </OpsListRow>
