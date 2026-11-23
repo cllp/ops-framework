@@ -293,3 +293,10 @@ export { INBJUDNING_GILTIGHET_DAGAR, byggGrupp, byggMedlemskap, medlemskapAvslut
 export { byggSamtal, byggTrad, olastaI } from "../lib/samtal.js";
 export { epostFel } from "../lib/mejl.js";
 export { foreVillkor } from "../data/contract.js";
+
+/*
+ * ⛔ ÅTERKOMMANDE JOBB (0.256.0, cllp/lifehub.app#888). Låset, körningen och utfallet i transaktioner mot appens `db`: schemaläggarens varv (`korForfallnaJobb`) och Kör nu
+ * (`korJobbNu`). Appen skickar in `db`, samlingen och jobbtyperna. Schemat och nästa körning är samma rena funktioner som vyn räknar med.
+ */
+export { tilldelaJobb, slutforJobb, korJobbNu, korForfallnaJobb, vitlistaUtfall, JOBB_TIDSGRANS_MS } from "./jobb.js";
+export { JOBBSTEG, JOBBLAGEN, JOBBUTFALL, JOBBKODFORM, validateJobbschema, nastaKorning, jobbKorningsId, jobbTidpunkt } from "../lib/jobb.js";

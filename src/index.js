@@ -542,3 +542,10 @@ export { rapporteraFel, registreraFelmottagare } from "./lib/felrapport.js";
 
 // ⛔ UTSKRIFTENS LÄGE PÅ POSTEN (0.133.0, lifehub.app#349). Rena filen delas med servern (`ops-framework/node`), så att fälten som rensas och tiden ett jobb får leva har ETT hem.
 export { UTSKRIFT_FALT, UTSKRIFT_TAK_MS, UTSKRIFT_TIMEOUT_TEXT, UTSKRIFTJOBB_STATUS, UTSKRIFT_VANTETID_MS, UTSKRIFT_UPPSKATTNING, utskriftLage, uppskattadUtskriftstid, utskriftPagatText, utanUtskrift } from "./lib/utskrift.js";
+
+/*
+ * ⛔ ÅTERKOMMANDE JOBB (0.256.0, cllp/lifehub.app#888). Schemat och nästa körning är rena funktioner som servern (`ops-framework/node`) räknar med också, så att det vyn
+ * visar som nästa körning är det schemaläggaren gör. Låset och körningen finns bara på nodsidan. Ramverket känner inga jobbtyper och inga samlingsnamn.
+ */
+export { JOBBSTEG, JOBBLAGEN, JOBBUTFALL, JOBBKODFORM, validateJobbschema, nastaKorning, jobbKorningsId, jobbTidpunkt } from "./lib/jobb.js";
+export { OpsJobb, ORD_JOBB, jobbschemaForSteg } from "./components/OpsJobb.jsx";
