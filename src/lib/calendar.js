@@ -57,6 +57,9 @@ import { delaModultypId } from "./modultyper.js";
  *   `date` ritas posten som ett BAND över dagarna, en rad per vecka, i stället för ett märke i varje ruta.
  * @property {boolean} [allDay] Heldag (0.36.0). Ritas som ett band också när den är en enda dag, och kortet säger
  *   "Heldag" i stället för ett klockslag.
+ * @property {string} [tid] Starttiden `HH:MM` i visningszonen, på dagen `date` (0.255.0, cllp/lifehub.app#944). Dagen sorteras
+ *   på den (`perDay`): poster utan klockslag först, sedan efter tid. Den RITAS inte: klockslaget i raden är fortfarande appens
+ *   text i `not`, så ingen rad byter utseende. Saknas den läses `extern.tid`. Ett värde som inte är `HH:MM` räknas som inget.
  * @property {{ id: string, namn: string, farg: 1|2|3|4|5|6|string }} [kalender] Kalendern posten ligger i (0.36.0, #179 F0). `farg` är en kulör (`kulor:<grader>`) sedan 0.238.0, eller en äldre ton.
  *   Färgen är en ton ur identitetspaletten och står ALDRIG ensam: namnet står bredvid den i kortet och i filtret.
  *   ⛔ Saknas den hör posten till den förvalda kalendern i `OpsCalendar`s `kalendrar` (en händelse skriven före
@@ -199,8 +202,13 @@ export function months(today, back, ahead) {
  * drygt nittio rutor, och en filtrering i varje ruta läser hela listan nittio
  * gånger. Kartan byggs en gång.
  *
- * ⛔ ORDNINGEN INOM DAGEN ÄR DEN INSKICKADE. Appen vet vad som är viktigast på
- * en dag; kalendern vet det inte och ska inte gissa.
+ * ⛔ DAGEN STÅR I KLOCKANS ORDNING (0.255.0, cllp/lifehub.app#944). Först det som saknar klockslag (heldag, en uppgift, en
+ * faktura, och en flerdagspost på de dagar den inte börjar), i den ordning appen skickade dem, sedan det som har ett
+ * klockslag (`tid`, eller `extern.tid`) efter starttid. Lika tider behåller appens ordning.
+ * Här stod förut "ordningen inom dagen är den inskickade, appen vet vad som är viktigast". Det höll inte: posterna kommer
+ * ur fem källor (händelser, ärenden, egna kalendrar, Apple och Google, delade) som appen lägger efter varandra, och tiden
+ * fanns bara som text i `not`. CP 2026-11-22, Kalendern i TAM den 23 november: 13:30, en heldagsuppgift, 13:00, 10:30.
+ * Att sortera på ett klockslag som posten själv bär är ingen gissning. Inom samma tid är ordningen fortfarande appens.
  *
  * @param {CalendarEntry[]} entries
  * @returns {Map<string, CalendarEntry[]>}
@@ -227,7 +235,37 @@ export function perDay(entries) {
       lagg(p.date, p);
     }
   }
+  for (const [dag, lista] of byKey) if (lista.length > 1) byKey.set(dag, iKlockordning(lista, dag));
   return byKey;
+}
+
+/**
+ * Postens klockslag på en dag, `HH:MM`, eller `""` när den saknar ett där.
+ *
+ * ⛔ BARA PÅ DEN DAG POSTEN BÖRJAR. En flerdagspost som börjar 22:00 täcker hela nästa dag, och där är den en post utan
+ * klockslag, inte en sen post. En heldag har aldrig ett klockslag, också om appen råkat skicka med ett.
+ *
+ * @param {CalendarEntry} p @param {string} dag @returns {string}
+ */
+export function klockslag(p, dag) {
+  if (!p || p.allDay || p.date !== dag) return "";
+  const tid = typeof p.tid === "string" && p.tid ? p.tid : p.extern && typeof p.extern.tid === "string" ? p.extern.tid : "";
+  return KLOCKSLAG.test(tid) ? tid : "";
+}
+
+const KLOCKSLAG = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * Dagens poster i klockans ordning: de utan klockslag först i inskickad ordning, sedan de med klockslag efter tiden.
+ * Stabil, så lika tider behåller appens ordning. Se `perDay`.
+ *
+ * @param {CalendarEntry[]} lista @param {string} dag @returns {CalendarEntry[]}
+ */
+export function iKlockordning(lista, dag) {
+  return lista
+    .map((p, i) => ({ p, i, t: klockslag(p, dag) }))
+    .sort((a, b) => (a.t === b.t ? a.i - b.i : !a.t ? -1 : !b.t ? 1 : a.t < b.t ? -1 : 1))
+    .map((x) => x.p);
 }
 
 /**

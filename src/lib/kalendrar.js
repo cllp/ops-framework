@@ -779,7 +779,7 @@ export function postTillRad(post, kalendrar, sprak = "sv") {
     handelseId: postHandelseId(post.id),
     date: datum,
     ...(slutdatum > datum ? { endDate: slutdatum } : {}),
-    ...(post.heldag ? { allDay: true } : {}),
+    ...(post.heldag ? { allDay: true } : { tid: post.start.slice(11, 16) }),
     title: post.titel,
     ...(tid || post.plats ? { not: [tid, post.plats].filter(Boolean).join(" · ") } : {}),
     ...(k ? { kalender: { id: k.id, namn: text(k.namn, sprak), farg: /** @type {1|2|3|4|5|6|string} */ (k.farg) } } : {}),
