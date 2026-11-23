@@ -25,6 +25,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 - Kalendern står kvar, dold, medan en händelse är öppen, så att Tillbaka visar samma läge, filter och vecka.
 
 ### Rättat
+- **Kalendern ritas när webbläsaren blockerar lagring.** `OpsCalendar` läste `window.localStorage` utan skydd, och läsningen kastar `SecurityError` i ett blockerat läge (privat läge i vissa webbläsare, en inbäddad vy). Gästens Månad och Vecka visade då "Kalendern gick inte att visa". Nu samma skyddade läsning som `useKalenderSynlighet` redan hade (`webblasarlagring`). Hittat av `check-skalyta`, som också prövar Lista, Månad och Vecka i gästvyn sedan 0.257.0.
 - **Escape och ett tryck utanför i `OpsCalendar` gäller bara en dagpanel och en snabbtitt som syns.** Lyssnarna sitter på fönstret, och kalendern hålls monterad och dold (`hidden`) medan en händelse är öppen, i skalet som i gästvyn. Escape i händelsens panel tömde då den dolda kalenderns valda dagar, och ett tryck i panelen stängde snabbtitten bakom den. Nu gör lyssnaren ingenting när ytan står i ett dolt eller spärrat lager (`hidden`, `inert`) eller när ett lager ovanför redan tagit tangenten.
 
 ### För appen
