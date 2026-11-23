@@ -117,6 +117,8 @@ import {
   GASTOVERSIKTFALT,
   GASTOVERSIKT_SENASTE,
   GASTHANDELSEFALT,
+  GASTHANDELSETYPFALT,
+  GASTTYPIKONFORM,
   GASTIP_FONSTER_MS,
   GASTIP_MAX,
   GASTKALENDER_MAX,
@@ -161,6 +163,7 @@ import { MAX_GRUPPBESKRIVNING, agentId, medlemskapsId } from "../lib/grupp.js";
 import { MAX_BIBLIOTEKRUBRIK, POSTIDFORM, arArkiverad, filInmatningsfel, normaliseraMime, platsBibliotek, rubrikUrFilnamn, trimSomRegeln } from "../lib/bibliotek.js";
 import { KLOCKFORM, SVARSVAL, byggSvar, handelsefel, sammanstallSvar } from "../lib/handelsemodell.js";
 import { validateGruppkalendrar } from "../lib/kalendrar.js";
+import { SLAGPLATSER } from "../lib/slag.js";
 import { gruppensRader } from "../lib/katalog.js";
 import { NAMNER_ALLA, byggSamtal, projekttaggUr, samtalsnyckel } from "../lib/samtal.js";
 import { adresserIText, bibliotekslank, kommentarRotId, kommentarRotText, lasBibliotekslank } from "../lib/postkommentar.js";
@@ -185,6 +188,9 @@ const ARENDEIDFORM = /^[A-Za-z0-9_~.-]{1,200}$/;
 
 /** @param {unknown} v @returns {string} */
 const text = (v) => (typeof v === "string" ? v.trim() : "");
+
+/** (0.257.0) Längsta id och ikonnamn på en händelsetyp som lämnar tjänsten. Ett längre värde är inget katalogen skriver, och en gäst ska inte kunna få en lång text genom typfältet. */
+const MAX_TYPID = 64;
 
 /** @param {string} t @returns {string} */
 const hash = (t) => createHash("sha256").update(t).digest("hex");
@@ -361,7 +367,12 @@ function felMedKod(kod, meddelande) {
  *   Som delningens lagring. `gruppPrefix` och `postPrefix` är samma namn som `lagringsregelfragment({ bibliotek })` fick (förval `grupper` och `bibliotek`): en fils sökväg är exakt
  *   `<gruppPrefix>/<groupId>/<postPrefix>/<postId>/<filnamn>` med postens egen grupp och id, annars signeras den aldrig. (0.207.0, cllp/lifehub.app#696) `finns({ sokvag })` (valfri,
  *   Admin SDK: `(await bucket.file(sokvag).exists())[0]`): med den får gästen bilderna i en anteckning när den öppnas (`anteckningsbilder`); utan den inga bilder.
- * @property {(handelse: Record<string, any>) => { titel: string, beskrivning?: string, plats?: string }} handelseSida Vilka av appens fält som är titel, beskrivning och plats (som delningens).
+ * @property {(handelse: Record<string, any>) => { titel: string, beskrivning?: string, plats?: string, typ?: string | null }} handelseSida Vilka av appens fält som är titel, beskrivning och plats (som delningens).
+ *   (0.257.0, cllp/lifehub.app#890) `typ`: händelsens typ som id i appens typkatalog (lifehub.app: fältet `typ`). Utelämnad eller tom: händelsen har ingen typ och ritas neutralt.
+ * @property {(arg: { groupId: string }) => ReadonlyArray<{ id: string, namn: string | { sv?: string, en?: string }, ikon?: string | null, farg?: number | null }> | Promise<ReadonlyArray<{ id: string, namn: string | { sv?: string, en?: string }, ikon?: string | null, farg?: number | null }>>} [handelsetyper]
+ *   (0.257.0, cllp/lifehub.app#890) Gruppens händelsetyper: id, namn, ikonens namn (kebab, `GASTTYPIKONFORM`) och platsen i slagpaletten (`farg`, en av `SLAGPLATSER`). Läses en gång per `kalender`, och svaret bär
+ *   bara typerna som någon av gästens händelser har, fält för fält ur `GASTHANDELSETYPFALT`. ⛔ En rad som inte har den formen kastar: en typ med en okänd färg eller ett namn som inte är ett ikonnamn är appens
+ *   fel och syns som ett fel, inte som en typ som tyst ritas grå. Utelämnad: `typer` är tom och varje händelse ritas neutralt, som före 0.257.0.
  * @property {Gastarenden} [arenden] (Skiva 3) Ärenden som delegerats till en gäst. Utelämnad: ingen ärendeflik och inga ärendeåtgärder (`arenden` svarar `nej`).
  * @property {Gastprojekt} [projekt] (0.215.0, cllp/lifehub.app#760) Slår på omfånget "projekt". Utelämnad: `bjud` med `slag: "projekt"` kastar `ogiltigt-omfang`, och en projektsession svarar `nej` i varje åtgärd.
  * @property {{ falt: readonly string[], bygg: (arg: { handelse: Record<string, any>, gastId: string, groupId: string }) => Record<string, any> | null | Promise<Record<string, any> | null>,
@@ -527,7 +538,7 @@ export function createGastService(konfig) {
     }
   }
   const DELTA = delta ?? null;
-  /** @type {null | { samlingar: Record<string, string>, lagring: Gastgrupp["lagring"], gruppPrefix: string, postPrefix: string, handelseSida: Gastgrupp["handelseSida"], arenden?: Gastarenden, omrostning?: Gastgrupp["omrostning"], tradar: string | null, bibliotekBas: string | null, projekt: Gastprojekt | null, funktioner: readonly string[] }} */
+  /** @type {null | { samlingar: Record<string, string>, lagring: Gastgrupp["lagring"], gruppPrefix: string, postPrefix: string, handelseSida: Gastgrupp["handelseSida"], handelsetyper: Gastgrupp["handelsetyper"] | null, arenden?: Gastarenden, omrostning?: Gastgrupp["omrostning"], tradar: string | null, bibliotekBas: string | null, projekt: Gastprojekt | null, funktioner: readonly string[] }} */
   let GS = null;
   if (radering !== undefined) {
     if (!radering || typeof radering !== "object") throw new Error(`${namn}: radering är ett objekt (Gastradering), eller utelämnas.`);
@@ -553,6 +564,7 @@ export function createGastService(konfig) {
     }
     if (typeof grupp.lagring?.signeradAdress !== "function") throw new Error(`${namn}: grupp.lagring.signeradAdress krävs. Gästen får aldrig en öppen sökväg, bara en adress som går ut.`);
     if (typeof grupp.handelseSida !== "function") throw new Error(`${namn}: grupp.handelseSida krävs, en funktion som säger vilka av appens fält som är titel, beskrivning och plats.`);
+    if (grupp.handelsetyper !== undefined && typeof grupp.handelsetyper !== "function") throw new Error(`${namn}: grupp.handelsetyper är en funktion ({ groupId }) som ger gruppens händelsetyper, eller utelämnas.`);
     if (grupp.bibliotekBas !== undefined) lasBibliotekslank(grupp.bibliotekBas, "");
     // ⛔ (0.204.0, lifehub.app#691) GRUPPENS STRÖMBRYTARE ÄR BORTTAGEN, OCH EN APP SOM FORTFARANDE SKICKAR DEN STOPPAS HÄR. Nedladdningen avgörs av gästens `laddaNed` och inget annat
     // (`nedladdningTillaten`). Att ta emot `farLaddaNed` och inte fråga den hade varit en strömbrytare som tyst slutat göra något: värden tror att gruppen är avstängd medan gästen med `true` laddar ned.
@@ -605,6 +617,7 @@ export function createGastService(konfig) {
       gruppPrefix,
       postPrefix,
       handelseSida: grupp.handelseSida,
+      handelsetyper: grupp.handelsetyper ?? null,
       arenden: grupp.arenden,
       omrostning: grupp.omrostning,
       tradar: gs.tradar ?? null,
@@ -2384,6 +2397,8 @@ export function createGastService(konfig) {
         kalenderId: typeof h.kalenderId === "string" && h.kalenderId ? h.kalenderId : null,
         kravSvar: h.kravSvar === true,
         ejSatt,
+        // (0.257.0) Bara ett id, och bara en text: namnet, ikonen och färgen står en gång i `kalender`-svarets `typer`.
+        typ: typeof sida.typ === "string" && sida.typ.trim() && sida.typ.trim().length <= MAX_TYPID ? sida.typ.trim() : null,
       },
       GASTHANDELSEFALT,
     );
@@ -2442,7 +2457,42 @@ export function createGastService(konfig) {
         .filter((k) => !k.arkiverad && (!iBruk || iBruk.has(k.id)))
         .map((k) => vitlista({ id: k.id, namn: typeof k.namn === "string" ? k.namn : text(k.namn?.sv) || text(k.namn?.en) || String(k.id), farg: k.farg }, GASTKALENDERFALT));
     }
-    return vitlista({ ok: true, handelser, kalendrar, avkortad, ejVisade }, GASTGRUPPSVARSFALT.kalender);
+    const typer = await typerIBruk(groupId, handelser);
+    const kanda = new Set(typer.map((t) => t.id));
+    // ⛔ (0.257.0) EN TYP SOM INTE FINNS I KATALOGEN ÄR INGEN TYP: händelsen ritas neutralt, och vyn behöver aldrig gissa ett namn till ett id.
+    const utTyp = handelser.map((h) => (h.typ && !kanda.has(h.typ) ? { ...h, typ: null } : h));
+    return vitlista({ ok: true, handelser: utTyp, kalendrar, typer, avkortad, ejVisade }, GASTGRUPPSVARSFALT.kalender);
+  }
+
+  /**
+   * (0.257.0, cllp/lifehub.app#890) Gruppens händelsetyper som gästens händelser har, i katalogens ordning, fält för fält ur `GASTHANDELSETYPFALT`. Tom utan `grupp.handelsetyper`.
+   *
+   * ⛔ BARA TYPERNA I BRUK. Filtret i gästvyn visar bara typer som finns bland händelserna (beslutet 18 nov), och en typ ingen av gästens händelser har säger något om gruppen och inget om
+   * gästens kalender. ⛔ RADEN PRÖVAS OCH KASTAR (se `Gastgrupp.handelsetyper`): färgen ska vara en plats i slagpaletten och ikonen ett namn, annars hade vyn fått ett värde den inte kan rita.
+   * @param {string} groupId
+   * @param {ReadonlyArray<Record<string, any>>} handelser
+   * @returns {Promise<Record<string, any>[]>}
+   */
+  async function typerIBruk(groupId, handelser) {
+    const hamta = /** @type {NonNullable<typeof GS>} */ (GS).handelsetyper;
+    if (!hamta) return [];
+    const iBruk = new Set(handelser.map((h) => h.typ).filter((t) => typeof t === "string"));
+    if (iBruk.size === 0) return [];
+    const rader = await hamta({ groupId });
+    if (!Array.isArray(rader)) throw new Error("grupp.handelsetyper: funktionen ska svara med en lista över gruppens händelsetyper.");
+    /** @type {Record<string, any>[]} */
+    const ut = [];
+    for (const r of rader) {
+      if (!r || typeof r.id !== "string" || !r.id.trim()) throw new Error("grupp.handelsetyper: varje typ har ett id, en text som inte är tom.");
+      const id = r.id.trim();
+      if (!iBruk.has(id) || ut.some((t) => t.id === id)) continue;
+      const namn = typeof r.namn === "string" ? { sv: text(r.namn) } : { sv: text(r.namn?.sv), en: text(r.namn?.en) || undefined };
+      if (!namn.sv) throw new Error(`grupp.handelsetyper: typen "${id}" saknar namn. Namnet är filtrets ord och det enda som bär typen för den som inte ser färgen.`);
+      if (r.ikon != null && !(typeof r.ikon === "string" && r.ikon.length <= MAX_TYPID && GASTTYPIKONFORM.test(r.ikon))) throw new Error(`grupp.handelsetyper: typen "${id}" har ikonen "${String(r.ikon)}", som inte är ett ikonnamn (kebab, som list-todo).`);
+      if (r.farg != null && !SLAGPLATSER.includes(/** @type {number} */ (r.farg))) throw new Error(`grupp.handelsetyper: typen "${id}" har färgen "${String(r.farg)}". Giltiga: ${SLAGPLATSER.join(", ")} (slagpaletten).`);
+      ut.push(vitlista({ id, namn: vitlista(namn, ["sv", "en"]), ikon: r.ikon ?? null, farg: r.farg ?? null }, GASTHANDELSETYPFALT));
+    }
+    return ut;
   }
 
   /** @param {string} handelseId */

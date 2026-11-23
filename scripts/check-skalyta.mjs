@@ -8830,19 +8830,33 @@ async function gastGrupp() {
           const f = await page.evaluate(() => ({ overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth, anrop: JSON.stringify(/** @type {any} */ (window).__gastgruppanrop.map((a) => a[0])) }));
           krav(!f.overflow, `${namn} sida (e): fliken ${flik} flödar över i sidled.`);
           if (flik === "Kalender") {
-            // ⛔ 0.190.0 (del C, CP: "Skall bara kunna läsa va och således bara en kalendervy som är lista"): ingen månad, en lista över det som är på gång. Händelsen utan
-            // datum (omröstningen) först, sedan Möte den 27 oktober (scenens idag är 20 oktober). Varje rad går att träffa.
+            // ⛔ 0.257.0 (cllp/lifehub.app#890, CP:s beslut 18 nov): gästens kalender har Lista, Månad och Vecka. Före 0.257.0 stod här beslutet ur 0.190.0
+            // (del C, "bara en kalendervy som är lista"), och kravet var att ingen månad ritades. Beslutet är ändrat, så provet följer det nya och prövar alla tre lägena.
+            // Listan väljs först (Månad är förvald från 48rem): händelsen utan datum (omröstningen) först, sedan Möte den 27 oktober (scenens idag är 20 oktober).
+            // Datumraden läses ur sin egen rad (`data-gast-nar`), inte ur radens sista element, som sedan 0.257.0 bär både titeln och datumet.
+            await page.locator("[data-gast-kalender]").getByRole("tab", { name: "Lista" }).click();
+            await page.waitForSelector('[data-gast-kalender-lage="lista"]');
             const k = await page.evaluate(() => ({
               rader: [...document.querySelectorAll("[data-gast-pagang]")].map((r) => {
                 const knapp = /** @type {HTMLElement} */ (r.closest("button, a, [role=button]") ?? r);
-                return { id: r.getAttribute("data-gast-pagang"), ejsatt: r.hasAttribute("data-ejsatt"), h: knapp.getBoundingClientRect().height, nar: (r.lastElementChild?.textContent || "").trim() };
+                return { id: r.getAttribute("data-gast-pagang"), ejsatt: r.hasAttribute("data-ejsatt"), h: knapp.getBoundingClientRect().height, nar: (r.querySelector("[data-gast-nar]")?.textContent || "").trim() };
               }),
               manad: document.querySelectorAll("[data-kalender-rulle], [role=grid]").length,
             }));
             matt.push(`${namn} sida: kalenderlistan ${JSON.stringify(k.rader)}`);
             krav(JSON.stringify(k.rader.map((r) => r.id)) === JSON.stringify(["h-ejsatt", "h-mote"]) && k.rader[0].ejsatt && k.rader[0].nar === "Datum ej satt", `${namn} sida (e, golv): kalenderlistan är ${JSON.stringify(k.rader)}, väntat Fika (Datum ej satt) först och sedan Möte.`);
-            krav(k.manad === 0, `${namn} sida (e): ${k.manad} månadsvyer ritades, väntat ingen för en gäst.`);
+            krav(k.manad === 0, `${namn} sida (e): ${k.manad} månadsvyer ritades i läget Lista, väntat ingen.`);
             krav(k.rader.every((r) => r.h >= 44), `${namn} sida (e): en rad i kalenderlistan är under 44 px (${k.rader.map((r) => r.h.toFixed(0)).join("/")}).`);
+            // Månad och Vecka ritar rutnätet (laddas lat), och ingen av dem flödar över i sidled, varken på 390 eller 1280.
+            for (const [lage, etikett] of /** @type {const} */ ([["manad", "Månad"], ["vecka", "Vecka"]])) {
+              await page.locator("[data-gast-kalender]").getByRole("tab", { name: etikett }).click();
+              await page.waitForSelector(`[data-gast-kalender-lage="${lage}"] [data-cal-day]`);
+              const v = await page.evaluate(() => ({ overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth }));
+              matt.push(`${namn} sida: kalendern i läget ${etikett}, sidled ${v.overflow}`);
+              krav(!v.overflow, `${namn} sida (e): kalendern i läget ${etikett} flödar över i sidled.`);
+              if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-kalender-${lage}-${w}.png`), fullPage: true });
+            }
+            await page.locator("[data-gast-kalender]").getByRole("tab", { name: "Lista" }).click();
           }
           if (flik === "Bibliotek") krav(await page.getByText("Låtlista").count() >= 1, `${namn} sida (e): biblioteksfliken ritade inte posten "Låtlista".`);
           if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gaster-grupp-sida-${bildnamn}-${w}.png`), fullPage: true });

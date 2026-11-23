@@ -9,6 +9,28 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.257.0
+
+**Gästens kalender är en riktig kalender: Lista, Månad och Vecka, filter på händelsetyp, och typens ikon och färg (cllp/lifehub.app#890).** CP godkände 18 nov kalendervyn i gästvyn, generellt för alla grupper och hubbar med Travel-gruppen som första användare. Sedan 0.190.0 var gästens kalender bara en lista över det som är på gång. Nu växlar gästen mellan Lista, Månad och Vecka (Lista förvald på telefon och där skärmen inte säger att den är bred, Månad på dator, senaste valet sparas på enheten), filtrerar med chips per händelsetyp (bara typer som finns bland händelserna) och Visa passerade (av från början), och ser typens ikon och färg i listan och i kalendern. Månad och Vecka är ramverkets `OpsCalendar`, och veckan är ett läge i den, ingen andra kalender. Gästen läser, svarar och röstar som förut: ingen skapa, ingen flytt, inga kalenderinställningar.
+
+### Tillagt
+- **`OpsCalendar lage="vecka"`**: en vecka ur samma rutnät (samma rutor, band, märken och dagpanel) med Föregående vecka, Nästa vecka och Den här veckan (bara när man är i en annan vecka). Utan vald dag listar dagpanelen veckans dagar med poster, utan stängkryss och utan kryss i pillren; en vecka utan poster säger "Inget den här veckan.". Förval `"manad"`, och ett annat värde kastar. **`ORD_VECKA`** är veckolägets ord.
+- **`veckansDagar(dag)`** i `lib/calendar.js`: veckan måndag till söndag som sju datumsträngar, också över en månadsgräns.
+- **`grupp.handelsetyper({ groupId })`** i gästtjänsten (valfri) och **`typ`** i `grupp.handelseSida`: `kalender` svarar med **`typer`**, bara typerna som någon av gästens händelser har, fält för fält ur **`GASTHANDELSETYPFALT`** (`id`, `namn` som `{ sv, en? }`, `ikon`, `farg`). Händelsen bär bara typens id (`GASTHANDELSEFALT` fick `typ`), `null` när typen saknas i katalogen. En typ med en färg utanför slagpaletten, ett ikonnamn som inte följer **`GASTTYPIKONFORM`** eller inget namn kastar. Utan `grupp.handelsetyper` är `typer` tom och allt ritas neutralt, som förut.
+- **`OpsGastGrupp ritaTypIkon(namn)`**: appens ikon för ett ikonnamn, som medlemmens `kindIcon`. Utan den ritas typens färg som en prick, med typens ord i raden.
+- **`OpsGastKalender`** (gästens kalenderflik) och **`lib/gastkalender.js`** (`GASTKALENDERLAGEN`, `gastkalenderUrval`, `typerIFiltret`, `typVisning`, `gastPost`, `typNamn`): urvalet, ordningen och typens ord och färg räknas en gång för alla tre lägena. **`lasGastKalenderlage`**, **`skrivGastKalenderlage`** och **`GASTKALENDERLAGE`** i `lib/gastminne.js`.
+
+### Ändrat
+- Gästens kalender hämtar `OpsCalendar` först när Månad eller Vecka väljs (`OpsGastKalenderRutnat`). `check:delbarhet` mäter att den inte ligger i biten som `OpsGastGrupp` drar in: med en statisk import växte den biten från 911 446 till 1 047 671 tecken.
+- Kalendern står kvar, dold, medan en händelse är öppen, så att Tillbaka visar samma läge, filter och vecka.
+
+### Rättat
+- **Kalendern ritas när webbläsaren blockerar lagring.** `OpsCalendar` läste `window.localStorage` utan skydd, och läsningen kastar `SecurityError` i ett blockerat läge (privat läge i vissa webbläsare, en inbäddad vy). Gästens Månad och Vecka visade då "Kalendern gick inte att visa". Nu samma skyddade läsning som `useKalenderSynlighet` redan hade (`webblasarlagring`). Hittat av `check-skalyta`, som också prövar Lista, Månad och Vecka i gästvyn sedan 0.257.0.
+- **Escape och ett tryck utanför i `OpsCalendar` gäller bara en dagpanel och en snabbtitt som syns.** Lyssnarna sitter på fönstret, och kalendern hålls monterad och dold (`hidden`) medan en händelse är öppen, i skalet som i gästvyn. Escape i händelsens panel tömde då den dolda kalenderns valda dagar, och ett tryck i panelen stängde snabbtitten bakom den. Nu gör lyssnaren ingenting när ytan står i ett dolt eller spärrat lager (`hidden`, `inert`) eller när ett lager ovanför redan tagit tangenten.
+
+### För appen
+- Ge gästtjänsten `grupp.handelsetyper` (gruppens katalog ur `handelsetyper`: `id`, `namn`, `ikon`, `farg`) och låt `handelseSida` svara med `typ: h.typ`. Ge `OpsGastGrupp` `ritaTypIkon={(namn) => ...}` ur appens ikonlista i radens storlek (16 px). Utan de tre ser gästen kalendern utan typer.
+
 ## 0.256.0
 
 **Återkommande jobb: schemat, låset och vyn (cllp/lifehub.app#888, ramverkets halva).** Planen i #886 är godkänd av CP (18 nov): banksynken, avstämningen och påminnelsen är tre jobb med samma mekanik, ett schema, ett lås och ett utfall. Fram till nu körde banksynken på en egen cron (06:15) bakom en flagga, och nästa jobb hade fått en egen cron och en egen sommartidsräkning till. Mekaniken är densamma för varje app och hör därför till ramverket; jobbtyperna, samlingen, reglerna och schemaläggaren är appens. Ramverket känner inga samlingsnamn och inga jobbtyper.
