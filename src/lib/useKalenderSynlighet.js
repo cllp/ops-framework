@@ -35,8 +35,13 @@ import { delaPosterPaSynlighet, forvaldKalenderId } from "./calendar.js";
  * @typedef {{ las: () => Promise<unknown> | unknown, skriv: (val: import("./kalendersynlighet.js").KalenderSynlighet) => Promise<unknown> | unknown }} Kalenderkonto
  */
 
-/** @returns {Kalenderlagring | undefined} */
-function webblasarlagring() {
+/**
+ * Webbläsarens lagring, eller `undefined` när den inte går att läsa. Exporterad (0.257.0) så att `OpsCalendar` läser den samma väg: dess egen
+ * läsning av `window.localStorage` saknade skyddet, och gästens kalender föll på det med "Kalendern gick inte att visa" i en blockerad
+ * webbläsare (cllp/lifehub.app#890, hittat av check-skalyta).
+ * @returns {Kalenderlagring | undefined}
+ */
+export function webblasarlagring() {
   // `window.localStorage` KAN KASTA bara genom att läsas (SecurityError i ett blockerat läge), och då ska kalendern fungera utan minne.
   try {
     return typeof window !== "undefined" ? window.localStorage : undefined;

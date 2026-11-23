@@ -12,7 +12,7 @@ import { kulorStil } from "../lib/gruppfarg.js";
 import { DATUM_EJ_SATT } from "../lib/handelsemodell.js";
 import { MAX_KALENDERRAMAR, ORD_KALENDERRAMAR, kalenderRamarAlla } from "../lib/kalenderramar.js";
 import { forvalda } from "../lib/ord.js";
-import { useKalenderSynlighet } from "../lib/useKalenderSynlighet.js";
+import { useKalenderSynlighet, webblasarlagring } from "../lib/useKalenderSynlighet.js";
 import { useHandelseOppnare } from "../lib/handelsekontext.js";
 import { LANGTRYCK_MS } from "../lib/talk.js";
 import { BRICKA_GRANS, BRICKA_MINSTA_OVERHANG, Dagruta } from "./OpsCalendarDagruta.jsx";
@@ -1516,7 +1516,8 @@ export function OpsCalendar({
     else setRadId(e.id);
   }, []);
 
-  const lagringen = lagring || (typeof window !== "undefined" ? window.localStorage : undefined);
+  // ⛔ LÄSNINGEN KAN KASTA (SecurityError när webbläsaren blockerar lagring), och då ska kalendern ritas utan minne, inte falla (0.257.0, #890).
+  const lagringen = lagring || webblasarlagring();
 
   /*
    * ══ ⛔ KALENDRARNA SOM EN LISTA, ETT MINNE (0.134.0, cllp/lifehub.app#402) ═══════════════════════════════════════════════
