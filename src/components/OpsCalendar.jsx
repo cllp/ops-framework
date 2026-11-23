@@ -270,6 +270,22 @@ function Datumpiller({ dayKey, onTaBort, order, locale }) {
 }
 
 /**
+ * Står ytan i ett dolt eller spärrat lager (`hidden` eller `inert` på den själv eller en förälder), eller har den lämnat sidan?
+ *
+ * ══ ⛔ ESCAPE OCH TRYCK UTANFÖR GÄLLER BARA DET SOM SYNS (0.257.0, granskningen av cllp/lifehub.app#890) ══════════════════════════
+ *
+ * Dagpanelen och snabbtitten lyssnar på FÖNSTRET, eftersom fokus ligger kvar på dagrutan och inte i panelen (se `DayPanel`). Men kalendern hålls
+ * monterad och dold medan en händelse är öppen: skalet döljer appens vy med `hidden` (`OpsAppShell`, `handelsePanelSyns`), och gästvyn sin kalender
+ * på samma sätt (`OpsGastGrupp`). Escape i händelsens panel tömde då också den dolda kalenderns urval, och ett tryck i panelen stängde snabbtitten
+ * bakom den. Den som gick Tillbaka hittade inte dagarna hen valt. Lyssnaren gör därför ingenting när ytan inte syns, och inte heller när ett lager
+ * ovanför redan tagit tangenten (`defaultPrevented`).
+ * @param {Element | null} el @returns {boolean}
+ */
+function iDoltLager(el) {
+  return !el || !el.isConnected || el.closest("[hidden], [inert]") !== null;
+}
+
+/**
  * En post, som en rad i dagpanelens bubbla.
  *
  * ══ ⛔ EN BUBBLA MED RADER OCH AVDELARE, SOM SS-APPEN (0.37.0) ══════════════
@@ -536,6 +552,7 @@ const DAGPANEL_TAK = 0.75;
  * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void, onSkapa?: () => void, locale: string, arMin: (e: import("../lib/calendar.js").CalendarEntry) => boolean, lager?: import("react").ReactNode, oppna: ((id: string) => void) | null, oppnaExtern: (e: import("../lib/calendar.js").CalendarEntry) => void, lasbara: ReadonlySet<string>, ramarForDag: (dayKey: string) => ReadonlyArray<{ id: string, namn: string, kulor: number }> | undefined, oversikt?: boolean }} props
  */
 function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin, lager, oppna, oppnaExtern, lasbara, ramarForDag, oversikt = false }) {
+  const panelYta = useRef(/** @type {HTMLElement | null} */ (null));
   const flera = days.length > 1;
   const title = flera ? `${days.length} dagar` : dateText(days[0].dayKey, locale);
   const name = flera ? `Poster för ${days.length} valda dagar` : `Poster den ${title}`;
@@ -555,7 +572,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
   useEffect(() => {
     /** @param {KeyboardEvent} e */
     const vid = (e) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !e.defaultPrevented && !iDoltLager(panelYta.current)) onClose();
     };
     if (oversikt) return undefined;
     window.addEventListener("keydown", vid);
@@ -572,7 +589,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
   const avsnitt = mina.length > 0 && gruppens.length > 0 ? [{ rubrik: "Grupp", rader: gruppens }, { rubrik: "Mina", rader: mina }] : [{ rubrik: "", rader }];
 
   return (
-    <section aria-label={name} data-dagpanel="" data-ops-doljer-flytande-skapa="" className="flex w-full flex-col gap-2 p-3 lg:p-0">
+    <section ref={panelYta} aria-label={name} data-dagpanel="" data-ops-doljer-flytande-skapa="" className="flex w-full flex-col gap-2 p-3 lg:p-0">
       {/*
        * ⛔ PILLREN OCH STÄNGKRYSSET ÄR TVÅ YTOR (bolag-ops#556). Före det delade de en
        * `flex-wrap`-rad där stängkrysset hade `ml-auto`: när flera dagar valdes klämdes
@@ -741,11 +758,11 @@ function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna, oppnaExtern,
   useEffect(() => {
     /** @param {KeyboardEvent} e */
     const tangent = (e) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !e.defaultPrevented && !iDoltLager(ref.current)) onClose();
     };
     /** @param {PointerEvent} e */
     const utanfor = (e) => {
-      if (ref.current && !ref.current.contains(/** @type {Node} */ (e.target))) onClose();
+      if (ref.current && !iDoltLager(ref.current) && !ref.current.contains(/** @type {Node} */ (e.target))) onClose();
     };
     window.addEventListener("keydown", tangent);
     window.addEventListener("pointerdown", utanfor);

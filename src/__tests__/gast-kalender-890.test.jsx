@@ -156,6 +156,36 @@ describe("växeln Lista, Månad och Vecka", () => {
   });
 });
 
+describe("⛔ Escape och tryck medan kalendern är dold bakom en öppen händelse (granskningen av 0.257.0)", () => {
+  it("Escape och ett tryck i händelsens panel rör inte den dolda kalenderns valda dag, och Tillbaka visar dagen som gästen valde", async () => {
+    await oppnaKalendern();
+    await klicka(screen.getByRole("tab", { name: "Månad" }));
+    const kalender = await screen.findByRole("region", { name: "Kalender" }, { timeout: 5000 });
+    await klicka(/** @type {Element} */ (kalender.querySelector('[data-cal-day="2026-11-24"]')));
+    // Golv: dagen är vald och dagpanelen öppen innan händelsen öppnas.
+    expect(document.querySelector("[data-dagpanel]")).not.toBeNull();
+    await klicka(within(/** @type {HTMLElement} */ (document.querySelector("[data-dagpanel]"))).getByText("Flyg till Lissabon"));
+    const tillbaka = await screen.findByRole("button", { name: "Tillbaka" });
+    expect(document.querySelector("[data-gast-kalender-plats]")?.hasAttribute("hidden")).toBe(true);
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "Escape" });
+      fireEvent.pointerDown(tillbaka);
+    });
+    await klicka(tillbaka);
+    const panel = /** @type {HTMLElement} */ (document.querySelector("[data-dagpanel]"));
+    expect(panel).not.toBeNull();
+    expect(within(panel).getByText("Flyg till Lissabon")).toBeInTheDocument();
+  });
+
+  it("en synlig dagpanel stängs fortfarande med Escape", () => {
+    render(<OpsCalendar ariaLabel="K" today={new Date(2026, 10, 20)} entries={[{ id: "a", date: "2026-11-24", title: "Middag" }]} />);
+    fireEvent.click(/** @type {Element} */ (document.querySelector('[data-cal-day="2026-11-24"]')));
+    expect(document.querySelector("[data-dagpanel]")).not.toBeNull();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(document.querySelector("[data-dagpanel]")).toBeNull();
+  });
+});
+
 describe("filtret: chips per typ och Visa passerade", () => {
   it("bara typerna som finns bland händelserna är chips, och ett chip visar bara sin typ i listan", async () => {
     await oppnaKalendern();
