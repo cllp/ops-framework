@@ -206,8 +206,9 @@ export function jobbKorningsId(jobbId, planerad) {
  * En tidpunkt ur det som en datakälla ger tillbaka: `Date`, Firestores `Timestamp` (`toDate`/`toMillis`), ISO-sträng eller
  * millisekunder. `null` för allt annat.
  *
- * ⛔ EN FUNKTION FÖR BÅDA SIDOR. Admin SDK skriver ett `Date` och läser tillbaka ett `Timestamp`, och klienten får samma sak. Läste
- * servern och vyn tiden på var sitt sätt hade "nästa körning" kunnat betyda två olika tidpunkter.
+ * ⛔ EN FUNKTION FÖR BÅDA SIDOR. Servern skriver millisekunder (`src/node/jobb.js`, så att `fore` jämför likadant i varje adapter),
+ * men ett jobb som appen skrivit för hand kan bära ett `Date` eller ett `Timestamp`. Läste servern och vyn tiden på var sitt sätt hade
+ * "nästa körning" kunnat betyda två olika tidpunkter.
  *
  * @param {unknown} v
  * @returns {Date | null}

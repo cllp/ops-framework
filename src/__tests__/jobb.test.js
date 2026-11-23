@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { JOBBSTEG, jobbKorningsId, jobbTidpunkt, nastaKorning, validateJobbschema } from "../lib/jobb.js";
 import { korForfallnaJobb, korJobbNu, slutforJobb, tilldelaJobb, vitlistaUtfall } from "../node/jobb.js";
+import { createMemorySource } from "../data/adapters.js";
 
 /**
  * Återkommande jobb (0.256.0, cllp/lifehub.app#888): schemat, nästa körning över sommartidsskiftet, låset och schemaläggarens varv.
@@ -114,238 +115,214 @@ describe("nastaKorning", () => {
 });
 
 /*
- * ═══ En Firestore i minnet med Admin SDK:s form ══════════════════════════════════════════════════════════════════════════
- * `collection(namn).doc(id)` med `get`, `runTransaction` (läsningar direkt, skrivningar när återanropet är klart, som i Firestore),
- * och en fråga med `where("in" | "<=")`, `orderBy`, `limit` och `get`. Tiderna jämförs som tidpunkter, som Firestores Timestamp.
+ * ═══ Servern mot minneskällan ════════════════════════════════════════════════════════════════════════════════════════════
+ * Samma datakälla som övriga tjänster under `src/node` provas mot (`createMemorySource`). Dess `updateIf` jämför och skriver utan att
+ * vänta däremellan, som kontraktets regel 7 kräver, så två samtidiga anspråk på samma version kan inte båda lyckas. Tiderna är
+ * millisekunder, som i dokumentet.
  */
-function minnesDb(/** @type {Record<string, Record<string, any>>} */ start = {}) {
-  /** @type {Map<string, Map<string, any>>} */
-  const samlingar = new Map(Object.entries(start).map(([n, d]) => [n, new Map(Object.entries(d).map(([id, v]) => [id, structuredClone(v)]))]));
-  const sam = (/** @type {string} */ n) => {
-    if (!samlingar.has(n)) samlingar.set(n, new Map());
-    return /** @type {Map<string, any>} */ (samlingar.get(n));
-  };
-  const snap = (/** @type {string} */ id, /** @type {any} */ v) => ({ id, exists: v !== undefined, data: () => (v === undefined ? undefined : structuredClone(v)) });
-  const varde = (/** @type {any} */ v) => (v instanceof Date ? v.getTime() : v);
-  const db = {
-    transaktioner: 0,
-    collection(/** @type {string} */ n) {
-      /** @type {Array<(d: any) => boolean>} */
-      const villkor = [];
-      /** @type {string | null} */
-      let ordning = null;
-      let tak = Infinity;
-      const fraga = {
-        where(/** @type {string} */ f, /** @type {string} */ op, /** @type {any} */ v) {
-          if (op === "in") villkor.push((d) => v.includes(d[f]));
-          else if (op === "<=") villkor.push((d) => d[f] != null && varde(d[f]) <= varde(v));
-          else throw new Error(`minnesDb: ${op} stöds inte`);
-          return fraga;
-        },
-        orderBy(/** @type {string} */ f) {
-          ordning = f;
-          return fraga;
-        },
-        limit(/** @type {number} */ n2) {
-          tak = n2;
-          return fraga;
-        },
-        async get() {
-          let rader = [...sam(n).entries()].filter(([, d]) => villkor.every((v) => v(d)));
-          if (ordning) rader.sort((a, b) => varde(a[1][/** @type {string} */ (ordning)]) - varde(b[1][/** @type {string} */ (ordning)]));
-          return { docs: rader.slice(0, tak).map(([id, d]) => snap(id, d)) };
-        },
-        doc(/** @type {string} */ id) {
-          return { samling: n, id, get: async () => snap(id, sam(n).get(id)) };
-        },
-      };
-      return fraga;
-    },
-    async runTransaction(/** @type {(tx: any) => Promise<any>} */ fn) {
-      db.transaktioner += 1;
-      /** @type {Array<() => void>} */
-      const skrivningar = [];
-      const tx = {
-        get: async (/** @type {any} */ ref) => snap(ref.id, sam(ref.samling).get(ref.id)),
-        update: (/** @type {any} */ ref, /** @type {any} */ data) => skrivningar.push(() => sam(ref.samling).set(ref.id, { ...sam(ref.samling).get(ref.id), ...data })),
-      };
-      const svar = await fn(tx);
-      for (const s of skrivningar) s();
-      return svar;
-    },
-    las: (/** @type {string} */ n, /** @type {string} */ id) => sam(n).get(id),
-  };
-  return db;
-}
 
+const ms = (/** @type {string} */ iso) => Date.parse(iso);
 const NU = U("2026-11-23T05:20:00Z");
 const SAMLING = "appensJobb";
-const jobbet = (/** @type {Record<string, any>} */ extra = {}) => ({ groupId: "g1", typ: "bank", lage: "skarp", schema: { steg: "dag", tid: "06:15" }, nastaKorning: U("2026-11-23T05:15:00Z"), ...extra });
+/** @param {string} id @param {Record<string, any>} [extra] */
+const jobbet = (id, extra = {}) => ({ id, groupId: "g1", typ: "bank", lage: "skarp", schema: { steg: "dag", tid: "06:15" }, nastaKorning: ms("2026-11-23T05:15:00Z"), version: 0, las: null, ...extra });
+/** @param {...Record<string, any>} rader */
+const kalla = (...rader) => createMemorySource({ [SAMLING]: rader });
+/** @param {any} k @param {string} id */
+const las = (k, id) => k.read(SAMLING, id);
 
 describe("tilldelaJobb", () => {
-  it("tar ett förfallet jobb: låset bär tidsgränsen och körningens id", async () => {
-    const db = minnesDb({ [SAMLING]: { a: jobbet() } });
-    const svar = await tilldelaJobb({ db, samling: SAMLING, jobbId: "a", nu: NU, tidsgransMs: 60_000 });
+  it("tar ett förfallet jobb: låset bär tidsgränsen och körningens id, och versionen räknas upp", async () => {
+    const k = kalla(jobbet("a"));
+    const svar = await tilldelaJobb({ kalla: k, samling: SAMLING, jobbId: "a", nu: NU, tidsgransMs: 60_000 });
     expect(svar?.korningId).toBe("a@2026-11-23T05:15:00.000Z");
+    expect(svar?.version).toBe(1);
     expect(svar?.jobb.id).toBe("a");
-    expect(db.las(SAMLING, "a").las).toEqual({ till: U("2026-11-23T05:21:00Z"), korning: "a@2026-11-23T05:15:00.000Z" });
+    const d = await las(k, "a");
+    expect(d.las).toEqual({ till: ms("2026-11-23T05:21:00Z"), korning: "a@2026-11-23T05:15:00.000Z" });
+    expect(d.version).toBe(1);
+  });
+
+  it("två samtidiga anspråk på samma version ger exakt en vinnare", async () => {
+    const k = kalla(jobbet("a"));
+    const svar = await Promise.all([1, 2, 3].map(() => tilldelaJobb({ kalla: k, samling: SAMLING, jobbId: "a", nu: NU })));
+    expect(svar.filter(Boolean)).toHaveLength(1);
+    expect((await las(k, "a")).version).toBe(1);
   });
 
   it("hoppar över ett giltigt lås, men tar ett som löpt ut", async () => {
-    const db = minnesDb({ [SAMLING]: { a: jobbet({ las: { till: U("2026-11-23T05:25:00Z"), korning: "x" } }), b: jobbet({ las: { till: U("2026-11-23T05:19:00Z"), korning: "x" } }) } });
-    expect(await tilldelaJobb({ db, samling: SAMLING, jobbId: "a", nu: NU })).toBeNull();
-    expect(db.las(SAMLING, "a").las.korning).toBe("x");
-    expect((await tilldelaJobb({ db, samling: SAMLING, jobbId: "b", nu: NU }))?.korningId).toBe("b@2026-11-23T05:15:00.000Z");
+    const k = kalla(jobbet("a", { las: { till: ms("2026-11-23T05:25:00Z"), korning: "x" } }), jobbet("b", { las: { till: ms("2026-11-23T05:19:00Z"), korning: "x" } }));
+    expect(await tilldelaJobb({ kalla: k, samling: SAMLING, jobbId: "a", nu: NU })).toBeNull();
+    expect((await las(k, "a")).las.korning).toBe("x");
+    expect((await tilldelaJobb({ kalla: k, samling: SAMLING, jobbId: "b", nu: NU }))?.korningId).toBe("b@2026-11-23T05:15:00.000Z");
   });
 
   it("tar inte ett jobb som inte är förfallet, är av eller saknas; direkt tar ett som inte är förfallet men aldrig ett avslaget", async () => {
-    const db = minnesDb({ [SAMLING]: { senare: jobbet({ nastaKorning: U("2026-11-24T05:15:00Z") }), av: jobbet({ lage: "av" }), utan: jobbet({ nastaKorning: null }) } });
-    expect(await tilldelaJobb({ db, samling: SAMLING, jobbId: "senare", nu: NU })).toBeNull();
-    expect(await tilldelaJobb({ db, samling: SAMLING, jobbId: "av", nu: NU })).toBeNull();
-    expect(await tilldelaJobb({ db, samling: SAMLING, jobbId: "utan", nu: NU })).toBeNull();
-    expect(await tilldelaJobb({ db, samling: SAMLING, jobbId: "finns-inte", nu: NU })).toBeNull();
-    expect((await tilldelaJobb({ db, samling: SAMLING, jobbId: "senare", nu: NU, direkt: true }))?.korningId).toBe("senare@2026-11-23T05:20:00.000Z");
-    expect(await tilldelaJobb({ db, samling: SAMLING, jobbId: "av", nu: NU, direkt: true })).toBeNull();
+    const k = kalla(jobbet("senare", { nastaKorning: ms("2026-11-24T05:15:00Z") }), jobbet("av", { lage: "av" }), jobbet("utan", { nastaKorning: null }));
+    expect(await tilldelaJobb({ kalla: k, samling: SAMLING, jobbId: "senare", nu: NU })).toBeNull();
+    expect(await tilldelaJobb({ kalla: k, samling: SAMLING, jobbId: "av", nu: NU })).toBeNull();
+    expect(await tilldelaJobb({ kalla: k, samling: SAMLING, jobbId: "utan", nu: NU })).toBeNull();
+    expect(await tilldelaJobb({ kalla: k, samling: SAMLING, jobbId: "finns-inte", nu: NU })).toBeNull();
+    expect((await tilldelaJobb({ kalla: k, samling: SAMLING, jobbId: "senare", nu: NU, direkt: true }))?.korningId).toBe("senare@2026-11-23T05:20:00.000Z");
+    expect(await tilldelaJobb({ kalla: k, samling: SAMLING, jobbId: "av", nu: NU, direkt: true })).toBeNull();
   });
 
-  it("kastar utan db eller samling: ramverket känner inga", async () => {
-    await expect(tilldelaJobb({ db: {}, samling: SAMLING, jobbId: "a", nu: NU })).rejects.toThrow(/Firestore-lik db/);
-    await expect(tilldelaJobb({ db: minnesDb(), samling: "", jobbId: "a", nu: NU })).rejects.toThrow(/samlingens namn/);
+  it("säger nej utan updateIf, utan samling och för ett jobb utan version", async () => {
+    const utan = { read: async () => null, list: async () => [] };
+    await expect(tilldelaJobb({ kalla: /** @type {any} */ (utan), samling: SAMLING, jobbId: "a", nu: NU })).rejects.toThrow(/saknar updateIf/);
+    await expect(tilldelaJobb({ kalla: kalla(), samling: "", jobbId: "a", nu: NU })).rejects.toThrow(/samlingens namn/);
+    await expect(tilldelaJobb({ kalla: kalla(jobbet("a", { version: undefined })), samling: SAMLING, jobbId: "a", nu: NU })).rejects.toThrow(/saknar version/);
   });
 });
 
 describe("slutforJobb", () => {
-  it("skriver senast och nästa körning och släpper låset när körningen är låsets", async () => {
-    const db = minnesDb({ [SAMLING]: { a: jobbet({ las: { till: U("2026-11-23T05:30:00Z"), korning: "k1" } }) } });
-    const skrivet = await slutforJobb({ db, samling: SAMLING, jobbId: "a", korningId: "k1", utfall: { utfall: "ok", paborjat: 12, bekraftat: 12 }, nu: NU });
-    expect(skrivet).toEqual({ tid: NU, utfall: "ok", paborjat: 12, bekraftat: 12 });
-    const d = db.las(SAMLING, "a");
+  it("skriver senast och nästa körning och släpper låset när versionen är låsets", async () => {
+    const k = kalla(jobbet("a", { version: 1, las: { till: ms("2026-11-23T05:30:00Z"), korning: "k1" } }));
+    const skrivet = await slutforJobb({ kalla: k, samling: SAMLING, jobbId: "a", version: 1, utfall: { utfall: "ok", paborjat: 12, bekraftat: 12 }, nu: NU });
+    expect(skrivet).toEqual({ tid: NU.getTime(), utfall: "ok", paborjat: 12, bekraftat: 12 });
+    const d = await las(k, "a");
     expect(d.las).toBeNull();
-    expect(d.senast).toEqual({ tid: NU, utfall: "ok", paborjat: 12, bekraftat: 12 });
-    expect(d.nastaKorning).toEqual(U("2026-11-24T05:15:00Z"));
+    expect(d.version).toBe(2);
+    expect(d.senast).toEqual({ tid: NU.getTime(), utfall: "ok", paborjat: 12, bekraftat: 12 });
+    expect(d.nastaKorning).toBe(ms("2026-11-24T05:15:00Z"));
   });
 
-  it("gör ingenting med fel körnings-id", async () => {
-    const db = minnesDb({ [SAMLING]: { a: jobbet({ las: { till: U("2026-11-23T05:30:00Z"), korning: "k2" } }) } });
-    expect(await slutforJobb({ db, samling: SAMLING, jobbId: "a", korningId: "k1", utfall: { utfall: "ok" }, nu: NU })).toBeNull();
-    const d = db.las(SAMLING, "a");
-    expect(d.las.korning).toBe("k2");
+  it("ett sent avslut efter att låset löpt ut och tagits igen skriver ingenting", async () => {
+    const k = kalla(jobbet("a"));
+    const forsta = await tilldelaJobb({ kalla: k, samling: SAMLING, jobbId: "a", nu: NU, tidsgransMs: 60_000 });
+    const senare = new Date(NU.getTime() + 2 * 60_000);
+    const andra = await tilldelaJobb({ kalla: k, samling: SAMLING, jobbId: "a", nu: senare, tidsgransMs: 60_000 });
+    expect(forsta?.version).toBe(1);
+    expect(andra?.version).toBe(2);
+    expect(await slutforJobb({ kalla: k, samling: SAMLING, jobbId: "a", version: /** @type {number} */ (forsta?.version), utfall: { utfall: "ok", paborjat: 9 }, nu: senare })).toBeNull();
+    const d = await las(k, "a");
     expect(d.senast).toBeUndefined();
-    expect(d.nastaKorning).toEqual(U("2026-11-23T05:15:00Z"));
+    expect(d.version).toBe(2);
+    expect(d.las.till).toBe(senare.getTime() + 60_000);
+    expect(d.nastaKorning).toBe(ms("2026-11-23T05:15:00Z"));
   });
 
   it("vitlistar senast: inga texter, belopp eller nycklar kan lagras", () => {
+    const t = NU.getTime();
     const smutsigt = { utfall: "fel", paborjat: 3, bekraftat: -1, kod: "Banken svarade: konto 1234 saldo 5000 kr", meddelande: "hemligt", belopp: 5000, nyckel: "sk_live_x" };
-    expect(vitlistaUtfall(smutsigt, NU)).toEqual({ tid: NU, utfall: "fel", paborjat: 3 });
-    expect(vitlistaUtfall({ utfall: "ok", paborjat: 2.5, bekraftat: "12", kod: "bank-tak" }, NU)).toEqual({ tid: NU, utfall: "ok", kod: "bank-tak" });
-    expect(vitlistaUtfall({ utfall: "klart" }, NU)).toEqual({ tid: NU, utfall: "fel", kod: "okant-utfall" });
-    expect(vitlistaUtfall(undefined, NU)).toEqual({ tid: NU, utfall: "fel", kod: "okant-utfall" });
-    expect(vitlistaUtfall({ utfall: "ok", kod: "x".repeat(41) }, NU)).toEqual({ tid: NU, utfall: "ok" });
+    expect(vitlistaUtfall(smutsigt, NU)).toEqual({ tid: t, utfall: "fel", paborjat: 3 });
+    expect(vitlistaUtfall({ utfall: "ok", paborjat: 2.5, bekraftat: "12", kod: "bank-tak" }, NU)).toEqual({ tid: t, utfall: "ok", kod: "bank-tak" });
+    expect(vitlistaUtfall({ utfall: "klart" }, NU)).toEqual({ tid: t, utfall: "fel", kod: "okant-utfall" });
+    expect(vitlistaUtfall(undefined, NU)).toEqual({ tid: t, utfall: "fel", kod: "okant-utfall" });
+    expect(vitlistaUtfall({ utfall: "ok", kod: "x".repeat(41) }, NU)).toEqual({ tid: t, utfall: "ok" });
   });
 
-  it("ett schema som inte går att läsa stoppar jobbet synligt: ingen nästa körning, fel med koden ogiltigt-schema", async () => {
-    const db = minnesDb({ [SAMLING]: { a: jobbet({ schema: { steg: "sekund" }, las: { till: U("2026-11-23T05:30:00Z"), korning: "k1" } }) } });
-    await slutforJobb({ db, samling: SAMLING, jobbId: "a", korningId: "k1", utfall: { utfall: "ok" }, nu: NU });
-    const d = db.las(SAMLING, "a");
+  it("ett schema som inte går att läsa stoppar jobbet synligt, och ett jobb som slogs av under körningen får ingen nästa körning", async () => {
+    const k = kalla(jobbet("a", { schema: { steg: "sekund" }, version: 1, las: { till: ms("2026-11-23T05:30:00Z"), korning: "k1" } }), jobbet("b", { lage: "av", version: 1, las: { till: ms("2026-11-23T05:30:00Z"), korning: "k1" } }));
+    await slutforJobb({ kalla: k, samling: SAMLING, jobbId: "a", version: 1, utfall: { utfall: "ok" }, nu: NU });
+    const d = await las(k, "a");
     expect(d.nastaKorning).toBeNull();
-    expect(d.senast).toEqual({ tid: NU, utfall: "fel", kod: "ogiltigt-schema" });
+    expect(d.senast).toEqual({ tid: NU.getTime(), utfall: "fel", kod: "ogiltigt-schema" });
     expect(d.las).toBeNull();
+    await slutforJobb({ kalla: k, samling: SAMLING, jobbId: "b", version: 1, utfall: { utfall: "ok" }, nu: NU });
+    expect((await las(k, "b")).nastaKorning).toBeNull();
   });
 });
 
 describe("korForfallnaJobb", () => {
   it("kör varje förfallet jobb, går vidare efter en typ som kastar, och räknar påbörjade och bekräftade", async () => {
-    const db = minnesDb({
-      [SAMLING]: {
-        ok: jobbet({ typ: "bank" }),
-        kastar: jobbet({ typ: "trasig" }),
-        okand: jobbet({ typ: "finns-inte" }),
-        hoppar: jobbet({ typ: "tom", lage: "prov" }),
-        senare: jobbet({ nastaKorning: U("2026-11-24T05:15:00Z") }),
-        av: jobbet({ lage: "av" }),
-        last: jobbet({ las: { till: U("2026-11-23T06:00:00Z"), korning: "annan" } }),
-      },
-    });
+    const k = kalla(
+      jobbet("ok", { typ: "bank" }),
+      jobbet("kastar", { typ: "trasig" }),
+      jobbet("okand", { typ: "finns-inte" }),
+      jobbet("hoppar", { typ: "tom", lage: "prov" }),
+      jobbet("senare", { nastaKorning: ms("2026-11-24T05:15:00Z") }),
+      jobbet("av", { lage: "av" }),
+      jobbet("last", { las: { till: ms("2026-11-23T06:00:00Z"), korning: "annan" } }),
+    );
     const bank = vi.fn(async () => ({ utfall: "ok", paborjat: 12, bekraftat: 12, saldo: 5000 }));
     const tom = vi.fn(async () => ({ utfall: "hoppad", kod: "inget-nytt" }));
     const onFel = vi.fn();
     const fel = Object.assign(new Error("Banken: konto 1234"), { kod: "bank-nere" });
     const typer = { bank: { kor: bank }, trasig: { kor: async () => { throw fel; } }, tom: { kor: tom } };
-    const rapport = await korForfallnaJobb({ db, samling: SAMLING, nu: NU, typer, onFel });
+    const rapport = await korForfallnaJobb({ kalla: k, samling: SAMLING, nu: NU, typer, onFel });
 
+    const t = NU.getTime();
     expect(rapport).toEqual({ paborjade: 4, bekraftade: 4, fel: 1, hoppade: 2 });
     expect(bank).toHaveBeenCalledWith(expect.objectContaining({ id: "ok" }), { lage: "skarp", korningId: "ok@2026-11-23T05:15:00.000Z" });
     expect(tom).toHaveBeenCalledWith(expect.objectContaining({ id: "hoppar" }), { lage: "prov", korningId: "hoppar@2026-11-23T05:15:00.000Z" });
     expect(onFel).toHaveBeenCalledWith("kastar", fel);
-    expect(db.las(SAMLING, "ok").senast).toEqual({ tid: NU, utfall: "ok", paborjat: 12, bekraftat: 12 });
-    expect(db.las(SAMLING, "kastar").senast).toEqual({ tid: NU, utfall: "fel", kod: "bank-nere" });
-    expect(db.las(SAMLING, "okand").senast).toEqual({ tid: NU, utfall: "hoppad", kod: "okand-typ" });
-    expect(db.las(SAMLING, "hoppar").senast).toEqual({ tid: NU, utfall: "hoppad", kod: "inget-nytt" });
+    expect((await las(k, "ok")).senast).toEqual({ tid: t, utfall: "ok", paborjat: 12, bekraftat: 12 });
+    expect((await las(k, "kastar")).senast).toEqual({ tid: t, utfall: "fel", kod: "bank-nere" });
+    expect((await las(k, "okand")).senast).toEqual({ tid: t, utfall: "hoppad", kod: "okand-typ" });
+    expect((await las(k, "hoppar")).senast).toEqual({ tid: t, utfall: "hoppad", kod: "inget-nytt" });
     for (const id of ["ok", "kastar", "okand", "hoppar"]) {
-      expect(db.las(SAMLING, id).las).toBeNull();
-      expect(db.las(SAMLING, id).nastaKorning).toEqual(U("2026-11-24T05:15:00Z"));
+      const d = await las(k, id);
+      expect(d.las).toBeNull();
+      expect(d.version).toBe(2);
+      expect(d.nastaKorning).toBe(ms("2026-11-24T05:15:00Z"));
     }
-    expect(db.las(SAMLING, "senare").senast).toBeUndefined();
-    expect(db.las(SAMLING, "av").senast).toBeUndefined();
-    expect(db.las(SAMLING, "last").las.korning).toBe("annan");
+    expect((await las(k, "senare")).senast).toBeUndefined();
+    expect((await las(k, "av")).senast).toBeUndefined();
+    expect((await las(k, "last")).las.korning).toBe("annan");
+  });
+
+  it("ett jobb förfallet exakt nu kommer med, ett en millisekund senare gör det inte", async () => {
+    const k = kalla(jobbet("nu", { nastaKorning: NU.getTime() }), jobbet("strax", { nastaKorning: NU.getTime() + 1 }));
+    expect(await korForfallnaJobb({ kalla: k, samling: SAMLING, nu: NU, typer: { bank: { kor: async () => ({ utfall: "ok" }) } } })).toEqual({ paborjade: 1, bekraftade: 1, fel: 0, hoppade: 0 });
+    expect((await las(k, "strax")).senast).toBeUndefined();
   });
 
   it("ett undantag utan kod blir koden undantag, och ett fel i skrivningen räknas som påbörjat men inte bekräftat", async () => {
-    const db = minnesDb({ [SAMLING]: { a: jobbet({ typ: "trasig" }), b: jobbet({ typ: "bank" }) } });
+    const k = kalla(jobbet("a", { typ: "trasig" }), jobbet("b", { typ: "bank" }));
     const typer = { trasig: { kor: async () => { throw new Error("hemlig text"); } }, bank: { kor: async () => ({ utfall: "ok" }) } };
-    const rapport = await korForfallnaJobb({ db, samling: SAMLING, nu: NU, typer });
-    expect(rapport).toEqual({ paborjade: 2, bekraftade: 2, fel: 1, hoppade: 0 });
-    expect(db.las(SAMLING, "a").senast).toEqual({ tid: NU, utfall: "fel", kod: "undantag" });
+    expect(await korForfallnaJobb({ kalla: k, samling: SAMLING, nu: NU, typer })).toEqual({ paborjade: 2, bekraftade: 2, fel: 1, hoppade: 0 });
+    expect((await las(k, "a")).senast).toEqual({ tid: NU.getTime(), utfall: "fel", kod: "undantag" });
 
-    const db2 = minnesDb({ [SAMLING]: { a: jobbet() } });
-    const riktig = db2.runTransaction;
+    const k2 = kalla(jobbet("a"));
+    const riktig = k2.updateIf;
     let varv = 0;
-    db2.runTransaction = async (fn) => {
+    k2.updateIf = async (...args) => {
       varv += 1;
       if (varv === 2) throw new Error("databasen svarade inte");
-      return riktig(fn);
+      return /** @type {any} */ (riktig).apply(k2, args);
     };
     const onFel = vi.fn();
-    const r2 = await korForfallnaJobb({ db: db2, samling: SAMLING, nu: NU, typer: { bank: { kor: async () => ({ utfall: "ok" }) } }, onFel });
+    const r2 = await korForfallnaJobb({ kalla: k2, samling: SAMLING, nu: NU, typer: { bank: { kor: async () => ({ utfall: "ok" }) } }, onFel });
     expect(r2).toEqual({ paborjade: 1, bekraftade: 0, fel: 1, hoppade: 0 });
     expect(onFel).toHaveBeenCalledWith("a", expect.any(Error));
   });
 
   it("en körning vars lås hann tas av ett annat varv räknas som påbörjad men inte bekräftad, och skriver inget", async () => {
-    const db = minnesDb({ [SAMLING]: { a: jobbet() } });
+    const k = kalla(jobbet("a"));
     const kor = async () => {
-      // Körningen drog över tidsgränsen och nästa varv tog låset under tiden.
-      db.las(SAMLING, "a").las = { till: U("2026-11-23T06:00:00Z"), korning: "annat-varv" };
+      // Körningen drog över tidsgränsen och nästa varv tog låset under tiden: versionen är en annan.
+      await k.update(SAMLING, "a", { las: { till: ms("2026-11-23T06:00:00Z"), korning: "annat-varv" }, version: 2 });
       return { utfall: "ok", paborjat: 1, bekraftat: 1 };
     };
-    expect(await korForfallnaJobb({ db, samling: SAMLING, nu: NU, typer: { bank: { kor } } })).toEqual({ paborjade: 1, bekraftade: 0, fel: 0, hoppade: 0 });
-    expect(db.las(SAMLING, "a").senast).toBeUndefined();
-    expect(db.las(SAMLING, "a").las.korning).toBe("annat-varv");
+    expect(await korForfallnaJobb({ kalla: k, samling: SAMLING, nu: NU, typer: { bank: { kor } } })).toEqual({ paborjade: 1, bekraftade: 0, fel: 0, hoppade: 0 });
+    expect((await las(k, "a")).senast).toBeUndefined();
+    expect((await las(k, "a")).las.korning).toBe("annat-varv");
   });
 
   it("tar högst max jobb, de äldsta först", async () => {
-    const db = minnesDb({ [SAMLING]: { ny: jobbet({ nastaKorning: U("2026-11-23T05:10:00Z") }), gammal: jobbet({ nastaKorning: U("2026-11-22T05:15:00Z") }) } });
+    const k = kalla(jobbet("ny", { nastaKorning: ms("2026-11-23T05:10:00Z") }), jobbet("gammal", { nastaKorning: ms("2026-11-22T05:15:00Z") }));
     const kor = vi.fn(async () => ({ utfall: "ok" }));
-    expect(await korForfallnaJobb({ db, samling: SAMLING, nu: NU, typer: { bank: { kor } }, max: 1 })).toEqual({ paborjade: 1, bekraftade: 1, fel: 0, hoppade: 0 });
+    expect(await korForfallnaJobb({ kalla: k, samling: SAMLING, nu: NU, typer: { bank: { kor } }, max: 1 })).toEqual({ paborjade: 1, bekraftade: 1, fel: 0, hoppade: 0 });
     expect(kor).toHaveBeenCalledWith(expect.objectContaining({ id: "gammal" }), expect.anything());
   });
 });
 
 describe("korJobbNu", () => {
   it("kör ett jobb som inte är förfallet, och nästa körning räknas från nu", async () => {
-    const db = minnesDb({ [SAMLING]: { a: jobbet({ nastaKorning: U("2026-11-24T05:15:00Z") }) } });
+    const k = kalla(jobbet("a", { nastaKorning: ms("2026-11-24T05:15:00Z") }));
     const kor = vi.fn(async () => ({ utfall: "ok", paborjat: 1, bekraftat: 1 }));
-    const svar = await korJobbNu({ db, samling: SAMLING, jobbId: "a", nu: NU, typer: { bank: { kor } } });
-    expect(svar).toEqual({ senast: { tid: NU, utfall: "ok", paborjat: 1, bekraftat: 1 }, bekraftad: true });
+    const svar = await korJobbNu({ kalla: k, samling: SAMLING, jobbId: "a", nu: NU, typer: { bank: { kor } } });
+    expect(svar).toEqual({ senast: { tid: NU.getTime(), utfall: "ok", paborjat: 1, bekraftat: 1 }, bekraftad: true });
     expect(kor).toHaveBeenCalledWith(expect.objectContaining({ id: "a" }), { lage: "skarp", korningId: "a@2026-11-23T05:20:00.000Z" });
-    expect(db.las(SAMLING, "a").nastaKorning).toEqual(U("2026-11-24T05:15:00Z"));
+    expect((await las(k, "a")).nastaKorning).toBe(ms("2026-11-24T05:15:00Z"));
   });
 
   it("svarar null för ett låst eller avslaget jobb, och kör inte typen", async () => {
-    const db = minnesDb({ [SAMLING]: { last: jobbet({ las: { till: U("2026-11-23T06:00:00Z"), korning: "x" } }), av: jobbet({ lage: "av" }) } });
+    const k = kalla(jobbet("last", { las: { till: ms("2026-11-23T06:00:00Z"), korning: "x" } }), jobbet("av", { lage: "av" }));
     const kor = vi.fn();
-    expect(await korJobbNu({ db, samling: SAMLING, jobbId: "last", nu: NU, typer: { bank: { kor } } })).toBeNull();
-    expect(await korJobbNu({ db, samling: SAMLING, jobbId: "av", nu: NU, typer: { bank: { kor } } })).toBeNull();
+    expect(await korJobbNu({ kalla: k, samling: SAMLING, jobbId: "last", nu: NU, typer: { bank: { kor } } })).toBeNull();
+    expect(await korJobbNu({ kalla: k, samling: SAMLING, jobbId: "av", nu: NU, typer: { bank: { kor } } })).toBeNull();
     expect(kor).not.toHaveBeenCalled();
   });
 });
