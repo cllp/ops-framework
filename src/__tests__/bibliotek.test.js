@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKFLIKAR, BIBLIOTEKTYPER, LJUD_STOLPAR, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, TOPPFORM, TOPP_NIVAER, TOPP_TECKEN, arLjudpost, filInmatningsfel, LJUDFIL_ACCEPT, mimeUrFilnamn, normaliseraMime, avkodaToppar, byggPost, farAndra, filtreraBibliotek, ideRubrik, inmatningsfel, kodaToppar, ljudDatum, ljudRubrik, normaliseraAdress, peaksGiltiga, postFel, taggfarg, toppListaGiltig, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKFLIKAR, BIBLIOTEKTYPER, LJUD_STOLPAR, MAX_BIBLIOTEKUTSKRIFT, MAX_LJUD_MS, TOPPFORM, TOPP_NIVAER, TOPP_TECKEN, arLjudpost, filInmatningsfel, LJUDFIL_ACCEPT, mimeUrFilnamn, normaliseraMime, avkodaToppar, byggPost, farAndra, farFlyttaTill, filtreraBibliotek, ideRubrik, inmatningsfel, kodaToppar, ljudDatum, ljudRubrik, normaliseraAdress, peaksGiltiga, postFel, taggfarg, toppListaGiltig, trimSomRegeln } from "../lib/bibliotek.js";
 import { SKAPARFALT, byggSkapare } from "../lib/skapare.js";
 
 /**
@@ -329,5 +329,37 @@ describe("bibliotekets post", () => {
     expect(farAndra(post, { uid: "uid-2", roll: "admin", status: "avslutad" })).toBe(false);
     expect(farAndra(post, { uid: "uid-1", roll: "medlem", status: "avslutad" })).toBe(false);
     expect(farAndra(post, { uid: "uid-2", roll: "admin", status: "aktiv" })).toBe(true);
+  });
+});
+
+describe("⛔ farFlyttaTill: vem som flyttar vart (0.259.0, cllp/lifehub.app#952)", () => {
+  const G = "cps-ab";
+  const PROJEKT = `plats~${G}~eaop`;
+  const jagSom = (/** @type {string} */ uid, /** @type {string} */ roll) => ({ uid, roll, groupId: G, status: "aktiv" });
+  const post = (/** @type {string} */ groupId, /** @type {string} */ uid = "uMaja") => ({ groupId, skapadAv: { uid } });
+
+  it("en admin och en ägare flyttar någon annans post inom gruppen, åt båda hållen och mellan platser", () => {
+    for (const roll of ["admin", "agare"]) {
+      expect(farFlyttaTill(post(G), jagSom("uKim", roll), PROJEKT)).toBe(true);
+      expect(farFlyttaTill(post(PROJEKT), jagSom("uKim", roll), G)).toBe(true);
+      expect(farFlyttaTill(post(PROJEKT), jagSom("uKim", roll), `plats~${G}~flyg`)).toBe(true);
+    }
+  });
+
+  it("en admin flyttar inte någon annans post till en annan grupp eller till Mitt bibliotek", () => {
+    expect(farFlyttaTill(post(G), jagSom("uKim", "admin"), "andra-ab")).toBe(false);
+    expect(farFlyttaTill(post(G), jagSom("uKim", "admin"), "mitt~uKim")).toBe(false);
+  });
+
+  it("en vanlig medlem flyttar bara sin egen post, och då vart som helst som förut", () => {
+    expect(farFlyttaTill(post(G), jagSom("uOla", "medlem"), PROJEKT)).toBe(false);
+    expect(farFlyttaTill(post(G, "uOla"), jagSom("uOla", "medlem"), PROJEKT)).toBe(true);
+    expect(farFlyttaTill(post(G, "uOla"), jagSom("uOla", "medlem"), "andra-ab")).toBe(true);
+  });
+
+  it("ingen flytt till samma plats, och ingen för den som inte är aktiv", () => {
+    expect(farFlyttaTill(post(G), jagSom("uKim", "admin"), G)).toBe(false);
+    expect(farFlyttaTill(post(G), { ...jagSom("uKim", "admin"), status: "inaktiv" }, PROJEKT)).toBe(false);
+    expect(farFlyttaTill(post(G), null, PROJEKT)).toBe(false);
   });
 });
