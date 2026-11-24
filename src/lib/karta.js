@@ -13,7 +13,10 @@
 
 /**
  * @typedef {{ type: "Feature", id?: string | number, geometry: { type: string, coordinates?: unknown, geometries?: unknown[] } | null, properties?: Record<string, unknown> }} KartaFeature
- * @typedef {{ type: "FeatureCollection", features: KartaFeature[] }} KartaSamling
+ * @typedef {{ typ: string, etikett: string, farg: string }} KartaLagerHuvud
+ * @typedef {{ titel: string, beskrivning: string, lager: KartaLagerHuvud[], fel: string[] }} KartaHuvud
+ * @typedef {{ type: "FeatureCollection", features: KartaFeature[], karta?: KartaHuvud }} KartaSamling
+ * @typedef {{ typ: string, etikett: string, farg: string, antal: number }} KartaLager
  */
 
 /** Vektorbrickor, OpenMapTiles-schema, ingen nyckel. */
@@ -27,6 +30,73 @@ export const KARTA_GLYFER = "https://tiles.openfreemap.org/fonts/{fontstack}/{ra
  * Den får inte tas bort: utan den är visningen ett brott mot datans licens.
  */
 export const KARTA_TILLHORIGHET = "© OpenStreetMap (https://www.openstreetmap.org/copyright) © OpenFreeMap (https://openfreemap.org/) © OpenMapTiles (https://openmaptiles.org/)";
+
+/**
+ * Kartgrunderna (0.258.0, cllp/lifehub.app#950 skiva 2). CP 2026-11-24: "Vi kör utan kostnader nu". Karta är OpenFreeMap som förut. Terräng är samma
+ * stil med skuggad terräng ur fria höjddata och skog och gräs ur kartdatan, så att terrängen följer våra färger och ortnamn i stället för att vara en
+ * annan karta. Satellit (Esri, inom gratisnivån) kommer i en egen skiva, när Groks konto och nyckel finns.
+ */
+export const KARTGRUNDER = Object.freeze(["karta", "terrang"]);
+
+/**
+ * Höjddata för terrängen: Mapterhorn (Copernicus GLO-30 och regionala källor), ingen nyckel, kommersiell användning tillåten enligt projektets egna
+ * frågor och svar (läst i Fables granskning i #950). Adressen är den MapLibres egna exempel använder.
+ *
+ * ⛔ RESERVEN FINNS FRÅN BÖRJAN. Mapterhorn är ett litet projekt utan löfte om drift. Faller dess brickor byter kartan till AWS Terrain Tiles (samma
+ * kodning, ingen nyckel, mätt härifrån 2026-11-24: HTTP 200 image/png), och faller också den säger kartan det i stället för att visa en grund utan
+ * skuggning som om allt var bra (regel 5).
+ */
+export const TERRANG_UNDERLAG = "https://tiles.mapterhorn.com/tilejson.json";
+export const TERRANG_RESERV = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
+export const TERRANG_TILLHORIGHET = "© Mapterhorn (https://mapterhorn.com/attribution)";
+export const TERRANG_RESERV_TILLHORIGHET = "© Mapzen, AWS Terrain Tiles (https://registry.opendata.aws/terrain-tiles)";
+
+/** Lagren ur kartdatan som bara syns i Terräng. Skuggningen (`TERRANG_SKUGGA`) läggs till först när Terräng väljs. */
+export const TERRANG_LAGER = Object.freeze(["mark-skog", "mark-gras"]);
+export const TERRANG_SKUGGA = "terrang-skugga";
+
+/**
+ * Höjddatans källa, som läggs till först när någon väljer Terräng (0.258.0). ⛔ INTE I STILEN FRÅN BÖRJAN: en källa i stilen hämtar sin
+ * beskrivning när kartan ritas, och då hade varje karta i Biblioteket skickat personens adress till Mapterhorn fast ingen valt Terräng
+ * (Fables punkt om vem som får adressen). `reserv` ger AWS Terrain Tiles.
+ *
+ * @param {boolean} [reserv]
+ */
+export function terrangKalla(reserv = false) {
+  return reserv
+    ? { type: "raster-dem", tiles: [TERRANG_RESERV], tileSize: 256, maxzoom: 15, encoding: "terrarium", attribution: TERRANG_RESERV_TILLHORIGHET }
+    : { type: "raster-dem", url: TERRANG_UNDERLAG, encoding: "terrarium", attribution: TERRANG_TILLHORIGHET };
+}
+
+/**
+ * Skuggningens lager, i temats färger. Läggs under vattnet, så att havet inte skuggas.
+ *
+ * @param {Record<string, string>} farger
+ */
+export function terrangSkugga(farger) {
+  return {
+    id: TERRANG_SKUGGA,
+    type: "hillshade",
+    source: "terrang",
+    paint: { "hillshade-shadow-color": farger.text, "hillshade-highlight-color": farger.papper, "hillshade-accent-color": farger.text, "hillshade-exaggeration": 0.35 },
+  };
+}
+
+/** @param {Record<string, string>} farger */
+export function skuggPensel(farger) {
+  return [
+    [TERRANG_SKUGGA, "hillshade-shadow-color", farger.text],
+    [TERRANG_SKUGGA, "hillshade-highlight-color", farger.papper],
+    [TERRANG_SKUGGA, "hillshade-accent-color", farger.text],
+  ];
+}
+
+/**
+ * Ortnamnens lager, i nivåer som mallen (0.258.0). Förr låg tätort, by och småort i ett lager från zoom 8 utan rangordning, så en småort kunde tränga
+ * undan en tätort (Fables granskning). Nu har varje nivå sin zoom, och inom en nivå vinner den med lägst `rank`. Öar kom inte med alls förr.
+ * Zoomgränserna är stilens, inte datans: vad brickorna bär på zoom 8 till 10 gick inte att mäta härifrån (OpenFreeMap svarar inte i den här miljön).
+ */
+export const ORTNAMN_LAGER = Object.freeze(["ort-land", "ort-stad", "ort-tator", "ort-by", "ort-smaort", "ort-o"]);
 
 /** Lagren ett tryck frågar, överst först, så en punkt på en linje vinner. */
 export const OBJEKT_LAGER = ["objekt-punkt", "objekt-linje", "objekt-yta"];
@@ -42,12 +112,23 @@ export const KARTA_FALT = [
   ["salvia", "--color-karta-salvia"],
   ["ockra", "--color-karta-ockra"],
   ["terrakotta", "--color-karta-terrakotta"],
+  ["djuphav", "--color-karta-djuphav"],
+  ["oliv", "--color-karta-oliv"],
   ["accent", "--color-accent"],
   ["ort", "--font-karta-ort"],
   ["etikett", "--font-karta-etikett"],
 ];
 
-const PALETT = ["salvia", "ockra", "terrakotta"];
+/**
+ * Objektens palett, i den ordning lagren får färg (0.258.0, cllp/lifehub.app#950).
+ *
+ * ⛔ SEX FÄRGER, INTE TRE. Förr valdes färgen ur `typ` med en summa av teckenkoder mot tre färger, så två lager kunde få samma färg
+ * redan vid två typer, och Sardinienkartan har sex lager med innehåll (Fables granskning i #950, mätt i v10). Nu får lagren färg i
+ * ordning: kartans huvud först, sedan i den ordning typerna först förekommer. Djuphav och oliv kommer ur kartmallen som CP har sett,
+ * och lera finns redan som kartans tystare ton. Först efter sex lager börjar paletten om.
+ */
+export const KARTA_PALETT = Object.freeze(["salvia", "ockra", "terrakotta", "djuphav", "oliv", "lera"]);
+const PALETT = KARTA_PALETT;
 const PUNKTER = new Set(["Point", "MultiPoint"]);
 const LINJER = new Set(["LineString", "MultiLineString"]);
 const YTOR = new Set(["Polygon", "MultiPolygon"]);
@@ -91,7 +172,115 @@ export function lasGeojson(data) {
   }
   const samling = tillSamling(varde);
   if (!samling) return { ok: false, fel: "form" };
+  samling.karta = lasHuvud(/** @type {any} */ (varde)?.karta);
   return { ok: true, samling };
+}
+
+/**
+ * Kartans huvud (0.258.0, cllp/lifehub.app#950): titel, beskrivning och lagren med etikett och färg, i fältet `karta` på samlingen.
+ *
+ * ⛔ HUVUDET ÄR VALFRITT. En vanlig GeoJSON utan huvud får ändå lager: varje `typ` blir ett lager med sitt värde som etikett
+ * (`kartansLager`). Huvudet behövs bara för att byta etikett, färg eller ordning. Det är Fables ändring 1 i #950: lagret är `typ`,
+ * inte ett nytt fält, eftersom två fält för samma sak glider isär (regel 2).
+ *
+ * ⛔ FÄRGEN ÄR ETT PALETTNAMN, ALDRIG EN HEX. En hex i datan hade varit ett andra original bredvid temat och sett fel ut i mörkt läge.
+ * Det som inte går att använda står i `fel`, aldrig tyst (regel 5): ett okänt palettnamn, ett lager utan typ, och samma typ två gånger.
+ *
+ * @param {unknown} varde
+ * @returns {KartaHuvud}
+ */
+export function lasHuvud(varde) {
+  /** @type {KartaHuvud} */
+  const huvud = { titel: "", beskrivning: "", lager: [], fel: [] };
+  if (varde === undefined || varde === null) return huvud;
+  if (typeof varde !== "object" || Array.isArray(varde)) {
+    huvud.fel.push("huvud:form");
+    return huvud;
+  }
+  const h = /** @type {Record<string, unknown>} */ (varde);
+  huvud.titel = text(h.titel);
+  huvud.beskrivning = text(h.beskrivning);
+  if (h.lager === undefined) return huvud;
+  if (!Array.isArray(h.lager)) {
+    huvud.fel.push("lager:form");
+    return huvud;
+  }
+  const sedda = new Set();
+  for (const rad of h.lager) {
+    const r = rad && typeof rad === "object" ? /** @type {Record<string, unknown>} */ (rad) : {};
+    const typ = text(r.typ);
+    if (!typ) {
+      huvud.fel.push("lager:utan-typ");
+      continue;
+    }
+    if (sedda.has(typ)) {
+      huvud.fel.push(`lager:dubblett:${typ}`);
+      continue;
+    }
+    sedda.add(typ);
+    let farg = text(r.farg);
+    if (farg && !PALETT.includes(farg)) {
+      huvud.fel.push(`farg:okand:${farg}`);
+      farg = "";
+    }
+    huvud.lager.push({ typ, etikett: text(r.etikett) || typ, farg });
+  }
+  return huvud;
+}
+
+/**
+ * Kartans lager, i den ordning de ska visas (0.258.0, cllp/lifehub.app#950). Ett objekt hör till exakt ett lager: sin `typ` (eller `type`).
+ *
+ * Ordningen: huvudets lager först, också de som saknar objekt (antal 0 är ett svar, regel 5), sedan övriga typer i den ordning de först
+ * förekommer, och sist objekten utan typ (`typ` är då tom, och etiketten väljer vyn). Färgen är huvudets palettnamn, annars nästa lediga
+ * färg i `KARTA_PALETT`. Objekt utan typ har ingen palettfärg: de ritas i instansens accent, som förut.
+ *
+ * @param {KartaSamling} samling
+ * @returns {KartaLager[]}
+ */
+export function kartansLager(samling) {
+  const huvud = samling.karta ?? lasHuvud(undefined);
+  /** @type {Map<string, number>} */
+  const antal = new Map();
+  /** @type {string[]} */
+  const ordning = [];
+  for (const feature of samling.features) {
+    const typ = typAv(egenskaperAv(feature));
+    if (!antal.has(typ)) ordning.push(typ);
+    antal.set(typ, (antal.get(typ) ?? 0) + 1);
+  }
+  /** @type {KartaLager[]} */
+  const lager = huvud.lager.map((l) => ({ typ: l.typ, etikett: l.etikett, farg: l.farg, antal: antal.get(l.typ) ?? 0 }));
+  const iHuvudet = new Set(lager.map((l) => l.typ));
+  for (const typ of ordning) if (typ && !iHuvudet.has(typ)) lager.push({ typ, etikett: typ, farg: "", antal: antal.get(typ) ?? 0 });
+  const upptagna = new Set(lager.map((l) => l.farg).filter(Boolean));
+  let nasta = 0;
+  for (const l of lager) {
+    if (l.farg) continue;
+    const ledig = PALETT.find((f) => !upptagna.has(f));
+    l.farg = ledig ?? PALETT[nasta++ % PALETT.length];
+    upptagna.add(l.farg);
+  }
+  if (antal.has("")) lager.push({ typ: "", etikett: "", farg: "", antal: antal.get("") ?? 0 });
+  return lager;
+}
+
+/**
+ * Objektets id för det som ska överleva en ändring i filen, som en stjärna (0.258.0, cllp/lifehub.app#950).
+ *
+ * ⛔ BARA ETT ID SOM STÅR I FILEN. `properties.id` först (MapLibre behåller bara heltal som feature-id), sedan `feature.id`. Radnumret
+ * är aldrig ett id här: det flyttar när filen ändras, och då hamnar stjärnan på fel plats (Fables ändring 4). Saknas id är svaret
+ * `null`, och den som vill stjärnmärka säger att det inte går.
+ *
+ * @param {KartaFeature} feature
+ * @returns {string | null}
+ */
+export function objektId(feature) {
+  for (const v of [egenskaperAv(feature).id, feature.id]) {
+    if (typeof v === "string" && v.trim()) return v.trim();
+    if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  }
+  return null;
 }
 
 /**
@@ -139,15 +328,16 @@ function egenskaperAv(feature) {
  *
  * @param {KartaFeature} feature
  * @param {Record<string, string>} farger
+ * @param {Map<string, string>} [lagerFarg] Palettnamn per typ, ur `kartansLager`. Utan den räknas lagret ut för objektet ensamt.
  */
-export function objektFarg(feature, farger) {
+export function objektFarg(feature, farger, lagerFarg = fargPerTyp({ type: "FeatureCollection", features: [feature] })) {
   const p = egenskaperAv(feature);
   const slag = feature.geometry?.type ?? "";
   const fyllNycklar = YTOR.has(slag) ? ["fill", "marker-color", "stroke"] : PUNKTER.has(slag) ? ["marker-color", "stroke", "fill"] : ["stroke", "marker-color", "fill"];
   const streckNycklar = YTOR.has(slag) ? ["stroke", "marker-color", "fill"] : fyllNycklar;
-  const fyll = valj(farger, p, fyllNycklar);
-  const streck = valj(farger, p, streckNycklar);
-  const markor = valj(farger, p, ["marker-color", "stroke", "fill"]);
+  const fyll = valj(farger, p, fyllNycklar, lagerFarg);
+  const streck = valj(farger, p, streckNycklar, lagerFarg);
+  const markor = valj(farger, p, ["marker-color", "stroke", "fill"], lagerFarg);
   return {
     _fyll: fyll,
     _streck: streck,
@@ -166,37 +356,40 @@ export function objektFarg(feature, farger) {
  * @param {Record<string, string>} farger
  */
 export function berika(samling, farger) {
+  const lagerFarg = fargPerTyp(samling);
   return {
     type: "FeatureCollection",
     features: samling.features.map((feature, i) => ({
       type: "Feature",
       id: feature.id ?? i,
       geometry: feature.geometry,
-      properties: { ...egenskaperAv(feature), ...objektFarg(feature, farger) },
+      properties: { ...egenskaperAv(feature), ...objektFarg(feature, farger, lagerFarg), _lager: typAv(egenskaperAv(feature)) },
     })),
   };
+}
+
+/**
+ * @param {KartaSamling} samling
+ * @returns {Map<string, string>}
+ */
+function fargPerTyp(samling) {
+  return new Map(kartansLager(samling).filter((l) => l.typ).map((l) => [l.typ, l.farg]));
 }
 
 /**
  * @param {Record<string, string>} farger
  * @param {Record<string, unknown>} p
  * @param {string[]} nycklar
+ * @param {Map<string, string>} lagerFarg
  */
-function valj(farger, p, nycklar) {
+function valj(farger, p, nycklar, lagerFarg) {
   for (const nyckel of nycklar) {
     const h = hex(p[nyckel]);
     if (h) return h;
   }
-  const typ = typAv(p);
-  if (typ) return farger[PALETT[palettIndex(typ)]];
+  const palettnamn = lagerFarg.get(typAv(p));
+  if (palettnamn) return farger[palettnamn];
   return farger.accent;
-}
-
-/** @param {string} typ */
-function palettIndex(typ) {
-  let n = 0;
-  for (const tecken of typ) n = (n + (tecken.codePointAt(0) ?? 0)) % PALETT.length;
-  return n;
 }
 
 /** @param {Record<string, unknown>} p */
@@ -348,6 +541,14 @@ export function basPensel(farger) {
     ["ort-stad", "text-halo-color", ort[1]],
     ["ort-tator", "text-color", ort[0]],
     ["ort-tator", "text-halo-color", ort[1]],
+    ["ort-by", "text-color", ort[0]],
+    ["ort-by", "text-halo-color", ort[1]],
+    ["ort-smaort", "text-color", ort[0]],
+    ["ort-smaort", "text-halo-color", ort[1]],
+    ["ort-o", "text-color", ort[0]],
+    ["ort-o", "text-halo-color", ort[1]],
+    ["mark-skog", "fill-color", farger.salvia],
+    ["mark-gras", "fill-color", farger.salvia],
     ["vag-namn", "text-color", farger.lera],
     ["vag-namn", "text-halo-color", farger.papper],
     ["vatten-namn", "text-color", farger.text],
@@ -367,6 +568,34 @@ export function objektPensel(farger) {
     ["objekt-punkt", "circle-color", ["coalesce", ["get", "_markor"], farger.accent]],
     ["objekt-punkt", "circle-stroke-color", farger.text],
   ];
+}
+
+/**
+ * Vilka lager som syns i en kartgrund och med ortnamnen av eller på (0.258.0). Svaret är `[lager, "visible" | "none"]` för varje lager grunden styr,
+ * så att vyn sätter allt i ett svep och ingenting står kvar från förra grunden.
+ *
+ * @param {string} grund En av `KARTGRUNDER`.
+ * @param {boolean} ortnamn
+ * @returns {[string, "visible" | "none"][]}
+ */
+export function grundensSynlighet(grund, ortnamn) {
+  const terrang = grund === "terrang";
+  return [
+    ...TERRANG_LAGER.map((id) => /** @type {[string, "visible" | "none"]} */ ([id, terrang ? "visible" : "none"])),
+    ...ORTNAMN_LAGER.map((id) => /** @type {[string, "visible" | "none"]} */ ([id, ortnamn ? "visible" : "none"])),
+  ];
+}
+
+/**
+ * Filtret på objektlagren när några lager är avslagna (0.258.0, skiva 3). Grundfiltret (geometrin) ligger kvar, och lagret läses ur `_lager`, som
+ * `berika` sätter ur objektets typ. Utan avslagna lager är filtret bara grundfiltret, så ingenting ändras för den som inte rör panelen.
+ *
+ * @param {unknown} grundfilter Lagrets filter ur `byggStil`.
+ * @param {string[]} avslagna Typerna som är avslagna. Tom typ är objekten utan typ.
+ */
+export function lagerFilter(grundfilter, avslagna) {
+  if (!avslagna.length) return grundfilter;
+  return ["all", grundfilter, ["!", ["in", ["get", "_lager"], ["literal", avslagna]]]];
 }
 
 /**
@@ -398,8 +627,18 @@ export function byggStil(farger, samling) {
     minzoom: min,
     maxzoom: max,
     filter: ["match", ["get", "class"], klasser, true, false],
-    layout: { "text-field": ortText, "text-font": font, "text-size": min >= 8 ? 13 : 15, "text-max-width": 8 },
+    layout: { "text-field": ortText, "text-font": font, "text-size": min >= 8 ? 13 : 15, "text-max-width": 8, "symbol-sort-key": ["coalesce", ["get", "rank"], 99] },
     paint: { "text-color": p(id, "text-color"), "text-halo-color": p(id, "text-halo-color"), "text-halo-width": 1.5 },
+  });
+  /** @param {string} id @param {string[]} klasser @param {number} tathet */
+  const mark = (id, klasser, tathet) => ({
+    id,
+    type: "fill",
+    source: "openmaptiles",
+    "source-layer": "landcover",
+    filter: ["match", ["get", "class"], klasser, true, false],
+    layout: { visibility: "none" },
+    paint: { "fill-color": p(id, "fill-color"), "fill-opacity": tathet },
   });
   return {
     version: 8,
@@ -411,6 +650,8 @@ export function byggStil(farger, samling) {
     },
     layers: [
       { id: "bakgrund", type: "background", paint: { "background-color": p("bakgrund", "background-color") } },
+      mark("mark-skog", ["wood", "forest"], 0.16),
+      mark("mark-gras", ["grass", "scrub", "farmland"], 0.08),
       { id: "vatten", type: "fill", source: "openmaptiles", "source-layer": "water", filter: ["!=", ["get", "brunnel"], "tunnel"], paint: { "fill-color": p("vatten", "fill-color") } },
       { id: "vattendrag", type: "line", source: "openmaptiles", "source-layer": "waterway", filter: ["!=", ["get", "brunnel"], "tunnel"], paint: { "line-color": p("vattendrag", "line-color"), "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.5, 16, 3] } },
       vag("vag-stor", ["motorway", "trunk", "primary"], 0.6, 5),
@@ -434,7 +675,10 @@ export function byggStil(farger, samling) {
       },
       ort("ort-land", ["country", "state"], GLYF_ORT_STOR, 1, 8),
       ort("ort-stad", ["city"], GLYF_ORT_STOR, 4, 24),
-      ort("ort-tator", ["town", "village", "hamlet"], GLYF_ORT, 8, 24),
+      ort("ort-tator", ["town"], GLYF_ORT, 8, 24),
+      ort("ort-o", ["island"], GLYF_ORT, 9, 24),
+      ort("ort-by", ["village"], GLYF_ORT, 10, 24),
+      ort("ort-smaort", ["hamlet"], GLYF_ORT, 12, 24),
       {
         id: "vag-namn",
         type: "symbol",

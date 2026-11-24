@@ -9,6 +9,34 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.258.0
+
+**Kartorna: kontraktet, panelerna Lager och Inställningar, kartgrunden Terräng och ett finger i helskärm (cllp/lifehub.app#950, skiva 0 till 3).** CP 2026-11-24, "Ja kör", efter Claudes analys och Fables granskning i #950 och skissen: panelerna för info, inställningar och lager "som går att fälla ut på ett bra sätt", inga kostnader, och kartan ska gå att använda i helskärm på en telefon.
+
+### Tillagt
+- **Kartans huvud** i fältet `karta` på en FeatureCollection: `{ titel, beskrivning, lager: [{ typ, etikett, farg }] }`, valfritt. `lasGeojson` lägger det normaliserade huvudet på `samling.karta`, och **`lasHuvud`** läser det ensamt. Det som inte går att använda står i `karta.fel`, aldrig tyst.
+- **`kartansLager(samling)`**: lagren i visningsordning, `{ typ, etikett, farg, antal }`. Lagret är objektets `typ`, så en vanlig GeoJSON får lager utan huvud.
+- **`objektId(feature)`**: `properties.id`, annars `feature.id`, annars `null`. Radnumret är aldrig ett id.
+- **`KARTA_PALETT`** och två nya kartfärger, **`--color-karta-djuphav`** och **`--color-karta-oliv`**, med mörka värden. De kommer ur kartmallen som CP har sett.
+- **Panelerna Lager och Inställningar** i den öppnade kartan (`OpsKartaPaneler.jsx`, i kartans lata bit). Dator: till höger, infällda som flikar vid kanten, läget minns i webbläsaren. Telefon: ett ark nerifrån, halvt eller nästan helt, en panel i taget.
+- **Kartgrunden Terräng**: skuggad terräng ur Mapterhorn och skog och gräs ur kartdatan, i kartans egna färger. Reserven AWS Terrain Tiles används om Mapterhorn faller, och faller också den sägs det.
+- **Lager av och på**: ett avslaget lager filtreras bort ur kartan (`lagerFilter`, `_lager` på varje objekt ur `berika`).
+- **Ortnamn av och på**, och **Min position** som ett reglage som går genom kartans egen kontroll.
+
+### Ändrat
+- **Lagren får färg i ordning, inte ur typens teckenkoder.** Sex lager får sex olika färger. Förr valdes färgen bland tre med en summa av teckenkoder, och två lager kunde få samma färg. En befintlig karta med typer kan därför få andra färger än förut, och samma typ har fortfarande samma färg inom en karta.
+- **I helskärm flyttar ett finger kartan.** Tvåfingersläget slås av när helskärmen öppnas och på igen när den stängs. Utanför helskärm rullar ett finger sidan som förut.
+- **Ortnamnen har nivåer**: tätort från zoom 8, ö 9, by 10 och småort 12, med lägst `rank` först. Förr låg tätort, by och småort i ett lager från zoom 8, och öar ritades inte.
+
+### Inte gjort, och varför
+- **Panelen Info och platslistan** kommer i skiva 5, efter stjärnorna i skiva 4.
+- **Satellit** kommer när Groks konto och nyckel hos Esri finns.
+- **Bakåt på Android fäller inte in arket än.** Det kräver skalets bakåthändelse och följer med när skalet byggs nästa gång.
+- **Vad OpenFreeMaps brickor bär för orter på zoom 8 till 10 är inte mätt**: OpenFreeMap och Mapterhorn svarar inte i den miljö där det här byggdes. Zoomgränserna är mallens.
+
+### Observerat, inte ändrat
+- Ockra i ljust läge är 2,61:1 mot kartans land. En punkt syns ändå tack vare kanten i textens färg, men en linje eller yta i ockra är svag. Färgen är CP:s och ändras inte utan hans ja. Provet `karta.test.js` bär undantaget som en lista med ett namn.
+
 ## 0.257.0
 
 **Gästens kalender är en riktig kalender: Lista, Månad och Vecka, filter på händelsetyp, och typens ikon och färg (cllp/lifehub.app#890).** CP godkände 18 nov kalendervyn i gästvyn, generellt för alla grupper och hubbar med Travel-gruppen som första användare. Sedan 0.190.0 var gästens kalender bara en lista över det som är på gång. Nu växlar gästen mellan Lista, Månad och Vecka (Lista förvald på telefon och där skärmen inte säger att den är bred, Månad på dator, senaste valet sparas på enheten), filtrerar med chips per händelsetyp (bara typer som finns bland händelserna) och Visa passerade (av från början), och ser typens ikon och färg i listan och i kalendern. Månad och Vecka är ramverkets `OpsCalendar`, och veckan är ett läge i den, ingen andra kalender. Gästen läser, svarar och röstar som förut: ingen skapa, ingen flytt, inga kalenderinställningar.

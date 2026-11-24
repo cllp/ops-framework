@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { contrast } from "../../scripts/vendor/validate_palette.js";
 import { exempelkarta } from "../../examples/karta/dahab.js";
-import { basPensel, berika, byggStil, granser, lasGeojson, objektFarg, objektPensel, popupElement, popupTexter } from "../lib/karta.js";
+import { KARTA_PALETT, ORTNAMN_LAGER, TERRANG_RESERV, TERRANG_UNDERLAG, basPensel, berika, byggStil, granser, grundensSynlighet, kartansLager, lagerFilter, lasGeojson, lasHuvud, objektFarg, objektId, objektPensel, popupElement, popupTexter, terrangKalla, terrangSkugga } from "../lib/karta.js";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -19,6 +19,8 @@ const SENTINEL = {
   salvia: "#777777",
   ockra: "#888888",
   terrakotta: "#999999",
+  djuphav: "#aaaaaa",
+  oliv: "#bbbbbb",
   accent: "#abcdef",
   ort: "Georgia, serif",
   etikett: "sans-serif",
@@ -155,11 +157,181 @@ describe("tokens", () => {
     expect(hex("--color-karta-ockra")).toBe("#bf9522");
     expect(hex("--color-karta-terrakotta")).toBe("#c0683a");
     expect(hex("--color-karta-vatten")).toBe("#adbdac");
+    expect(hex("--color-karta-djuphav")).toBe("#1f4e5f");
+    expect(hex("--color-karta-oliv")).toBe("#7a8450");
     expect(contrast("#2e2a24", "#faf7f1")).toBeGreaterThanOrEqual(4.5);
     expect(contrast("#2e2a24", "#f3eee4")).toBeGreaterThanOrEqual(4.5);
     expect(contrast(hex("--dark-karta-text"), hex("--dark-karta-papper"))).toBeGreaterThanOrEqual(4.5);
     expect(contrast(hex("--dark-karta-text"), hex("--dark-karta-creme"))).toBeGreaterThanOrEqual(4.5);
     expect(css).toContain("--font-karta-ort: var(--font-display-publik)");
     expect(css).toContain("--font-karta-etikett: var(--font-sans)");
+  });
+});
+
+/** En punkt med egenskaper, för proven nedan. */
+function punkt(egenskaper, id) {
+  return { type: "Feature", ...(id === undefined ? {} : { id }), geometry: { type: "Point", coordinates: [9.6, 40.0] }, properties: egenskaper };
+}
+
+/**
+ * ⛔ KONTRAKTET (0.258.0, cllp/lifehub.app#950 skiva 0). Kartans data är GeoJSON. Lagret är `typ`, ett valfritt huvud i `karta` byter etikett,
+ * färg och ordning, och ett objekts id är bara det som står i filen. Beslutat av CP 2026-11-24 efter Claudes analys och Fables granskning.
+ */
+describe("⛔ kartans huvud", () => {
+  it("läses ur samlingen och följer med i lasGeojson", () => {
+    const last = lasGeojson({ type: "FeatureCollection", karta: { titel: " Sardinien ", beskrivning: "Bas för resan", lager: [{ typ: "boende", etikett: "Boende", farg: "djuphav" }] }, features: [punkt({ typ: "boende" })] });
+    expect(last.ok).toBe(true);
+    expect(last.samling.karta).toEqual({ titel: "Sardinien", beskrivning: "Bas för resan", lager: [{ typ: "boende", etikett: "Boende", farg: "djuphav" }], fel: [] });
+  });
+
+  it("utan huvud är huvudet tomt, inte saknat", () => {
+    expect(lasGeojson({ type: "FeatureCollection", features: [] }).samling.karta).toEqual({ titel: "", beskrivning: "", lager: [], fel: [] });
+  });
+
+  it("det som inte går att använda står i fel, aldrig tyst", () => {
+    const h = lasHuvud({ lager: [{ typ: "mat", farg: "#ff0000" }, { etikett: "Utan typ" }, { typ: "mat" }, { typ: "bad", farg: "rosa" }] });
+    expect(h.lager).toEqual([{ typ: "mat", etikett: "mat", farg: "" }, { typ: "bad", etikett: "bad", farg: "" }]);
+    expect(h.fel).toEqual(["farg:okand:#ff0000", "lager:utan-typ", "lager:dubblett:mat", "farg:okand:rosa"]);
+    expect(lasHuvud("titel").fel).toEqual(["huvud:form"]);
+    expect(lasHuvud({ lager: "boende" }).fel).toEqual(["lager:form"]);
+  });
+});
+
+describe("⛔ lagren är typ", () => {
+  it("utan huvud blir varje typ ett lager, i den ordning den först förekommer, och objekt utan typ sist", () => {
+    const samling = lasGeojson({ type: "FeatureCollection", features: [punkt({ typ: "mat" }), punkt({ namn: "utan" }), punkt({ type: "bad" }), punkt({ typ: "mat" })] }).samling;
+    expect(kartansLager(samling)).toEqual([
+      { typ: "mat", etikett: "mat", farg: "salvia", antal: 2 },
+      { typ: "bad", etikett: "bad", farg: "ockra", antal: 1 },
+      { typ: "", etikett: "", farg: "", antal: 1 },
+    ]);
+  });
+
+  it("huvudets lager kommer först, också utan objekt, och dess färg tas inte av ett annat lager", () => {
+    const samling = lasGeojson({
+      type: "FeatureCollection",
+      karta: { lager: [{ typ: "bad", etikett: "Bad och stränder", farg: "salvia" }, { typ: "byar", etikett: "Byar" }] },
+      features: [punkt({ typ: "mat" }), punkt({ typ: "bad" })],
+    }).samling;
+    expect(kartansLager(samling)).toEqual([
+      { typ: "bad", etikett: "Bad och stränder", farg: "salvia", antal: 1 },
+      { typ: "byar", etikett: "Byar", farg: "ockra", antal: 0 },
+      { typ: "mat", etikett: "mat", farg: "terrakotta", antal: 1 },
+    ]);
+  });
+
+  /**
+   * ⛔ HÄNDELSEN. Förr valdes färgen ur typens teckenkoder bland tre färger, så två lager kunde få samma färg redan vid två typer, och
+   * Sardinienkartan har sex lager (Fables granskning i #950). Rött utan ändringen: sex typer gav högst tre olika färger.
+   */
+  it("sex typer får sex olika färger, och objektet ritas i sitt lagers färg", () => {
+    const typer = ["boende", "bad", "mat", "byar", "snorkling", "vandring"];
+    const samling = lasGeojson({ type: "FeatureCollection", features: typer.map((typ) => punkt({ typ })) }).samling;
+    const farger = berika(samling, SENTINEL).features.map((f) => f.properties._markor);
+    expect(new Set(farger).size).toBe(6);
+    expect(farger).toEqual(KARTA_PALETT.map((namn) => SENTINEL[namn]));
+  });
+
+  it("huvudets palettnamn styr objektets färg, och simplestyle vinner fortfarande", () => {
+    const samling = lasGeojson({ type: "FeatureCollection", karta: { lager: [{ typ: "boende", farg: "djuphav" }] }, features: [punkt({ typ: "boende" }), punkt({ typ: "boende", "marker-color": "#c0683a" })] }).samling;
+    const [a, b] = berika(samling, SENTINEL).features;
+    expect(a.properties._markor).toBe(SENTINEL.djuphav);
+    expect(b.properties._markor).toBe("#c0683a");
+  });
+});
+
+describe("⛔ objektets id", () => {
+  it("är det som står i filen: properties.id före feature.id", () => {
+    expect(objektId(punkt({ id: " gigli-house " }, 7))).toBe("gigli-house");
+    expect(objektId(punkt({ id: 12 }))).toBe("12");
+    expect(objektId(punkt({}, "cala-luna"))).toBe("cala-luna");
+  });
+
+  it("saknas det är svaret null, aldrig radnumret", () => {
+    expect(objektId(punkt({ namn: "Utan id" }))).toBeNull();
+    expect(objektId(punkt({ id: "  " }))).toBeNull();
+    const samling = lasGeojson({ type: "FeatureCollection", features: [punkt({ namn: "a" }), punkt({ namn: "b" })] }).samling;
+    expect(samling.features.map(objektId)).toEqual([null, null]);
+  });
+});
+
+describe("⛔ kartans palett i temat", () => {
+  const css = fs.readFileSync(path.join(rot, "tokens/tokens.css"), "utf8");
+  /** @param {string} namn */
+  const hex = (namn) => css.match(new RegExp(`${namn}:\\s*(#[0-9a-fA-F]{6})`))?.[1] ?? "";
+
+  /**
+   * ⛔ OCKRA I LJUST LÄGE ÄR UNDANTAGET, MÄTT 2026-11-24: 2,61:1 mot papper. Färgen är CP:s sedan 0.223.0 och ändras inte här. En punkt
+   * syns ändå, eftersom den har en kant i textens färg (`objektPensel`, circle-stroke-color). En linje eller yta i ockra är svagare, och det
+   * står som en observation i #950. Undantaget är en lista med ett namn, så att en ny färg under 3:1 blir röd.
+   */
+  const UNDER_TRE_I_LJUST = ["ockra"];
+
+  it("varje palettfärg finns i båda lägena och syns mot land med minst 3:1", () => {
+    expect(KARTA_PALETT.length).toBe(6);
+    expect(contrast(hex("--color-karta-ockra"), hex("--color-karta-papper"))).toBeLessThan(3);
+    for (const namn of KARTA_PALETT) {
+      const ljus = hex(`--color-karta-${namn}`);
+      const mork = hex(`--dark-karta-${namn}`);
+      expect(ljus, namn).toMatch(/^#/);
+      expect(mork, namn).toMatch(/^#/);
+      if (!UNDER_TRE_I_LJUST.includes(namn)) expect(contrast(ljus, hex("--color-karta-papper")), namn).toBeGreaterThanOrEqual(3);
+      expect(contrast(mork, hex("--dark-karta-papper")), namn).toBeGreaterThanOrEqual(3);
+      expect(css, namn).toContain(`--color-karta-${namn}: var(--dark-karta-${namn})`);
+    }
+  });
+});
+
+/**
+ * ⛔ SKIVA 2 (0.258.0, cllp/lifehub.app#950). Kartgrunderna Karta och Terräng, ortnamnen i nivåer, och lagrens filter.
+ */
+describe("⛔ kartgrunder och ortnamn", () => {
+  const stil = byggStil(SENTINEL, tom);
+  const lagret = (id) => stil.layers.find((l) => l.id === id);
+
+  it("terrängens källa finns inte i stilen: ingen adress skickas till höjddatan förrän någon väljer Terräng", () => {
+    expect(Object.keys(stil.sources)).toEqual(["openmaptiles", "objekt"]);
+    expect(JSON.stringify(stil)).not.toContain("mapterhorn");
+    expect(lagret("mark-skog").layout.visibility).toBe("none");
+    expect(lagret("mark-gras").layout.visibility).toBe("none");
+  });
+
+  it("terrängens källa är Mapterhorn, och reserven är AWS Terrain Tiles med samma kodning", () => {
+    expect(terrangKalla()).toMatchObject({ type: "raster-dem", url: TERRANG_UNDERLAG, encoding: "terrarium" });
+    expect(terrangKalla(true)).toMatchObject({ type: "raster-dem", tiles: [TERRANG_RESERV], encoding: "terrarium", tileSize: 256 });
+    expect(terrangSkugga(SENTINEL)).toMatchObject({ id: "terrang-skugga", type: "hillshade", source: "terrang" });
+    expect(terrangSkugga(SENTINEL).paint["hillshade-shadow-color"]).toBe(SENTINEL.text);
+  });
+
+  /**
+   * ⛔ HÄNDELSEN. Tätort, by och småort låg i ett lager från zoom 8 utan rangordning, så en småort kunde tränga undan en tätort, och öar ritades
+   * inte alls (Fables granskning i #950). Rött utan ändringen: lagren `ort-by`, `ort-smaort` och `ort-o` fanns inte.
+   */
+  it("ortnamnen har nivåer som mallen, öar kommer med, och lägst rank vinner inom en nivå", () => {
+    const zoom = Object.fromEntries(ORTNAMN_LAGER.map((id) => [id, lagret(id)?.minzoom]));
+    expect(zoom).toEqual({ "ort-land": 1, "ort-stad": 4, "ort-tator": 8, "ort-by": 10, "ort-smaort": 12, "ort-o": 9 });
+    expect(JSON.stringify(lagret("ort-tator").filter)).not.toContain("village");
+    expect(JSON.stringify(lagret("ort-o").filter)).toContain("island");
+    for (const id of ORTNAMN_LAGER) expect(lagret(id).layout["symbol-sort-key"], id).toEqual(["coalesce", ["get", "rank"], 99]);
+  });
+
+  it("en grund slår på sina lager och av de andras, och ortnamnen följer reglaget", () => {
+    expect(grundensSynlighet("karta", true)).toContainEqual(["mark-skog", "none"]);
+    expect(grundensSynlighet("terrang", true)).toContainEqual(["mark-skog", "visible"]);
+    expect(grundensSynlighet("terrang", false)).toContainEqual(["ort-by", "none"]);
+    expect(grundensSynlighet("karta", true).filter(([, v]) => v === "visible").map(([id]) => id)).toEqual([...ORTNAMN_LAGER]);
+  });
+});
+
+describe("⛔ lagrens filter", () => {
+  it("utan avslagna lager är filtret grundfiltret, så ingenting ändras för den som inte rör panelen", () => {
+    const grund = ["match", ["geometry-type"], ["Point"], true, false];
+    expect(lagerFilter(grund, [])).toBe(grund);
+    expect(lagerFilter(grund, ["mat", ""])).toEqual(["all", grund, ["!", ["in", ["get", "_lager"], ["literal", ["mat", ""]]]]]);
+  });
+
+  it("berika sätter objektets lager ur typen, och tom typ för objekt utan typ", () => {
+    const samling = lasGeojson({ type: "FeatureCollection", features: [punkt({ typ: "mat" }), punkt({ type: "bad" }), punkt({})] }).samling;
+    expect(berika(samling, SENTINEL).features.map((f) => f.properties._lager)).toEqual(["mat", "bad", ""]);
   });
 });

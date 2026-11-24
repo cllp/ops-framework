@@ -880,7 +880,10 @@
    * Land är papper, ramen runt kartan är creme. Vatten är salvia #4e7558
    * blandad 55 procent mot papper, alltså #adbdac, ljusare än salvia.
    * Vägar och gränser är linje. Text som ska läsas är #2e2a24. Lera är den
-   * tystare texten (vägnamn). Salvia, ockra och terrakotta är objektens palett.
+   * tystare texten (vägnamn). Salvia, ockra, terrakotta, djuphav, oliv och lera
+   * är objektens palett, i den ordningen (`KARTA_PALETT`). Djuphav och oliv kom
+   * 0.258.0 ur kartmallen som CP har sett (cllp/lifehub.app#950), eftersom tre
+   * färger inte räckte till Sardinienkartans sex lager.
    * Accenten är instansens egen och hör inte hemma här.
    *
    * Typsnitten pekar på familjer som redan finns: serif för popupens rubrik,
@@ -894,6 +897,8 @@
   --color-karta-salvia: #4e7558;
   --color-karta-ockra: #bf9522;
   --color-karta-terrakotta: #c0683a;
+  --color-karta-djuphav: #1f4e5f;
+  --color-karta-oliv: #7a8450;
   --font-karta-ort: var(--font-display-publik);
   --font-karta-etikett: var(--font-sans);
 }
@@ -1262,6 +1267,8 @@
   --dark-karta-salvia: #8fb59a;
   --dark-karta-ockra: #e0b84a;
   --dark-karta-terrakotta: #e5926a;
+  --dark-karta-djuphav: #8fc2d4;
+  --dark-karta-oliv: #a3b073;
 
   color-scheme: light;
 }
@@ -1456,6 +1463,8 @@
     --color-karta-salvia: var(--dark-karta-salvia);
     --color-karta-ockra: var(--dark-karta-ockra);
     --color-karta-terrakotta: var(--dark-karta-terrakotta);
+    --color-karta-djuphav: var(--dark-karta-djuphav);
+    --color-karta-oliv: var(--dark-karta-oliv);
 
     --shadow-sm: var(--dark-shadow-sm);
     --shadow-md: var(--dark-shadow-md);
@@ -1571,6 +1580,8 @@
   --color-karta-salvia: var(--dark-karta-salvia);
   --color-karta-ockra: var(--dark-karta-ockra);
   --color-karta-terrakotta: var(--dark-karta-terrakotta);
+  --color-karta-djuphav: var(--dark-karta-djuphav);
+  --color-karta-oliv: var(--dark-karta-oliv);
 
   --shadow-sm: var(--dark-shadow-sm);
   --shadow-md: var(--dark-shadow-md);

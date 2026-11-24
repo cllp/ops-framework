@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IKON_FOR } from "./ikonlexikon.js";
 import { useHelskarm } from "./useHelskarm.js";
 import { GeolocateControl, Map, NavigationControl, Popup, getWorkerUrl, setWorkerUrl } from "maplibre-gl";
 // @ts-expect-error CSS-importen löses av appens bundler. tsc har ingen deklaration för den.
 import "maplibre-gl/dist/maplibre-gl.css";
-import { arAppleEnhet, basPensel, berika, kartlankar, byggStil, granser, KARTPOPUP_CSS, KARTPOPUP_KLASS, KARTPOPUP_STIL_ID, lasKartFarger, objektPensel, OBJEKT_LAGER, popupElement } from "../lib/karta.js";
+import { arAppleEnhet, basPensel, berika, kartlankar, byggStil, granser, grundensSynlighet, kartansLager, KARTPOPUP_CSS, KARTPOPUP_KLASS, KARTPOPUP_STIL_ID, lagerFilter, lasKartFarger, objektPensel, OBJEKT_LAGER, popupElement, skuggPensel, terrangKalla, terrangSkugga, TERRANG_SKUGGA } from "../lib/karta.js";
+import { KartaPaneler, useBredKarta } from "./OpsKartaPaneler.jsx";
 import { cx } from "../lib/cx.js";
 
 /**
@@ -39,8 +40,33 @@ export function OpsKartaVy({ samling, texter }) {
    * med Stäng, säkra zoner och Escape. Kartan ritas om till den nya storleken när den går in i och ut ur läget (`resize`).
    */
   const { lage: helskarm, oppna: oppnaHelskarm, avsluta: stangHelskarm } = useHelskarm(ram);
+  /*
+   * ══ ⛔ KARTGRUND, ORTNAMN OCH LAGER (0.258.0, cllp/lifehub.app#950 skiva 2 och 3) ══════════════════════════════════════════════════════
+   * Valen görs i panelerna Inställningar och Lager, som bara finns i den öppnade kartan (`KartaPaneler`). Kartan börjar alltid i Karta med
+   * ortnamnen på och alla lager på: förhandsvisningen i Biblioteket ser ut som förut.
+   */
+  const bred = useBredKarta();
+  const [grund, setGrund] = useState("karta");
+  const [ortnamn, setOrtnamn] = useState(true);
+  const [avslagna, setAvslagna] = useState(/** @type {string[]} */ ([]));
+  const [minPosition, setMinPosition] = useState(false);
+  const [terrangFel, setTerrangFel] = useState(/** @type {"" | "fel"} */ (""));
+  const lager = useMemo(() => kartansLager(samling), [samling]);
+  const grundfilter = useRef(/** @type {Record<string, unknown>} */ ({}));
+  const platsKontroll = useRef(/** @type {any} */ (null));
+  const terrangReserv = useRef(false);
+  const val = useRef({ grund, ortnamn, avslagna });
+  val.current = { grund, ortnamn, avslagna };
+  /*
+   * ⛔ ETT FINGER I HELSKÄRM (0.258.0, cllp/lifehub.app#950 skiva 1). Tvåfingersläget (`cooperativeGestures`) finns för att sidan ska gå att
+   * rulla förbi en karta i en lista. I helskärm finns ingen sida att rulla, och där var det bara i vägen: ett finger flyttade ingenting, som
+   * om kartan var trasig. Det slås av i helskärm och på igen när läget lämnas, i samma steg som kartan ritas om till sin nya storlek.
+   */
   useEffect(() => {
-    karta.current?.resize?.();
+    const k = karta.current;
+    k?.resize?.();
+    if (helskarm) k?.cooperativeGestures?.disable?.();
+    else k?.cooperativeGestures?.enable?.();
   }, [helskarm]);
 
   useEffect(() => {
@@ -57,10 +83,12 @@ export function OpsKartaVy({ samling, texter }) {
     let kartaNu;
     // ⛔ KONSTRUKTORN KASTAR SYNKRONT UTAN WEBGL (MapLibre 6.17.0, `map.ts:4242`, GPUInitializationError), före varje lyssnare, så lyssnaren
     // på "error" nedan når aldrig det felet. Utan fångsten kraschade effekten i stället för att visa kartans egen felrad (ChatGPT:s granskning av 587).
+    const stil = byggStil(farger, senast.current.samling);
+    grundfilter.current = Object.fromEntries(stil.layers.filter((l) => OBJEKT_LAGER.includes(l.id)).map((l) => [l.id, /** @type {any} */ (l).filter]));
     try {
       kartaNu = new Map({
         container: el,
-        style: /** @type {any} */ (byggStil(farger, senast.current.samling)),
+        style: /** @type {any} */ (stil),
         attributionControl: { compact: false },
         cooperativeGestures: true,
         locale: {
@@ -98,6 +126,14 @@ export function OpsKartaVy({ samling, texter }) {
     plats.on("geolocate", () => {
       if (kvar) setPlatsFel("");
     });
+    // (0.258.0) Min position i panelen Inställningar följer kontrollens eget läge, så att reglaget och knappen i kartan aldrig säger olika saker.
+    plats.on("trackuserlocationstart", () => {
+      if (kvar) setMinPosition(true);
+    });
+    plats.on("trackuserlocationend", () => {
+      if (kvar) setMinPosition(false);
+    });
+    platsKontroll.current = plats;
     kartaNu.addControl(plats, "top-right");
     kartaNu.on("click", (e) => {
       const traff = kartaNu.queryRenderedFeatures(e.point, { layers: OBJEKT_LAGER });
@@ -121,8 +157,19 @@ export function OpsKartaVy({ samling, texter }) {
       if (!kvar) return;
       laggData(kartaNu, senast.current.samling);
       passa(kartaNu, senast.current.samling);
+      tillampaVal(kartaNu, val.current, grundfilter.current, terrangReserv.current);
     });
     kartaNu.on("error", (e) => {
+      // ⛔ TERRÄNGENS KÄLLA FALLER: byt till reserven en gång, och säg till om också den faller (regel 5). Kartan i sig står kvar.
+      // `sourceId` sätts av stilen på varje händelse från en källa (MapLibre 6.17.0, `tileManager.setEventedParent` med `sourceId: id`). En bricka
+      // som svarar 404 ger inget fel alls (havet har ingen höjd), så det som når hit är en källa som inte svarar eller en beskrivning som inte går att läsa.
+      if (kvar && /** @type {any} */ (e)?.sourceId === "terrang") {
+        if (!terrangReserv.current) {
+          terrangReserv.current = true;
+          bytTerrangKalla(kartaNu);
+        } else setTerrangFel("fel");
+        return;
+      }
       // En bricka som faller är inte kartan som faller: underlaget fylls i när nästa kommer. Bara att ytan inte går att rita alls (WebGL) byter ut vyn.
       const meddelande = String(e?.error?.message || "");
       if (kvar && /webgl|initialize/i.test(meddelande)) setFel("lasfel");
@@ -157,6 +204,12 @@ export function OpsKartaVy({ samling, texter }) {
   }, [samling]);
 
   useEffect(() => {
+    const kartaNu = karta.current;
+    if (!kartaNu?.isStyleLoaded?.()) return;
+    tillampaVal(kartaNu, { grund, ortnamn, avslagna }, grundfilter.current, terrangReserv.current);
+  }, [grund, ortnamn, avslagna]);
+
+  useEffect(() => {
     const rot = document.documentElement;
     const medier = window.matchMedia?.("(prefers-color-scheme: dark)");
     const uppdatera = () => {
@@ -165,7 +218,8 @@ export function OpsKartaVy({ samling, texter }) {
       const { farger, saknas } = lasKartFarger();
       if (saknas.length) return;
       laggData(kartaNu, senast.current.samling);
-      for (const [lager, prop, varde] of [...basPensel(farger), ...objektPensel(farger)]) {
+      const skugga = kartaNu.getLayer?.(TERRANG_SKUGGA) ? skuggPensel(farger) : [];
+      for (const [lager, prop, varde] of [...basPensel(farger), ...objektPensel(farger), ...skugga]) {
         kartaNu.setPaintProperty(lager, prop, varde);
       }
     };
@@ -233,6 +287,27 @@ export function OpsKartaVy({ samling, texter }) {
             popupMal.plats,
           )
         : null}
+      {helskarm ? (
+        <KartaPaneler
+          lager={lager}
+          avslagna={avslagna}
+          onLager={(typ, pa) => setAvslagna((nu) => (pa ? nu.filter((t) => t !== typ) : nu.includes(typ) ? nu : [...nu, typ]))}
+          grund={grund}
+          onGrund={(g) => {
+            setTerrangFel("");
+            setGrund(g);
+          }}
+          ortnamn={ortnamn}
+          onOrtnamn={setOrtnamn}
+          minPosition={minPosition}
+          onMinPosition={(pa) => {
+            if (pa !== minPosition) platsKontroll.current?.trigger?.();
+          }}
+          terrangFel={terrangFel}
+          bred={bred}
+          texter={texter}
+        />
+      ) : null}
       {platsFel ? (
         <p role="status" data-karta-plats-fel={platsFel} className="absolute inset-x-2 bottom-2 z-10 m-0 rounded-base border border-line bg-raised px-3 py-2 text-etikett text-ink shadow-md">
           {platsFel === "nekad" ? texter.platsNekad : texter.platsFel}
@@ -301,4 +376,39 @@ function passa(kartaNu, samling) {
     return;
   }
   kartaNu.fitBounds(ruta, { padding: 32, maxZoom: 15, animate: false });
+}
+
+/**
+ * Kartgrunden, ortnamnen och lagren på kartan (0.258.0). Terrängens skuggning och källa läggs till första gången Terräng väljs, aldrig förr: en källa
+ * i stilen hade hämtat sin beskrivning vid varje karta (Fables punkt om vem som får adressen).
+ *
+ * @param {any} kartaNu
+ * @param {{ grund: string, ortnamn: boolean, avslagna: string[] }} val
+ * @param {Record<string, unknown>} grundfilter
+ * @param {boolean} reserv
+ */
+function tillampaVal(kartaNu, val, grundfilter, reserv) {
+  if (val.grund === "terrang" && !kartaNu.getLayer?.(TERRANG_SKUGGA)) laggTillTerrang(kartaNu, reserv);
+  if (kartaNu.getLayer?.(TERRANG_SKUGGA)) kartaNu.setLayoutProperty(TERRANG_SKUGGA, "visibility", val.grund === "terrang" ? "visible" : "none");
+  for (const [id, synlig] of grundensSynlighet(val.grund, val.ortnamn)) {
+    if (!kartaNu.getLayer || kartaNu.getLayer(id)) kartaNu.setLayoutProperty(id, "visibility", synlig);
+  }
+  for (const id of OBJEKT_LAGER) kartaNu.setFilter(id, lagerFilter(grundfilter[id], val.avslagna));
+}
+
+/** @param {any} kartaNu @param {boolean} reserv */
+function laggTillTerrang(kartaNu, reserv) {
+  const { farger, saknas } = lasKartFarger();
+  if (saknas.length) return;
+  if (!kartaNu.getSource("terrang")) kartaNu.addSource("terrang", terrangKalla(reserv));
+  kartaNu.addLayer(terrangSkugga(farger), "vatten");
+}
+
+/** Mapterhorn föll: samma lager, med AWS Terrain Tiles som källa. @param {any} kartaNu */
+function bytTerrangKalla(kartaNu) {
+  const synlig = kartaNu.getLayoutProperty?.(TERRANG_SKUGGA, "visibility");
+  if (kartaNu.getLayer?.(TERRANG_SKUGGA)) kartaNu.removeLayer(TERRANG_SKUGGA);
+  if (kartaNu.getSource("terrang")) kartaNu.removeSource("terrang");
+  laggTillTerrang(kartaNu, true);
+  if (synlig === "none") kartaNu.setLayoutProperty(TERRANG_SKUGGA, "visibility", "none");
 }
