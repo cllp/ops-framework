@@ -414,6 +414,25 @@ describe("Flytta UT ur ett objekts filer (OpsPlatsfiler)", () => {
     expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Music", "Demos"]);
   });
 
+  it("⛔ en admin som inte skrev filen flyttar inom gruppen men bara kopierar till en annan grupp (0.259.0, lifehub.app#952)", async () => {
+    const onDela = vi.fn(async () => {});
+    render(<OpsPlatsfiler kalla={bygg()} jag={jag(ANNA, "admin")} kanLaggaTill grupper={[GRUPPEN, { id: "plats~cps-ab~demos", namn: "Demos" }, { id: "andra-ab", namn: "Andra" }]} onDela={onDela} />);
+    // Menyn öppnas på en rad som alltid finns, så att provet blir rött direkt (och inte väntar) när raden heter något annat.
+    const user = await oppnaMeny("Byt namn");
+    expect(screen.queryByRole("menuitem", { name: "Kopiera till en annan grupp" })).toBeNull();
+    await user.click(screen.getByRole("menuitem", { name: "Flytta eller kopiera" }));
+    const ruta = screen.getByRole("dialog", { name: "Flytta eller kopiera" });
+    // Förvalt mål är gruppen själv: samma grupp, alltså Flytta.
+    expect(within(ruta).getByRole("button", { name: "Flytta" })).toBeInTheDocument();
+    await user.click(within(ruta).getByRole("combobox", { name: "Flytta eller kopiera till" }));
+    await user.click(screen.getByRole("option", { name: "Andra" }));
+    expect(within(ruta).queryByRole("button", { name: "Flytta" })).toBeNull();
+    await user.click(within(ruta).getByRole("combobox", { name: "Flytta eller kopiera till" }));
+    await user.click(screen.getByRole("option", { name: "Demos" }));
+    await user.click(within(ruta).getByRole("button", { name: "Flytta" }));
+    await waitFor(() => expect(onDela).toHaveBeenCalledWith({ id: "p1", groupId: "plats~cps-ab~demos", satt: "flytta" }));
+  });
+
   it("utan grupper och onDela är menyn som förut: ingen flytt", async () => {
     render(<OpsPlatsfiler kalla={bygg()} jag={jag()} kanLaggaTill />);
     await oppnaMeny("Byt namn");

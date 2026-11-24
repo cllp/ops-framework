@@ -1382,6 +1382,30 @@ export function farAndra(post, jag) {
 }
 
 /**
+ * Får `jag` FLYTTA posten till `malId`? (0.259.0, cllp/lifehub.app#952). En kopia följer `farAndra` och vyns egna villkor; det här gäller bara flytten.
+ *
+ * - Författaren (en aktiv medlem som skrev posten) flyttar vart som helst där den får skriva: gruppens platser, en annan grupp, Mitt bibliotek. Så har det varit sedan 0.101.0.
+ * - ⛔ GRUPPENS ADMIN OCH ÄGARE FLYTTAR INOM GRUPPEN (CP 2026-11-24, "Ja på båda, kör"): mellan gruppen och dess platser, också någon annans post. En sådan flytt gör inget synligt för någon ny i gruppen, och den som förvaltar
+ *   gruppen ska kunna städa den. Till en annan grupp eller till Mitt bibliotek flyttar de inte: det hade tagit någon annans post ur gruppen.
+ * - Ingen flyttar till eller från Mitt bibliotek åt någon annan, och en vanlig medlem flyttar inte någon annans post.
+ *
+ * @param {{ groupId?: string | null, skapadAv?: { uid?: string | null } | null } | null | undefined} post
+ * @param {{ uid?: string | null, roll?: string | null, status?: string | null, groupId?: string | null } | null | undefined} jag
+ * @param {string} malId
+ * @returns {boolean}
+ */
+export function farFlyttaTill(post, jag, malId) {
+  if (!post || !jag || typeof jag.uid !== "string" || !jag.uid || typeof malId !== "string" || !malId) return false;
+  if (jag.status !== undefined && jag.status !== "aktiv") return false;
+  const fran = String(post.groupId ?? "");
+  if (malId === fran) return false;
+  if (post.skapadAv?.uid === jag.uid) return true;
+  if (arMittBibliotek(fran) || arMittBibliotek(malId)) return false;
+  if (gruppForPlats(fran) !== gruppForPlats(malId)) return false;
+  return farAndra(/** @type {any} */ (post), /** @type {any} */ (jag));
+}
+
+/**
  * Det formuläret kan ha fel på, utan grupp och utan författare.
  *
  * Vyn anropar den här. Källan anropar `postFel`, som lägger till resten.

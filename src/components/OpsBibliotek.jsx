@@ -32,7 +32,7 @@ import { githubDokument } from "../lib/githubdokument.js";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
 import { ID_FORM } from "../lib/katalog.js";
-import { ARKIVTAGG, POSTIDFORM, arArkiverad, kortRubrik, avkodaTextfil, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeForFil, arKartfil, filadressFel, filSort, filtreraBibliotek, rubrikUrFilnamn, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
+import { ARKIVTAGG, POSTIDFORM, arArkiverad, kortRubrik, avkodaTextfil, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, farFlyttaTill, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeForFil, arKartfil, filadressFel, filSort, filtreraBibliotek, rubrikUrFilnamn, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
 import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
 export { menyPilar, OpsTaggFilter as TaggFilter };
@@ -1415,9 +1415,15 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
         //
         // ⛔ KOPIERA TILL GRUPPENS EGNA PLATSER FÅR VARJE MEDLEM (0.155.0, cllp/ops-framework#469). En kopia är en NY post som den som kopierar skriver på målet, och läsningen av källan gav redan innehållet: samma
         // grupp, samma synlighet, ingenting nytt blir synligt för någon. Det är därför bara platser i SAMMA grupp (`gruppForPlats`) som en vanlig medlem får kopiera till; en annan grupp kräver förvaltare som förut.
+        //
+        // ⛔ EN ADMIN ELLER ÄGARE FLYTTAR INOM GRUPPEN (0.259.0, cllp/lifehub.app#952). CP 2026-11-24: "Vi behöver en funktion i biblioteket där vi kan flytta en artefakt till ett projekt eller mellan projekt, eller ut till hela
+        // gruppen från projekt", och ja på att gruppens förvaltare får flytta någon annans post inom gruppen. En flytt mellan gruppen och dess platser gör inget synligt för någon ny i gruppen. Till en annan grupp och till Mitt
+        // bibliotek är det fortfarande bara författaren som flyttar (`farFlyttaTill`). Raden heter "Flytta eller kopiera" så snart någon plats i rutan går att flytta till: "Kopiera till en annan grupp" stod förut också när rutan
+        // listade gruppens projekt, och då var ordet fel.
         const platserIRutan = egen ? (mitt ? 1 : 0) + andra.length : far ? andra.length : andra.filter((g) => iSammaGrupp(post, g.id)).length;
         if (platserIRutan > 0) {
-          ut.push({ id: "dela", etikett: lord(egen ? "flyttaEllerKopiera" : far ? "kopieraTillGrupp" : "kopieraTillPlats"), onValj: () => setDelar(post) });
+          const flyttbar = egen || andra.some((g) => farFlyttaTill(post, jag, g.id));
+          ut.push({ id: "dela", etikett: lord(flyttbar ? "flyttaEllerKopiera" : far ? "kopieraTillGrupp" : "kopieraTillPlats"), onValj: () => setDelar(post) });
         }
       }
     }
@@ -1921,7 +1927,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       <OpsModal
         open={delar !== null}
         onOpenChange={(oppen) => { if (!oppen) setDelar(null); }}
-        title={lord(delar && arMittBibliotek(delar.groupId) ? "delaMedGrupp" : delar && Boolean(jag) && delar.skapadAv?.uid === jag?.uid ? "flyttaEllerKopiera" : "kopiera")}
+        title={lord(delar && arMittBibliotek(delar.groupId) ? "delaMedGrupp" : delar && (delar.skapadAv?.uid === jag?.uid && Boolean(jag) || grupper.some((g) => g.id !== delar.groupId && farFlyttaTill(delar, jag, g.id))) ? "flyttaEllerKopiera" : "kopiera")}
         size="sm"
       >
         {delar ? (
@@ -1929,7 +1935,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
             id={delar.id}
             // Författaren ser Mitt bibliotek bland platserna (0.102.0): kopian dit flyttade hit ur menyn, för att korta den.
             grupper={grupper.filter((g) => g.id !== delar.groupId && (!arMittBibliotek(g.id) || (Boolean(jag) && delar.skapadAv?.uid === jag?.uid)) && (farAndra(delar, jag) || iSammaGrupp(delar, g.id)))}
-            kanFlytta={Boolean(jag) && delar.skapadAv?.uid === jag?.uid}
+            kanFlytta={(malId) => farFlyttaTill(delar, jag, malId)}
             onDela={onDela}
             onStart={(id) => setFlyttar((f) => (f.includes(id) ? f : [...f, id]))}
             onSlut={(id) => setFlyttar((f) => f.filter((x) => x !== id))}
@@ -3972,7 +3978,7 @@ function UtskriftKontroll({ post, jag, onSkrivUt, onSkrivUtIgen, onTaBortUtskrif
 }
 
 /**
- * @param {{ id: string, grupper: readonly { id: string, namn: string }[], onDela?: (inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>, onKlar?: (text: string) => void, onStart?: (id: string) => void, onSlut?: (id: string) => void, kanFlytta?: boolean }} props `onStart` och `onSlut` lägger posten i listans spärr medan flytten pågår, också om rutan stängs under tiden (granskningen av PR 365, varv 2). `kanFlytta` är falskt för den som inte skrev posten: en admin kopierar men flyttar inte någon annans post.
+ * @param {{ id: string, grupper: readonly { id: string, namn: string }[], onDela?: (inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>, onKlar?: (text: string) => void, onStart?: (id: string) => void, onSlut?: (id: string) => void, kanFlytta?: boolean | ((malId: string) => boolean) }} props `onStart` och `onSlut` lägger posten i listans spärr medan flytten pågår, också om rutan stängs under tiden (granskningen av PR 365, varv 2). `kanFlytta` säger per mål om Flytta visas (0.259.0, `farFlyttaTill`): författaren flyttar vart som helst i rutan, gruppens admin och ägare bara inom gruppen, och en vanlig medlem som inte skrev posten aldrig. Ett booleskt värde gäller alla mål, som förut.
  */
 function DelaKontroll({ id, grupper, onDela, onKlar, onStart, onSlut, kanFlytta = true }) {
   const sprak = useOpsSprak();
@@ -3980,9 +3986,10 @@ function DelaKontroll({ id, grupper, onDela, onKlar, onStart, onSlut, kanFlytta 
   const [fel, setFel] = useState("");
   const [pagar, setPagar] = useState(/** @type {"flytta" | "kopiera" | null} */ (null));
   if (grupper.length === 0) return null;
+  const farFlyttaHit = typeof kanFlytta === "function" ? Boolean(mal) && kanFlytta(mal) : kanFlytta;
   const kor = (/** @type {"flytta" | "kopiera"} */ satt) => {
     if (pagar) return;
-    if (satt === "flytta" && !kanFlytta) return;
+    if (satt === "flytta" && !farFlyttaHit) return;
     if (!mal) {
       setFel(listord("valjGrupp", sprak));
       return;
@@ -4028,7 +4035,7 @@ function DelaKontroll({ id, grupper, onDela, onKlar, onStart, onSlut, kanFlytta 
       </OpsField>
       {fel ? <p role="alert">{fel}</p> : null}
       <div className="flex gap-2">
-        {kanFlytta ? <OpsButton variant="secondary" busy={pagar === "flytta"} onClick={() => kor("flytta")}>{listord("flytta", sprak)}</OpsButton> : null}
+        {farFlyttaHit ? <OpsButton variant="secondary" busy={pagar === "flytta"} onClick={() => kor("flytta")}>{listord("flytta", sprak)}</OpsButton> : null}
         <OpsButton variant="secondary" busy={pagar === "kopiera"} onClick={() => kor("kopiera")}>{listord("kopiera", sprak)}</OpsButton>
       </div>
     </div>

@@ -9,6 +9,18 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.259.0
+
+**Biblioteket: gruppens admin och ägare flyttar inom gruppen (cllp/lifehub.app#952).** CP 2026-11-24: "Vi behöver en funktion i biblioteket där vi kan flytta en artefakt till ett projekt eller mellan projekt, eller ut till hela gruppen från projekt", och "Ja på båda, kör" på att gruppens förvaltare får flytta någon annans post inom gruppen.
+
+### Tillagt
+- **`farFlyttaTill(post, jag, malId)`**: får `jag` flytta posten dit? Författaren flyttar vart som helst som förut. En aktiv admin eller ägare flyttar mellan gruppen och dess platser (projekten, gruppens egna platser), också någon annans post, men inte till en annan grupp eller till Mitt bibliotek.
+
+### Ändrat
+- **Menyraden heter "Flytta eller kopiera"** när någon plats i rutan går att flytta till. "Kopiera till en annan grupp" stod förut för en admin också när rutan listade gruppens projekt, och då var ordet fel.
+- **Flytta-knappen i rutan gäller det valda målet** (`kanFlytta` tar också en funktion `(malId) => boolean`): en admin ser Flytta för gruppens platser och bara Kopiera för en annan grupp.
+- ⛔ **`onDela` kan nu få `satt: "flytta"` från en admin eller ägare som inte skrev posten**, alltid till en plats i samma grupp. Appen avgör hur flytten görs: `flyttaBibliotekspost` gör den som förut (ny post, ny författare), och lifehub.app flyttar på servern på plats, så att id, författare, kommentarer och delade länkar står kvar.
+
 ## 0.258.0
 
 **Kartorna: kontraktet, panelerna Lager och Inställningar, kartgrunden Terräng och ett finger i helskärm (cllp/lifehub.app#950, skiva 0 till 3).** CP 2026-11-24, "Ja kör", efter Claudes analys och Fables granskning i #950 och skissen: panelerna för info, inställningar och lager "som går att fälla ut på ett bra sätt", inga kostnader, och kartan ska gå att använda i helskärm på en telefon.
