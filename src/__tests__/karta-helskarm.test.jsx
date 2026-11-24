@@ -62,6 +62,31 @@ vi.mock("maplibre-gl", () => {
     setPaintProperty(lager, prop, varde) {
       this.paints.push([lager, prop, varde]);
     }
+    // (0.258.0) Kartgrund, ortnamn och lagerfilter: anropen sparas, så att proven ser vad vyn satte.
+    setLayoutProperty(lager, prop, varde) {
+      (this.layouter ??= []).push([lager, prop, varde]);
+    }
+    getLayoutProperty(lager, prop) {
+      return [...(this.layouter ?? [])].reverse().find(([l, p]) => l === lager && p === prop)?.[2];
+    }
+    setFilter(lager, filter) {
+      (this.filter ??= {})[lager] = filter;
+    }
+    getLayer(id) {
+      return (this.tillagda ?? []).includes(id) || !id.startsWith("terrang") ? { id } : undefined;
+    }
+    addLayer(lager) {
+      (this.tillagda ??= []).push(lager.id);
+    }
+    removeLayer(id) {
+      this.tillagda = (this.tillagda ?? []).filter((x) => x !== id);
+    }
+    addSource(id, kalla) {
+      (this.kallor ??= {})[id] = kalla;
+    }
+    removeSource(id) {
+      delete (this.kallor ?? {})[id];
+    }
     queryRenderedFeatures() {
       return this.traff;
     }
@@ -114,6 +139,9 @@ vi.mock("maplibre-gl", () => {
       this.val = val;
       this._on = {};
       (globalThis.__opsPlatskontroller ??= []).push(this);
+    }
+    trigger() {
+      this.triggad = (this.triggad ?? 0) + 1;
     }
     on(ev, fn) {
       this._on[ev] = fn;
@@ -291,5 +319,152 @@ describe("⛔ popupen i appens token", () => {
     fireEvent.click(stang);
     expect(popup.borttagen).toBe(true);
     expect(screen.queryByRole("button", { name: "Stäng" })).toBeNull();
+  });
+});
+
+/** Sätter skärmbredden som `useBredKarta` läser: dator från 768 px, annars telefon. */
+function bredd(dator) {
+  window.matchMedia = /** @type {any} */ ((q) => ({ matches: dator && q.includes("768"), media: q, addEventListener() {}, removeEventListener() {} }));
+}
+
+async function oppnaHelskarm() {
+  Object.defineProperty(document, "fullscreenEnabled", { configurable: true, get: () => false });
+  const r = await rita();
+  await act(async () => {
+    await Promise.resolve();
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Helskärm" }));
+  });
+  return r;
+}
+
+/**
+ * ⛔ SKIVA 3 (0.258.0, cllp/lifehub.app#950). CP 2026-11-24: panelerna Lager och Inställningar, som går att fälla ut på ett bra sätt, och bara i den
+ * öppnade kartan. Info kommer i skiva 5.
+ */
+describe("⛔ kartans paneler", () => {
+  const forrMedia = window.matchMedia;
+  afterEach(() => {
+    window.matchMedia = forrMedia;
+    try {
+      localStorage.removeItem("ops-karta-paneler-v1");
+    } catch {
+      // ingen lagring i miljön
+    }
+  });
+
+  it("finns inte i rutan, bara i den öppnade kartan", async () => {
+    bredd(false);
+    await rita();
+    expect(document.querySelector("[data-karta-paneler]")).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Helskärm" }));
+    });
+    expect(document.querySelector('[data-karta-paneler="telefon"]')).toBeTruthy();
+  });
+
+  it("telefon: allt är infällt, en knapp öppnar ett halvt ark, handtaget växlar till helt och krysset fäller in", async () => {
+    bredd(false);
+    await oppnaHelskarm();
+    expect(document.querySelector("[data-karta-ark]")).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Lager" }));
+    });
+    const ark = () => document.querySelector("[data-karta-ark]");
+    expect(ark()?.getAttribute("data-karta-ark")).toBe("halv");
+    expect(ark()?.getAttribute("data-karta-panel")).toBe("lager");
+    await act(async () => {
+      fireEvent.keyDown(screen.getByRole("button", { name: "Visa panelen över nästan hela skärmen" }), { key: "Enter" });
+    });
+    expect(ark()?.getAttribute("data-karta-ark")).toBe("hel");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Inställningar" }));
+    });
+    expect(ark()?.getAttribute("data-karta-panel")).toBe("installningar");
+    expect(document.querySelectorAll("[data-karta-ark]").length).toBe(1);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Fäll in inställningar" }));
+    });
+    expect(ark()).toBeNull();
+  });
+
+  it("dator: panelerna är flikar vid kanten, en flik fäller ut, och läget minns", async () => {
+    bredd(true);
+    await oppnaHelskarm();
+    expect(document.querySelector('[data-karta-flik="lager"]')).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Fäll ut lager" }));
+    });
+    expect(document.querySelector('[data-karta-panel="lager"]')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem("ops-karta-paneler-v1") ?? "{}")).toEqual({ lager: true, installningar: false });
+    cleanup();
+    await oppnaHelskarm();
+    expect(document.querySelector('[data-karta-panel="lager"]')).toBeTruthy();
+    expect(document.querySelector('[data-karta-flik="installningar"]')).toBeTruthy();
+  });
+
+  it("ett lager som slås av filtreras bort ur kartan, och på igen tar tillbaka det", async () => {
+    bredd(false);
+    const { karta } = await oppnaHelskarm();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Lager" }));
+    });
+    const reglage = screen.getAllByRole("switch");
+    expect(reglage.length).toBeGreaterThan(0);
+    await act(async () => {
+      fireEvent.click(reglage[0]);
+    });
+    expect(JSON.stringify(karta.filter["objekt-punkt"])).toContain("_lager");
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("switch")[0]);
+    });
+    expect(JSON.stringify(karta.filter["objekt-punkt"])).not.toContain("_lager");
+  });
+
+  it("Terräng lägger till höjddatan först när den väljs, och faller den byts källan till reserven och sedan sägs det", async () => {
+    bredd(false);
+    const { karta } = await oppnaHelskarm();
+    expect(karta.kallor?.terrang).toBeUndefined();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Inställningar" }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("tab", { name: "Terräng" }));
+    });
+    expect(karta.kallor.terrang.url).toContain("mapterhorn");
+    expect(karta.tillagda).toContain("terrang-skugga");
+    expect(karta.getLayoutProperty("mark-skog", "visibility")).toBe("visible");
+    await act(async () => {
+      karta._on.error({ sourceId: "terrang", error: new Error("404") });
+    });
+    expect(karta.kallor.terrang.tiles[0]).toContain("elevation-tiles-prod");
+    expect(document.querySelector("[data-karta-terrang-fel]")).toBeNull();
+    await act(async () => {
+      karta._on.error({ sourceId: "terrang", error: new Error("404") });
+    });
+    expect(document.querySelector("[data-karta-terrang-fel]")?.textContent).toBe("Terrängen gick inte att hämta. Kartan visas utan skuggning.");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("tab", { name: "Karta" }));
+    });
+    expect(karta.getLayoutProperty("terrang-skugga", "visibility")).toBe("none");
+    expect(karta.getLayoutProperty("mark-skog", "visibility")).toBe("none");
+  });
+
+  it("ortnamnen går att slå av, och Min position går genom kartans egen kontroll", async () => {
+    bredd(false);
+    const { karta } = await oppnaHelskarm();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Inställningar" }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("switch", { name: /Ortnamn/ }));
+    });
+    expect(karta.getLayoutProperty("ort-by", "visibility")).toBe("none");
+    const plats = globalThis.__opsPlatskontroller.at(-1);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("switch", { name: /Min position/ }));
+    });
+    expect(plats.triggad).toBe(1);
   });
 });

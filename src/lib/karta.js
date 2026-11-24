@@ -31,6 +31,73 @@ export const KARTA_GLYFER = "https://tiles.openfreemap.org/fonts/{fontstack}/{ra
  */
 export const KARTA_TILLHORIGHET = "© OpenStreetMap (https://www.openstreetmap.org/copyright) © OpenFreeMap (https://openfreemap.org/) © OpenMapTiles (https://openmaptiles.org/)";
 
+/**
+ * Kartgrunderna (0.258.0, cllp/lifehub.app#950 skiva 2). CP 2026-11-24: "Vi kör utan kostnader nu". Karta är OpenFreeMap som förut. Terräng är samma
+ * stil med skuggad terräng ur fria höjddata och skog och gräs ur kartdatan, så att terrängen följer våra färger och ortnamn i stället för att vara en
+ * annan karta. Satellit (Esri, inom gratisnivån) kommer i en egen skiva, när Groks konto och nyckel finns.
+ */
+export const KARTGRUNDER = Object.freeze(["karta", "terrang"]);
+
+/**
+ * Höjddata för terrängen: Mapterhorn (Copernicus GLO-30 och regionala källor), ingen nyckel, kommersiell användning tillåten enligt projektets egna
+ * frågor och svar (läst i Fables granskning i #950). Adressen är den MapLibres egna exempel använder.
+ *
+ * ⛔ RESERVEN FINNS FRÅN BÖRJAN. Mapterhorn är ett litet projekt utan löfte om drift. Faller dess brickor byter kartan till AWS Terrain Tiles (samma
+ * kodning, ingen nyckel, mätt härifrån 2026-11-24: HTTP 200 image/png), och faller också den säger kartan det i stället för att visa en grund utan
+ * skuggning som om allt var bra (regel 5).
+ */
+export const TERRANG_UNDERLAG = "https://tiles.mapterhorn.com/tilejson.json";
+export const TERRANG_RESERV = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
+export const TERRANG_TILLHORIGHET = "© Mapterhorn (https://mapterhorn.com/attribution)";
+export const TERRANG_RESERV_TILLHORIGHET = "© Mapzen, AWS Terrain Tiles (https://registry.opendata.aws/terrain-tiles)";
+
+/** Lagren ur kartdatan som bara syns i Terräng. Skuggningen (`TERRANG_SKUGGA`) läggs till först när Terräng väljs. */
+export const TERRANG_LAGER = Object.freeze(["mark-skog", "mark-gras"]);
+export const TERRANG_SKUGGA = "terrang-skugga";
+
+/**
+ * Höjddatans källa, som läggs till först när någon väljer Terräng (0.258.0). ⛔ INTE I STILEN FRÅN BÖRJAN: en källa i stilen hämtar sin
+ * beskrivning när kartan ritas, och då hade varje karta i Biblioteket skickat personens adress till Mapterhorn fast ingen valt Terräng
+ * (Fables punkt om vem som får adressen). `reserv` ger AWS Terrain Tiles.
+ *
+ * @param {boolean} [reserv]
+ */
+export function terrangKalla(reserv = false) {
+  return reserv
+    ? { type: "raster-dem", tiles: [TERRANG_RESERV], tileSize: 256, maxzoom: 15, encoding: "terrarium", attribution: TERRANG_RESERV_TILLHORIGHET }
+    : { type: "raster-dem", url: TERRANG_UNDERLAG, encoding: "terrarium", attribution: TERRANG_TILLHORIGHET };
+}
+
+/**
+ * Skuggningens lager, i temats färger. Läggs under vattnet, så att havet inte skuggas.
+ *
+ * @param {Record<string, string>} farger
+ */
+export function terrangSkugga(farger) {
+  return {
+    id: TERRANG_SKUGGA,
+    type: "hillshade",
+    source: "terrang",
+    paint: { "hillshade-shadow-color": farger.text, "hillshade-highlight-color": farger.papper, "hillshade-accent-color": farger.text, "hillshade-exaggeration": 0.35 },
+  };
+}
+
+/** @param {Record<string, string>} farger */
+export function skuggPensel(farger) {
+  return [
+    [TERRANG_SKUGGA, "hillshade-shadow-color", farger.text],
+    [TERRANG_SKUGGA, "hillshade-highlight-color", farger.papper],
+    [TERRANG_SKUGGA, "hillshade-accent-color", farger.text],
+  ];
+}
+
+/**
+ * Ortnamnens lager, i nivåer som mallen (0.258.0). Förr låg tätort, by och småort i ett lager från zoom 8 utan rangordning, så en småort kunde tränga
+ * undan en tätort (Fables granskning). Nu har varje nivå sin zoom, och inom en nivå vinner den med lägst `rank`. Öar kom inte med alls förr.
+ * Zoomgränserna är stilens, inte datans: vad brickorna bär på zoom 8 till 10 gick inte att mäta härifrån (OpenFreeMap svarar inte i den här miljön).
+ */
+export const ORTNAMN_LAGER = Object.freeze(["ort-land", "ort-stad", "ort-tator", "ort-by", "ort-smaort", "ort-o"]);
+
 /** Lagren ett tryck frågar, överst först, så en punkt på en linje vinner. */
 export const OBJEKT_LAGER = ["objekt-punkt", "objekt-linje", "objekt-yta"];
 
@@ -296,7 +363,7 @@ export function berika(samling, farger) {
       type: "Feature",
       id: feature.id ?? i,
       geometry: feature.geometry,
-      properties: { ...egenskaperAv(feature), ...objektFarg(feature, farger, lagerFarg) },
+      properties: { ...egenskaperAv(feature), ...objektFarg(feature, farger, lagerFarg), _lager: typAv(egenskaperAv(feature)) },
     })),
   };
 }
@@ -474,6 +541,14 @@ export function basPensel(farger) {
     ["ort-stad", "text-halo-color", ort[1]],
     ["ort-tator", "text-color", ort[0]],
     ["ort-tator", "text-halo-color", ort[1]],
+    ["ort-by", "text-color", ort[0]],
+    ["ort-by", "text-halo-color", ort[1]],
+    ["ort-smaort", "text-color", ort[0]],
+    ["ort-smaort", "text-halo-color", ort[1]],
+    ["ort-o", "text-color", ort[0]],
+    ["ort-o", "text-halo-color", ort[1]],
+    ["mark-skog", "fill-color", farger.salvia],
+    ["mark-gras", "fill-color", farger.salvia],
     ["vag-namn", "text-color", farger.lera],
     ["vag-namn", "text-halo-color", farger.papper],
     ["vatten-namn", "text-color", farger.text],
@@ -493,6 +568,34 @@ export function objektPensel(farger) {
     ["objekt-punkt", "circle-color", ["coalesce", ["get", "_markor"], farger.accent]],
     ["objekt-punkt", "circle-stroke-color", farger.text],
   ];
+}
+
+/**
+ * Vilka lager som syns i en kartgrund och med ortnamnen av eller på (0.258.0). Svaret är `[lager, "visible" | "none"]` för varje lager grunden styr,
+ * så att vyn sätter allt i ett svep och ingenting står kvar från förra grunden.
+ *
+ * @param {string} grund En av `KARTGRUNDER`.
+ * @param {boolean} ortnamn
+ * @returns {[string, "visible" | "none"][]}
+ */
+export function grundensSynlighet(grund, ortnamn) {
+  const terrang = grund === "terrang";
+  return [
+    ...TERRANG_LAGER.map((id) => /** @type {[string, "visible" | "none"]} */ ([id, terrang ? "visible" : "none"])),
+    ...ORTNAMN_LAGER.map((id) => /** @type {[string, "visible" | "none"]} */ ([id, ortnamn ? "visible" : "none"])),
+  ];
+}
+
+/**
+ * Filtret på objektlagren när några lager är avslagna (0.258.0, skiva 3). Grundfiltret (geometrin) ligger kvar, och lagret läses ur `_lager`, som
+ * `berika` sätter ur objektets typ. Utan avslagna lager är filtret bara grundfiltret, så ingenting ändras för den som inte rör panelen.
+ *
+ * @param {unknown} grundfilter Lagrets filter ur `byggStil`.
+ * @param {string[]} avslagna Typerna som är avslagna. Tom typ är objekten utan typ.
+ */
+export function lagerFilter(grundfilter, avslagna) {
+  if (!avslagna.length) return grundfilter;
+  return ["all", grundfilter, ["!", ["in", ["get", "_lager"], ["literal", avslagna]]]];
 }
 
 /**
@@ -524,8 +627,18 @@ export function byggStil(farger, samling) {
     minzoom: min,
     maxzoom: max,
     filter: ["match", ["get", "class"], klasser, true, false],
-    layout: { "text-field": ortText, "text-font": font, "text-size": min >= 8 ? 13 : 15, "text-max-width": 8 },
+    layout: { "text-field": ortText, "text-font": font, "text-size": min >= 8 ? 13 : 15, "text-max-width": 8, "symbol-sort-key": ["coalesce", ["get", "rank"], 99] },
     paint: { "text-color": p(id, "text-color"), "text-halo-color": p(id, "text-halo-color"), "text-halo-width": 1.5 },
+  });
+  /** @param {string} id @param {string[]} klasser @param {number} tathet */
+  const mark = (id, klasser, tathet) => ({
+    id,
+    type: "fill",
+    source: "openmaptiles",
+    "source-layer": "landcover",
+    filter: ["match", ["get", "class"], klasser, true, false],
+    layout: { visibility: "none" },
+    paint: { "fill-color": p(id, "fill-color"), "fill-opacity": tathet },
   });
   return {
     version: 8,
@@ -537,6 +650,8 @@ export function byggStil(farger, samling) {
     },
     layers: [
       { id: "bakgrund", type: "background", paint: { "background-color": p("bakgrund", "background-color") } },
+      mark("mark-skog", ["wood", "forest"], 0.16),
+      mark("mark-gras", ["grass", "scrub", "farmland"], 0.08),
       { id: "vatten", type: "fill", source: "openmaptiles", "source-layer": "water", filter: ["!=", ["get", "brunnel"], "tunnel"], paint: { "fill-color": p("vatten", "fill-color") } },
       { id: "vattendrag", type: "line", source: "openmaptiles", "source-layer": "waterway", filter: ["!=", ["get", "brunnel"], "tunnel"], paint: { "line-color": p("vattendrag", "line-color"), "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.5, 16, 3] } },
       vag("vag-stor", ["motorway", "trunk", "primary"], 0.6, 5),
@@ -560,7 +675,10 @@ export function byggStil(farger, samling) {
       },
       ort("ort-land", ["country", "state"], GLYF_ORT_STOR, 1, 8),
       ort("ort-stad", ["city"], GLYF_ORT_STOR, 4, 24),
-      ort("ort-tator", ["town", "village", "hamlet"], GLYF_ORT, 8, 24),
+      ort("ort-tator", ["town"], GLYF_ORT, 8, 24),
+      ort("ort-o", ["island"], GLYF_ORT, 9, 24),
+      ort("ort-by", ["village"], GLYF_ORT, 10, 24),
+      ort("ort-smaort", ["hamlet"], GLYF_ORT, 12, 24),
       {
         id: "vag-namn",
         type: "symbol",

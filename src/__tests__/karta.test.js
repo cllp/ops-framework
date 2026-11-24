@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { contrast } from "../../scripts/vendor/validate_palette.js";
 import { exempelkarta } from "../../examples/karta/dahab.js";
-import { KARTA_PALETT, basPensel, berika, byggStil, granser, kartansLager, lasGeojson, lasHuvud, objektFarg, objektId, objektPensel, popupElement, popupTexter } from "../lib/karta.js";
+import { KARTA_PALETT, ORTNAMN_LAGER, TERRANG_RESERV, TERRANG_UNDERLAG, basPensel, berika, byggStil, granser, grundensSynlighet, kartansLager, lagerFilter, lasGeojson, lasHuvud, objektFarg, objektId, objektPensel, popupElement, popupTexter, terrangKalla, terrangSkugga } from "../lib/karta.js";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -279,5 +279,59 @@ describe("⛔ kartans palett i temat", () => {
       expect(contrast(mork, hex("--dark-karta-papper")), namn).toBeGreaterThanOrEqual(3);
       expect(css, namn).toContain(`--color-karta-${namn}: var(--dark-karta-${namn})`);
     }
+  });
+});
+
+/**
+ * ⛔ SKIVA 2 (0.258.0, cllp/lifehub.app#950). Kartgrunderna Karta och Terräng, ortnamnen i nivåer, och lagrens filter.
+ */
+describe("⛔ kartgrunder och ortnamn", () => {
+  const stil = byggStil(SENTINEL, tom);
+  const lagret = (id) => stil.layers.find((l) => l.id === id);
+
+  it("terrängens källa finns inte i stilen: ingen adress skickas till höjddatan förrän någon väljer Terräng", () => {
+    expect(Object.keys(stil.sources)).toEqual(["openmaptiles", "objekt"]);
+    expect(JSON.stringify(stil)).not.toContain("mapterhorn");
+    expect(lagret("mark-skog").layout.visibility).toBe("none");
+    expect(lagret("mark-gras").layout.visibility).toBe("none");
+  });
+
+  it("terrängens källa är Mapterhorn, och reserven är AWS Terrain Tiles med samma kodning", () => {
+    expect(terrangKalla()).toMatchObject({ type: "raster-dem", url: TERRANG_UNDERLAG, encoding: "terrarium" });
+    expect(terrangKalla(true)).toMatchObject({ type: "raster-dem", tiles: [TERRANG_RESERV], encoding: "terrarium", tileSize: 256 });
+    expect(terrangSkugga(SENTINEL)).toMatchObject({ id: "terrang-skugga", type: "hillshade", source: "terrang" });
+    expect(terrangSkugga(SENTINEL).paint["hillshade-shadow-color"]).toBe(SENTINEL.text);
+  });
+
+  /**
+   * ⛔ HÄNDELSEN. Tätort, by och småort låg i ett lager från zoom 8 utan rangordning, så en småort kunde tränga undan en tätort, och öar ritades
+   * inte alls (Fables granskning i #950). Rött utan ändringen: lagren `ort-by`, `ort-smaort` och `ort-o` fanns inte.
+   */
+  it("ortnamnen har nivåer som mallen, öar kommer med, och lägst rank vinner inom en nivå", () => {
+    const zoom = Object.fromEntries(ORTNAMN_LAGER.map((id) => [id, lagret(id)?.minzoom]));
+    expect(zoom).toEqual({ "ort-land": 1, "ort-stad": 4, "ort-tator": 8, "ort-by": 10, "ort-smaort": 12, "ort-o": 9 });
+    expect(JSON.stringify(lagret("ort-tator").filter)).not.toContain("village");
+    expect(JSON.stringify(lagret("ort-o").filter)).toContain("island");
+    for (const id of ORTNAMN_LAGER) expect(lagret(id).layout["symbol-sort-key"], id).toEqual(["coalesce", ["get", "rank"], 99]);
+  });
+
+  it("en grund slår på sina lager och av de andras, och ortnamnen följer reglaget", () => {
+    expect(grundensSynlighet("karta", true)).toContainEqual(["mark-skog", "none"]);
+    expect(grundensSynlighet("terrang", true)).toContainEqual(["mark-skog", "visible"]);
+    expect(grundensSynlighet("terrang", false)).toContainEqual(["ort-by", "none"]);
+    expect(grundensSynlighet("karta", true).filter(([, v]) => v === "visible").map(([id]) => id)).toEqual([...ORTNAMN_LAGER]);
+  });
+});
+
+describe("⛔ lagrens filter", () => {
+  it("utan avslagna lager är filtret grundfiltret, så ingenting ändras för den som inte rör panelen", () => {
+    const grund = ["match", ["geometry-type"], ["Point"], true, false];
+    expect(lagerFilter(grund, [])).toBe(grund);
+    expect(lagerFilter(grund, ["mat", ""])).toEqual(["all", grund, ["!", ["in", ["get", "_lager"], ["literal", ["mat", ""]]]]]);
+  });
+
+  it("berika sätter objektets lager ur typen, och tom typ för objekt utan typ", () => {
+    const samling = lasGeojson({ type: "FeatureCollection", features: [punkt({ typ: "mat" }), punkt({ type: "bad" }), punkt({})] }).samling;
+    expect(berika(samling, SENTINEL).features.map((f) => f.properties._lager)).toEqual(["mat", "bad", ""]);
   });
 });

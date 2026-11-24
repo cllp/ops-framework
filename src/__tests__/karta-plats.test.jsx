@@ -61,6 +61,31 @@ vi.mock("maplibre-gl", () => {
     setPaintProperty(lager, prop, varde) {
       this.paints.push([lager, prop, varde]);
     }
+    // (0.258.0) Kartgrund, ortnamn och lagerfilter: anropen sparas, så att proven ser vad vyn satte.
+    setLayoutProperty(lager, prop, varde) {
+      (this.layouter ??= []).push([lager, prop, varde]);
+    }
+    getLayoutProperty(lager, prop) {
+      return [...(this.layouter ?? [])].reverse().find(([l, p]) => l === lager && p === prop)?.[2];
+    }
+    setFilter(lager, filter) {
+      (this.filter ??= {})[lager] = filter;
+    }
+    getLayer(id) {
+      return (this.tillagda ?? []).includes(id) || !id.startsWith("terrang") ? { id } : undefined;
+    }
+    addLayer(lager) {
+      (this.tillagda ??= []).push(lager.id);
+    }
+    removeLayer(id) {
+      this.tillagda = (this.tillagda ?? []).filter((x) => x !== id);
+    }
+    addSource(id, kalla) {
+      (this.kallor ??= {})[id] = kalla;
+    }
+    removeSource(id) {
+      delete (this.kallor ?? {})[id];
+    }
     queryRenderedFeatures() {
       return this.traff;
     }
