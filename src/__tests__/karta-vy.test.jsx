@@ -13,6 +13,8 @@ const FALGER = {
   "--color-karta-salvia": "#4e7558",
   "--color-karta-ockra": "#bf9522",
   "--color-karta-terrakotta": "#c0683a",
+  "--color-karta-djuphav": "#1f4e5f",
+  "--color-karta-oliv": "#7a8450",
   "--color-accent": "#8E7A4E",
   "--font-karta-ort": "Georgia, serif",
   "--font-karta-etikett": "sans-serif",

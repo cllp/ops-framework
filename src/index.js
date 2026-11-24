@@ -85,6 +85,9 @@ export { OpsHtmlVy } from "./components/OpsHtmlVy.jsx";
 export { OpsPdfVy } from "./components/OpsPdfVy.jsx";
 // (0.223.0, cllp/ops-framework#570) En GeoJSON-fil som karta. MapLibre hämtas först när kartan ritas.
 export { OpsKarta, ORD_OPSKARTA } from "./components/OpsKarta.jsx";
+// (0.258.0, cllp/lifehub.app#950 skiva 0) Kartans kontrakt: GeoJSON med ett valfritt huvud i `karta`, lagret är `typ`, och ett objekts id är
+// bara det som står i filen. Appen och agentens kartverktyg läser och skriver samma form som kartan ritar.
+export { KARTA_PALETT, kartansLager, lasGeojson, lasHuvud, objektId } from "./lib/karta.js";
 export { arPdfDokument, pdfVyAdress, sattPdfWorker } from "./lib/pdfvisning.js";
 // (0.192.0, #529) `byggSrcdoc` bor i `lib/htmlruta.js` med zoomen, så att Bibliotekets startfil inte bär rutans skript. Zoomen är rutans egen och exporteras inte.
 export { byggSrcdoc } from "./lib/htmlruta.js";

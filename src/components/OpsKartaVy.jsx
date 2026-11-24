@@ -39,8 +39,16 @@ export function OpsKartaVy({ samling, texter }) {
    * med Stäng, säkra zoner och Escape. Kartan ritas om till den nya storleken när den går in i och ut ur läget (`resize`).
    */
   const { lage: helskarm, oppna: oppnaHelskarm, avsluta: stangHelskarm } = useHelskarm(ram);
+  /*
+   * ⛔ ETT FINGER I HELSKÄRM (0.258.0, cllp/lifehub.app#950 skiva 1). Tvåfingersläget (`cooperativeGestures`) finns för att sidan ska gå att
+   * rulla förbi en karta i en lista. I helskärm finns ingen sida att rulla, och där var det bara i vägen: ett finger flyttade ingenting, som
+   * om kartan var trasig. Det slås av i helskärm och på igen när läget lämnas, i samma steg som kartan ritas om till sin nya storlek.
+   */
   useEffect(() => {
-    karta.current?.resize?.();
+    const k = karta.current;
+    k?.resize?.();
+    if (helskarm) k?.cooperativeGestures?.disable?.();
+    else k?.cooperativeGestures?.enable?.();
   }, [helskarm]);
 
   useEffect(() => {

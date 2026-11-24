@@ -13,7 +13,10 @@
 
 /**
  * @typedef {{ type: "Feature", id?: string | number, geometry: { type: string, coordinates?: unknown, geometries?: unknown[] } | null, properties?: Record<string, unknown> }} KartaFeature
- * @typedef {{ type: "FeatureCollection", features: KartaFeature[] }} KartaSamling
+ * @typedef {{ typ: string, etikett: string, farg: string }} KartaLagerHuvud
+ * @typedef {{ titel: string, beskrivning: string, lager: KartaLagerHuvud[], fel: string[] }} KartaHuvud
+ * @typedef {{ type: "FeatureCollection", features: KartaFeature[], karta?: KartaHuvud }} KartaSamling
+ * @typedef {{ typ: string, etikett: string, farg: string, antal: number }} KartaLager
  */
 
 /** Vektorbrickor, OpenMapTiles-schema, ingen nyckel. */
@@ -42,12 +45,23 @@ export const KARTA_FALT = [
   ["salvia", "--color-karta-salvia"],
   ["ockra", "--color-karta-ockra"],
   ["terrakotta", "--color-karta-terrakotta"],
+  ["djuphav", "--color-karta-djuphav"],
+  ["oliv", "--color-karta-oliv"],
   ["accent", "--color-accent"],
   ["ort", "--font-karta-ort"],
   ["etikett", "--font-karta-etikett"],
 ];
 
-const PALETT = ["salvia", "ockra", "terrakotta"];
+/**
+ * Objektens palett, i den ordning lagren får färg (0.258.0, cllp/lifehub.app#950).
+ *
+ * ⛔ SEX FÄRGER, INTE TRE. Förr valdes färgen ur `typ` med en summa av teckenkoder mot tre färger, så två lager kunde få samma färg
+ * redan vid två typer, och Sardinienkartan har sex lager med innehåll (Fables granskning i #950, mätt i v10). Nu får lagren färg i
+ * ordning: kartans huvud först, sedan i den ordning typerna först förekommer. Djuphav och oliv kommer ur kartmallen som CP har sett,
+ * och lera finns redan som kartans tystare ton. Först efter sex lager börjar paletten om.
+ */
+export const KARTA_PALETT = Object.freeze(["salvia", "ockra", "terrakotta", "djuphav", "oliv", "lera"]);
+const PALETT = KARTA_PALETT;
 const PUNKTER = new Set(["Point", "MultiPoint"]);
 const LINJER = new Set(["LineString", "MultiLineString"]);
 const YTOR = new Set(["Polygon", "MultiPolygon"]);
@@ -91,7 +105,115 @@ export function lasGeojson(data) {
   }
   const samling = tillSamling(varde);
   if (!samling) return { ok: false, fel: "form" };
+  samling.karta = lasHuvud(/** @type {any} */ (varde)?.karta);
   return { ok: true, samling };
+}
+
+/**
+ * Kartans huvud (0.258.0, cllp/lifehub.app#950): titel, beskrivning och lagren med etikett och färg, i fältet `karta` på samlingen.
+ *
+ * ⛔ HUVUDET ÄR VALFRITT. En vanlig GeoJSON utan huvud får ändå lager: varje `typ` blir ett lager med sitt värde som etikett
+ * (`kartansLager`). Huvudet behövs bara för att byta etikett, färg eller ordning. Det är Fables ändring 1 i #950: lagret är `typ`,
+ * inte ett nytt fält, eftersom två fält för samma sak glider isär (regel 2).
+ *
+ * ⛔ FÄRGEN ÄR ETT PALETTNAMN, ALDRIG EN HEX. En hex i datan hade varit ett andra original bredvid temat och sett fel ut i mörkt läge.
+ * Det som inte går att använda står i `fel`, aldrig tyst (regel 5): ett okänt palettnamn, ett lager utan typ, och samma typ två gånger.
+ *
+ * @param {unknown} varde
+ * @returns {KartaHuvud}
+ */
+export function lasHuvud(varde) {
+  /** @type {KartaHuvud} */
+  const huvud = { titel: "", beskrivning: "", lager: [], fel: [] };
+  if (varde === undefined || varde === null) return huvud;
+  if (typeof varde !== "object" || Array.isArray(varde)) {
+    huvud.fel.push("huvud:form");
+    return huvud;
+  }
+  const h = /** @type {Record<string, unknown>} */ (varde);
+  huvud.titel = text(h.titel);
+  huvud.beskrivning = text(h.beskrivning);
+  if (h.lager === undefined) return huvud;
+  if (!Array.isArray(h.lager)) {
+    huvud.fel.push("lager:form");
+    return huvud;
+  }
+  const sedda = new Set();
+  for (const rad of h.lager) {
+    const r = rad && typeof rad === "object" ? /** @type {Record<string, unknown>} */ (rad) : {};
+    const typ = text(r.typ);
+    if (!typ) {
+      huvud.fel.push("lager:utan-typ");
+      continue;
+    }
+    if (sedda.has(typ)) {
+      huvud.fel.push(`lager:dubblett:${typ}`);
+      continue;
+    }
+    sedda.add(typ);
+    let farg = text(r.farg);
+    if (farg && !PALETT.includes(farg)) {
+      huvud.fel.push(`farg:okand:${farg}`);
+      farg = "";
+    }
+    huvud.lager.push({ typ, etikett: text(r.etikett) || typ, farg });
+  }
+  return huvud;
+}
+
+/**
+ * Kartans lager, i den ordning de ska visas (0.258.0, cllp/lifehub.app#950). Ett objekt hör till exakt ett lager: sin `typ` (eller `type`).
+ *
+ * Ordningen: huvudets lager först, också de som saknar objekt (antal 0 är ett svar, regel 5), sedan övriga typer i den ordning de först
+ * förekommer, och sist objekten utan typ (`typ` är då tom, och etiketten väljer vyn). Färgen är huvudets palettnamn, annars nästa lediga
+ * färg i `KARTA_PALETT`. Objekt utan typ har ingen palettfärg: de ritas i instansens accent, som förut.
+ *
+ * @param {KartaSamling} samling
+ * @returns {KartaLager[]}
+ */
+export function kartansLager(samling) {
+  const huvud = samling.karta ?? lasHuvud(undefined);
+  /** @type {Map<string, number>} */
+  const antal = new Map();
+  /** @type {string[]} */
+  const ordning = [];
+  for (const feature of samling.features) {
+    const typ = typAv(egenskaperAv(feature));
+    if (!antal.has(typ)) ordning.push(typ);
+    antal.set(typ, (antal.get(typ) ?? 0) + 1);
+  }
+  /** @type {KartaLager[]} */
+  const lager = huvud.lager.map((l) => ({ typ: l.typ, etikett: l.etikett, farg: l.farg, antal: antal.get(l.typ) ?? 0 }));
+  const iHuvudet = new Set(lager.map((l) => l.typ));
+  for (const typ of ordning) if (typ && !iHuvudet.has(typ)) lager.push({ typ, etikett: typ, farg: "", antal: antal.get(typ) ?? 0 });
+  const upptagna = new Set(lager.map((l) => l.farg).filter(Boolean));
+  let nasta = 0;
+  for (const l of lager) {
+    if (l.farg) continue;
+    const ledig = PALETT.find((f) => !upptagna.has(f));
+    l.farg = ledig ?? PALETT[nasta++ % PALETT.length];
+    upptagna.add(l.farg);
+  }
+  if (antal.has("")) lager.push({ typ: "", etikett: "", farg: "", antal: antal.get("") ?? 0 });
+  return lager;
+}
+
+/**
+ * Objektets id för det som ska överleva en ändring i filen, som en stjärna (0.258.0, cllp/lifehub.app#950).
+ *
+ * ⛔ BARA ETT ID SOM STÅR I FILEN. `properties.id` först (MapLibre behåller bara heltal som feature-id), sedan `feature.id`. Radnumret
+ * är aldrig ett id här: det flyttar när filen ändras, och då hamnar stjärnan på fel plats (Fables ändring 4). Saknas id är svaret
+ * `null`, och den som vill stjärnmärka säger att det inte går.
+ *
+ * @param {KartaFeature} feature
+ * @returns {string | null}
+ */
+export function objektId(feature) {
+  for (const v of [egenskaperAv(feature).id, feature.id]) {
+    if (typeof v === "string" && v.trim()) return v.trim();
+    if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  }
+  return null;
 }
 
 /**
@@ -139,15 +261,16 @@ function egenskaperAv(feature) {
  *
  * @param {KartaFeature} feature
  * @param {Record<string, string>} farger
+ * @param {Map<string, string>} [lagerFarg] Palettnamn per typ, ur `kartansLager`. Utan den räknas lagret ut för objektet ensamt.
  */
-export function objektFarg(feature, farger) {
+export function objektFarg(feature, farger, lagerFarg = fargPerTyp({ type: "FeatureCollection", features: [feature] })) {
   const p = egenskaperAv(feature);
   const slag = feature.geometry?.type ?? "";
   const fyllNycklar = YTOR.has(slag) ? ["fill", "marker-color", "stroke"] : PUNKTER.has(slag) ? ["marker-color", "stroke", "fill"] : ["stroke", "marker-color", "fill"];
   const streckNycklar = YTOR.has(slag) ? ["stroke", "marker-color", "fill"] : fyllNycklar;
-  const fyll = valj(farger, p, fyllNycklar);
-  const streck = valj(farger, p, streckNycklar);
-  const markor = valj(farger, p, ["marker-color", "stroke", "fill"]);
+  const fyll = valj(farger, p, fyllNycklar, lagerFarg);
+  const streck = valj(farger, p, streckNycklar, lagerFarg);
+  const markor = valj(farger, p, ["marker-color", "stroke", "fill"], lagerFarg);
   return {
     _fyll: fyll,
     _streck: streck,
@@ -166,37 +289,40 @@ export function objektFarg(feature, farger) {
  * @param {Record<string, string>} farger
  */
 export function berika(samling, farger) {
+  const lagerFarg = fargPerTyp(samling);
   return {
     type: "FeatureCollection",
     features: samling.features.map((feature, i) => ({
       type: "Feature",
       id: feature.id ?? i,
       geometry: feature.geometry,
-      properties: { ...egenskaperAv(feature), ...objektFarg(feature, farger) },
+      properties: { ...egenskaperAv(feature), ...objektFarg(feature, farger, lagerFarg) },
     })),
   };
+}
+
+/**
+ * @param {KartaSamling} samling
+ * @returns {Map<string, string>}
+ */
+function fargPerTyp(samling) {
+  return new Map(kartansLager(samling).filter((l) => l.typ).map((l) => [l.typ, l.farg]));
 }
 
 /**
  * @param {Record<string, string>} farger
  * @param {Record<string, unknown>} p
  * @param {string[]} nycklar
+ * @param {Map<string, string>} lagerFarg
  */
-function valj(farger, p, nycklar) {
+function valj(farger, p, nycklar, lagerFarg) {
   for (const nyckel of nycklar) {
     const h = hex(p[nyckel]);
     if (h) return h;
   }
-  const typ = typAv(p);
-  if (typ) return farger[PALETT[palettIndex(typ)]];
+  const palettnamn = lagerFarg.get(typAv(p));
+  if (palettnamn) return farger[palettnamn];
   return farger.accent;
-}
-
-/** @param {string} typ */
-function palettIndex(typ) {
-  let n = 0;
-  for (const tecken of typ) n = (n + (tecken.codePointAt(0) ?? 0)) % PALETT.length;
-  return n;
 }
 
 /** @param {Record<string, unknown>} p */

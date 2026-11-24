@@ -18,6 +18,8 @@ const FALGER = {
   "--color-karta-salvia": "#4e7558",
   "--color-karta-ockra": "#bf9522",
   "--color-karta-terrakotta": "#c0683a",
+  "--color-karta-djuphav": "#1f4e5f",
+  "--color-karta-oliv": "#7a8450",
   "--color-accent": "#8E7A4E",
   "--font-karta-ort": "Georgia, serif",
   "--font-karta-etikett": "sans-serif",
@@ -36,6 +38,8 @@ vi.mock("maplibre-gl", () => {
       this.traff = [];
       this.borttagen = false;
       this._laddad = false;
+      // Som MapLibre 6.17.0: `cooperativeGestures` är en hanterare med enable och disable (maplibre-gl.d.ts, CooperativeGesturesHandler).
+      this.cooperativeGestures = { pa: Boolean(opts.cooperativeGestures), enable() { this.pa = true; }, disable() { this.pa = false; }, isEnabled() { return this.pa; } };
       (globalThis.__opsKartor ??= []).push(this);
     }
     on(ev, fn) {
@@ -219,6 +223,24 @@ describe("⛔ kartans helskärm", () => {
       fireEvent.keyDown(document, { key: "Escape" });
     });
     expect(region.getAttribute("data-karta-helskarm")).toBeNull();
+  });
+
+  /**
+   * ⛔ HÄNDELSEN (0.258.0, cllp/lifehub.app#950 skiva 1). Tvåfingersläget finns för att sidan ska gå att rulla förbi kartan. I helskärm finns
+   * ingen sida att rulla, och där flyttade ett finger ingenting, som om kartan var trasig. Rött utan ändringen: tvåfingersläget stod kvar på.
+   */
+  it("i helskärm flyttar ett finger kartan, och utanför helskärm krävs två igen", async () => {
+    Object.defineProperty(document, "fullscreenEnabled", { configurable: true, get: () => false });
+    const { karta } = await rita();
+    expect(karta.cooperativeGestures.isEnabled()).toBe(true);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Helskärm" }));
+    });
+    expect(karta.cooperativeGestures.isEnabled()).toBe(false);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Stäng helskärm" }));
+    });
+    expect(karta.cooperativeGestures.isEnabled()).toBe(true);
   });
 
   it("avslår webbläsaren helskärmen blir det lagret, aldrig ingenting", async () => {
