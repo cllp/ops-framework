@@ -20,13 +20,26 @@
  *         Fråga (`utanSok`, som en app utan flyttade åtgärder), för annars är avdelningen "Appen" aldrig tom: de flyttas dit som rader som alltid syns. Fyra, tre och två
  *         fästa appar, och sju, vid alla bredder. Gäller bottenradens Meny (under 768 px) och "Fler appar" i huvudets meny (från 768 px).
  *      e. Synliga ikoner får aldrig vara fler än kapaciteten vid bredden. Är de färre skrivs en varning (en tom plats är ett val, inget brott).
+ *      f. ⛔ LIFEHUBS TOPPRAD, MED TEMAKNAPPEN (cllp/lifehub.app#909, CP 2026-11-24 22.22 i iPhone-appen: ingen «, men raden rullade några pixlar). LifeHub har
+ *         temaknappen OCH Inkorg som åtgärder, och temaknappen är ingen `OpsIconLink` och flyttas aldrig. Banden (`HUVUDMENY_BAND`) mättes med EN åtgärd och
+ *         räknar bara appikonerna, så vid 390 px sade de "tre ryms": raden rullade 8 px (5 px vid 393), och klungan låg 34 px in i högerpaddingen. Skalets
+ *         `useToppradRyms` mäter raden och flyttar ikoner bakom « tills den ryms. Scenen `tema` med tre, fyra och sju appar vid alla bredder:
+ *         raden rullar aldrig, inget sticker ut och varje app står på exakt ett ställe. Kroken måste ha satt ett tak i minst sex mätpunkter (golv), och den får
+ *         ALDRIG sätta ett tak i scenerna utan tema, för där är raden exakt den banden mättes på och ett tak betyder att banden är fel.
+ *         ⛔ KÄND SKULD MED TEMA, MED TAK (`SKULD_TAK`, får bara sjunka): vid 320 px tränger klungan 12 px in i paddingen fast ingen appikon står kvar att
+ *         flytta (hem, gruppmärke, tema, Inkorg, « och avatar är 306 px), och vid 768 och 1024 px överlappar flikarna gruppväxlaren och temaknappen. Raden rullar
+ *         inte i något av fallen, och de fanns före 0.260.0. De är inte #909 och rättas inte här.
+ *   3. BREDDEN ÄNDRAS: samma sida med LifeHubs rad vid 390, 430, 390, 360, 1280 och 393 px (telefonen vrids). Raden rullar aldrig, och vid 430 och 1280 px står alla
+ *      tre apparna i toppraden igen utan «. Krokens tak gäller bredden det mättes vid.
  *
  * 320 px: tabellen säger 1, och dold-klasserna visar 1 där också. Klungan tränger in 0 px. Mäts som alla andra bredder.
  *
  * ⛔ GOLV: minst 54 kapacitets- och 90 bruksmätpunkter måste ha hittat huvudet och minst en kontroll i det.
- * ⛔ BEVISET ÅT MOTSATT HÅLL (`--bevisa`), tre gånger: (1) en dold-klass tas bort ur ikon 1 vid 320 px, och mätaren MÅSTE bli röd (raden klipps, appen står på två ställen).
+ * ⛔ BEVISET ÅT MOTSATT HÅLL (`--bevisa`), fyra gånger: (1) en dold-klass tas bort ur ikon 1 vid 320 px, och mätaren MÅSTE bli röd (raden klipps, appen står på två ställen).
  *    (2) den omvända klassen tas bort ur ikon 1 bakom « vid 400 px, och mätaren MÅSTE bli röd (appen står på två ställen). (3) « döljs vid 400 px, och mätaren MÅSTE bli röd (de
- *    dolda apparna står ingenstans). En mätare som aldrig sett ett fel är ingen vakt (regel 4).
+ *    dolda apparna står ingenstans). (4) LifeHubs rad vid 390 px med krokens tak upphävt (ikonerna den gömt tas fram, « döljs), och mätaren MÅSTE bli
+ *    röd (raden rullar). Och utan kroken, mot dist från 0.259.0: scenen `tema` gav 25 röda mätpunkter, bland dem raden som rullar 8 px vid 390 px.
+ *    En mätare som aldrig sett ett fel är ingen vakt (regel 4).
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -157,11 +170,13 @@ async function bakomFler(page) {
 /**
  * Mäter en bredd med `antal` fästa appar: raden, och var varje app står.
  * @param {number} bredd @param {number} antal @param {((page: import("playwright").Page) => Promise<void>) | undefined} [forandra] Ändrar sidan före mätningen (bara beviset). @param {boolean} [utanSok] Ingen Sök och Fråga: inga flyttade åtgärder i Meny.
+ * @param {boolean} [tema] Temaknappen först i `actions`, som i LifeHub: en åtgärd till i raden, som banden inte räknar (#909, 2026-11-24).
  */
-async function matBruk(bredd, antal, forandra, utanSok = false) {
-  const { page, context, sidfel } = await rita(bredd, { lage: "tak", antal, utanSok });
+async function matBruk(bredd, antal, forandra, utanSok = false, tema = false) {
+  const { page, context, sidfel } = await rita(bredd, { lage: "tak", antal, utanSok, tema });
   if (forandra) await forandra(page);
   const m = await page.evaluate(mat);
+  const tak = await page.evaluate(() => document.querySelector("header > div")?.getAttribute("data-topprad-tak") ?? null);
   const fler = await bakomFler(page);
   const { rader, tomma } = await synligaMenyrader(page, bredd);
   await context.close();
@@ -185,7 +200,7 @@ async function matBruk(bredd, antal, forandra, utanSok = false) {
   for (const namn of APPNAMN.slice(m.max, antal)) if (!fler.appar.includes(namn)) f.push(`${namn} (efter de första ${m.max}) saknas bakom «`);
   if (m.apparIHuvudet.length > m.max) f.push(`${m.apparIHuvudet.length} appikoner i toppraden, taket är ${m.max}`);
   for (const d of tomma) f.push(`avdelningen "${d}" i Meny syns med sin rubrik men utan en enda synlig rad`);
-  return { m, f, placering, rader, fler };
+  return { m, f, placering, rader, fler, tak };
 }
 
 if (bevisa) {
@@ -230,6 +245,21 @@ if (bevisa) {
     console.log(`bevis 3: « dold vid 400 px: ${ingenstans ? `RÖTT som väntat (${tre.f.join(" | ")})` : "GRÖNT, och det är fel"}`);
     if (!ingenstans) falsk.push("bevis 3");
   }
+  // (4) LifeHubs topprad (tema och Inkorg, tre appar) vid 390 px, där banden säger att tre ryms och de inte gör det (#909, 2026-11-24). Kroken har flyttat
+  // ikoner bakom «. Den sista ikonen som kroken gömt tas fram igen, som utan kroken, och mätaren MÅSTE bli röd (raden rullar).
+  {
+    const fyra = await matBruk(390, 3, (page) => page.evaluate(() => {
+      const rad = document.querySelector("header > div");
+      if (!rad?.getAttribute("data-topprad-tak")) throw new Error("kroken satte inget tak vid 390 px med tema, och då finns inget att bevisa");
+      const gomda = [...document.querySelectorAll("header [data-huvudmeny-plats]")].filter((el) => el.classList.contains("hidden"));
+      for (const el of gomda) el.classList.remove("hidden");
+      const fler = document.querySelector("header [data-huvudmeny-fler]");
+      if (fler) fler.classList.add("hidden");
+    }), false, true);
+    const rullar = fyra.f.some((x) => x.includes("rullar i sidled"));
+    console.log(`bevis 4: krokens tak upphävt vid 390 px med tema: ${rullar ? `RÖTT som väntat (${fyra.f.join(" | ")})` : "GRÖNT, och det är fel"}`);
+    if (!rullar) falsk.push("bevis 4");
+  }
   await browser.close();
   stada();
   if (falsk.length) {
@@ -269,14 +299,21 @@ if (!Number.isInteger(max) || max < 1) fel.push(`HUVUDMENY_MAX lästes som ${max
 console.log(`HUVUDMENY_MAX = ${max}`);
 
 // ── 2. TAKET I BRUK ──────────────────────────────────────────────────────────────────────────────────────
-const BRUKS_BREDDER = [320, 340, 359, 360, 375, 389, 390, 414, 600, 767, 768, 1000, 1023, 1024, 1280];
+const BRUKS_BREDDER = [320, 340, 359, 360, 375, 389, 390, 393, 402, 414, 430, 600, 767, 768, 1000, 1023, 1024, 1280];
 /** Kapaciteten vid en bredd: den närmaste uppmätta bredden under eller på den. @param {number} bredd */
 const kapVid = (bredd) => kapacitet[[...KAP_BREDDER].reverse().find((b) => b <= bredd) ?? 320];
 /** Fyra, tre och två fästa appar och sju, med och utan Sök/Fråga (flyttade åtgärder i Meny). */
-const BRUK = [[Math.min(4, max), false], [7, false], [4, true], [3, true], [2, true], [7, true]];
-for (const [antal, utanSok] of BRUK) {
+/** ⛔ Och LifeHubs topprad (#909, CP 2026-11-24 i iPhone-appen): temaknappen och Inkorg, med tre, fyra och sju appar. Banden räknar bara appikonerna och mättes med EN åtgärd. */
+const BRUK = /** @type {Array<[number, boolean, boolean?]>} */ ([[Math.min(4, max), false], [7, false], [4, true], [3, true], [2, true], [7, true], [3, true, true], [4, true, true], [7, false, true]]);
+let krokTak = 0;
+/** @type {string[]} */
+const skuld = [];
+for (const [antal, utanSok, tema = false] of BRUK) {
   for (const bredd of BRUKS_BREDDER) {
-    const { m, f, placering, fler } = await matBruk(bredd, antal, undefined, utanSok);
+    const { m, f, placering, fler, tak } = await matBruk(bredd, antal, undefined, utanSok, tema);
+    if (tak !== null) krokTak++;
+    // ⛔ BANDEN SKA STÄMMA FÖR SCENEN DE MÄTTES PÅ. Utan tema är raden exakt den kapaciteten mättes med, och behöver kroken gripa in där är banden fel.
+    if (!tema && tak !== null) f.push(`kroken satte tak ${tak}: banden i HUVUDMENY_BAND stämmer inte med scenen de mättes på`);
     if (m.antal >= 2) punkter++;
     const synliga = m.apparIHuvudet.length;
     const cap = kapVid(bredd);
@@ -284,19 +321,54 @@ for (const [antal, utanSok] of BRUK) {
     const platser = synliga + (fler.knapp ? 1 : 0);
     if (platser > cap) f.push(`${synliga} synliga appikoner${fler.knapp ? " och «" : ""} men bara ${cap} platser vid ${bredd} px`);
     const vantat = antal <= Math.min(cap, max) ? antal : Math.min(cap - 1, max);
-    const varning = synliga < vantat ? `  VARNING: ${synliga} syns men ${vantat} hade rymts${antal > vantat ? " bredvid «" : ""}` : "";
-    console.log(`bruk ${String(antal).padStart(1)} appar${utanSok ? " utan sök" : ""} ${String(bredd).padStart(4)} px: ${synliga} i toppraden${fler.knapp ? ` och « med ${fler.appar.length}` : ""} (ryms ${cap}), längst ut ${m.langstUt.toFixed(0)} av ${m.inneKant === null ? "?" : m.inneKant.toFixed(0)}${f.length ? `  ROTT: ${f.join(" | ")}` : ""}${varning}`);
+    // Med tema är kapaciteten (mätt med EN åtgärd) inte raden som ritas, så "hade rymts" vore en gissning. Där avgör kroken, och utfallet står i loggen.
+    const varning = !tema && synliga < vantat ? `  VARNING: ${synliga} syns men ${vantat} hade rymts${antal > vantat ? " bredvid «" : ""}` : "";
+    // ⛔ KÄND SKULD MED TEMA, INTE #909 (se filhuvudet, punkt f): klungan i högerpaddingen vid 320 px när ingen appikon finns kvar att flytta, och
+    // överlapp mellan flikarna och klungan vid 768 och 1024 px. Raden rullar inte i något av fallen. Räknas mot `SKULD_TAK`, som bara får sjunka.
+    const arSkuld = (/** @type {string} */ x) => tema && (x.includes("tränger in i högerpaddingen") || x.startsWith("överlapp:"));
+    const roda = f.filter((x) => !arSkuld(x));
+    const kanda = f.filter(arSkuld);
+    console.log(`bruk ${String(antal).padStart(1)} appar${utanSok ? " utan sök" : ""}${tema ? " med tema" : ""} ${String(bredd).padStart(4)} px: ${synliga} i toppraden${fler.knapp ? ` och « med ${fler.appar.length}` : ""} (ryms ${cap}${tak !== null ? `, kroken satte tak ${tak}` : ""}), längst ut ${m.langstUt.toFixed(0)} av ${m.inneKant === null ? "?" : m.inneKant.toFixed(0)}${roda.length ? `  ROTT: ${roda.join(" | ")}` : ""}${kanda.length ? `  SKULD: ${kanda.join(" | ")}` : ""}${varning}`);
     if (antal === 7 && !utanSok && (bredd === 360 || bredd === 768)) console.log(`   ${placering.join(" ")}   (H toppraden, F bakom «, M Meny)`);
-    for (const x of f) fel.push(`bruk ${antal} appar${utanSok ? " utan sök" : ""} ${bredd}: ${x}`);
+    const namn = `bruk ${antal} appar${utanSok ? " utan sök" : ""}${tema ? " med tema" : ""} ${bredd}`;
+    for (const x of roda) fel.push(`${namn}: ${x}`);
+    for (const x of kanda) skuld.push(`${namn}: ${x}`);
   }
 }
 
-await browser.close();
-stada();
 if (punkter < 54 + 90) {
   console.error(`huvudmeny-matt: bara ${punkter} mätpunkter, väntat ${54 + 90}. En vakt som mäter färre är grön av att ingenting lästes.`);
   process.exit(1);
 }
+// ── 3. BREDDEN ÄNDRAS (telefonen vrids) ──────────────────────────────────────────────────────────────────────
+// ⛔ Krokens tak gäller bredden det mättes vid. Första versionen mätte inte om när den kom tillbaka till 390 px från 430, och raden rullade 8 px igen.
+// LifeHubs rad med tre appar: 390, 430, 390, 360, 1280, 393. Raden får aldrig rulla, och vid 430 och 1280 ska alla tre synas igen, utan «.
+{
+  const { page, context, sidfel } = await rita(390, { lage: "tak", antal: 3, utanSok: true, tema: true });
+  for (const bredd of [390, 430, 390, 360, 1280, 393]) {
+    await page.setViewportSize({ width: bredd, height: 844 });
+    await page.waitForTimeout(150);
+    const m = await page.evaluate(mat);
+    const fler = await page.locator("header [data-huvudmeny-fler-knapp]").isVisible().catch(() => false);
+    const f = brott(m, bredd);
+    if ((bredd === 430 || bredd === 1280) && (m.apparIHuvudet.length !== 3 || fler)) f.push(`${m.apparIHuvudet.length} appikoner${fler ? " och «" : ""}, väntat alla tre utan «`);
+    if (m.antal >= 2) punkter++;
+    console.log(`bredden ändras till ${String(bredd).padStart(4)} px: ${m.apparIHuvudet.length} i toppraden${fler ? " och «" : ""}, raden ${m.rad}${f.length ? `  ROTT: ${f.join(" | ")}` : ""}`);
+    for (const x of f) fel.push(`bredden ändras till ${bredd}: ${x}`);
+  }
+  if (sidfel.length) fel.push(`bredden ändras: sidfel ${sidfel.join("; ")}`);
+  await context.close();
+}
+
+await browser.close();
+stada();
+
+const SKULD_TAK = 7;
+if (skuld.length > SKULD_TAK) fel.push(`${skuld.length} kända skulder med tema, taket är ${SKULD_TAK} och får bara sjunka`);
+else if (skuld.length < SKULD_TAK) fel.push(`skulden med tema har sjunkit till ${skuld.length}: sänk SKULD_TAK till ${skuld.length}, annars kan den växa tillbaka utan att något blir rött`);
+// ⛔ GOLV FÖR KROKEN: med tema vid 390 och 393 px rullar raden utan den (8 och 5 px, mätt 2026-11-24). Satte den inget tak där mättes den inte.
+if (krokTak < 6) fel.push(`kroken satte tak i ${krokTak} mätpunkter med tema, väntat minst 6 (390 och 393 px med tre, fyra och sju appar)`);
+console.log(`kroken (useToppradRyms) satte tak i ${krokTak} mätpunkter`);
 if (fel.length) {
   console.error(`\nhuvudmeny-matt: ${fel.length} brott.\n${fel.map((x) => `  - ${x}`).join("\n")}`);
   process.exit(1);

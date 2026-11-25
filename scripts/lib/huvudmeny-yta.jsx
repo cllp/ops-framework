@@ -36,6 +36,7 @@ function Yta() {
       onNavigate={(_h, e) => e.preventDefault()}
       actions={
         <>
+          {window.__tema ? <Ops.OpsThemeToggle /> : null}
           <Ops.OpsIconLink href="/inkorg" label="Inkorg" badge={3} icon={<Ops.OpsIdentity name="Inkorg" seed="inkorg" size="sm" />} />
           {valda.map((n, i) =>
             lage === "kapacitet" ? (
