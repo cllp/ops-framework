@@ -12,7 +12,7 @@ import { KARTLANK_MAX_PUNKTER, arAppleEnhet, glesaRutt, kartlankar } from "../li
 const FALGER = {
   "--color-karta-papper": "#faf7f1",
   "--color-karta-creme": "#f3eee4",
-  "--color-karta-vatten": "#adbdac",
+  "--color-karta-vatten": "#d9e4e7",
   "--color-karta-linje": "#cfc6b6",
   "--color-karta-lera": "#8a8073",
   "--color-karta-text": "#2e2a24",
@@ -197,11 +197,12 @@ async function oppna(karta, typ) {
 }
 
 describe("⛔ min position", () => {
-  it("kontrollen läggs till med följ-läge och träffsäkerhetens cirkel, under zoomen", async () => {
+  it("kontrollen läggs till med följ-läge och träffsäkerhetens cirkel, och är kartans enda MapLibre-kontroll", async () => {
     const { karta, plats } = await rita();
     expect(plats).toBeTruthy();
     expect(plats.val).toMatchObject({ trackUserLocation: true, showAccuracyCircle: true, showUserLocation: true });
-    expect(karta.kontroller.indexOf(plats)).toBeGreaterThan(0);
+    // (0.263.0, cllp/lifehub.app#967) MapLibres zoom (`NavigationControl`) läggs inte till längre: zoomen är ramverkets knappar.
+    expect(karta.kontroller).toEqual([plats]);
     expect(karta.opts.locale["GeolocateControl.FindMyLocation"]).toBe("Visa min position");
   });
 

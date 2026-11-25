@@ -11,7 +11,7 @@ import { exempelkarta } from "../../examples/karta/dahab.js";
 const FALGER = {
   "--color-karta-papper": "#faf7f1",
   "--color-karta-creme": "#f3eee4",
-  "--color-karta-vatten": "#adbdac",
+  "--color-karta-vatten": "#d9e4e7",
   "--color-karta-linje": "#cfc6b6",
   "--color-karta-lera": "#8a8073",
   "--color-karta-text": "#2e2a24",
@@ -101,6 +101,13 @@ vi.mock("maplibre-gl", () => {
     }
     resize() {
       this.storlekar = (this.storlekar ?? 0) + 1;
+    }
+    // (0.263.0) Zoomen är ramverkets knappar, som anropar kartans egna metoder.
+    zoomIn() {
+      this.zoom = (this.zoom ?? 0) + 1;
+    }
+    zoomOut() {
+      this.zoom = (this.zoom ?? 0) - 1;
     }
     remove() {
       this.borttagen = true;
@@ -236,7 +243,13 @@ describe("⛔ kartans helskärm", () => {
     expect(region.getAttribute("data-karta-helskarm")).toBe("fonster");
     expect(region.className).toContain("fixed");
     expect(region.className).toContain("inset-0");
-    expect(region.className).toContain("pt-(--safe-top)");
+    // ⛔ (0.263.0, mätt i montaget för #967) Aldrig `relative` bredvid `fixed`: i Tailwinds ordning vinner `relative`, och lagret blev aldrig fast.
+    expect(region.className.split(/\s+/)).not.toContain("relative");
+    // (0.263.0, cllp/lifehub.app#967) Kartan fyller hela skärmen utan egen marginal. Stäng står innanför den säkra zonen.
+    expect(region.className).not.toMatch(/\bp[trbl]?-\(--safe/);
+    const stang = /** @type {HTMLElement} */ (screen.getByRole("button", { name: "Stäng helskärm" }));
+    expect(stang.style.top).toContain("--safe-top");
+    expect(stang.style.left).toContain("--safe-left");
     expect(karta.storlekar).toBeGreaterThan(fore);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Stäng helskärm" }));
@@ -357,11 +370,11 @@ describe("⛔ kartans paneler", () => {
   it("finns inte i rutan, bara i den öppnade kartan", async () => {
     bredd(false);
     await rita();
-    expect(document.querySelector("[data-karta-paneler]")).toBeNull();
+    expect(document.querySelector("[data-karta-panelknapp]")).toBeNull();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Helskärm" }));
     });
-    expect(document.querySelector('[data-karta-paneler="telefon"]')).toBeTruthy();
+    expect(document.querySelectorAll("[data-karta-panelknapp]").length).toBe(2);
   });
 
   it("telefon: allt är infällt, en knapp öppnar ett halvt ark, handtaget växlar till helt och krysset fäller in", async () => {
@@ -374,8 +387,10 @@ describe("⛔ kartans paneler", () => {
     const ark = () => document.querySelector("[data-karta-ark]");
     expect(ark()?.getAttribute("data-karta-ark")).toBe("halv");
     expect(ark()?.getAttribute("data-karta-panel")).toBe("lager");
+    expect(screen.getByRole("button", { name: "Lager" }).getAttribute("aria-expanded")).toBe("true");
+    // Ett tryck eller Enter på handtaget är ett klick (tangentbord och skärmläsare ger inga pekarhändelser).
     await act(async () => {
-      fireEvent.keyDown(screen.getByRole("button", { name: "Visa panelen över nästan hela skärmen" }), { key: "Enter" });
+      fireEvent.click(screen.getByRole("button", { name: "Visa panelen över nästan hela skärmen" }));
     });
     expect(ark()?.getAttribute("data-karta-ark")).toBe("hel");
     await act(async () => {
@@ -389,19 +404,23 @@ describe("⛔ kartans paneler", () => {
     expect(ark()).toBeNull();
   });
 
-  it("dator: panelerna är flikar vid kanten, en flik fäller ut, och läget minns", async () => {
+  it("dator: de flytande knapparna fäller ut panelerna till höger, och läget minns", async () => {
     bredd(true);
     await oppnaHelskarm();
-    expect(document.querySelector('[data-karta-flik="lager"]')).toBeTruthy();
+    expect(document.querySelector("[data-karta-panel]")).toBeNull();
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Fäll ut lager" }));
+      fireEvent.click(screen.getByRole("button", { name: "Lager" }));
     });
     expect(document.querySelector('[data-karta-panel="lager"]')).toBeTruthy();
     expect(JSON.parse(localStorage.getItem("ops-karta-paneler-v1") ?? "{}")).toEqual({ lager: true, installningar: false });
     cleanup();
     await oppnaHelskarm();
     expect(document.querySelector('[data-karta-panel="lager"]')).toBeTruthy();
-    expect(document.querySelector('[data-karta-flik="installningar"]')).toBeTruthy();
+    expect(document.querySelector('[data-karta-panel="installningar"]')).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Fäll in lager" }));
+    });
+    expect(document.querySelector('[data-karta-panel="lager"]')).toBeNull();
   });
 
   it("ett lager som slås av filtreras bort ur kartan, och på igen tar tillbaka det", async () => {
@@ -466,5 +485,263 @@ describe("⛔ kartans paneler", () => {
       fireEvent.click(screen.getByRole("switch", { name: /Min position/ }));
     });
     expect(plats.triggad).toBe(1);
+  });
+});
+
+/**
+ * ⛔ HÄNDELSEN (0.263.0, cllp/lifehub.app#967). CP 2026-11-25 om kartan i helskärm på iPhone: "det ska vara lite svårare att stänga helskärmsläge, man får
+ * aktivt trycka för att stänga helskärm. Annars så stängs den nästan hela tiden när man sveper runt." Mätt i WebKits källa: på iPhone och iPad stänger ett
+ * svep nedåt webbläsarens helskärm (`WKFullScreenWindowControllerIOS.mm`, `UISwipeGestureRecognizer` nedåt och en `UIPanGestureRecognizer`, påslagna på hela
+ * iOS-familjen), och sidan kan inte stänga av det. Kartan väljer därför lagret där. Rött utan ändringen: `requestFullscreen` anropades på iPhone och läget
+ * blev `helskarm`.
+ */
+describe("⛔ helskärmen stängs bara med ett aktivt tryck", () => {
+  const forrUa = Object.getOwnPropertyDescriptor(window.navigator, "userAgent");
+  const forrTryck = Object.getOwnPropertyDescriptor(window.navigator, "maxTouchPoints");
+  afterEach(() => {
+    if (forrUa) Object.defineProperty(window.navigator, "userAgent", forrUa);
+    else delete (/** @type {any} */ (window.navigator)).userAgent;
+    if (forrTryck) Object.defineProperty(window.navigator, "maxTouchPoints", forrTryck);
+    else delete (/** @type {any} */ (window.navigator)).maxTouchPoints;
+  });
+  /** @param {string} ua @param {number} tryck */
+  function enhet(ua, tryck) {
+    Object.defineProperty(window.navigator, "userAgent", { configurable: true, get: () => ua });
+    Object.defineProperty(window.navigator, "maxTouchPoints", { configurable: true, get: () => tryck });
+  }
+  function webblasarHelskarm() {
+    Object.defineProperty(document, "fullscreenEnabled", { configurable: true, get: () => true });
+    const request = vi.fn(() => Promise.resolve());
+    HTMLElement.prototype.requestFullscreen = /** @type {any} */ (request);
+    return request;
+  }
+
+  it("på en iPhone öppnas lagret, aldrig webbläsarens helskärm, och ett svep över kartan stänger ingenting", async () => {
+    enhet("Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1", 5);
+    const request = webblasarHelskarm();
+    const { region, karta } = await rita();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Helskärm" }));
+    });
+    expect(request).not.toHaveBeenCalled();
+    expect(region.getAttribute("data-karta-helskarm")).toBe("fonster");
+    // Ett tryck på kartan (utan punkt) och ett svep nedåt över ytan: lagret står kvar.
+    const yta = /** @type {HTMLElement} */ (region.querySelector("[data-karta-yta]"));
+    await act(async () => {
+      karta._on.click({ point: { x: 5, y: 5 }, lngLat: { lng: 34.5, lat: 28.5 } });
+      fireEvent.touchStart(yta, { touches: [{ clientX: 100, clientY: 100 }] });
+      fireEvent.touchMove(yta, { touches: [{ clientX: 100, clientY: 500 }] });
+      fireEvent.touchEnd(yta);
+    });
+    expect(region.getAttribute("data-karta-helskarm")).toBe("fonster");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Stäng helskärm" }));
+    });
+    expect(region.getAttribute("data-karta-helskarm")).toBeNull();
+  });
+
+  it("en iPad i skrivbordsläge räknas som pekskärm, en Mac utan pekskärm får webbläsarens helskärm", async () => {
+    const { svepStangerHelskarm } = await import("../components/useHelskarm.js");
+    expect(svepStangerHelskarm({ userAgent: "Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X)", maxTouchPoints: 5 })).toBe(true);
+    expect(svepStangerHelskarm({ userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15", maxTouchPoints: 5 })).toBe(true);
+    expect(svepStangerHelskarm({ userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15", maxTouchPoints: 0 })).toBe(false);
+    expect(svepStangerHelskarm({ userAgent: "Mozilla/5.0 (Linux; Android 15; Pixel 9) Chrome/130 Mobile", maxTouchPoints: 5 })).toBe(false);
+    enhet("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15", 0);
+    const request = webblasarHelskarm();
+    const { region } = await rita();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Helskärm" }));
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(region.getAttribute("data-karta-helskarm")).toBe("helskarm");
+  });
+});
+
+/**
+ * ⛔ HÄNDELSEN (0.263.0, cllp/lifehub.app#967). CP 2026-11-25 om MapLibres vita zoomrutor och positionens röda snedstreck: "Ser bara lite 90-tal buggigt
+ * ut." Zoom och Min position är ramverkets runda knappar. Rött utan ändringen: knapparna fanns inte (zoomen var MapLibres `NavigationControl`).
+ */
+describe("⛔ zoom och Min position är ramverkets knappar", () => {
+  const forrGeo = Object.getOwnPropertyDescriptor(window.navigator, "geolocation");
+  afterEach(() => {
+    if (forrGeo) Object.defineProperty(window.navigator, "geolocation", forrGeo);
+    else delete (/** @type {any} */ (window.navigator)).geolocation;
+  });
+  function medPosition() {
+    Object.defineProperty(window.navigator, "geolocation", { configurable: true, get: () => ({ watchPosition() {}, clearWatch() {}, getCurrentPosition() {} }) });
+  }
+
+  it("zooma in och ut går genom kartan, i samma runda form som de andra knapparna, med 44 px", async () => {
+    medPosition();
+    const { karta } = await rita();
+    const inKnapp = screen.getByRole("button", { name: "Zooma in" });
+    expect(inKnapp.className).toContain("size-11");
+    await act(async () => {
+      fireEvent.click(inKnapp);
+      fireEvent.click(inKnapp);
+      fireEvent.click(screen.getByRole("button", { name: "Zooma ut" }));
+    });
+    expect(karta.zoom).toBe(1);
+    expect(screen.getByRole("button", { name: "Visa min position" }).className).toContain("rounded-full");
+  });
+
+  it("Min position styr kartans positionskontroll och visar dess läge, och MapLibres egen knapp döljs", async () => {
+    medPosition();
+    await rita();
+    const plats = globalThis.__opsPlatskontroller.at(-1);
+    const knapp = () => /** @type {HTMLElement} */ (document.querySelector("[data-karta-plats-knapp]"));
+    expect(knapp().getAttribute("aria-pressed")).toBe("false");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Visa min position" }));
+    });
+    expect(plats.triggad).toBe(1);
+    await act(async () => plats._on.trackuserlocationstart());
+    expect(knapp().getAttribute("data-karta-plats-knapp")).toBe("foljer");
+    expect(knapp().getAttribute("aria-pressed")).toBe("true");
+    await act(async () => {
+      plats._on.trackuserlocationend();
+      plats._on.userlocationlostfocus();
+    });
+    expect(knapp().getAttribute("data-karta-plats-knapp")).toBe("bakgrund");
+    const stil = document.getElementById("ops-karta-popup-stil")?.textContent ?? "";
+    expect(stil).toContain(".maplibregl-ctrl-group:has(.maplibregl-ctrl-geolocate){display:none}");
+  });
+
+  it("en position som saknas är en dämpad knapp med ett namn som säger varför, aldrig en egen ikon", async () => {
+    medPosition();
+    await rita();
+    const plats = globalThis.__opsPlatskontroller.at(-1);
+    await act(async () => plats._on.error({ code: 1 }));
+    const nekad = screen.getByRole("button", { name: "Platsen är avstängd i telefonens inställningar. Slå på den för att se var du är." });
+    expect(nekad.getAttribute("data-karta-plats-knapp")).toBe("fel");
+    expect(nekad.className).toContain("opacity-60");
+    // Utan geolocation i webbläsaren: samma knapp, dämpad och spärrad.
+    cleanup();
+    delete (/** @type {any} */ (window.navigator)).geolocation;
+    await rita();
+    const saknas = screen.getByRole("button", { name: "Positionen går inte att visa" });
+    expect(saknas.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(saknas);
+    expect(globalThis.__opsPlatskontroller.at(-1).triggad ?? 0).toBe(0);
+  });
+});
+
+/**
+ * ⛔ HÄNDELSEN (0.263.0, cllp/lifehub.app#967). CP 2026-11-25: "lägga till ett fält längst ner som man kan dra upp när kartan är helskärm med information
+ * också." Infofältet bär kartans titel nere och beskrivningen och lagren uppe, och en vald punkt står i fältet i stället för i en popup. Rött utan ändringen:
+ * fältet fanns inte, och ett tryck på en punkt i helskärm öppnade en popup.
+ */
+describe("⛔ infofältet i helskärm", () => {
+  const forrMedia = window.matchMedia;
+  const forrPe = /** @type {any} */ (window).PointerEvent;
+  beforeEach(() => {
+    // jsdom har ingen PointerEvent: utan den bär en pekarhändelse ingen `clientY`.
+    /** @type {any} */ (window).PointerEvent = class extends MouseEvent {
+      /** @param {string} typ @param {any} init */
+      constructor(typ, init = {}) {
+        super(typ, init);
+        this.pointerId = init.pointerId ?? 1;
+      }
+    };
+  });
+  afterEach(() => {
+    window.matchMedia = forrMedia;
+    /** @type {any} */ (window).PointerEvent = forrPe;
+  });
+  const MED_HUVUD = { ...exempelkarta, karta: { titel: "Dahab runt", beskrivning: "Tre dagar vid Röda havet.", lager: [{ typ: "hamn", etikett: "Hamnar", farg: "djuphav" }] } };
+
+  async function oppnaMedHuvud() {
+    Object.defineProperty(document, "fullscreenEnabled", { configurable: true, get: () => false });
+    const { OpsKarta } = await import("../components/OpsKarta.jsx");
+    render(<OpsKarta data={MED_HUVUD} />);
+    await screen.findByRole("region", { name: "Karta" });
+    await waitFor(() => expect(globalThis.__opsKartor.length).toBeGreaterThan(0));
+    const karta = globalThis.__opsKartor.at(-1);
+    expect(document.querySelector("[data-karta-info]")).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Helskärm" }));
+    });
+    return karta;
+  }
+  const handtag = () => /** @type {HTMLElement} */ (document.querySelector("[data-karta-info-handtag]"));
+  const lage = () => document.querySelector("[data-karta-info]")?.getAttribute("data-karta-info");
+
+  it("nere är det ett handtag med kartans titel, och ett tryck fäller ut beskrivningen och lagren med färg, namn och antal", async () => {
+    bredd(false);
+    await oppnaMedHuvud();
+    expect(lage()).toBe("nere");
+    expect(handtag().getAttribute("aria-expanded")).toBe("false");
+    expect(handtag().textContent).toBe("Dahab runt");
+    expect(screen.queryByText("Tre dagar vid Röda havet.")).toBeNull();
+    await act(async () => {
+      fireEvent.click(handtag());
+    });
+    expect(lage()).toBe("uppe");
+    expect(handtag().getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("Tre dagar vid Röda havet.")).toBeTruthy();
+    const rader = [...document.querySelectorAll("[data-karta-info-lager] li")].map((li) => li.textContent);
+    expect(rader[0]).toBe("Hamnar1 plats");
+    expect(rader.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("handtaget dras upp och ned med pekaren, och klicket efter ett drag räknas inte som ett tryck", async () => {
+    bredd(false);
+    await oppnaMedHuvud();
+    await act(async () => {
+      fireEvent.pointerDown(handtag(), { clientY: 700 });
+      fireEvent.pointerMove(handtag(), { clientY: 600 });
+      fireEvent.pointerUp(handtag(), { clientY: 560 });
+      fireEvent.click(handtag());
+    });
+    expect(lage()).toBe("uppe");
+    await act(async () => {
+      fireEvent.pointerDown(handtag(), { clientY: 300 });
+      fireEvent.pointerUp(handtag(), { clientY: 420 });
+      fireEvent.click(handtag());
+    });
+    expect(lage()).toBe("nere");
+    // Ett kort tryck (under tröskeln) är ett vanligt tryck.
+    await act(async () => {
+      fireEvent.pointerDown(handtag(), { clientY: 700 });
+      fireEvent.pointerUp(handtag(), { clientY: 705 });
+      fireEvent.click(handtag());
+    });
+    expect(lage()).toBe("uppe");
+  });
+
+  it("ett tryck på en punkt visar namn, beskrivning och länkar i fältet, utan popup, och stänger arket på telefon", async () => {
+    bredd(false);
+    globalThis.__opsPopuper = [];
+    const karta = await oppnaMedHuvud();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Lager" }));
+    });
+    expect(document.querySelector("[data-karta-ark]")).toBeTruthy();
+    const punkt = exempelkarta.features.find((f) => f.geometry.type === "Point");
+    karta.traff = [{ ...punkt, layer: { id: "objekt-punkt" } }];
+    await act(async () => {
+      karta._on.click({ point: { x: 10, y: 10 }, lngLat: { lng: 34.5, lat: 28.5 } });
+    });
+    expect(globalThis.__opsPopuper.length).toBe(0);
+    expect(document.querySelector("[data-karta-ark]")).toBeNull();
+    expect(lage()).toBe("uppe");
+    expect(handtag().textContent).toBe(punkt.properties.namn);
+    expect(screen.getByText(punkt.properties.beskrivning)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Öppna i Google Maps" })).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Tillbaka till översikten" }));
+    });
+    expect(handtag().textContent).toBe("Dahab runt");
+    expect(document.querySelector("[data-karta-info-lager]")).toBeTruthy();
+    expect(document.querySelector('[data-karta="" ]')?.getAttribute("data-karta-helskarm")).toBe("fonster");
+  });
+
+  it("på dator står fältet nere till vänster, och kartans titel är kartans namn när huvudet saknar titel", async () => {
+    bredd(true);
+    await oppnaHelskarm();
+    const falt = /** @type {HTMLElement} */ (document.querySelector("[data-karta-info]"));
+    expect(falt.className).toContain("w-[22rem]");
+    expect(falt.style.left).toContain("--safe-left");
+    expect(handtag().textContent).toBe("Karta");
   });
 });

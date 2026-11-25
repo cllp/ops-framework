@@ -7973,6 +7973,57 @@ async function bibliotekKarta() {
     }
     await context.close();
   }
+  await kartaPaIphone();
+}
+
+// ══ 52f. PÅ EN IPHONE ÄR KARTANS HELSKÄRM LAGRET, OCH LAGRET TÄCKER SKÄRMEN (0.263.0, cllp/lifehub.app#967) ═══════════════════════════════════════════
+// CP 2026-11-25: "det ska vara lite svårare att stänga helskärmsläge ... Annars så stängs den nästan hela tiden när man sveper runt." På iPhone och iPad stänger
+// ett svep nedåt webbläsarens helskärm (WebKit, se `useHelskarm`), så kartan väljer lagret där. Lagret mättes aldrig förut: Chromium fick webbläsarens helskärm, och
+// mätt i montaget för #967 låg lagret kvar i sidans kolumn, eftersom det bar både `relative` och `fixed` och `relative` vann. Scenen öppnas med en iPhones användaragent
+// och pekskärm. Krav, vid 390: (n) läget är `fonster`, (o) rutan täcker fönstret från hörnet, (p) ytan MapLibre ritar i fyller rutan, (q) Stäng är minst 44 px och inom
+// fönstret, (r) infofältets handtag står längst ned i full bredd och (s) knappkolumnen uppe till höger ligger inom fönstret. Golv: ett läge lästes.
+async function kartaPaIphone() {
+  const vp = { width: 390, height: 844 };
+  const namn = "karta i biblioteket 390 på iPhone";
+  const kontext = { isMobile: true, hasTouch: true, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" };
+  const { page, context } = await oppna("bibliotekkarta", vp, standardtema, 1, null, 0, { kontext });
+  try {
+    await page.waitForSelector("[data-karta]", { state: "attached", timeout: 6000 });
+    await page.getByRole("button", { name: "Helskärm" }).click();
+    await page.waitForSelector("[data-karta-helskarm]", { state: "attached", timeout: 3000 });
+    await page.waitForTimeout(400);
+    const h = await page.evaluate(() => {
+      const r = /** @type {HTMLElement} */ (document.querySelector("[data-karta]"));
+      const rr = r.getBoundingClientRect();
+      const ir = /** @type {HTMLElement} */ (r.querySelector("[data-karta-yta]")).getBoundingClientRect();
+      const ruta = (/** @type {Element | null} */ el) => {
+        if (!el) return null;
+        const b = el.getBoundingClientRect();
+        return { t: b.top, l: b.left, b: b.bottom, r: b.right, w: b.width, h: b.height };
+      };
+      return {
+        lage: r.getAttribute("data-karta-helskarm"),
+        x: rr.left, y: rr.top, w: rr.width, h: rr.height, iw: ir.width, ih: ir.height, vw: window.innerWidth, vh: window.innerHeight,
+        stang: ruta(document.querySelector("[data-karta-helskarm-knapp='stang']")),
+        handtag: ruta(document.querySelector("[data-karta-info]")),
+        kolumn: ruta(document.querySelector("[data-karta-kontroller]")),
+      };
+    });
+    matt.push(`${namn}: läget ${h.lage}, rutan ${h.w.toFixed(0)}x${h.h.toFixed(0)} vid (${h.x.toFixed(0)}, ${h.y.toFixed(0)}) i ett fönster på ${h.vw}x${h.vh}, Stäng ${JSON.stringify(h.stang)}, infofältet ${JSON.stringify(h.handtag)}, knapparna ${JSON.stringify(h.kolumn)}`);
+    krav(h.lage === "fonster", `${namn} (n): läget är ${h.lage}, väntat fonster (webbläsarens helskärm stängs av ett svep på iPhone).`);
+    krav(Math.abs(h.x) <= 1 && Math.abs(h.y) <= 1 && Math.abs(h.w - h.vw) <= 1 && Math.abs(h.h - h.vh) <= 1, `${namn} (o): rutan är ${h.w.toFixed(0)}x${h.h.toFixed(0)} vid (${h.x.toFixed(0)}, ${h.y.toFixed(0)}), väntat hela fönstret ${h.vw}x${h.vh} från hörnet.`);
+    krav(Math.abs(h.iw - h.w) <= 1 && Math.abs(h.ih - h.h) <= 1, `${namn} (p): ytan är ${h.iw.toFixed(0)}x${h.ih.toFixed(0)}, rutan ${h.w.toFixed(0)}x${h.h.toFixed(0)}.`);
+    const st = h.stang;
+    krav(!!st && st.w >= 44 && st.h >= 44 && st.t >= 0 && st.l >= 0 && st.b <= h.vh && st.r <= h.vw, `${namn} (q): Stäng ${JSON.stringify(st)}, väntat minst 44 px och inom fönstret.`);
+    const ha = h.handtag;
+    krav(!!ha && Math.abs(ha.b - h.vh) <= 1 && Math.abs(ha.w - h.vw) <= 1 && ha.h >= 44, `${namn} (r): infofältet ${JSON.stringify(ha)}, väntat längst ned i full bredd och minst 44 px högt.`);
+    const ko = h.kolumn;
+    krav(!!ko && ko.t >= 0 && ko.r <= h.vw && ko.b <= h.vh, `${namn} (s): knapparna ${JSON.stringify(ko)}, väntat inom fönstret.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "bibliotek-karta-iphone-helskarm-390.png") });
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
 }
 
 // ══ 53. NY GRUPP MEDAN DEN SKAPAS: SPARA ÄR UPPTAGEN OCH STATUSRADEN SYNS BREDVID KNAPPARNA (0.129.0, cllp/lifehub.app#365) ═══════════

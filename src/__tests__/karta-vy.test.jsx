@@ -6,7 +6,7 @@ import { exempelkarta } from "../../examples/karta/dahab.js";
 const FALGER = {
   "--color-karta-papper": "#faf7f1",
   "--color-karta-creme": "#f3eee4",
-  "--color-karta-vatten": "#adbdac",
+  "--color-karta-vatten": "#d9e4e7",
   "--color-karta-linje": "#cfc6b6",
   "--color-karta-lera": "#8a8073",
   "--color-karta-text": "#2e2a24",
@@ -200,7 +200,10 @@ describe("OpsKarta ritar exemplet", () => {
     const { OpsKarta } = await import("../components/OpsKarta.jsx");
     render(<OpsSprakProvider sprak="en"><OpsKarta data={exempelkarta} /></OpsSprakProvider>);
     expect(await screen.findByRole("region", { name: "Map" })).toBeTruthy();
-    expect((await kartan()).opts.locale["NavigationControl.ZoomIn"]).toBe("Zoom in");
+    // (0.263.0) Zoomen är ramverkets knappar, inte MapLibres, och bär ordboken.
+    await kartan();
+    expect(screen.getByRole("button", { name: "Zoom in" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Zoom out" })).toBeTruthy();
   });
 
   it("saknade färger sägs, och ingen karta skapas", async () => {

@@ -9,6 +9,31 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.263.0
+
+**Kartan blir ljus och självständig, och helskärmen stängs bara med ett tryck (cllp/lifehub.app#967).** CP 2026-11-25, med appens karta i helskärm på iPhone bredvid Sardinienkartan gjord med skissramverket: "ljusa upp den lite grann så här och istället för att ha så stora knappar längst ner så har man lite fina knappar som flyter över med lager och inställningar", "lägga till ett fält längst ner som man kan dra upp när kartan är helskärm med information också", och "det ska vara lite svårare att stänga helskärmsläge ... Annars så stängs den nästan hela tiden när man sveper runt."
+
+### Ändrat
+- **Kartans yta är ljus också i mörkt läge.** Mörkt läge skriver inte längre om `--color-karta-*`, och `--dark-karta-*` är borttagna. Knapparna, panelerna, infofältet och popupen ovanpå kartan följer appens tema.
+- **Havet är ljust blågrått** (`--color-karta-vatten: #d9e4e7`, Sardinienkartans `--hav`), inte salvia (#adbdac). Kusten är ett tunt streck i lera, och punkterna har en ljus ring och en mjuk skugga i stället för en mörk ring.
+- **Zoom och Min position är ramverkets runda knappar** uppe till höger (`IKON_FOR.zoomaIn`, `zoomaUt` och den nya `minPosition`). MapLibres `NavigationControl` används inte. Positionens logik är kvar i `GeolocateControl`, vars egen knapp döljs. En position som saknas är samma knapp, dämpad och med ett namn som säger varför.
+- **Lager och Inställningar är två runda knappar under zoomen**, i stället för raden längst ned på telefon och flikarna vid kanten på dator. Panelerna har samma innehåll som förut.
+- **Krediten står som länkar**, en rad i stället för tre adresser i texten.
+- **Reservlagret för helskärm täcker hela skärmen.** Lagret bar både `relative` och `fixed`, och `relative` vann, så lagret låg kvar i sidans kolumn. Det syntes inte förut, eftersom Chromium och iPhone fick webbläsarens helskärm. Kartan ritas nu också under statusraden, och knapparna står innanför de säkra zonerna.
+
+### Tillagt
+- **Infofältet i den öppnade kartan** (`KartaInfo`): kartans titel i ett handtag längst ned. Dras det upp visas beskrivningen och lagren med färg, namn och antal. Ett tryck på en punkt visar dess namn, beskrivning och länkar i fältet i stället för i en popup. Handtaget dras med pekaren och fälls ut och in med ett tryck eller Enter (`aria-expanded`).
+- **`useHelskarm(yta, { undvikSvep })` och `svepStangerHelskarm()`.** På iPhone och iPad stänger ett svep nedåt webbläsarens helskärm, och sidan kan inte stänga av det. Mätt i WebKits källa: `WKFullScreenWindowControllerIOS.mm` har en `UISwipeGestureRecognizer` och en `UIPanGestureRecognizer` som avslutar helskärmen, och `WKFullScreenViewController.mm` ritar en egen stängknapp. Det var det andra krysset på CP:s skärmbild. Med `undvikSvep` används lagret där, och lagret stängs bara av Stäng och Escape. Kartan väljer det. PDF-vyn och tavlan är som förut.
+- **`check-skalyta` avsnitt 52f** öppnar kartan med en iPhones användaragent och mäter att helskärmen är lagret och att lagret täcker fönstret, med Stäng, infofältet och knapparna inom fönstret.
+
+### Prov
+- Nya och ändrade prov i `karta-helskarm.test.jsx`, `karta.test.js`, `karta-plats.test.jsx` och `karta-vy.test.jsx`. Utan ändringen är 17 röda. Med den är alla 85 kartprov gröna.
+- `check-skalyta --bara-karta`: 42 kontroller utan brott. Med `relative` tillbaka i lagret bryts (o) och (r), och utan `undvikSvep` bryts (n).
+
+### För appen vid ompinningen
+- Inget att ändra i koden. Kartan i Biblioteket får det nya utseendet direkt.
+- Den som skickar egna ord till `OpsKarta` kan också skicka `info`, `infoOversikt` och `plats`.
+
 ## 0.262.0
 
 **Tavlan börjar i helskärm igen när man kom därifrån (cllp/lifehub.app#933).** CP 2026-11-25: "Kan den komma ihåg om man hade helskärm så att den utgår ifrån det om man kom ifrån helskärm. Det ger en upplevelse om att man inte lämnat." Kortet öppnas i sin egen vy, och tavlans avmontering avslutade helskärmen (0.249.1), så Tillbaka gav en vanlig tavla.
