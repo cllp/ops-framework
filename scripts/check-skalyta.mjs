@@ -7974,6 +7974,7 @@ async function bibliotekKarta() {
     await context.close();
   }
   await kartaPaIphone();
+  await kartaNarHelskarmenVantar();
 }
 
 // ══ 52f. PÅ EN IPHONE ÄR KARTANS HELSKÄRM LAGRET, OCH LAGRET TÄCKER SKÄRMEN (0.263.0, cllp/lifehub.app#967) ═══════════════════════════════════════════
@@ -8020,6 +8021,38 @@ async function kartaPaIphone() {
     const ko = h.kolumn;
     krav(!!ko && ko.t >= 0 && ko.r <= h.vw && ko.b <= h.vh, `${namn} (s): knapparna ${JSON.stringify(ko)}, väntat inom fönstret.`);
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "bibliotek-karta-iphone-helskarm-390.png") });
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
+// ══ 52g. MEDAN WEBBLÄSARENS HELSKÄRM VÄNTAR TÄCKER KARTAN ÄNDÅ SKÄRMEN (0.263.1, cllp/lifehub.app#967) ═══════════════════════════════════════════════════════
+// CP 2026-11-25, med Sardinien rutt v12 i Biblioteket på datorn: "kommer upp fullskärm men inom samma ram ... Det saknas alltså en fullscreen som för PDF och html",
+// och "Den här fullscreen viewn är helt oanvändbar i web." Läget sätts till helskärm innan webbläsaren svarat, och kartan bar då bara `relative`: den litade på att
+// webbläsaren gav den storleken. Medan begäran väntade, eller om den aldrig blev av, stod kartan i sin ram med Stäng synligt. Scenen öppnas i Chromium vid 1280 med en
+// `requestFullscreen` som aldrig svarar. Krav: (t) läget är `helskarm`, (u) rutan täcker fönstret från hörnet och (v) ytan MapLibre ritar i fyller rutan. Golv: ett läge lästes.
+async function kartaNarHelskarmenVantar() {
+  const vp = { width: 1280, height: 800 };
+  const namn = "karta i biblioteket 1280, helskärmen väntar";
+  const init = "Element.prototype.requestFullscreen = function () { return new Promise(() => {}); };";
+  const { page, context } = await oppna("bibliotekkarta", vp, standardtema, 1, null, 0, { init });
+  try {
+    await page.waitForSelector("[data-karta]", { state: "attached", timeout: 6000 });
+    await page.getByRole("button", { name: "Helskärm" }).click();
+    await page.waitForSelector("[data-karta-helskarm]", { state: "attached", timeout: 3000 });
+    await page.waitForTimeout(400);
+    const h = await page.evaluate(() => {
+      const r = /** @type {HTMLElement} */ (document.querySelector("[data-karta]"));
+      const rr = r.getBoundingClientRect();
+      const ir = /** @type {HTMLElement} */ (r.querySelector("[data-karta-yta]")).getBoundingClientRect();
+      return { lage: r.getAttribute("data-karta-helskarm"), x: rr.left, y: rr.top, w: rr.width, h: rr.height, iw: ir.width, ih: ir.height, vw: window.innerWidth, vh: window.innerHeight };
+    });
+    matt.push(`${namn}: läget ${h.lage}, rutan ${h.w.toFixed(0)}x${h.h.toFixed(0)} vid (${h.x.toFixed(0)}, ${h.y.toFixed(0)}) i ett fönster på ${h.vw}x${h.vh}`);
+    krav(h.lage === "helskarm", `${namn} (t): läget är ${h.lage}, väntat helskarm (begäran är skickad men har inte svarat).`);
+    krav(Math.abs(h.x) <= 1 && Math.abs(h.y) <= 1 && Math.abs(h.w - h.vw) <= 1 && Math.abs(h.h - h.vh) <= 1, `${namn} (u): rutan är ${h.w.toFixed(0)}x${h.h.toFixed(0)} vid (${h.x.toFixed(0)}, ${h.y.toFixed(0)}), väntat hela fönstret ${h.vw}x${h.vh} från hörnet.`);
+    krav(Math.abs(h.iw - h.w) <= 1 && Math.abs(h.ih - h.h) <= 1, `${namn} (v): ytan är ${h.iw.toFixed(0)}x${h.ih.toFixed(0)}, rutan ${h.w.toFixed(0)}x${h.h.toFixed(0)}.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "bibliotek-karta-helskarm-vantar-1280.png") });
   } catch (e) {
     krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
   }
