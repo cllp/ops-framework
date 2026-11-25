@@ -26,6 +26,7 @@ import { OpsIconLink } from "./OpsIconLink.jsx";
 import { OpsHuvudmenyIkonVal } from "./OpsHuvudmenyIkonVal.jsx";
 import { huvudmenyFordelning, sattHuvudmeny } from "../lib/modulinstallningar.js";
 import { OpsHuvudmenyFler } from "./OpsHuvudmenyFler.jsx";
+import { useToppradRyms } from "./useToppradRyms.js";
 import { OpsPanel, OpsPanelRow } from "./OpsPanel.jsx";
 import { OpsHubblista, aktivHubbNamn, provaHubbar } from "./OpsHubbar.jsx";
 import { OpsSkapaI } from "./OpsSkapaI.jsx";
@@ -2004,7 +2005,21 @@ function OpsAppShellRitad({
   /** Ordningsnumret (0-räknat) bland appikonerna, per element. */
   const appPlats = new Map();
   for (const a of atgardsLista) if (a.type === OpsIconLink && /** @type {any} */ (a.props).kvarIHuvudet === true) appPlats.set(a, appPlats.size);
-  const fordelning = huvudmenyFordelning(appPlats.size);
+  // ⛔ BANDEN ÄR EN GISSNING, RADEN ÄR SVARET (0.260.0, cllp/lifehub.app#909, CP 2026-11-24 i iPhone-appen). `huvudmenyFordelning` räknar bara appikonerna,
+  // och banden mättes med EN åtgärd utöver dem. LifeHub har två (tema och Inkorg), och vid 390 px rullade raden 8 px. `useToppradRyms` mäter raden efter
+  // varje rendering och flyttar ikoner bakom « tills den ryms. Med ett tak ersätter taket banden på den bredden: ikon k syns om k < tak, annars bakom «.
+  const toppradRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const toppradTak = useToppradRyms(toppradRef, appPlats.size);
+  const bandFordelning = huvudmenyFordelning(appPlats.size);
+  const fordelning =
+    toppradTak === null
+      ? bandFordelning
+      : {
+          synliga: bandFordelning.synliga.map(() => toppradTak),
+          ikon: bandFordelning.ikon.map((_k, k) => (k >= toppradTak ? "hidden" : "")),
+          fler: bandFordelning.fler.map((_k, k) => (k < toppradTak ? "hidden" : "")),
+          knapp: "",
+        };
   // ⛔ EN FÄST MODUL STANNAR (0.88.2). CP 2026-10-09, telefon, grupp "my": huvudet visade tema, inkorg, Bibliotek
   // och avatar. Meddelanden saknades. `huvudmenyPoster` hade inte tappat den (den har kort och stod i `huvudmeny`,
   // utan märket `meddelanden-av`). Ordningen är `moduler`, så Bibliotek kom före Meddelanden och tog den enda
@@ -2062,11 +2077,12 @@ function OpsAppShellRitad({
       const k = appPlats.get(a) ?? -1;
       const dold = fordelning.ikon[k] ?? "";
       // `contents` så omslaget inte blir en ruta i klungan; breddklasserna är varianter och vinner över `contents` i CSS-ordningen.
-      const iRaden = dold ? (
+      // ⛔ Omslaget står alltid, också när inget döljs: `useToppradRyms` räknar de synliga appikonerna genom `data-huvudmeny-plats`.
+      const iRaden = (
         <span key={a.key ?? `appikon-${i}`} data-huvudmeny-plats={k} className={cx("contents", dold)}>
           {ikon}
         </span>
-      ) : ikon;
+      );
       // ⛔ « STÅR DIREKT EFTER DEN SISTA APPIKONEN (#909), med samma ikoner i en rad som döljer var och en där den redan syns i toppraden.
       if (k !== appPlats.size - 1 || fordelning.synliga.every((n) => n >= appPlats.size)) return iRaden;
       return (
@@ -2780,7 +2796,7 @@ function OpsAppShellRitad({
           innehållsstyrd. Talet bor i tokens.css `--topbar-height`
           (`tokens/sessionstudio-profil.json` "topprad"), inte här.
         */}
-        <div className="mx-auto flex h-(--topbar-height) max-w-7xl items-center gap-3 px-4">
+        <div ref={toppradRef} data-topprad-tak={toppradTak ?? undefined} className="mx-auto flex h-(--topbar-height) max-w-7xl items-center gap-3 px-4">
           {/*
             ⛔ #161: INGEN BREDD HÄR. `OpsBrand` sätter SIN EGEN bredd ur
             `--logo-bredd`/`--logo-bredd-infalld` när `panelInfalld` är

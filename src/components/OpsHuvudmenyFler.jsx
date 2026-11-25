@@ -20,6 +20,9 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * ⛔ VAD SOM ÄR DOLT AVGÖRS AV CSS, INTE AV EN MÄTNING. Skalet ger varje ikon i raden en klass som döljer den där den inte ryms, och samma ikon i raden här en klass som döljer den
  * där den syns i toppraden (`huvudmenyFordelning`). Knappen själv bär en klass som döljer den där alla ryms. En app står därför på exakt ett ställe på varje bredd, och raden
  * hoppar inte när sidan ritats. Mätt i Chromium i `scripts/huvudmeny-matt.mjs`.
+ * ⛔ OCH EN MÄTNING RÄTTAR CSS:EN NÄR DEN SLÅR FEL (0.260.0, CP 2026-11-24 i iPhone-appen). Banden räknar bara appikonerna och mättes med en åtgärd, och LifeHubs
+ * topprad har två: vid 390 px rullade raden 8 px och ingen « syntes. Skalets `useToppradRyms` mäter raden före målning och flyttar ikoner hit tills den ryms. Då
+ * byts klasserna mot `hidden` på exakt den bredden, och regeln står kvar: en app på exakt ett ställe.
  *
  * ⛔ ETT TRYCK PÅ EN IKON STÄNGER RADEN. Ikonen navigerar som i toppraden (samma element, samma `onNavigate`), och en rad som stod kvar över nästa sida hade dolt gruppens namn.
  * Escape och ett tryck utanför stänger också (Radix).

@@ -200,7 +200,8 @@ describe("3. läsvägen klipper aldrig: det som inte ryms ligger bakom « (0.247
   it("⛔ en ensam app ryms på alla bredder: ingen « alls", () => {
     render(<Skal antal={1} />);
     expect(knapp()).toBeNull();
-    expect(ikonKlass(NAMN[0])).toBe("");
+    // Omslaget står alltid sedan 0.260.0 (`useToppradRyms` räknar synliga ikoner genom det), med `contents` och ingen dold-klass.
+    expect(ikonKlass(NAMN[0])).toBe("contents");
   });
 
   it("⛔ sju fästa appar: från lg syns de första HUVUDMENY_MAX (4) i appens ordning, och resten står bakom « på alla bredder", () => {

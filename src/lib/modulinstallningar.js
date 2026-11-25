@@ -107,6 +107,9 @@ export const HUVUDMENY_MAX = 4;
  * ⛔ Klasserna är band, inte trösklar: en ikon kan vara dold vid 320 px, synlig vid 360 px och dold igen vid 390 px, eftersom « tar en plats först när någon annan inte ryms.
  * Tailwind 4 gör `max-[360px]` till `width < 360px` och `min-[360px]` till `width >= 360px`, så banden möts på pixeln (mätt vid 359, 360, 389, 390, 1023 och 1024 px).
  * ⛔ Strängarna står hela, aldrig ihopsatta: Tailwind hittar bara klasser som står i källan.
+ * ⛔ BANDEN ÄR EN GISSNING FÖR EN RAD MED EN ÅTGÄRD (0.260.0, CP 2026-11-24 i iPhone-appen). `platser` mättes med hemikon, gruppmärke, Inkorg och avatar. En app
+ * som har fler kontroller kvar i raden (LifeHub: temaknappen och Inkorg) har mindre plats, och vid 390 px rullade raden 8 px. Skalet mäter därför raden efter
+ * varje rendering (`useToppradRyms` i `OpsAppShell`) och flyttar fler ikoner bakom « när gissningen slår fel. Lägg inte till ett band per kombination av åtgärder.
  * @type {ReadonlyArray<{ fran: number, platser: number, dold: string }>}
  */
 export const HUVUDMENY_BAND = Object.freeze([

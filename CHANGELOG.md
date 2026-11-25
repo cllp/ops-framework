@@ -9,6 +9,19 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.260.0
+
+**Toppraden rullar aldrig i sidled (cllp/lifehub.app#909, uppföljning av 0.247.0).** CP 2026-11-24 22.22 i iPhone-appen (bygge 4): toppraden visade hem, gruppbild, tema, Inkorg, Bibliotek, Ekonomi, Meddelanden och profilbild, ingen «, och raden gick att dra några pixlar i sidled. Mätt i Chromium mot byggd dist: 8 px vid 390 px och 5 px vid 393 px. Rotorsaken: `huvudmenyFordelning` räknar bara appikonerna, och banden i `HUVUDMENY_BAND` mättes med EN åtgärd utöver dem. LifeHub har två (temaknappen, som inte är en `OpsIconLink` och aldrig flyttas, och Inkorg), alltså 46 px som ingen räkning visste om.
+
+### Ändrat
+- **Skalet mäter toppraden efter varje rendering, före målning** (`useToppradRyms`). Rullar raden, eller tränger det som står längst ut in i högerpaddingen (samma mått som `scripts/huvudmeny-matt.mjs`), flyttas den sista synliga appikonen bakom «, tills raden ryms. Banden är fortfarande första gissningen, i CSS. LifeHubs rad vid 390 och 393 px: Bibliotek och «, med Ekonomi och Meddelanden bakom. Vid 430 px står alla tre som förut.
+- **Taket gäller bredden det mättes vid**: när raden byter bredd (telefonen vrids) mäts den om.
+- **Varje appikon i toppraden har ett omslag med `data-huvudmeny-plats`**, också där inget döljs. Omslaget är `display: contents`.
+- ⛔ **Ingen dold overflow.** Raden får ingen `overflow: hidden`. Finns ingen appikon kvar att flytta och raden ändå inte ryms, gör skalet ingenting, och mätningen ser det.
+
+### Mätt
+- `scripts/huvudmeny-matt.mjs` har scenen med temaknappen (tre, fyra och sju appar, 18 bredder) och en mätning där bredden ändras. Utan rättningen: 26 brott, bland dem raden som rullar 8 px vid 390 px. Med: inga. Kända skulder med tema, som inte är #909 och fanns förut, står med ett tak som bara får sjunka (7): klungan i högerpaddingen vid 320 px och överlapp mellan flikarna och klungan vid 768 och 1024 px.
+
 ## 0.259.0
 
 **Biblioteket: gruppens admin och ägare flyttar inom gruppen (cllp/lifehub.app#952).** CP 2026-11-24: "Vi behöver en funktion i biblioteket där vi kan flytta en artefakt till ett projekt eller mellan projekt, eller ut till hela gruppen från projekt", och "Ja på båda, kör" på att gruppens förvaltare får flytta någon annans post inom gruppen.
