@@ -43,6 +43,10 @@ const VARIANTER = {
   secondary: "border-line-strong bg-raised text-ink hover:bg-sunken",
   ghost: "border-transparent text-ink-secondary hover:bg-accent-faint hover:text-ink",
   danger: "border-transparent bg-danger text-ink-inverse hover:bg-danger-hover",
+  // ⛔ (0.261.0, lifehub.native#26 punkt 3) Textens färg som fyllning: ljus knapp på mörk botten, mörk knapp på ljus. För en ensam huvudhandling på en
+  // yta utan kort, som appens startvy när ingen är inloggad. CP sa ja till skissen 2026-11-25. Accentknappen på samma yta gav 4,56:1 och
+  // kortet bakom den 1,22:1 mot bakgrunden, så vyn såg ut som en platshållare. `ink` mot `ink-inverse` ger 13:1 i mörkt tema.
+  inverse: "border-transparent bg-ink text-ink-inverse hover:bg-ink-secondary",
 };
 
 /**
@@ -124,7 +128,7 @@ export function knappKlass({ variant = "secondary", size = "md", iconOnly = fals
 
 /**
  * @param {object} props
- * @param {"primary"|"secondary"|"ghost"|"danger"} [props.variant]
+ * @param {"primary"|"secondary"|"ghost"|"danger"|"inverse"} [props.variant]
  * @param {"sm"|"md"} [props.size]
  * @param {"button"|"submit"|"reset"} [props.type]
  * @param {boolean} [props.disabled]

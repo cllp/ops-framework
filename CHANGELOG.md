@@ -9,6 +9,14 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.261.0
+
+**Knappvarianten `inverse` för en ensam huvudhandling på en yta utan kort (cllp/lifehub.native#26, punkt 3).** CP sa ja till skissen av appens startvy 2026-11-25. Den har loggan, rubriken och en ljus knapp på mörk botten, utan kort. Accentknappen gav 4,56:1 mot sin text, och kortet bakom den 1,22:1 mot bakgrunden, så vyn såg ut som en platshållare.
+
+### Tillagt
+- **`OpsButton variant="inverse"`** fyller med textens färg (`bg-ink`) och skriver med den omvända (`text-ink-inverse`). I mörkt tema blir det en ljus knapp med 13:1 kontrast, och i ljust tema en mörk knapp. Ingen ny token behövs.
+- Prov i `primitives.test.jsx`. Utan varianten kraschar provet på "okänd variant", och med den är det grönt (40 av 40).
+
 ## 0.260.0
 
 **Toppraden rullar aldrig i sidled (cllp/lifehub.app#909, uppföljning av 0.247.0).** CP 2026-11-24 22.22 i iPhone-appen (bygge 4): toppraden visade hem, gruppbild, tema, Inkorg, Bibliotek, Ekonomi, Meddelanden och profilbild, ingen «, och raden gick att dra några pixlar i sidled. Mätt i Chromium mot byggd dist: 8 px vid 390 px och 5 px vid 393 px. Rotorsaken: `huvudmenyFordelning` räknar bara appikonerna, och banden i `HUVUDMENY_BAND` mättes med EN åtgärd utöver dem. LifeHub har två (temaknappen, som inte är en `OpsIconLink` och aldrig flyttas, och Inkorg), alltså 46 px som ingen räkning visste om.
