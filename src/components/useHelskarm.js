@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /**
  * Helskärm för en yta, med ett fast lager som reserv (0.234.0, en sanning för PDF-vyn och kartan, regel 2).
@@ -21,13 +21,48 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *     Därför minns kroken elementet den själv bad om (`agd`) och avslutar helskärmen vid avmonteringen bara om det fortfarande är det elementet
  *     som är i helskärm. En helskärm någon annan bett om lämnas orörd.
  *
+ *
+ * ══ ⛔ VYN SOM VAR I HELSKÄRM KAN BÖRJA I HELSKÄRM IGEN (0.262.0, cllp/lifehub.app#933) ═══════════════════════════════════════════════
+ *
+ * CP 2026-11-25 om tavlan: "Kan den komma ihåg om man hade helskärm så att den utgår ifrån det om man kom ifrån helskärm. Det ger en upplevelse
+ * om att man inte lämnat." Tavlan öppnar ett kort i kortets egen vy, och avmonteringen ovan avslutade helskärmen, så man kom tillbaka till en
+ * vanlig tavla. Två delar, och båda väljs av anroparen:
+ *   - `behall()` anropas när ägaren lämnar vyn för att komma tillbaka (tavlan, innan kortet öppnas). Då lämnas helskärmen kvar vid avmonteringen,
+ *     så att webbläsarens helskärm ligger kvar medan kortets vy visas.
+ *   - `start` (andra argumentet) är läget vyn hade. Är elementet fortfarande i webbläsarens helskärm tar kroken över den (`helskarm`, och den blir
+ *     krokens egen igen, så att Stäng och avmonteringen fungerar). Annars ritas lagret (`fonster`): en webbläsare släpper bara in sin egen helskärm
+ *     i ett tryck, och ett lager kräver inget tryck. Personen ser ändå tavlan över hela fönstret, och Stäng finns.
+ *   Händelsen bakom avmonteringen ovan gäller fortfarande: utan `behall()` avslutas helskärmen som förut, och en vy som tar över helskärmen ritar
+ *   alltid sin Stäng, så ingen sitter kvar utan utväg.
+ *
  * @param {{ current: HTMLElement | null }} yta Elementet som blir helskärm.
- * @returns {{ lage: false | "helskarm" | "fonster", oppna: () => void, avsluta: () => void }}
+ * @param {{ start?: false | "helskarm" | "fonster" }} [val] Läget vyn hade när den lämnades (`behall`), för att börja i det igen.
+ * @returns {{ lage: false | "helskarm" | "fonster", oppna: () => void, avsluta: () => void, behall: () => void }}
  */
-export function useHelskarm(yta) {
+export function useHelskarm(yta, { start = false } = {}) {
   const [lage, setLage] = useState(/** @type {false | "helskarm" | "fonster"} */ (false));
   /** Elementet kroken själv bad om helskärm för, så att avmonteringen bara avslutar sin egen. */
   const agd = useRef(/** @type {Element | null} */ (null));
+  /** Satt av `behall()`: avmonteringen lämnar helskärmen kvar, eftersom vyn kommer tillbaka och tar över den (`start`). */
+  const behalls = useRef(false);
+  const startlage = useRef(start);
+
+  // ⛔ FÖRE MÅLNINGEN, så att en tavla som ska börja i helskärm aldrig syns en bild i vanligt läge.
+  useLayoutEffect(() => {
+    const onskat = startlage.current;
+    if (!onskat || typeof document === "undefined") return;
+    const el = yta.current;
+    if (el && document.fullscreenElement === el) {
+      agd.current = el;
+      setLage("helskarm");
+      return;
+    }
+    setLage("fonster");
+  }, [yta]);
+
+  const behall = useCallback(() => {
+    behalls.current = true;
+  }, []);
 
   const avsluta = useCallback(() => {
     setLage(false);
@@ -74,7 +109,7 @@ export function useHelskarm(yta) {
     () => () => {
       const egen = agd.current;
       agd.current = null;
-      if (!egen) return;
+      if (!egen || behalls.current) return;
       const lamna = () => {
         if (document.fullscreenElement === egen) document.exitFullscreen?.()?.catch(() => {});
       };
@@ -125,5 +160,5 @@ export function useHelskarm(yta) {
     };
   }, [lage]);
 
-  return { lage, oppna, avsluta };
+  return { lage, oppna, avsluta, behall };
 }
