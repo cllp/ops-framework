@@ -82,6 +82,14 @@ describe("OpsButton", () => {
     forvantaKrasch(() => render(<OpsButton round>x</OpsButton>), /round kräver iconOnly/);
   });
 
+  it("inverse fyller med textens färg och skriver med den omvända (lifehub.native#26)", () => {
+    render(<OpsButton variant="inverse">Logga in</OpsButton>);
+    const knapp = screen.getByRole("button", { name: "Logga in" });
+    expect(knapp.className).toContain("bg-ink");
+    expect(knapp.className).toContain("text-ink-inverse");
+    expect(knapp.className).not.toContain("bg-accent");
+  });
+
   it("vägrar en okänd variant i stället för att rendera något godtyckligt", () => {
     forvantaKrasch(() => render(<OpsButton variant="fancy">x</OpsButton>), /okänd variant/);
   });
