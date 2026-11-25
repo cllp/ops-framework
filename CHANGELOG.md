@@ -9,6 +9,16 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.263.1
+
+**Kartan i helskärm är alltid ett eget lager över skärmen, som PDF-vyn (cllp/lifehub.app#967).** CP 2026-11-25, med en skärmbild av Sardinien rutt v12 i Biblioteket: "kommer upp fullskärm men inom samma ram ... Det saknas alltså en fullscreen som för PDF och html", och "Den här fullscreen viewn är helt oanvändbar i web."
+
+### Rättat
+- **Kartan stannar inte i sin ram medan webbläsaren svarar.** Läget sätts till helskärm innan webbläsaren svarat på begäran, och kartan hade då bara `relative`: den litade på att webbläsaren gav den storleken. Medan begäran väntade, eller om den aldrig blev av, låg kartan kvar i ramen med Stäng synligt. Nu är kartan `fixed inset-0 z-[1000] h-dvh` i båda helskärmslägena. När webbläsarens helskärm tar över sätter den samma mått.
+
+### Prov
+- Nytt prov i `karta-helskarm.test.jsx`: en begäran som aldrig svarar ger ändå ett fast lager. Rött utan ändringen (klassen var `relative`), grönt med den, 23 av 23.
+
 ## 0.263.0
 
 **Kartan blir ljus och självständig, och helskärmen stängs bara med ett tryck (cllp/lifehub.app#967).** CP 2026-11-25, med appens karta i helskärm på iPhone bredvid Sardinienkartan gjord med skissramverket: "ljusa upp den lite grann så här och istället för att ha så stora knappar längst ner så har man lite fina knappar som flyter över med lager och inställningar", "lägga till ett fält längst ner som man kan dra upp när kartan är helskärm med information också", och "det ska vara lite svårare att stänga helskärmsläge ... Annars så stängs den nästan hela tiden när man sveper runt."

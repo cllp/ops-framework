@@ -284,6 +284,28 @@ describe("⛔ kartans helskärm", () => {
     expect(karta.cooperativeGestures.isEnabled()).toBe(true);
   });
 
+  /**
+   * ⛔ HÄNDELSEN (0.263.1, CP 2026-11-25 med en skärmbild av Sardinien rutt v12 i Biblioteket: "kommer upp fullskärm men inom samma ram ...
+   * Den här fullscreen viewn är helt oanvändbar i web"). Läget sätts till helskärm innan webbläsaren svarat, och kartan hade då bara `relative`:
+   * den litade på att webbläsaren gav den storleken. Medan begäran väntade, eller om den aldrig blev av, låg kartan kvar i sin ram med Stäng synligt.
+   * PDF-vyn har alltid ett eget fast lager. Kartan har det nu också. Rött utan ändringen: klassen var `relative`.
+   */
+  it("medan webbläsarens helskärm väntar är kartan redan ett fast lager över skärmen", async () => {
+    Object.defineProperty(document, "fullscreenEnabled", { configurable: true, get: () => true });
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, get: () => null });
+    HTMLElement.prototype.requestFullscreen = /** @type {any} */ (vi.fn(() => new Promise(() => {})));
+    const { region } = await rita();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Helskärm" }));
+    });
+    expect(region.getAttribute("data-karta-helskarm")).toBe("helskarm");
+    const klasser = region.className.split(/\s+/);
+    expect(klasser).toContain("fixed");
+    expect(klasser).toContain("inset-0");
+    expect(klasser).not.toContain("relative");
+    expect(klasser).not.toContain("h-72");
+  });
+
   it("avslår webbläsaren helskärmen blir det lagret, aldrig ingenting", async () => {
     Object.defineProperty(document, "fullscreenEnabled", { configurable: true, get: () => true });
     HTMLElement.prototype.requestFullscreen = /** @type {any} */ (vi.fn(() => Promise.reject(new Error("nej"))));

@@ -310,7 +310,10 @@ export function OpsKartaVy({ samling, texter }) {
         // ⛔ `fixed` ELLER `relative`, ALDRIG BÅDA (0.263.0, mätt i montaget för #967). Till 0.262.0 bar lagret båda klasserna, och i Tailwinds ordning kommer
         // `relative` efter `fixed`: lagret blev aldrig fast, utan låg kvar i sidans kolumn med sidan synlig runt sig. Ingen såg det, eftersom Chromium (och vakten)
         // fick webbläsarens helskärm och CP:s iPhone också. Nu när iPhone får lagret mäter `check-skalyta` det (avsnitt 52e).
-        helskarm === "fonster" ? "fixed inset-0 z-[1000] h-dvh" : helskarm ? "relative" : "relative h-72 rounded-lg md:h-96",
+        // ⛔ OCKSÅ I WEBBLÄSARENS HELSKÄRM ÄR KARTAN ETT EGET FAST LAGER (0.263.1, CP 2026-11-25: "kommer upp fullskärm men inom samma ram"). Läget
+        // sätts innan webbläsaren svarat, och med bara `relative` låg kartan kvar i sin ram medan begäran väntade, eller för alltid om den aldrig blev av.
+        // PDF-vyn har alltid haft sitt eget lager. När webbläsarens helskärm tar över sätter den samma mått, så lagret kostar ingenting där.
+        helskarm ? "fixed inset-0 z-[1000] h-dvh" : "relative h-72 rounded-lg md:h-96",
       )}
       role="region"
       aria-label={texter.rubrik}
