@@ -9,6 +9,17 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.262.0
+
+**Tavlan börjar i helskärm igen när man kom därifrån (cllp/lifehub.app#933).** CP 2026-11-25: "Kan den komma ihåg om man hade helskärm så att den utgår ifrån det om man kom ifrån helskärm. Det ger en upplevelse om att man inte lämnat." Kortet öppnas i sin egen vy, och tavlans avmontering avslutade helskärmen (0.249.1), så Tillbaka gav en vanlig tavla.
+
+### Tillagt
+- **`useHelskarm(yta, { start })` och `behall()`.**
+  - `behall()` anropas när vyn lämnas för att komma tillbaka. Då ligger webbläsarens helskärm kvar medan kortets vy visas.
+  - `start` är läget vyn hade. Är elementet fortfarande i helskärm tar kroken över den, med Stäng. Annars ritas lagret (`fonster`), eftersom en webbläsare bara släpper in sin egen helskärm i ett tryck.
+  - Utan `behall()` avslutas helskärmen vid avmonteringen som förut, så ingen sitter kvar utan utväg.
+- Prov i `helskarm-behall-933.test.jsx`. Utan ändringen är fyra av fem röda, och provet för vanligt läge är grönt åt båda hållen. Med ändringen är alla fem gröna, och de befintliga proven för helskärm är gröna (29 av 29).
+
 ## 0.261.0
 
 **Knappvarianten `inverse` för en ensam huvudhandling på en yta utan kort (cllp/lifehub.native#26, punkt 3).** CP sa ja till skissen av appens startvy 2026-11-25. Den har loggan, rubriken och en ljus knapp på mörk botten, utan kort. Accentknappen gav 4,56:1 mot sin text, och kortet bakom den 1,22:1 mot bakgrunden, så vyn såg ut som en platshållare.
