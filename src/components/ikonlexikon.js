@@ -73,7 +73,7 @@
  * - (0.249.0, cllp/lifehub.app#921) `oppna`: öppna detaljen (`ArrowUpRight`), ikonen på Tavlans kort. Inte `helskarm`: en annan vy, inte samma yta större.
  */
 
-import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, CircleHelp, ClipboardPaste, FolderKanban, GitBranch, ImagePlus, Inbox, LayoutDashboard, LayoutGrid, Library, ListChecks, ListPlus, MessageSquare, Monitor, Moon, MoreHorizontal, Pin, Plus, Search, Settings, Shield, SlidersHorizontal, SquarePlus, Star, Sun, Upload, Users, Vote, Wallet, X, ZoomIn, ZoomOut, Maximize2, Download, GripVertical, ArrowUpRight } from "lucide-react";
+import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, CircleHelp, ClipboardPaste, FolderKanban, GitBranch, ImagePlus, Inbox, LayoutDashboard, LayoutGrid, Library, ListChecks, ListPlus, MessageSquare, Monitor, Moon, MoreHorizontal, Pin, Plus, Search, Settings, Shield, SlidersHorizontal, SquarePlus, Star, Sun, Upload, Users, Vote, Wallet, X, ZoomIn, ZoomOut, Maximize2, Download, GripVertical, ArrowUpRight, LocateFixed } from "lucide-react";
 
 /**
  * Betydelse till ikon. Fryst: en app som vill ha en annan bild för en betydelse ska ändra den här, inte skriva över den.
@@ -120,6 +120,7 @@ import { ArrowDownUp, Bell, Bot, CalendarCheck, CalendarPlus, ChevronsUpDown, Ci
  *   integritet: import("lucide-react").LucideIcon,
  *   grepp: import("lucide-react").LucideIcon,
  *   oppna: import("lucide-react").LucideIcon,
+ *   minPosition: import("lucide-react").LucideIcon,
  * }>}
  */
 export const IKON_FOR = Object.freeze({
@@ -168,4 +169,8 @@ export const IKON_FOR = Object.freeze({
   // ⛔ ÖPPNA DETALJEN (0.249.0, cllp/lifehub.app#921). CP 2026-11-21 om Tavlans kort: "Ja till öppna ikonen." Kortet fälls ut med rubriken och öppnas med den
   // här: posten eller ärendets detalj. Inte `helskarm` (`Maximize2`): det som öppnas är en annan vy, inte samma yta större.
   oppna: ArrowUpRight,
+  // ⛔ MIN POSITION PÅ KARTAN (0.263.0, cllp/lifehub.app#967). CP 2026-11-25 om MapLibres egna knappar, bland dem positionens ikon med ett rött snedstreck
+  // när platsen saknas: "Ser bara lite 90-tal buggigt ut." Kartan ritar nu knappen själv. En position som saknas är samma ikon, dämpad och med ett namn som
+  // säger varför, aldrig en egen ikon med ett streck.
+  minPosition: LocateFixed,
 });

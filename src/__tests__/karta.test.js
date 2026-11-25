@@ -111,7 +111,7 @@ describe("stil och popup", () => {
       expect(lager, id).toBeTruthy();
       expect(lager.paint[prop]).toEqual(varde);
     }
-    for (const tal of ["#faf7f1", "#f3eee4", "#adbdac", "#cfc6b6", "#8a8073", "#2e2a24", "#4e7558", "#bf9522", "#c0683a"]) {
+    for (const tal of ["#faf7f1", "#f3eee4", "#d9e4e7", "#cfc6b6", "#8a8073", "#2e2a24", "#4e7558", "#bf9522", "#c0683a"]) {
       expect(text.includes(tal)).toBe(false);
     }
     expect(stil.sources.openmaptiles.url).toBe("https://tiles.openfreemap.org/planet");
@@ -156,13 +156,14 @@ describe("tokens", () => {
     expect(hex("--color-karta-salvia")).toBe("#4e7558");
     expect(hex("--color-karta-ockra")).toBe("#bf9522");
     expect(hex("--color-karta-terrakotta")).toBe("#c0683a");
-    expect(hex("--color-karta-vatten")).toBe("#adbdac");
+    // (0.263.0, cllp/lifehub.app#967) Havet är Sardinienkartans `--hav`, ljust blågrått, inte salvia.
+    expect(hex("--color-karta-vatten")).toBe("#d9e4e7");
     expect(hex("--color-karta-djuphav")).toBe("#1f4e5f");
     expect(hex("--color-karta-oliv")).toBe("#7a8450");
     expect(contrast("#2e2a24", "#faf7f1")).toBeGreaterThanOrEqual(4.5);
     expect(contrast("#2e2a24", "#f3eee4")).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(hex("--dark-karta-text"), hex("--dark-karta-papper"))).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(hex("--dark-karta-text"), hex("--dark-karta-creme"))).toBeGreaterThanOrEqual(4.5);
+    // Ortnamn på havet (vattnets namn) läses också.
+    expect(contrast("#2e2a24", hex("--color-karta-vatten"))).toBeGreaterThanOrEqual(4.5);
     expect(css).toContain("--font-karta-ort: var(--font-display-publik)");
     expect(css).toContain("--font-karta-etikett: var(--font-sans)");
   });
@@ -262,22 +263,47 @@ describe("⛔ kartans palett i temat", () => {
 
   /**
    * ⛔ OCKRA I LJUST LÄGE ÄR UNDANTAGET, MÄTT 2026-11-24: 2,61:1 mot papper. Färgen är CP:s sedan 0.223.0 och ändras inte här. En punkt
-   * syns ändå, eftersom den har en kant i textens färg (`objektPensel`, circle-stroke-color). En linje eller yta i ockra är svagare, och det
+   * syns ändå, eftersom den har en mjuk skugga i textens färg runt sin ljusa ring (`objektPensel`, `PUNKT_SKUGGA`, 0.263.0; till 0.262.0 en ring i textens färg). En linje eller yta i ockra är svagare, och det
    * står som en observation i #950. Undantaget är en lista med ett namn, så att en ny färg under 3:1 blir röd.
    */
   const UNDER_TRE_I_LJUST = ["ockra"];
 
-  it("varje palettfärg finns i båda lägena och syns mot land med minst 3:1", () => {
+  it("varje palettfärg finns och syns mot land med minst 3:1", () => {
     expect(KARTA_PALETT.length).toBe(6);
     expect(contrast(hex("--color-karta-ockra"), hex("--color-karta-papper"))).toBeLessThan(3);
     for (const namn of KARTA_PALETT) {
       const ljus = hex(`--color-karta-${namn}`);
-      const mork = hex(`--dark-karta-${namn}`);
       expect(ljus, namn).toMatch(/^#/);
-      expect(mork, namn).toMatch(/^#/);
       if (!UNDER_TRE_I_LJUST.includes(namn)) expect(contrast(ljus, hex("--color-karta-papper")), namn).toBeGreaterThanOrEqual(3);
-      expect(contrast(mork, hex("--dark-karta-papper")), namn).toBeGreaterThanOrEqual(3);
-      expect(css, namn).toContain(`--color-karta-${namn}: var(--dark-karta-${namn})`);
+    }
+  });
+
+  /**
+   * ⛔ HÄNDELSEN (0.263.0, cllp/lifehub.app#967). CP 2026-11-25, med appens karta i mörkt läge (brun mark, grönt hav) bredvid Sardinienkartan: "ljusa upp den
+   * lite grann så här". Kartans yta är ljus också i mörkt läge: mörkt läge skriver inte om någon `--color-karta-*`, och `--dark-karta-*` finns inte. Rött utan
+   * ändringen: de elva aliasen stod i båda mörkerblocken och `--dark-karta-papper` var #2a2622.
+   */
+  it("kartans yta är ljus också i mörkt läge: inget mörkerblock skriver om kartans färger", () => {
+    expect(css).not.toMatch(/--dark-karta-[a-z]+\s*:/);
+    expect(css).not.toMatch(/--color-karta-[a-z]+:\s*var\(--dark-/);
+    // Golv: kartans tokens finns, en gång var, så att provet inte är grönt för att filen inte lästes.
+    for (const namn of ["papper", "creme", "vatten", "linje", "lera", "text", ...KARTA_PALETT]) {
+      expect(css.match(new RegExp(`--color-karta-${namn}:`, "g"))?.length, namn).toBe(1);
+    }
+  });
+
+  /**
+   * (0.263.0) Punkterna ligger ofta längs kusten, alltså på havet. Mätt 2026-11-25 mot havet #d9e4e7: salvia 4,04, terrakotta 3,07, djuphav 7,00, oliv 3,09,
+   * lera 2,99 och ockra 2,15. ⛔ LERA OCH OCKRA ÄR UNDANTAGEN MOT HAVET, med samma skäl som ockra mot land: punkten har skuggan och den ljusa ringen som kant.
+   * Lera är sjätte lagrets färg och kommer bara med på kartor med sex lager. Listan har två namn, så att en ny färg under 3:1 mot havet blir röd.
+   */
+  const UNDER_TRE_MOT_HAVET = ["ockra", "lera"];
+
+  it("varje palettfärg utom ockra och lera syns mot havet med minst 3:1", () => {
+    expect(contrast(hex("--color-karta-lera"), hex("--color-karta-vatten"))).toBeLessThan(3);
+    for (const namn of KARTA_PALETT) {
+      if (UNDER_TRE_MOT_HAVET.includes(namn)) continue;
+      expect(contrast(hex(`--color-karta-${namn}`), hex("--color-karta-vatten")), namn).toBeGreaterThanOrEqual(3);
     }
   });
 });
@@ -333,5 +359,20 @@ describe("⛔ lagrens filter", () => {
   it("berika sätter objektets lager ur typen, och tom typ för objekt utan typ", () => {
     const samling = lasGeojson({ type: "FeatureCollection", features: [punkt({ typ: "mat" }), punkt({ type: "bad" }), punkt({})] }).samling;
     expect(berika(samling, SENTINEL).features.map((f) => f.properties._lager)).toEqual(["mat", "bad", ""]);
+  });
+});
+
+/**
+ * ⛔ HÄNDELSEN (0.263.0, cllp/lifehub.app#967). Krediten stod med adresserna i parentes i texten och blev tre rader mitt över kartan på en telefon (mätt i montaget).
+ * Samma namn och adresser står nu som länkar. Rött utan ändringen: texten bar "(https://".
+ */
+describe("⛔ krediten är länkar", () => {
+  it("varje källa har sina namn som länkar till sina adresser, och ingen adress står i texten", () => {
+    const stil = byggStil(SENTINEL, tom);
+    const kredit = stil.sources.openmaptiles.attribution;
+    for (const [namn, adress] of [["© OpenStreetMap", "https://www.openstreetmap.org/copyright"], ["© OpenFreeMap", "https://openfreemap.org/"], ["© OpenMapTiles", "https://openmaptiles.org/"]]) {
+      expect(kredit).toContain(`<a href="${adress}" target="_blank" rel="noopener noreferrer">${namn}</a>`);
+    }
+    for (const k of [kredit, terrangKalla(false).attribution, terrangKalla(true).attribution]) expect(k.replace(/<[^>]+>/g, "")).not.toMatch(/\(https?:/);
   });
 });

@@ -35,11 +35,27 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
  *   Händelsen bakom avmonteringen ovan gäller fortfarande: utan `behall()` avslutas helskärmen som förut, och en vy som tar över helskärmen ritar
  *   alltid sin Stäng, så ingen sitter kvar utan utväg.
  *
+ *
+ * ══ ⛔ DÄR ETT SVEP STÄNGER WEBBLÄSARENS HELSKÄRM VÄLJS LAGRET (0.263.0, cllp/lifehub.app#967) ═════════════════════════════════════════
+ *
+ * CP 2026-11-25 om kartan på iPhone: "det ska vara lite svårare att stänga helskärmsläge, man får aktivt trycka för att stänga helskärm. Annars så
+ * stängs den nästan hela tiden när man sveper runt." Mätt i WebKits källa (main, 2026-11-25): `WKFullScreenWindowControllerIOS.mm` lägger en
+ * `UISwipeGestureRecognizer` nedåt med ett finger och en `UIPanGestureRecognizer` på helskärmens vy, och båda stänger helskärmen. De känns igen
+ * samtidigt med allt annat (`shouldRecognizeSimultaneouslyWithGestureRecognizer` svarar `YES`), och de är påslagna på hela iOS-familjen
+ * (`ENABLE_FULLSCREEN_DISMISSAL_GESTURES`, `PlatformEnableCocoa.h`). En sida kan inte stänga av dem: de ligger i UIKit, utanför webbsidan. Den som drar
+ * kartan söderut drar alltså fingret nedåt, och helskärmen stängs. `WKFullScreenViewController.mm` ritar dessutom en egen stängknapp och skylten
+ * "is in full screen. Swipe down to exit.", och det var det andra krysset på CP:s skärmbild, under klockan bredvid kartans eget.
+ *   - `undvikSvep` (andra argumentet) väljer lagret (`fonster`) där webbläsarens helskärm stängs av ett svep (`svepStangerHelskarm`), också när
+ *     `requestFullscreen` finns. Lagret täcker hela skärmen med säkra zoner, och i appen på hemskärmen (`viewport-fit=cover`, statusraden genomskinlig)
+ *     ser det likadant ut som webbläsarens helskärm. Bara Stäng och Escape stänger det.
+ *   - Utan `undvikSvep` är beteendet som förut. PDF-vyn och tavlan har inte valt det ännu: det är deras eget beslut (S6).
+ *
  * @param {{ current: HTMLElement | null }} yta Elementet som blir helskärm.
- * @param {{ start?: false | "helskarm" | "fonster" }} [val] Läget vyn hade när den lämnades (`behall`), för att börja i det igen.
+ * @param {{ start?: false | "helskarm" | "fonster", undvikSvep?: boolean }} [val] `start`: läget vyn hade när den lämnades (`behall`), för att börja i det
+ *   igen. `undvikSvep`: lagret i stället för webbläsarens helskärm där ett svep stänger den.
  * @returns {{ lage: false | "helskarm" | "fonster", oppna: () => void, avsluta: () => void, behall: () => void }}
  */
-export function useHelskarm(yta, { start = false } = {}) {
+export function useHelskarm(yta, { start = false, undvikSvep = false } = {}) {
   const [lage, setLage] = useState(/** @type {false | "helskarm" | "fonster"} */ (false));
   /** Elementet kroken själv bad om helskärm för, så att avmonteringen bara avslutar sin egen. */
   const agd = useRef(/** @type {Element | null} */ (null));
@@ -72,7 +88,7 @@ export function useHelskarm(yta, { start = false } = {}) {
 
   const oppna = useCallback(() => {
     const el = yta.current;
-    const kan = Boolean(el) && typeof document !== "undefined" && Boolean(document.fullscreenEnabled) && typeof el?.requestFullscreen === "function";
+    const kan = Boolean(el) && typeof document !== "undefined" && Boolean(document.fullscreenEnabled) && typeof el?.requestFullscreen === "function" && !(undvikSvep && svepStangerHelskarm());
     setLage(kan ? "helskarm" : "fonster");
     if (kan && el) {
       agd.current = el;
@@ -86,7 +102,7 @@ export function useHelskarm(yta, { start = false } = {}) {
         tillFonster();
       }
     }
-  }, [yta]);
+  }, [yta, undvikSvep]);
 
   useEffect(() => {
     if (lage !== "helskarm") return undefined;
@@ -161,4 +177,17 @@ export function useHelskarm(yta, { start = false } = {}) {
   }, [lage]);
 
   return { lage, oppna, avsluta, behall };
+}
+
+/**
+ * Om webbläsarens helskärm stängs av ett svep på den här enheten (0.263.0, se `undvikSvep` ovan): iPhone och iPad, där WebKit lägger sina
+ * stänggester på helskärmen. En iPad i skrivbordsläge säger "Macintosh" och skiljs från en Mac genom pekpunkterna. En Mac har inga.
+ *
+ * @param {{ userAgent?: string, maxTouchPoints?: number } | undefined} [nav]
+ * @returns {boolean}
+ */
+export function svepStangerHelskarm(nav = typeof navigator === "undefined" ? undefined : navigator) {
+  const ua = String(nav?.userAgent ?? "");
+  if (/iPhone|iPad|iPod/.test(ua)) return true;
+  return /Macintosh/.test(ua) && Number(nav?.maxTouchPoints ?? 0) > 1;
 }

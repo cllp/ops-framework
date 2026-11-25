@@ -128,4 +128,9 @@ export const ORD_OPSKARTA = {
   terrangFel: { sv: "Terrängen gick inte att hämta. Kartan visas utan skuggning.", en: "The terrain could not be loaded. The map is shown without shading." },
   ortnamn: { sv: "Ortnamn", en: "Place names" },
   minPositionRad: { sv: "Min position", en: "My location" },
+  // (0.263.0, cllp/lifehub.app#967) Infofältet längst ned i den öppnade kartan. CP 2026-11-25: "ett fält längst ner som man kan dra upp när kartan är
+  // helskärm med information också."
+  info: { sv: "Information om kartan", en: "About the map" },
+  infoOversikt: { sv: "Tillbaka till översikten", en: "Back to the overview" },
+  plats: { sv: "Plats", en: "Place" },
 };

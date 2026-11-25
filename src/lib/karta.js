@@ -28,8 +28,11 @@ export const KARTA_GLYFER = "https://tiles.openfreemap.org/fonts/{fontstack}/{ra
 /**
  * Krediten i kartans hörn. OpenFreeMap kräver den, och OSM-datan likaså. MapLibre ritar den själv när den står på källan.
  * Den får inte tas bort: utan den är visningen ett brott mot datans licens.
+ *
+ * ⛔ LÄNKAR, INTE ADRESSER I TEXTEN (0.263.0, cllp/lifehub.app#967). Till 0.262.0 stod adresserna i parentes i texten, och krediten blev tre rader på en telefon,
+ * mitt över kartan (mätt i montaget för #967). Samma tre namn och samma tre adresser, som länkar: en rad.
  */
-export const KARTA_TILLHORIGHET = "© OpenStreetMap (https://www.openstreetmap.org/copyright) © OpenFreeMap (https://openfreemap.org/) © OpenMapTiles (https://openmaptiles.org/)";
+export const KARTA_TILLHORIGHET = [kredit("© OpenStreetMap", "https://www.openstreetmap.org/copyright"), kredit("© OpenFreeMap", "https://openfreemap.org/"), kredit("© OpenMapTiles", "https://openmaptiles.org/")].join(" ");
 
 /**
  * Kartgrunderna (0.258.0, cllp/lifehub.app#950 skiva 2). CP 2026-11-24: "Vi kör utan kostnader nu". Karta är OpenFreeMap som förut. Terräng är samma
@@ -48,12 +51,22 @@ export const KARTGRUNDER = Object.freeze(["karta", "terrang"]);
  */
 export const TERRANG_UNDERLAG = "https://tiles.mapterhorn.com/tilejson.json";
 export const TERRANG_RESERV = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
-export const TERRANG_TILLHORIGHET = "© Mapterhorn (https://mapterhorn.com/attribution)";
-export const TERRANG_RESERV_TILLHORIGHET = "© Mapzen, AWS Terrain Tiles (https://registry.opendata.aws/terrain-tiles)";
+export const TERRANG_TILLHORIGHET = kredit("© Mapterhorn", "https://mapterhorn.com/attribution");
+export const TERRANG_RESERV_TILLHORIGHET = kredit("© Mapzen, AWS Terrain Tiles", "https://registry.opendata.aws/terrain-tiles");
 
 /** Lagren ur kartdatan som bara syns i Terräng. Skuggningen (`TERRANG_SKUGGA`) läggs till först när Terräng väljs. */
 export const TERRANG_LAGER = Object.freeze(["mark-skog", "mark-gras"]);
 export const TERRANG_SKUGGA = "terrang-skugga";
+
+/**
+ * En kredit som länk (0.263.0). MapLibre ritar källans `attribution` som HTML, och texten här är ramverkets egen, aldrig en fils. En deklaration (inte en pil) så att
+ * krediterna ovanför kan använda den. ⛔ Den står direkt före en funktion: `check-utvecklarord` läser `a>` i mallen som JSX-text fram till nästa `{`, och skulle annars
+ * läsa konstantnamnen efter mallen som användartext.
+ * @param {string} text @param {string} adress
+ */
+function kredit(text, adress) {
+  return `<a href="${adress}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+}
 
 /**
  * Höjddatans källa, som läggs till först när någon väljer Terräng (0.258.0). ⛔ INTE I STILEN FRÅN BÖRJAN: en källa i stilen hämtar sin
@@ -100,6 +113,15 @@ export const ORTNAMN_LAGER = Object.freeze(["ort-land", "ort-stad", "ort-tator",
 
 /** Lagren ett tryck frågar, överst först, så en punkt på en linje vinner. */
 export const OBJEKT_LAGER = ["objekt-punkt", "objekt-linje", "objekt-yta"];
+
+/**
+ * Punkternas skugga (0.263.0, cllp/lifehub.app#967). Den går inte att trycka på, men den följer lagrets filter: ett avslaget lager tar med sig sina
+ * skuggor, annars hade det stått mjuka fläckar kvar där punkterna var.
+ */
+export const PUNKT_SKUGGA = "objekt-punkt-skugga";
+
+/** Lagren som lagrets filter sätts på: de tryckbara och punkternas skugga. */
+export const OBJEKT_FILTERLAGER = [...OBJEKT_LAGER, PUNKT_SKUGGA];
 
 /** Token per fält. Accenten är instansens, de andra är kartans egna. */
 export const KARTA_FALT = [
@@ -529,6 +551,7 @@ export function basPensel(farger) {
     ["bakgrund", "background-color", farger.papper],
     ["vatten", "fill-color", farger.vatten],
     ["vattendrag", "line-color", farger.vatten],
+    ["kust", "line-color", farger.lera],
     ["vag-stor", "line-color", farger.linje],
     ["vag-mellan", "line-color", farger.linje],
     ["vag-liten", "line-color", farger.linje],
@@ -559,6 +582,10 @@ export function basPensel(farger) {
 /**
  * Objektlagrens färguttryck. Accenten ligger sist i `coalesce`, så ett objekt utan egen färg följer instansen, också efter ett temabyte.
  *
+ * ⛔ PUNKTEN HAR EN LJUS RING OCH EN MJUK SKUGGA (0.263.0, cllp/lifehub.app#967), som markörerna i Sardinienkartan CP ställde bredvid appens. Till 0.262.0
+ * hade punkten en ring i textens färg. Ringen är nu papper, och skuggan i textens färg ger kanten mot den ljusa grunden: det är den som gör att också
+ * ockra (under 3:1 mot papper, `karta.test.js`) syns.
+ *
  * @param {Record<string, string>} farger
  */
 export function objektPensel(farger) {
@@ -566,7 +593,8 @@ export function objektPensel(farger) {
     ["objekt-yta", "fill-color", ["coalesce", ["get", "_fyll"], farger.accent]],
     ["objekt-linje", "line-color", ["coalesce", ["get", "_streck"], farger.accent]],
     ["objekt-punkt", "circle-color", ["coalesce", ["get", "_markor"], farger.accent]],
-    ["objekt-punkt", "circle-stroke-color", farger.text],
+    ["objekt-punkt", "circle-stroke-color", farger.papper],
+    [PUNKT_SKUGGA, "circle-color", farger.text],
   ];
 }
 
@@ -654,6 +682,9 @@ export function byggStil(farger, samling) {
       mark("mark-gras", ["grass", "scrub", "farmland"], 0.08),
       { id: "vatten", type: "fill", source: "openmaptiles", "source-layer": "water", filter: ["!=", ["get", "brunnel"], "tunnel"], paint: { "fill-color": p("vatten", "fill-color") } },
       { id: "vattendrag", type: "line", source: "openmaptiles", "source-layer": "waterway", filter: ["!=", ["get", "brunnel"], "tunnel"], paint: { "line-color": p("vattendrag", "line-color"), "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.5, 16, 3] } },
+      // ⛔ KUSTEN ÄR ETT STRECK (0.263.0, cllp/lifehub.app#967). Sardinienkartan ritar landet med en kant i drivved (`weight: 1.2`), och det är den som gör
+      // ön till en tydlig form mot det ljusa havet. Strecket är vattenytornas kant i lera, tunt på avstånd och tydligare nära.
+      { id: "kust", type: "line", source: "openmaptiles", "source-layer": "water", filter: ["!=", ["get", "brunnel"], "tunnel"], layout: { "line-join": "round" }, paint: { "line-color": p("kust", "line-color"), "line-opacity": 0.55, "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.6, 10, 1, 16, 1.6] } },
       vag("vag-stor", ["motorway", "trunk", "primary"], 0.6, 5),
       vag("vag-mellan", ["secondary", "tertiary"], 0.4, 3.5),
       vag("vag-liten", ["minor", "service", "street", "street_limited", "track", "path", "pedestrian"], 0.2, 2),
@@ -714,6 +745,19 @@ export function byggStil(farger, samling) {
         paint: { "line-color": ["coalesce", ["get", "_streck"], farger.accent], "line-opacity": ["coalesce", ["get", "_streckOpacitet"], 1], "line-width": ["coalesce", ["get", "_streckBredd"], 2] },
       },
       {
+        id: PUNKT_SKUGGA,
+        type: "circle",
+        source: "objekt",
+        filter: ["match", ["geometry-type"], ["Point", "MultiPoint"], true, false],
+        paint: {
+          "circle-color": farger.text,
+          "circle-radius": ["+", ["coalesce", ["get", "_radie"], 6], 3.5],
+          "circle-opacity": 0.3,
+          "circle-blur": 0.6,
+          "circle-translate": [0, 1],
+        },
+      },
+      {
         id: "objekt-punkt",
         type: "circle",
         source: "objekt",
@@ -721,8 +765,8 @@ export function byggStil(farger, samling) {
         paint: {
           "circle-color": ["coalesce", ["get", "_markor"], farger.accent],
           "circle-radius": ["coalesce", ["get", "_radie"], 6],
-          "circle-stroke-color": farger.text,
-          "circle-stroke-width": 1.5,
+          "circle-stroke-color": farger.papper,
+          "circle-stroke-width": 2,
         },
       },
     ],
@@ -751,6 +795,21 @@ export const KARTPOPUP_CSS = [
     [["left"], "right"],
     [["right"], "left"],
   ].map(([ankare, kant]) => `${/** @type {string[]} */ (ankare).map((a) => `.${KARTPOPUP_KLASS}.maplibregl-popup-anchor-${a} .maplibregl-popup-tip`).join(",")}{border-${kant}-color:var(--color-raised)}`),
+].join("\n");
+
+/**
+ * Kartvyns egna regler över MapLibres CSS (0.263.0, cllp/lifehub.app#967), i samma `<style>` som popupen och av samma skäl: `maplibre-gl.css` ligger utanför
+ * lagren, så en regel i ett lager förlorar mot den.
+ *
+ * ⛔ MAPLIBRES POSITIONSKNAPP SYNS INTE. CP 2026-11-25 om de vita fyrkanterna och positionens röda snedstreck: "Ser bara lite 90-tal buggigt ut." Vyn ritar
+ * zoom och Min position med ramverkets knappar. Positionens logik (följ-läge, punkten och träffsäkerhetens cirkel) är fortfarande `GeolocateControl`, som
+ * måste ligga på kartan för att fungera, så dess grupp döljs här i stället för att inte läggas till.
+ * ⛔ KREDITEN STÅR KVAR OCH SYNS (licensen), men i helskärm ovanför infofältet på telefon och innanför säkra zonen, så att fältet aldrig täcker den.
+ */
+export const KARTVY_CSS = [
+  "[data-karta-yta] .maplibregl-ctrl-group:has(.maplibregl-ctrl-geolocate){display:none}",
+  "[data-karta-helskarm] .maplibregl-ctrl-bottom-right{right:var(--safe-right,0px);bottom:calc(var(--safe-bottom,0px) + 0.25rem)}",
+  "[data-karta-helskarm][data-karta-bred='nej'] .maplibregl-ctrl-bottom-right{bottom:calc(var(--safe-bottom,0px) + 4rem)}",
 ].join("\n");
 
 /**
