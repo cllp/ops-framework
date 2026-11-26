@@ -370,3 +370,20 @@ export function valjAlternativKlass({ dampad = false } = {}) {
     "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-55",
   );
 }
+
+/**
+ * Knappen som skapar något nytt i en lista: den streckade rutan med ett plus (SessionStudios "Skapa nytt" i grupppanelen, rad 157-166).
+ *
+ * ⛔ EN KLASS FÖR ALLA "SKAPA NYTT" (0.266.0, cllp/lifehub.app#988). CP 2026-11-27, med en skärmbild av Skapa grupp under grupplistan: "Kan man
+ * använda denna skapa ny modell för att skapa en ny plats för igenkänning? I biblioteket alltså." Raden Ny plats i Bibliotekets platspanel
+ * var en vanlig menyrad med ett plus, och såg inte ut som det den gjorde. Samma form på samma sorts knapp gör att den känns igen var den än
+ * står, och en delad klass gör att de två inte kan glida isär (regel 2).
+ *
+ * @param {{ kollapsad?: boolean }} [val] `kollapsad`: bara plusset i en ruta på 40 px (den infällda grupppanelen).
+ */
+export function skapaNyttKlass({ kollapsad = false } = {}) {
+  return cx(
+    "border border-dashed border-accent/15 text-accent hover:border-accent hover:bg-accent/5 rounded-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+    kollapsad ? "flex size-10 items-center justify-center" : "flex w-full items-center justify-center gap-1.5 p-3 text-etikett font-medium",
+  );
+}

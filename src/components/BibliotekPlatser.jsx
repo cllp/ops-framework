@@ -4,7 +4,7 @@ import { IKON_FOR } from "./ikonlexikon.js";
 import { platsnamnFel, farAndraPlats } from "../lib/platser.js";
 import { trimSomRegeln } from "../lib/bibliotek.js";
 import { ordet } from "../lib/ord.js";
-import { radKlass } from "../lib/radKlass.js";
+import { radKlass, skapaNyttKlass } from "../lib/radKlass.js";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
@@ -340,16 +340,18 @@ export function PlatsInstallningar({ egna, jag, sprak }) {
 
 /** Raden "Ny plats" sist i växlaren. `iMeny` falskt (0.266.0) i panelen med platserna, som inte är en meny. @param {{ onValj: () => void, sprak: string, iMeny?: boolean }} props */
 export function NyPlatsRad({ onValj, sprak, iMeny = true }) {
+  // ⛔ UTANFÖR MENYN (platspanelen, 0.266.0) ÄR RADEN SAMMA STRECKADE RUTA SOM SKAPA GRUPP (`skapaNyttKlass`), CP 2026-11-27: "för igenkänning".
+  // I väljarens meny står den kvar som en menyrad bland de andra.
   return (
     <button
       type="button"
       role={iMeny ? "menuitem" : undefined}
       data-bibliotek-ny-plats-rad=""
       onClick={onValj}
-      className={radKlass({ stor: true })}
+      className={iMeny ? radKlass({ stor: true }) : skapaNyttKlass()}
     >
       <IKON_FOR.skapa size={16} aria-hidden="true" className="shrink-0" />
-      <span className="min-w-0 flex-1 truncate">{ordet(ORD_BIBLIOTEKPLATSER, "nyPlats", sprak)}</span>
+      <span className={iMeny ? "min-w-0 flex-1 truncate" : "min-w-0 truncate"}>{ordet(ORD_BIBLIOTEKPLATSER, "nyPlats", sprak)}</span>
     </button>
   );
 }

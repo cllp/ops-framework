@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { cx } from "../lib/cx.js";
-import { gruppRutaKlass } from "../lib/radKlass.js";
+import { gruppRutaKlass, skapaNyttKlass } from "../lib/radKlass.js";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { OpsPanel } from "./OpsPanel.jsx";
@@ -654,7 +654,7 @@ export function OpsGruppanel({
             onClick={onSkapa}
             aria-label={skapaEtikett}
             title={skapaEtikett}
-            className={cx("flex size-10 items-center justify-center border border-dashed border-accent/15 text-accent hover:border-accent hover:bg-accent/5", RADIE, "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent")}
+            className={skapaNyttKlass({ kollapsad: true })}
           >
             <PlusIkon size={16} />
           </button>
@@ -663,7 +663,7 @@ export function OpsGruppanel({
           <button
             type="button"
             onClick={onSkapa}
-            className={cx("flex w-full items-center justify-center gap-1.5 border border-dashed border-accent/15 p-3 text-etikett font-medium text-accent hover:border-accent hover:bg-accent/5", RADIE, "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent")}
+            className={skapaNyttKlass()}
           >
             <PlusIkon size={16} />
             {skapaEtikett}

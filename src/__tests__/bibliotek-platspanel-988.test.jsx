@@ -3,6 +3,8 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
 import { byggPost, mittBibliotek, platsBibliotek } from "../lib/bibliotek.js";
+import { skapaNyttKlass } from "../lib/radKlass.js";
+import { OpsGruppanel } from "../components/OpsGruppanel.jsx";
 
 /**
  * Panelen med platserna, dra och släpp, och ägaren på raden (0.266.0, cllp/lifehub.app#988).
@@ -47,7 +49,7 @@ afterEach(() => {
   delete (/** @type {any} */ (window)).matchMedia;
 });
 
-function Vy({ poster = [MIN, SAMS], startPlats = GRUPP, onDela = vi.fn(async () => {}), onPlats: spion = vi.fn() }) {
+function Vy({ poster = [MIN, SAMS], startPlats = GRUPP, onDela = vi.fn(async () => {}), onPlats: spion = vi.fn(), egnaPlatser }) {
   const [plats, setPlats] = useState(startPlats);
   return (
     <OpsBibliotek
@@ -66,6 +68,7 @@ function Vy({ poster = [MIN, SAMS], startPlats = GRUPP, onDela = vi.fn(async () 
       onSpara={() => {}}
       onRadera={() => {}}
       onDela={onDela}
+      egnaPlatser={egnaPlatser}
       hubHref="/hub"
     />
   );
@@ -87,6 +90,19 @@ describe("⛔ panelen med platserna (#988)", () => {
     expect(within(panel()).getAllByRole("button").map((b) => b.textContent)).toEqual(expect.arrayContaining(["CPS", "Mitt bibliotek", "Barnplan", "Miranda"]));
     expect(platsKnapp(GRUPP).getAttribute("aria-current")).toBe("true");
     expect(screen.queryByRole("button", { name: /Vilket bibliotek/ })).toBeNull();
+  });
+
+  it("⛔ Ny plats i panelen är samma streckade ruta som Skapa grupp, och ett tryck öppnar formuläret (CP 2026-11-27: \"för igenkänning\")", () => {
+    render(<Vy egnaPlatser={{ platser: [{ id: BARN, namn: "Barnplan" }], onNy: vi.fn(async () => ({ plats: platsBibliotek(GRUPP, "nytt"), namn: "Nytt" })) }} />);
+    const ny = /** @type {HTMLElement} */ (panel().querySelector("[data-bibliotek-ny-plats-rad]"));
+    expect(ny).not.toBeNull();
+    expect(ny.getAttribute("role")).toBeNull();
+    expect(ny.className).toBe(skapaNyttKlass());
+    const { container } = render(<OpsGruppanel grupper={[{ id: "g", namn: "G" }]} aktiv="g" onValj={() => {}} onSkapa={() => {}} skapaEtikett="Skapa grupp" />);
+    const skapaGrupp = within(container).getByRole("button", { name: "Skapa grupp" });
+    expect(skapaGrupp.className).toBe(ny.className);
+    fireEvent.click(ny);
+    expect(within(panel()).getByRole("textbox")).toBeInTheDocument();
   });
 
   it("ett klick på en plats byter plats", () => {
