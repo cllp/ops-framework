@@ -52,7 +52,7 @@ import { DELNINGSUID_FORM, KALENDERDELNINGFALT, KALENDERDELNING_AVGRANSARE, KALE
 import { GRUPPKULOR_FORM } from "./gruppfarg.js";
 import { AVVECKLADE_KALENDERFALT, DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERID, MAX_KALENDERIKON, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
-import { AMNESFALT, AMNES_REGEL, BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, MAX_ALTERNATIVTEXT, MAX_AMNESRUBRIK, MAX_FRAGA, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, OMROSTNINGFALT, OMROSTNINGSROSTFALT, OMROSTNINGSVALFALT, OMROSTNINGSVAL_REGEL, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, PROJEKTSAMTAL, undersamlingskrock } from "./samtal.js";
+import { AMNESFALT, DIREKTSAMTAL, AMNES_REGEL, BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, MAX_ALTERNATIVTEXT, MAX_AMNESRUBRIK, MAX_FRAGA, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, OMROSTNINGFALT, OMROSTNINGSROSTFALT, OMROSTNINGSVALFALT, OMROSTNINGSVAL_REGEL, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, PROJEKTSAMTAL, undersamlingskrock } from "./samtal.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -1231,6 +1231,12 @@ export function samtalsregelfragment(namn = {}) {
   const tradnamnervillkor = omnamnanden ? "\n            && opsGiltigaNamner(request.resource.data)" : "";
   const medlemskap = kontrolleraNamn(namn.medlemskap ?? "memberships", "medlemskap");
   const A = SAMTALSAVGRANSARE;
+  // ⛔ DIREKTSAMTALEN (cllp/lifehub.app#946 skiva 1, med `direkt: true`): två personer utan gemensam grupp, nyckeln `~direkt|<a>|<b>`. Deltagarna läses ur nyckeln och inte ur ett uppslag, så att
+  // reglerna inte blir tyngre att kompilera (cllp/lifehub.app#949). Utan nyckeln är texten byte för byte den förra.
+  if (namn.direkt !== undefined && namn.direkt !== true) throw new Error("samtalsregelfragment: direkt är true eller utelämnat.");
+  const direkt = namn.direkt === true;
+  // Den inloggade skriver som en person i samtalet: i en grupps samtal en aktiv person i gruppen, i ett direktsamtal en av de två i nyckeln.
+  const somPerson = direkt ? "opsSomPersonISamtalet(sid)" : "opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')";
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
   const utanDeltagare = SAMTALSFALT.filter((f) => f !== "deltagare");
 
@@ -1362,7 +1368,7 @@ export function samtalsregelfragment(namn = {}) {
       match /${reaktioner}/{rid} {
         allow read: if opsISamtal(sid);
         allow create: if opsISamtal(sid)
-          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
+          && ${somPerson}
           && opsGiltigReaktion(rid, request.resource.data)
           && exists(/databases/$(database)/documents/${samtal}/$(sid)/${meddelanden}/$(request.resource.data.mid));
         allow delete: if opsISamtal(sid) && resource.data.av == request.auth.uid;
@@ -1421,7 +1427,7 @@ export function samtalsregelfragment(namn = {}) {
       match /${omrostningsval}/{vid} {
         allow read: if opsISamtal(sid);
         allow create: if opsISamtal(sid)
-          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
+          && ${somPerson}
           && opsGiltigtOmrostningsval(vid, request.resource.data)
           && opsArOmrostning(sid, request.resource.data.mid);
         allow update, delete: if false;
@@ -1433,11 +1439,11 @@ export function samtalsregelfragment(namn = {}) {
       match /${omrostningsroster}/{rid} {
         allow read: if opsISamtal(sid);
         allow create: if opsISamtal(sid)
-          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
+          && ${somPerson}
           && opsGiltigOmrostningsrost(sid, rid, request.resource.data)
           && opsArOmrostning(sid, request.resource.data.mid);
         allow update: if opsISamtal(sid)
-          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
+          && ${somPerson}
           && opsGiltigOmrostningsrost(sid, rid, request.resource.data);
         allow delete: if opsISamtal(sid)
           && resource.data.av == request.auth.uid;
@@ -1451,7 +1457,7 @@ export function samtalsregelfragment(namn = {}) {
 
     // En aktiv person i gruppchatten s: den som får starta, döpa om och skriva i en tråd.
     function opsPersonIGruppchatten(sid) {
-      return opsIGruppchatten(sid) && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person');
+      return opsIGruppchatten(sid) && ${somPerson};
     }
 
     // Ett trådnamn: saknas (det härledda gäller) eller text inom taket.
@@ -1478,13 +1484,13 @@ export function samtalsregelfragment(namn = {}) {
       match /${fasta}/{mid} {
         allow read: if opsISamtal(sid);
         allow create: if opsISamtal(sid)
-          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
+          && ${somPerson}
           && request.resource.data.keys().hasOnly([${lista(FASTFALT)}])
           && request.resource.data.av == request.auth.uid
           && opsNu(request.resource.data.tid)
           && exists(/databases/$(database)/documents/${samtal}/$(sid)/${meddelanden}/$(mid));
         allow delete: if opsISamtal(sid)
-          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person');
+          && ${somPerson};
         allow update: if false;
       }`
     : "";
@@ -1545,7 +1551,7 @@ ${texttak("            ", `tid + '${S}' + mid`)}
       match /${bilagaSamling}/{nyckel} {
         allow read: if opsISamtal(sid);
         allow create: if opsISamtal(sid)
-          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
+          && ${somPerson}
           && opsMeddelandebilagaGiltig(request.resource.data)
           && opsBundenBilaga(sid, nyckel, request.resource.data);
         allow update, delete: if false;
@@ -1581,9 +1587,20 @@ ${texttak("            ", `tid + '${S}' + mid`)}
 
     // Får den inloggade läsa samtalet s (dess data)?
     function opsFarLasaSamtal(s) {
-      return opsArMedlem(s.groupId) && (s.slag == '${GRUPPSAMTAL}'${projekt ? ` || s.slag == '${PROJEKTSAMTAL}'` : ""} || request.auth.uid in s.deltagare);
+      return ${direkt ? `(s.slag == 'direkt' && request.auth.uid in s.deltagare) || ` : ""}opsArMedlem(s.groupId) && (s.slag == '${GRUPPSAMTAL}'${projekt ? ` || s.slag == '${PROJEKTSAMTAL}'` : ""} || request.auth.uid in s.deltagare);
+    }
+${direkt ? `
+    // Ett direktsamtal (#946): \`${DIREKTSAMTAL}${A}<a>${A}<b>\`. Ingen grupp, och deltagarna står i nyckeln.
+    function opsArDirektsid(sid) {
+      return sid.split('[${A}]').size() == 3 && sid.split('[${A}]')[0] == '${DIREKTSAMTAL}';
     }
 
+    function opsSomPersonISamtalet(sid) {
+      return opsArDirektsid(sid)
+        ? request.auth.uid == sid.split('[${A}]')[1] || request.auth.uid == sid.split('[${A}]')[2]
+        : opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person');
+    }
+` : ""}
     function opsSamtalet(sid) {
       return /databases/$(database)/documents/${samtal}/$(sid);
     }
@@ -1599,7 +1616,8 @@ ${tradfunktioner}${reaktionsfunktion}${omrostningsfunktioner}${namnerfunktion}${
     function opsNyttSamtal(sid, d) {
       return opsInloggad()
         && d.skapadAv == request.auth.uid
-        && d.groupId is string
+        && d.groupId is string${direkt ? `
+        && !d.groupId.matches('~.*')` : ""}
         && opsNu(d.skapad)
         && opsArAktivTyp(request.auth.uid, d.groupId, 'person')
         && (
@@ -1636,7 +1654,7 @@ ${tradfunktioner}${reaktionsfunktion}${omrostningsfunktioner}${namnerfunktion}${
         allow create: if opsISamtal(sid)
           && request.resource.data.keys().hasOnly([${lista(samtalsfaltRegel)}])${namnervillkor}
           && request.resource.data.av == request.auth.uid
-          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
+          && ${somPerson}
           && request.resource.data.text is string
 ${texttak("          ", "mid")}
           && opsNu(request.resource.data.tid);

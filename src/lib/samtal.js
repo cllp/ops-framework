@@ -57,7 +57,18 @@ import { byggVia } from "./skapare.js";
  * som läser inbjudan i varje anrop). En lista på samtalet hade varit en andra sanning om vilka som är med, och den hade glidit isär första gången någon gick med i gruppen eller fick sin inbjudan återkallad.
  * CP 2026-11-11 sa kör på förslaget i lifehub.app#760: "Varje projekt får en egen chatt ... Gruppens medlemmar och projektets gäster är med. En gäst i projektet når bara den chatten och aldrig gruppens."
  */
-export const SAMTALSSLAG = /** @type {const} */ (["grupp", "personer", "agent", "projekt"]);
+export const SAMTALSSLAG = /** @type {const} */ (["grupp", "personer", "agent", "projekt", "direkt"]);
+
+/**
+ * ⛔ DIREKTSAMTALET (cllp/lifehub.app#946 skiva 1): två personer i samma hubb som inte behöver dela en grupp. CP 2026-11-23: "Kan vara en stor förening och jag vill skapa kontakt med en annan på
+ * marknad, men vi delar inte grupper." Ett `personer`-samtal hör till en grupp och kräver att båda är aktiva medlemmar i den, så det räcker inte.
+ *
+ * Nyckeln är `~direkt|<uidA>|<uidB>`, med uid:en sorterade: ett samtal per par, och deltagarna står i nyckeln. Därför prövar reglerna dem utan ett uppslag (`get`), och reglerna växer nästan inte
+ * (cllp/lifehub.app#949: regelfilen var för tung att kompilera). `~` finns aldrig först i en grupps id (`kravGruppUtanAvgransare`), så nyckeln kan inte vara ett personsamtal i en grupp.
+ * ⛔ BARA SERVERN SKAPAR ETT DIREKTSAMTAL. Om två som inte delar en grupp får skriva till varandra avgör en förfrågan och ett ja, och det prövar appens server. Reglerna släpper aldrig in en klient
+ * som skapar ett.
+ */
+export const DIREKTSAMTAL = "~direkt";
 
 /**
  * (0.215.0) Är samtalet ett rum för flera, gruppchatten eller ett projekts chatt? Ett sådant har inga deltagare, inget lås och ingen motpart: alla som läser ser vem som skrev, och omnämnanden gäller gruppens medlemmar.
@@ -69,7 +80,7 @@ export const arDelatSamtal = (slag) => slag === "grupp" || slag === "projekt";
 /** (0.215.0) Projektchattens nyckeldel efter gruppen: `<grupp>|projekt|<tagg>`. ⛔ Inget uid får heta så (`kravUid`), annars hade ett personsamtal kunnat ta en projektchatts nyckel. */
 export const PROJEKTSAMTAL = "projekt";
 
-/** Fälten ett samtal får bära. `deltagare` bara för `personer` och `agent`. */
+/** Fälten ett samtal får bära. `deltagare` bara för `personer`, `agent` och `direkt`, och `groupId` aldrig för `direkt` (#946). */
 export const SAMTALSFALT = /** @type {const} */ (["groupId", "slag", "deltagare", "skapad", "skapadAv"]);
 
 /** (0.106.0, #386) Fälten ett ämne med agenten får bära utöver `SAMTALSFALT`, och de enda som får ändras efter skapelsen. */
@@ -176,6 +187,8 @@ export function kravProjekttagg(tagg, vem) {
  * @param {string} groupId @param {string} vem
  */
 function kravGruppUtanAvgransare(groupId, vem) {
+  // ⛔ (#946) En grupp som börjar med `~` hade gett ett personsamtal samma form som ett direktsamtal.
+  if (groupId.startsWith("~")) throw new Error(`${vem}: groupId "${groupId}" börjar med "~", som är reserverat för direktsamtalen (${DIREKTSAMTAL}).`);
   if (groupId.includes(SAMTALSAVGRANSARE)) {
     throw new Error(`${vem}: groupId "${groupId}" innehåller "${SAMTALSAVGRANSARE}", som är nyckelns avgränsare. Nyckeln hade blivit tvetydig.`);
   }
@@ -184,11 +197,18 @@ function kravGruppUtanAvgransare(groupId, vem) {
 /**
  * Samtalets nyckel, härledd ur gruppen och deltagarna.
  *
- * @param {{ groupId: string, slag: "grupp" | "personer" | "agent" | "projekt", deltagare?: ReadonlyArray<string>, amne?: string | null, tagg?: string }} d `amne` (0.106.0, #386): ett ämne med agenten, nyckelns fjärde del.
+ * @param {{ groupId?: string, slag: "grupp" | "personer" | "agent" | "projekt" | "direkt", deltagare?: ReadonlyArray<string>, amne?: string | null, tagg?: string }} d `amne` (0.106.0, #386): ett ämne med agenten, nyckelns fjärde del.
  *   `tagg` (0.215.0): projektets tagg, bara för `projekt` (`PROJEKTTAGGFORM`).
  * @returns {string}
  */
 export function samtalsnyckel(d) {
+  if (d?.slag === "direkt") {
+    // (#946) Inget groupId: direktsamtalet hör inte till en grupp.
+    if (d.groupId !== undefined) throw new Error("samtalsnyckel: ett direktsamtal har ingen grupp. Nyckeln är deltagarna.");
+    if (d.amne !== undefined && d.amne !== null) throw new Error("samtalsnyckel: ett direktsamtal har inga ämnen.");
+    if (d.tagg !== undefined) throw new Error("samtalsnyckel: tagg hör till ett projekts chatt (slag projekt).");
+    return [DIREKTSAMTAL, ...sorteradePar(d.deltagare, "samtalsnyckel")].join(SAMTALSAVGRANSARE);
+  }
   const groupId = rensa(d?.groupId);
   if (!groupId) throw new Error("samtalsnyckel: groupId krävs. Ett samtal hör alltid till en grupp.");
   kravGruppUtanAvgransare(groupId, "samtalsnyckel");
@@ -350,8 +370,8 @@ function sorteradePar(deltagare, vem) {
 /**
  * @typedef {object} Samtal
  * @property {string} id
- * @property {string} groupId
- * @property {"grupp" | "personer" | "agent" | "projekt"} slag
+ * @property {string} [groupId] Saknas bara på ett direktsamtal (#946).
+ * @property {"grupp" | "personer" | "agent" | "projekt" | "direkt"} slag
  * @property {ReadonlyArray<string>} [deltagare] Sorterade. Bara `personer` och `agent`.
  * @property {number} skapad Millisekunder sedan 1970.
  * @property {string} skapadAv
@@ -364,10 +384,23 @@ function sorteradePar(deltagare, vem) {
  *
  * `amne` (0.106.0, #386): ett nytt ämne med agenten, id:t i nyckelns fjärde del. Det lagras inte som fält. `rubrik`: bara för ett ämne.
  *
- * @param {{ groupId: string, slag: string, deltagare?: ReadonlyArray<string>, skapad?: number, skapadAv: string, amne?: string | null, rubrik?: string | null, tagg?: string }} d
+ * @param {{ groupId?: string, slag: string, deltagare?: ReadonlyArray<string>, skapad?: number, skapadAv: string, amne?: string | null, rubrik?: string | null, tagg?: string }} d
  * @returns {Samtal}
  */
 export function byggSamtal(d) {
+  if (rensa(d?.slag) === "direkt") {
+    // (#946) Direktsamtalet: två personer, ingen grupp. Skapas bara av appens server, efter ett ja eller när de delar en grupp.
+    if (d.groupId !== undefined) throw new Error("byggSamtal: ett direktsamtal har ingen grupp.");
+    if (d.amne !== undefined && d.amne !== null) throw new Error("byggSamtal: ett direktsamtal har inga ämnen.");
+    if (/** @type {any} */ (d).tagg !== undefined || (d.rubrik !== undefined && d.rubrik !== null)) throw new Error("byggSamtal: ett direktsamtal har ingen tagg och ingen rubrik.");
+    const skapadAv = kravUid(d.skapadAv, "byggSamtal");
+    const skapad = d.skapad ?? Date.now();
+    if (!Number.isInteger(skapad)) throw new Error("byggSamtal: skapad är millisekunder, ett heltal.");
+    const deltagare = sorteradePar(d.deltagare, "byggSamtal");
+    if (!deltagare.includes(skapadAv)) throw new Error("byggSamtal: den som skapar ett direktsamtal måste vara en av deltagarna.");
+    const s = { slag: /** @type {const} */ ("direkt"), deltagare: Object.freeze(deltagare), skapad, skapadAv };
+    return /** @type {any} */ (Object.freeze({ id: samtalsnyckel(s), ...s }));
+  }
   const groupId = rensa(d?.groupId);
   if (!groupId) throw new Error("byggSamtal: groupId krävs.");
   const slag = rensa(d.slag);
@@ -509,13 +542,18 @@ export function motpart(samtal, uid) {
  *
  * (0.215.0) `<grupp>|projekt|<tagg>` är ett projekts chatt: `{ groupId, slag: "projekt", tagg }`. Prövas FÖRE paret: ett par sorteras, och "projekt" kommer före en tagg som börjar på q till z.
  *
- * @returns {{ groupId: string, slag: "grupp" } | { groupId: string, slag: "projekt", tagg: string } | { groupId: string, deltagare: [string, string], amne?: string } | null} `null` när id:t inte är en samtalsnyckel.
+ * (#946) `~direkt|<a>|<b>` är ett direktsamtal: `{ slag: "direkt", deltagare }`, utan grupp.
+ *
+ * @returns {{ groupId: string, slag: "grupp" } | { groupId: string, slag: "projekt", tagg: string } | { groupId: string, deltagare: [string, string], amne?: string } | { slag: "direkt", deltagare: [string, string] } | null} `null` när id:t inte är en samtalsnyckel.
  */
 export function delaSamtalsnyckel(id, groupId) {
   if (typeof groupId === "string") kravGruppUtanAvgransare(groupId, "delaSamtalsnyckel");
   if (typeof id !== "string") return null;
   const delar = id.split(SAMTALSAVGRANSARE);
   if (delar.some((d) => d.trim() === "" || d !== d.trim())) return null;
+  // (#946) Ett direktsamtal: ingen grupp, och paret sorterat. Prövas först: annars hade nyckeln lästs som ett personsamtal i gruppen `~direkt`.
+  if (delar[0] === DIREKTSAMTAL) return delar.length === 3 && delar[1] < delar[2] ? { slag: "direkt", deltagare: [delar[1], delar[2]] } : null;
+  if (delar[0].startsWith("~")) return null;
   if (delar.length === 2 && delar[1] === GRUPPSAMTAL) return { groupId: delar[0], slag: "grupp" };
   if (delar[1] === PROJEKTSAMTAL) return delar.length === 3 && PROJEKTTAGGFORM.test(delar[2]) ? { groupId: delar[0], slag: "projekt", tagg: delar[2] } : null;
   if ((delar.length !== 3 && delar.length !== 4) || delar[1] === delar[2]) return null;
