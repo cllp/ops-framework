@@ -297,7 +297,7 @@ export { mejlregelfragment, EPOSTFORM, epostFel } from "./lib/mejl.js";
  * ⛔ KALENDRARNA (0.36.0, #179 F0): gruppens kalendrar (en katalog på typernas motor), mina kalendrar och posterna i
  * dem. Formerna och tidszonen är rena funktioner, och samlingsnamnen skickar appen in till `kalenderregelfragment`.
  */
-export { KALENDERFARGER, arGiltigKalenderfarg, KALENDERIKONER, KALENDERFALT, MINKALENDERFALT, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTTITEL, MAX_POSTBESKRIVNING, MAX_POSTPLATS, STANDARD_TIDSZON, byggGruppkalender, STANDARDKALENDER_ID, STANDARDKALENDER_NAMN, standardGruppkalender, validateGruppkalendrar, forvaldKalender, gruppkalendernyckel, byggMinKalender, validateMinaKalendrar, lasMinKalender, lasMinaKalendrar, lasKalenderpost, kalenderformFel, kalenderformMatning, kalenderformSlutkod, MAX_KALENDERID, MAX_KALENDERIKON, byggKalenderpost, postTillRad, KALENDERPOST_HANDELSEPREFIX, postHandelseId, postIdUrHandelseId, postTillHandelse, kontrolleraTidszon, idagI, ORDNINGSSTEG, kalenderIdUrNamn, nastaOrdning, flyttaKalender, valjForvald, arkiveraKalender, kalenderval } from "./lib/kalendrar.js";
+export { KALENDERFARGER, arGiltigKalenderfarg, KALENDERIKONER, KALENDERIKONER_ARV, KALENDERFALT, MINKALENDERFALT, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTTITEL, MAX_POSTBESKRIVNING, MAX_POSTPLATS, STANDARD_TIDSZON, byggGruppkalender, STANDARDKALENDER_ID, STANDARDKALENDER_NAMN, standardGruppkalender, validateGruppkalendrar, forvaldKalender, gruppkalendernyckel, byggMinKalender, validateMinaKalendrar, lasMinKalender, lasMinaKalendrar, lasKalenderpost, kalenderformFel, kalenderformMatning, kalenderformSlutkod, MAX_KALENDERID, MAX_KALENDERIKON, byggKalenderpost, postTillRad, KALENDERPOST_HANDELSEPREFIX, postHandelseId, postIdUrHandelseId, postTillHandelse, kontrolleraTidszon, idagI, ORDNINGSSTEG, kalenderIdUrNamn, nastaOrdning, flyttaKalender, valjForvald, arkiveraKalender, kalenderval } from "./lib/kalendrar.js";
 /*
  * ⛔ FLYTTA EN POST ELLER EN HÄNDELSE TILL EN ANNAN KALENDER (0.123.0, cllp/lifehub.app#371). `flyttmal` svarar på vart något får flyttas och
  * `postensTidsfalt` är postens tid som en händelses fält. Själva flytten är serverns (`createFlyttaService` i `ops-framework/node`).
@@ -414,6 +414,7 @@ export { OpsGruppanel, OpsGruppvaxlare, ORD_OPSOVERSIKT } from "./components/Ops
 export { OpsHubblista } from "./components/OpsHubbar.jsx";
 export { OpsGruppFormular } from "./components/OpsGruppFormular.jsx";
 export { OpsGruppmarkeValjare } from "./components/OpsGruppmarkeValjare.jsx";
+export { OpsIkonValjare, ORD_IKONVALJARE } from "./components/OpsIkonValjare.jsx";
 export { OpsFargvalLat, ORD_OPSFARGVAL_LAT } from "./components/OpsFargvalLat.jsx";
 export { sakerstallAnvandare, sparaInstallningar, andringen, PROFILENS_FALT } from "./lib/profil.js";
 export { createCatalogSource } from "./data/katalogkalla.js";

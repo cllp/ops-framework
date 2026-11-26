@@ -380,7 +380,25 @@ describe("OpsKalendrar (F2)", () => {
     fireEvent.click(within(sektion).getByRole("button", { name: "Stjärna" }));
     fireEvent.click(within(sektion).getByRole("button", { name: "Skapa kalender" }));
     await waitFor(() => expect(mina).toHaveLength(1));
-    expect(mina[0]).toEqual([{ id: "traning", namn: "Träning", farg: "kulor:315", ikon: "stjarna", ordning: 10, forvald: false, iFlodet: false, arkiverad: false }]);
+    // ⛔ IKONEN ÄR ETT NAMN UR KATALOGEN SEDAN 0.265.0 (`star`), som i Mitt konto, inte det äldre id:t `stjarna`.
+    expect(mina[0]).toEqual([{ id: "traning", namn: "Träning", farg: "kulor:315", ikon: "star", ordning: 10, forvald: false, iFlodet: false, arkiverad: false }]);
+  });
+
+  it("⛔ ikonen väljs i samma väljare som Mitt konto: sökningen hittar katalogens ikoner, och ett äldre id står som vald (CP 2026-11-26)", async () => {
+    const { mina } = visa();
+    const sektion = screen.getByRole("region", { name: "Mina kalendrar" });
+    fireEvent.click(within(sektion).getByRole("button", { name: "Ny kalender" }));
+    fireEvent.change(within(sektion).getByRole("textbox"), { target: { value: "Resor" } });
+    // Golv: väljaren har sökfältet och fler ikoner än de åtta som fanns förut.
+    const sok = within(sektion).getByRole("searchbox", { name: "Sök ikon" });
+    expect(within(sektion).getAllByRole("button", { pressed: false }).filter((k) => k.hasAttribute("data-ikonnamn")).length).toBeGreaterThan(8);
+    fireEvent.change(sok, { target: { value: "flyg" } });
+    const plan = within(sektion).getByRole("button", { name: /flygplan|plane/i });
+    expect(plan.getAttribute("data-ikonnamn")).toBe("plane");
+    fireEvent.click(plan);
+    fireEvent.click(within(sektion).getByRole("button", { name: "Skapa kalender" }));
+    await waitFor(() => expect(mina).toHaveLength(1));
+    expect(mina[0][0].ikon).toBe("plane");
   });
 
   it("⛔ en ny kalender får nästa snabbval som kulör, och färgen sparas som kulor:<grader> (0.238.0)", async () => {

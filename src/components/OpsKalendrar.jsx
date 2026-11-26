@@ -16,7 +16,8 @@ import {
   valjForvald,
 } from "../lib/kalendrar.js";
 import { valjbara } from "../lib/katalog.js";
-import { KALENDERIKON_KOMPONENT, KALENDERIKON_NAMN, kalenderIkonKomponent } from "../lib/kalenderikoner.js";
+import { kalenderIkonKomponent, kalenderikonINamn } from "../lib/kalenderikoner.js";
+import { OpsIkonValjare } from "./OpsIkonValjare.jsx";
 import { AndraIkon, ArkiveraIkon, ChevronNedIkon, GruppIkon, PlusIkon, TaFramIkon } from "./icons.jsx";
 import { KalenderDelning } from "./KalenderDelning.jsx";
 import { forvalda } from "../lib/ord.js";
@@ -415,26 +416,10 @@ function Redigerare({ utkast, setUtkast, upptagen, fel, ny, onAvbryt, onSpara })
           <OpsFargval slag="kulor" value={utkast.farg} onChange={(v) => setUtkast((u) => ({ ...u, farg: v }))} disabled={upptagen} />
         </OpsField>
       </div>
-      <div role="group" aria-label="Ikon" className="flex flex-wrap gap-1.5">
-        {KALENDERIKONER.map((id) => {
-          const I = KALENDERIKON_KOMPONENT[id];
-          return (
-            <button
-              key={id}
-              type="button"
-              aria-label={KALENDERIKON_NAMN[id]}
-              aria-pressed={utkast.ikon === id}
-              disabled={upptagen}
-              onClick={() => setUtkast((u) => ({ ...u, ikon: id }))}
-              className={cx(
-                "inline-flex size-10 cursor-pointer items-center justify-center rounded-base border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                utkast.ikon === id ? "border-accent bg-accent-subtle text-accent" : "border-line text-ink-muted hover:text-ink",
-              )}
-            >
-              <I size={18} />
-            </button>
-          );
-        })}
+      {/* ⛔ RAMVERKETS ENDA IKONVÄLJARE (0.265.0, CP 2026-11-26: "Skall det inte vara samma som mitt konto?"): sök, förslag ur namnet, senast använda och de vanliga,
+          ur samma katalog som grupper och personer. Före 0.265.0 åtta knappar. Ett äldre id visas som sin motsvarighet i katalogen (`kalenderikonINamn`). */}
+      <div data-kalenderikon="">
+        <OpsIkonValjare vald={kalenderikonINamn(utkast.ikon)} onIkon={(n) => setUtkast((u) => ({ ...u, ikon: n }))} namn={utkast.namn} sprak={sprak === "en" ? "en" : "sv"} disabled={upptagen} />
       </div>
       <OpsCheckbox label="Förvald" hint="Nya poster hamnar här när inget annat väljs." checked={utkast.forvald} disabled={upptagen} onChange={(v) => setUtkast((u) => ({ ...u, forvald: v }))} />
       <div className="flex gap-2 pt-1">

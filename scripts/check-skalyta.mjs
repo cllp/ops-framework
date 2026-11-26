@@ -5807,18 +5807,19 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
         if (!r) return null;
         const knapp = (/** @type {string} */ t) => [...r.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === t);
         const avbryt = knapp("Avbryt"), skapa = knapp("Skapa kalender");
-        return { falt: !!r.querySelector("input"), farger: r.querySelectorAll("[data-kalenderfarg] [data-ops-fargval]").length, ikoner: r.querySelectorAll('[aria-label="Ikon"] button').length, forvald: !!r.querySelector('[role="checkbox"], input[type="checkbox"]'), skapaAv: !!skapa && /** @type {HTMLButtonElement} */ (skapa).disabled, bredder: [avbryt, skapa].map((b) => (b ? Math.round(b.getBoundingClientRect().width) : 0)) };
+        return { falt: !!r.querySelector("input"), farger: r.querySelectorAll("[data-kalenderfarg] [data-ops-fargval]").length, ikoner: r.querySelectorAll("[data-kalenderikon] [data-ikonnamn]").length, sok: !!r.querySelector('[data-kalenderikon] input[type="search"]'), forvald: !!r.querySelector('[role="checkbox"], input[type="checkbox"]'), skapaAv: !!skapa && /** @type {HTMLButtonElement} */ (skapa).disabled, bredder: [avbryt, skapa].map((b) => (b ? Math.round(b.getBoundingClientRect().width) : 0)) };
       });
       matt.push(`${namn}: redigeraren ${JSON.stringify(red)}`);
       // ⛔ Färgen är ETT fält med ramverkets färgväljare i kulörläge sedan 0.238.0 (cllp/lifehub.app#882), inte sex rutor.
-      krav(!!red && red.falt && red.farger === 1 && red.ikoner === 8 && red.forvald, `${namn}: redigeraren ${JSON.stringify(red)}, väntat namnfält, ett färgfält, 8 ikoner och Förvald (SS :181-288; golv).`);
+      // ⛔ IKONEN VÄLJS I RAMVERKETS IKONVÄLJARE SEDAN 0.265.0 (CP 2026-11-26: "Skall det inte vara samma som mitt konto?"): sökfält och fler än de åtta knappar som fanns förut.
+      krav(!!red && red.falt && red.farger === 1 && red.sok && red.ikoner > 8 && red.forvald, `${namn}: redigeraren ${JSON.stringify(red)}, väntat namnfält, ett färgfält, ikonväljaren med sökfält och fler än 8 ikoner, och Förvald (SS :181-288; golv).`);
       krav(!!red && red.skapaAv, `${namn}: Skapa kalender går att trycka utan namn.`);
       krav(!!red && red.bredder[0] > 0 && Math.abs(red.bredder[0] - red.bredder[1]) <= 1, `${namn}: Avbryt och Skapa är ${JSON.stringify(red && red.bredder)} px breda, väntat lika (SS flex-1 på båda).`);
       await mina.getByRole("textbox").fill("Resor privat");
       await mina.getByRole("button", { name: "Färg", exact: true }).click();
       await page.getByRole("button", { name: "Violett", exact: true }).click();
       await page.keyboard.press("Escape");
-      await mina.getByRole("button", { name: "Bok" }).click();
+      await mina.locator('[data-ikonrad="vanliga"] [data-ikonnamn="book-open"]').click();
       if (bildmapp) {
         await mina.locator("[data-kalenderredigerare]").scrollIntoViewIfNeeded();
         await page.screenshot({ path: path.join(bildmapp, `kalendrar-ny-${vp.width}.png`) });
@@ -5827,7 +5828,7 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       await page.waitForTimeout(150);
       const efter = await page.evaluate(() => ({ rader: [...document.querySelectorAll('[data-kalendersektion="mina"] [data-kalenderrad]')].map((r) => r.getAttribute("data-kalenderrad")), sparat: JSON.stringify(/** @type {any} */ (window).__sparat.at(-1)) }));
       matt.push(`${namn}: efter Skapa ${JSON.stringify(efter.rader)}, sparat ${efter.sparat}`);
-      krav(efter.rader.includes("resor-privat") && /"id":"resor-privat".*"farg":"kulor:315".*"ikon":"bok"/.test(efter.sparat), `${namn}: efter Skapa står ${JSON.stringify(efter.rader)} och sparningen var ${efter.sparat}, väntat resor-privat med färgen kulor:315 och ikonen bok.`);
+      krav(efter.rader.includes("resor-privat") && /"id":"resor-privat".*"farg":"kulor:315".*"ikon":"book-open"/.test(efter.sparat), `${namn}: efter Skapa står ${JSON.stringify(efter.rader)} och sparningen var ${efter.sparat}, väntat resor-privat med färgen kulor:315 och ikonen book-open (katalogens namn sedan 0.265.0).`);
     } catch (e) {
       krav(false, `${namn} (c): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
     }
