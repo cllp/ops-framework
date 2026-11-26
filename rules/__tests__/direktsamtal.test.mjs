@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { medlemskapsId } from "../../src/lib/grupp.js";
-import { byggSamtal, samtalsnyckel } from "../../src/lib/samtal.js";
+import { byggDirektsamtal, direktnyckel } from "../../src/lib/samtal.js";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const ANNA = "uid-d-anna";
@@ -28,8 +28,8 @@ const G = "d-grupp";
 const nu = () => Date.now();
 const UTAN = process.env.DIREKTPROV_UTAN;
 
-const direkt = samtalsnyckel({ slag: "direkt", deltagare: [BO, ANNA] });
-const saknas = samtalsnyckel({ slag: "direkt", deltagare: [ANNA, CECILIA] });
+const direkt = direktnyckel([BO, ANNA]);
+const saknas = direktnyckel([ANNA, CECILIA]);
 
 function regler() {
   const fil = path.join(rot, "rules", UTAN === "1" ? "provregler.rules" : "provregler-direkt.rules");
@@ -46,7 +46,7 @@ before(async () => {
   miljo = await initializeTestEnvironment({ projectId: "regelprov-direktsamtal", firestore: { rules: regler(), host: "127.0.0.1", port: 8080 } });
   await miljo.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    const s = byggSamtal({ slag: "direkt", deltagare: [ANNA, BO], skapadAv: ANNA, skapad: nu() });
+    const s = byggDirektsamtal({ deltagare: [ANNA, BO], skapadAv: ANNA, skapad: nu() });
     const { id, ...data } = s;
     await setDoc(doc(db, `samtal/${id}`), { ...data, deltagare: [...data.deltagare] });
     await setDoc(doc(db, `samtal/${direkt}/meddelanden/m1`), { text: "Hej Bo, vi sågs på marknaden", av: ANNA, tid: nu() });
@@ -105,7 +105,7 @@ describe("skriva", () => {
 
 describe("⛔ bara servern skapar ett direktsamtal", () => {
   it("ingen klient skapar ett, inte ens en av de två med rätt form, och ingen ändrar eller raderar ett", async () => {
-    const { id, ...data } = byggSamtal({ slag: "direkt", deltagare: [ANNA, CECILIA], skapadAv: ANNA, skapad: nu() });
+    const { id, ...data } = byggDirektsamtal({ deltagare: [ANNA, CECILIA], skapadAv: ANNA, skapad: nu() });
     await assertFails(setDoc(doc(som(ANNA), "samtal", id), { ...data, deltagare: [...data.deltagare] }));
     await assertFails(updateDoc(doc(som(ANNA), "samtal", direkt), { deltagare: [ANNA, CECILIA] }));
     await assertFails(deleteDoc(doc(som(ANNA), "samtal", direkt)));

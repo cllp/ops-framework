@@ -1182,7 +1182,7 @@ export function tradskiljeTeckenklass(t) {
  * ⛔ VARJE NY UNDERSAMLING ÄR EN NY NYCKEL, UTAN FÖRVAL (`tradar` 0.68.0, `status` #273). En app som inte skickar nyckeln får
  * byte för byte samma regeltext som innan nyckeln fanns, och det mäts mot fixturerna i `rules/__fixturer__/`.
  *
- * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omrostningsval?: string, omrostningsroster?: string, omnamnanden?: boolean, citat?: boolean, fasta?: string, bilagor?: boolean, bilagaSamling?: string, tyst?: string, amnen?: boolean, projekt?: boolean, medlemskap?: string }} [namn]
+ * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omrostningsval?: string, omrostningsroster?: string, omnamnanden?: boolean, citat?: boolean, fasta?: string, bilagor?: boolean, bilagaSamling?: string, tyst?: string, amnen?: boolean, projekt?: boolean, medlemskap?: string, direkt?: boolean }} [namn]
  * @returns {string}
  */
 export function samtalsregelfragment(namn = {}) {

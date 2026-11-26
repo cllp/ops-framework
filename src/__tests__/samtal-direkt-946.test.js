@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DIREKTSAMTAL, SAMTALSSLAG, byggSamtal, delaSamtalsnyckel, samtalsnyckel, samtalsdeltagare } from "../lib/samtal.js";
+import { DIREKTSAMTAL, SAMTALSSLAG, byggDirektsamtal, delaDirektnyckel, delaSamtalsnyckel, direktnyckel, samtalsnyckel } from "../lib/samtal.js";
 import { samtalsregelfragment } from "../lib/regler.js";
 
 /*
@@ -9,16 +9,15 @@ import { samtalsregelfragment } from "../lib/regler.js";
 
 describe("direktsamtalets nyckel och form", () => {
   it("nyckeln är ~direkt och de två sorterade, och samma par ger samma nyckel åt båda håll", () => {
-    expect(SAMTALSSLAG).toContain("direkt");
-    expect(samtalsnyckel({ slag: "direkt", deltagare: ["bo", "anna"] })).toBe(`${DIREKTSAMTAL}|anna|bo`);
-    expect(samtalsnyckel({ slag: "direkt", deltagare: ["anna", "bo"] })).toBe(samtalsnyckel({ slag: "direkt", deltagare: ["bo", "anna"] }));
+    expect(direktnyckel(["bo", "anna"])).toBe(`${DIREKTSAMTAL}|anna|bo`);
+    expect(direktnyckel(["anna", "bo"])).toBe(direktnyckel(["bo", "anna"]));
+    expect(() => direktnyckel(["a", "a"])).toThrow();
+    expect(() => direktnyckel(["a"])).toThrow();
   });
 
-  it("⛔ ett direktsamtal har ingen grupp, inget ämne och inte samma person två gånger", () => {
-    expect(() => samtalsnyckel({ groupId: "g1", slag: "direkt", deltagare: ["a", "b"] })).toThrow(/ingen grupp/);
-    expect(() => samtalsnyckel({ slag: "direkt", deltagare: ["a", "b"], amne: "a_x" })).toThrow(/inga ämnen/);
-    expect(() => samtalsnyckel({ slag: "direkt", deltagare: ["a", "a"] })).toThrow();
-    expect(() => samtalsnyckel({ slag: "direkt", deltagare: ["a"] })).toThrow();
+  it("⛔ ett direktsamtal är inget femte slag: ett Samtal har alltid en grupp", () => {
+    expect(SAMTALSSLAG).not.toContain("direkt");
+    expect(() => samtalsnyckel(/** @type {any} */ ({ groupId: "g1", slag: "direkt", deltagare: ["a", "b"] }))).toThrow(/finns inte/);
   });
 
   it("⛔ en grupp som börjar med ~ kan inte bära ett samtal: nyckeln hade haft ett direktsamtals form", () => {
@@ -27,24 +26,22 @@ describe("direktsamtalets nyckel och form", () => {
     expect(samtalsnyckel({ groupId: "g~1", slag: "grupp" })).toBe("g~1|grupp");
   });
 
-  it("byggSamtal bygger ett direktsamtal utan grupp, med skaparen bland de två", () => {
-    const s = /** @type {any} */ (byggSamtal({ slag: "direkt", deltagare: ["bo", "anna"], skapadAv: "anna", skapad: 5 }));
+  it("byggDirektsamtal bygger ett samtal utan grupp, med skaparen bland de två", () => {
+    const s = byggDirektsamtal({ deltagare: ["bo", "anna"], skapadAv: "anna", skapad: 5 });
     expect(s).toEqual({ id: `${DIREKTSAMTAL}|anna|bo`, slag: "direkt", deltagare: ["anna", "bo"], skapad: 5, skapadAv: "anna" });
     expect("groupId" in s).toBe(false);
-    expect(() => byggSamtal({ slag: "direkt", deltagare: ["bo", "anna"], skapadAv: "cecilia", skapad: 5 })).toThrow(/en av deltagarna/);
-    expect(() => byggSamtal({ groupId: "g1", slag: "direkt", deltagare: ["bo", "anna"], skapadAv: "anna", skapad: 5 })).toThrow(/ingen grupp/);
+    expect(() => byggDirektsamtal({ deltagare: ["bo", "anna"], skapadAv: "cecilia", skapad: 5 })).toThrow(/en av deltagarna/);
+    expect(() => byggDirektsamtal(/** @type {any} */ ({ groupId: "g1", deltagare: ["bo", "anna"], skapadAv: "anna" }))).toThrow(/groupId hör inte/);
   });
 
   it("⛔ nyckeln läses baklänges som ett direktsamtal utan grupp, aldrig som ett personsamtal i gruppen ~direkt", () => {
-    expect(delaSamtalsnyckel(`${DIREKTSAMTAL}|anna|bo`)).toEqual({ slag: "direkt", deltagare: ["anna", "bo"] });
-    expect(delaSamtalsnyckel(`${DIREKTSAMTAL}|bo|anna`)).toBeNull();
-    expect(delaSamtalsnyckel(`${DIREKTSAMTAL}|anna|bo|a_x`)).toBeNull();
+    expect(delaDirektnyckel(`${DIREKTSAMTAL}|anna|bo`)).toEqual({ slag: "direkt", deltagare: ["anna", "bo"] });
+    expect(delaSamtalsnyckel(`${DIREKTSAMTAL}|anna|bo`), "en grupps läsare får ingen grupp ur ett direktsamtal").toBeNull();
+    expect(delaDirektnyckel("g1|anna|bo")).toBeNull();
+    expect(delaDirektnyckel(`${DIREKTSAMTAL}|bo|anna`)).toBeNull();
+    expect(delaDirektnyckel(`${DIREKTSAMTAL}|anna|bo|a_x`)).toBeNull();
     expect(delaSamtalsnyckel("~annat|anna|bo")).toBeNull();
     expect(delaSamtalsnyckel("g1|anna|bo")).toEqual({ groupId: "g1", deltagare: ["anna", "bo"] });
-  });
-
-  it("samtalets deltagare är de två, som i ett personsamtal", () => {
-    expect(samtalsdeltagare({ slag: "direkt", deltagare: ["anna", "bo"] }, [{ userId: "anna", namn: "Anna" }])).toEqual([{ userId: "anna", namn: "Anna" }, { userId: "bo" }]);
   });
 });
 
