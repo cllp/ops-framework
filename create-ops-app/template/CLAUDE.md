@@ -2,12 +2,12 @@
 
 En ops-plattform byggd på `ops-framework`.
 
-## ⛔ Läs ramverkets regler först, och läs dem där de bor
+## ⛔ Läs reglerna först, och läs dem där de bor
 
-Arbetsreglerna och skills ligger i ramverket, inte här:
+Arbetsreglerna står i https://github.com/cllp/wayofworking. Lägg in raden och startkroken med dess `lagg-in.sh`.
+Skills ligger i ramverket:
 
 ```
-node_modules/ops-framework/CLAUDE.md
 node_modules/ops-framework/skills/
 ```
 

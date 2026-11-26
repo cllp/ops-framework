@@ -1,5 +1,11 @@
 # ops-framework
 
+<!-- wayofworking:borjan -->
+> ⛔ **Alla agenter läser alltid https://github.com/cllp/wayofworking innan de börjar**, i varje session och i varje repo: samarbetet med
+> CP, arbetsreglerna, hur vi ritar och, där vi bygger kod, utvecklingen. Startkroken i `.claude/settings.json` lägger in dem av sig själv.
+> Saknas de, läs dem där innan du gör något. Det som står nedan gäller bara det här repot, och efter dem.
+<!-- wayofworking:slut -->
+
 Det gemensamma fundamentet för Staigers ops-plattformar. Färg- och formsystem,
 färdiga byggdelar, arbetsregler och vakter, så att varje plattform ser likadan ut,
 fungerar likadant och följer samma regler, utan att grovjobbet görs om varje gång.
@@ -41,7 +47,7 @@ stilguide.
 |---|---|
 | tokens (`tokens/tokens.css`) | appskal, routes, vyer |
 | primitiverna och deras stängda API | domänmodell, allt affärsnära |
-| arbetsreglerna (`CLAUDE.md`) och skills | ESLint-konfig, CI, grinden |
+| skills (arbetsreglerna står i cllp/wayofworking) | ESLint-konfig, CI, grinden |
 | vakterna | konfiguration och env |
 
 Regeln är enkel: **ska det se likadant ut i alla appar, konsumeras det. Får det
@@ -4096,7 +4102,7 @@ npm run check:all   # samma, plus en app som skapas och installeras på riktigt
 
 | | |
 |---|---|
-| `CLAUDE.md` | arbetsreglerna. Läses alltid. Varje regel bär händelsen som skapade den |
+| `CLAUDE.md` | gränsen mellan ramverkets data och appens. Arbetsreglerna står i https://github.com/cllp/wayofworking sedan 2026-11-26 |
 | `skills/<name>/SKILL.md` | laddas vid behov, inte allt på en gång |
 | `tokens/tokens.css` | tokenkontraktet, som är Tailwind-temat |
 | `src/components/` | primitiverna |
