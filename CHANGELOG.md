@@ -9,6 +9,32 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.265.0
+
+**Kalendrarnas ikoner väljs i samma väljare som Mitt konto, ur hela katalogen.** CP 2026-11-26, med kalenderns åtta ikoner bredvid Mitt kontos väljare: "Vi har alldeles för få ikoner att välja mellan här. Skall det inte vara samma som mitt konto?"
+
+### Tillagt
+- **`OpsIkonValjare` och `ORD_IKONVALJARE`**: ramverkets enda ikonväljare, med sök, förslag ur namnet, senast använda och de vanliga ur gruppikonernas katalog. Den bröts ut ur `OpsGruppmarkeValjare`, som nu ritar den med färgen och initialerna runt. `onIkon` får alltid ett katalognamn.
+- **`KALENDERIKONER_ARV`**: kalendrarnas åtta äldre id, och `kalenderikonINamn` och `ARV_KALENDERIKON` i `kalenderikoner.js`, som visar ett äldre id som sin motsvarighet i katalogen.
+
+### Ändrat
+- **`KALENDERIKONER` är de åtta äldre id:na och sedan hela gruppikonernas katalog.** `byggGruppkalender` tar emot ett katalognamn (`plane`), och `kalenderIkonKomponent` ritar det med katalogens ikon. Ett okänt namn ritas med reserven som förut.
+- **`OpsKalendrar`**: ikonen väljs i `OpsIkonValjare`, i stället för en rad med åtta knappar. En ny val sparas som katalognamn (`star`, inte `stjarna`).
+- **Felet från en katalog med lång tillåtelselista** visar de första tjugo och hur många till, i stället för alla.
+
+### Oförändrat, med avsikt
+- **De äldre id:na läses och ritas som förut**, och ingenting i databasen skrivs om. `kalender` är fortfarande förvalet för en ny kalender.
+- **Reglerna** prövar ikonens form och inte listan, så ingen regeldeploy behövs.
+- **Grupp- och profilväljaren** ser ut och beter sig som förut.
+
+### För appen
+- `app:` En app som beskriver `ikon` med en uppräkning ur `KALENDERIKONER` (lifehub.app: API-registret) får hela katalogen efter ompinning. Generera om det som byggs ur den.
+
+### Prov
+- `kalenderikoner-katalog.test.jsx`: listan, byggarna och ritningen. Rött utan ändringen.
+- `kalenderhantering.test.jsx`: väljaren i kalenderformuläret söker och sparar `plane`.
+- Grupp- och profilväljarens prov oförändrade och gröna.
+
 ## 0.264.0
 
 **Direktsamtal: två personer i samma hubb kan ha ett samtal utan en gemensam grupp, skiva 1 (cllp/lifehub.app#946).** CP 2026-11-23: "Kan vara en stor förening och jag vill skapa kontakt med en annan på marknad, men vi delar inte grupper." Den här skivan ger datamodellen och reglerna. Förfrågan, svaret och inkorgen kommer i appen.

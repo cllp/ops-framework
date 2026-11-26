@@ -1,14 +1,10 @@
-import { useEffect, useId, useMemo, useState } from "react";
-import { cx } from "../lib/cx.js";
 import { initials } from "../lib/identity.js";
 import { GRUPPINITIALER_FORM } from "../lib/grupp.js";
 import { gruppKulor } from "../lib/gruppfarg.js";
-import { gruppikonEtikett } from "../lib/gruppikonnamn.js";
-import { gruppikonKomponent, gruppikonNamn } from "../lib/gruppikoner.js";
-import { lasSenasteGruppikoner, sparaSenasteGruppikon } from "../lib/gruppikonsenaste.js";
-import { VANLIGA_GRUPPIKONER, forslagUrGruppnamn, sokGruppikoner } from "../lib/gruppikonsok.js";
+import { gruppikonNamn } from "../lib/gruppikoner.js";
 import { OpsFargvalLat } from "./OpsFargvalLat.jsx";
 import { OpsField } from "./OpsField.jsx";
+import { OpsIkonValjare } from "./OpsIkonValjare.jsx";
 
 /**
  * Gruppens kulör och ikon (0.65.0, #265): det som fälls ut under "Färg och ikon" i `OpsGruppFormular`.
@@ -48,76 +44,10 @@ import { OpsField } from "./OpsField.jsx";
  *   `t.aterstallInitialer` läses då inte. Utelämnad: gruppens väljare, som förut.
  */
 export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, sprak, t, idPrefix, person = false }) {
-  const sokId = useId();
-  const [fraga, setFraga] = useState("");
-  const [senaste, setSenaste] = useState(/** @type {string[]} */ ([]));
-  useEffect(() => setSenaste(lasSenasteGruppikoner()), []);
-
   const standardKulor = gruppKulor(null, seed);
   const valtNamn = gruppikonNamn(ikon);
   const initialerAktiva = ikon === "" || GRUPPINITIALER_FORM.test(ikon);
   const egnaInitialer = GRUPPINITIALER_FORM.exec(ikon)?.[1] ?? "";
-
-  const forslag = useMemo(() => (person ? [] : forslagUrGruppnamn(namn).slice(0, 12)), [namn, person]);
-  const traffar = useMemo(() => (fraga.trim() ? sokGruppikoner(fraga) : []), [fraga]);
-
-  const valjIkon = (/** @type {string} */ n) => {
-    onIkon(n);
-    setSenaste(sparaSenasteGruppikon(n));
-  };
-
-  /** @param {{ rubrik: string, namn: ReadonlyArray<string>, tomText: string, medInitialer?: boolean, id: string }} r */
-  const rad = ({ rubrik, namn: lista, tomText, medInitialer = false, id }) => (
-    <div data-ikonrad={id}>
-      <p className="m-0 mb-1 text-hjalp text-ink-muted" id={`${idPrefix}-${id}`}>
-        {rubrik}
-      </p>
-      {lista.length === 0 && !medInitialer ? (
-        <p className="m-0 text-hjalp text-ink-muted" data-tom="">
-          {tomText}
-        </p>
-      ) : (
-        <div className="flex flex-wrap gap-1" role="group" aria-labelledby={`${idPrefix}-${id}`}>
-          {medInitialer ? (
-            <button
-              type="button"
-              onClick={() => onIkon(egnaInitialer ? ikon : "")}
-              aria-label={t.initialer}
-              aria-pressed={initialerAktiva}
-              className={cx(
-                "flex size-11 cursor-pointer items-center justify-center rounded-base text-etikett font-medium text-ink-secondary transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                initialerAktiva && "bg-accent-subtle text-ink ring-2 ring-accent",
-              )}
-            >
-              Aa
-            </button>
-          ) : null}
-          {lista.map((n) => {
-            const Ikon = gruppikonKomponent(n);
-            if (!Ikon) return null;
-            const vald = valtNamn === n;
-            return (
-              <button
-                key={n}
-                type="button"
-                onClick={() => valjIkon(n)}
-                aria-label={gruppikonEtikett(n, sprak)}
-                aria-pressed={vald}
-                title={gruppikonEtikett(n, sprak)}
-                data-ikonnamn={n}
-                className={cx(
-                  "flex size-11 cursor-pointer items-center justify-center rounded-base text-ink-secondary transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                  vald && "bg-accent-subtle text-ink ring-2 ring-accent",
-                )}
-              >
-                <Ikon size={18} />
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
 
   return (
     <>
@@ -129,39 +59,16 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
         </OpsField>
       </div>
 
-      <div data-ikonvaljare="">
-        <label htmlFor={sokId} className="m-0 mb-2 block text-meta font-medium text-ink-secondary">
-          {t.ikonEllerLogotyp}
-        </label>
-        <input
-          id={sokId}
-          type="search"
-          value={fraga}
-          onChange={(e) => setFraga(e.target.value)}
-          placeholder={t.sokIkonPlatshallare}
-          aria-label={t.sokIkon}
-          autoComplete="off"
-          className="mb-2 min-h-11 w-full rounded-base border-[1.5px] border-line bg-surface px-3 py-2 text-brod md:text-etikett text-ink placeholder:text-ink-muted hover:border-line-strong focus-visible:border-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-        />
-        {/*
-          ⛔ DEN LEVANDE REGIONEN ÄR EN KORT RAD, INTE RUTNÄTET (granskningen av PR 266). Med aria-live på rutnätet läste en
-          skärmläsare upp upp till 48 knappar för varje tangent. Raden säger bara hur många som träffade, eller att inget gjorde det.
-        */}
-        <p className="sr-only" role="status" aria-live="polite" data-ikonstatus="">
-          {fraga.trim() ? (traffar.length > 0 ? t.traffarStatus.replace("{n}", String(traffar.length)) : t.ingetMatchar) : ""}
-        </p>
-        <div className="flex flex-col gap-2">
-          {fraga.trim() ? (
-            rad({ id: "traffar", rubrik: `${t.traffar} (${traffar.length})`, namn: traffar.slice(0, 48), tomText: t.ingaTraffar.replace("{fraga}", fraga.trim()) })
-          ) : (
-            <>
-              {person ? null : rad({ id: "forslag", rubrik: t.forslagUrNamn, namn: forslag, tomText: namn.trim() ? t.forslagInga : t.forslagSkrivNamn })}
-              {rad({ id: "senaste", rubrik: t.senastAnvanda, namn: senaste, tomText: t.senastInga })}
-              {rad({ id: "vanliga", rubrik: t.vanliga, namn: VANLIGA_GRUPPIKONER, tomText: "", medInitialer: true })}
-            </>
-          )}
-        </div>
-      </div>
+      {/* ⛔ IKONEN I RAMVERKETS ENDA IKONVÄLJARE (0.265.0, CP 2026-11-26): samma som kalendrarna. Här med knappen "Aa" för initialerna, och utan förslag för en person. */}
+      <OpsIkonValjare
+        vald={valtNamn}
+        onIkon={onIkon}
+        namn={person ? undefined : namn}
+        sprak={sprak}
+        idPrefix={idPrefix}
+        t={{ ...t, rubrik: t.ikonEllerLogotyp }}
+        initialer={{ aktiv: initialerAktiva, etikett: t.initialer, onValj: () => onIkon(egnaInitialer ? ikon : "") }}
+      />
 
       {initialerAktiva && !person ? (
         <div className="flex flex-col gap-1">

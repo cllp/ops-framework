@@ -320,7 +320,7 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
   if (ikoner && !ikoner.includes(ikon)) {
     throw var_(
       `ikon "${ikon}" för "${id}"`,
-      `finns inte i tillåtelselistan (${ikoner.join(", ")}). Ett fritt namn blir en tom ruta i vyn, och en tom ruta ser ut som ett fel i appen i stället för ett fel i konfigurationen.`,
+      `finns inte i tillåtelselistan (${ikoner.length > 20 ? `${ikoner.slice(0, 20).join(", ")} och ${ikoner.length - 20} till` : ikoner.join(", ")}). Ett fritt namn blir en tom ruta i vyn, och en tom ruta ser ut som ett fel i appen i stället för ett fel i konfigurationen.`,
     );
   }
 

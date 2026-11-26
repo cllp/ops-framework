@@ -46,6 +46,7 @@ import { byggKategori, ID_FORM, KATEGORIFALT, katalognyckel, valjbara } from "./
 import { text } from "./sprak.js";
 import { STANDARD_TIDSZON } from "./format.js";
 import { GRUPPKULOR_FORM } from "./gruppfarg.js";
+import { KATALOGNAMN } from "./markeformer.js";
 
 /**
  * De äldre tonerna en kalender kan ha: identitetspalettens sex (`--color-identity-1` till `-6`), sparade som tal.
@@ -78,10 +79,19 @@ function kalenderfargUt(farg) {
 }
 
 /**
- * Ikonerna en kalender får ha, som ramverkets egna id:n och inte Lucide-namn (samma skäl som `GRUPPIKONER`).
- * ⛔ ORDNINGEN ÄR VÄLJARENS ORDNING. `kalender` först, eftersom det är vad de flesta är.
+ * Kalendrarnas åtta äldre ikon-id (0.37.0 till 0.264.0), ramverkets egna och inte Lucide-namn. De läses och ritas som förut (`kalenderikoner.js`), och ingenting i databasen skrivs om.
+ * ⛔ `kalender` FÖRST: förvalet för en ny kalender (`KALENDERIKONER[0]`).
  */
-export const KALENDERIKONER = /** @type {const} */ (["kalender", "grupp", "portfolj", "hus", "stjarna", "hjarta", "blixt", "bok"]);
+export const KALENDERIKONER_ARV = /** @type {const} */ (["kalender", "grupp", "portfolj", "hus", "stjarna", "hjarta", "blixt", "bok"]);
+
+/**
+ * Ikonerna en kalender får ha: de äldre id:na och hela gruppikonernas katalog, som namn (`music`, `plane`).
+ *
+ * ⛔ SAMMA KATALOG SOM MITT KONTO (0.265.0, CP 2026-11-26: "Vi har alldeles för få ikoner att välja mellan här. Skall det inte vara samma som mitt konto?"). Kalendrarna hade
+ * åtta egna, och väljaren var en rad knappar. Nu väljs ikonen i `OpsIkonValjare`, samma väljare som grupper och personer, och listan här är det den kan ge.
+ * ⛔ REGLERNA PRÖVAR FORMEN, INTE LISTAN (`MAX_KALENDERIKON` och `ID_FORM`), så katalogen kan växa utan regeldeploy. Gruppkalenderns byggare prövar mot listan.
+ */
+export const KALENDERIKONER = Object.freeze([...KALENDERIKONER_ARV, ...[...KATALOGNAMN].filter((n) => !(/** @type {readonly string[]} */ (KALENDERIKONER_ARV)).includes(n))]);
 
 /**
  * Fälten en gruppkalender bär, HÄRLEDDA ur katalogens och inte skrivna för hand: katalogens fält utan `fas`, plus
@@ -387,7 +397,7 @@ export function byggMinKalender(d) {
    * Den behålls, och ritas med reservikonen (`kalenderIkonKomponent`). Listan är det väljaren erbjuder, och reglerna prövar samma form som här (`ikonFormOk`).
    */
   if (!ikonFormOk(ikon)) {
-    throw new Error(`${var_}: ikon "${String(ikon).slice(0, 60)}" för "${id}" är inte ett ikonnamn: små bokstäver, siffror, - och _, högst ${MAX_KALENDERIKON} tecken (${KALENDERIKONER.join(", ")}).`);
+    throw new Error(`${var_}: ikon "${String(ikon).slice(0, 60)}" för "${id}" är inte ett ikonnamn: små bokstäver, siffror, - och _, högst ${MAX_KALENDERIKON} tecken, till exempel ${KALENDERIKONER[0]} eller ett namn ur ikonkatalogen som music.`);
   }
   const ordning = r.ordning === undefined ? 0 : Number(r.ordning);
   if (!Number.isInteger(ordning)) throw new Error(`${var_}: ordning för "${id}" måste vara ett heltal.`);
