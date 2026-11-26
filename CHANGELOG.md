@@ -9,6 +9,26 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.264.0
+
+**Direktsamtal: två personer i samma hubb kan ha ett samtal utan en gemensam grupp, skiva 1 (cllp/lifehub.app#946).** CP 2026-11-23: "Kan vara en stor förening och jag vill skapa kontakt med en annan på marknad, men vi delar inte grupper." Den här skivan ger datamodellen och reglerna. Förfrågan, svaret och inkorgen kommer i appen.
+
+### Tillagt
+- **`direktnyckel`, `byggDirektsamtal`, `delaDirektnyckel` och typen `DirektSamtal`** i `samtal.js`. Nyckeln är `~direkt|<a>|<b>`, med paret sorterat, och deltagarna står i nyckeln. Ett direktsamtal har ingen grupp, inget ämne och ingen tagg.
+- **Tillvalet `direkt: true` i `samtalsregelfragment`.** De två i nyckeln läser och skriver meddelanden, reaktioner och läst, som sig själva. Ingen klient skapar, ändrar eller raderar ett direktsamtal: det gör appens server. Deltagarna prövas ur nyckeln, utan ett uppslag, så reglerna blir nästan inte tyngre att kompilera (cllp/lifehub.app#949).
+
+### Ändrat
+- **En grupp vars id börjar med `~` kan inte bära ett samtal** (`samtalsnyckel`, `delaSamtalsnyckel` och reglerna för ett nytt samtal). Annars hade ett personsamtal i gruppen `~direkt` haft samma nyckel som ett direktsamtal.
+
+### Oförändrat, med avsikt
+- **`Samtal` har fortfarande alltid en grupp, och `SAMTALSSLAG` har samma fyra slag.** Direktsamtalet är en egen typ, så ingen app som läser `samtal.groupId` behöver ändras.
+- **Utan tillvalet `direkt` är regelfragmentet byte för byte som förut**, prövat för tre uppsättningar tillval.
+
+### Prov
+- `samtal-direkt-946.test.js` och samtalsproven: 43 av 43.
+- `rules/__tests__/direktsamtal.test.mjs` i emulatorn: 7 av 7. Med reglerna utan direktsamtal (`DIREKTPROV_UTAN=1`) är fyra röda: läsa, skriva och skapa. Utan spärren mot `~` (`DIREKTPROV_UTAN=sparr`) är det provet rött.
+- Hela grinden: `npm run check` grön, 7 403 av 7 403, och regelsviten 958 av 958.
+
 ## 0.263.1
 
 **Kartan i helskärm är alltid ett eget lager över skärmen, som PDF-vyn (cllp/lifehub.app#967).** CP 2026-11-25, med en skärmbild av Sardinien rutt v12 i Biblioteket: "kommer upp fullskärm men inom samma ram ... Det saknas alltså en fullscreen som för PDF och html", och "Den här fullscreen viewn är helt oanvändbar i web."

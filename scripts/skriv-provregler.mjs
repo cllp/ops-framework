@@ -85,6 +85,7 @@ const ut = path.join(rot, "rules", "provregler.rules");
  * ⛔ BESKRIVNA APPAR (0.99.0): `beskrivenappdataregelfragment("appdata")` och `beskrivningsregelfragment("appbeskrivningar")`.
  *   Namnen är påhittade, som hos en app.
  */
+const SAMTALSVAL = /** @type {const} */ ({ tradar: "tradar", status: "status", reaktioner: "reaktioner", omrostningsval: "omrostningsval", omrostningsroster: "omrostningsroster", omnamnanden: true, citat: true, fasta: "fasta", bilagor: true, bilagaSamling: "bilagor", tyst: "tyst", amnen: true, projekt: true });
 const text = `rules_version = '2';
 
 service cloud.firestore {
@@ -96,7 +97,7 @@ ${gruppadSamling("konfig", { agareKravsForSkrivning: true })}
 ${gruppadSamling("stampelrader", { skaparfalt: "skapadAv" })}
 ${katalogregelfragment("kataloger")}
 ${konfigloggregelfragment("konfiglogg")}
-${samtalsregelfragment({ tradar: "tradar", status: "status", reaktioner: "reaktioner", omrostningsval: "omrostningsval", omrostningsroster: "omrostningsroster", omnamnanden: true, citat: true, fasta: "fasta", bilagor: true, bilagaSamling: "bilagor", tyst: "tyst", amnen: true, projekt: true })}
+${samtalsregelfragment(SAMTALSVAL)}
 ${kalenderregelfragment({ kalenderdelningar: "kalenderdelningar" })}
 ${kalendervalsregelfragment("kalenderval")}
 ${handelseregelfragment()}
@@ -132,6 +133,17 @@ ${beskrivningsregelfragment("appbeskrivningar")}
 fs.mkdirSync(path.dirname(ut), { recursive: true });
 fs.writeFileSync(ut, text, "utf8");
 console.log(`skriv-provregler: ${path.relative(rot, ut)}, ${text.split("\n").length} rader`);
+
+/*
+ * ⛔ DIREKTSAMTALEN (cllp/lifehub.app#946 skiva 1): samma regler, med samtalens fragment byggt med `direkt: true`. En egen fil och inte provreglerna: mutationsproven i `chattnatt` och `tradar`
+ * letar efter den exakta texten utan direktsamtal, och den ska de fortsätta hitta. `rules/__tests__/direktsamtal.test.mjs` läser den här, och provet kräver att resten är byte för byte samma.
+ */
+const utan = samtalsregelfragment(SAMTALSVAL);
+const med = samtalsregelfragment({ ...SAMTALSVAL, direkt: true });
+if (!text.includes(utan)) throw new Error("skriv-provregler: samtalens fragment hittas inte i provreglerna, och direktsamtalens fil kan inte byggas ur dem.");
+const utDirekt = path.join(rot, "rules", "provregler-direkt.rules");
+fs.writeFileSync(utDirekt, text.replace(utan, () => med), "utf8");
+console.log(`skriv-provregler: ${path.relative(rot, utDirekt)}, samtalen med direktsamtal`);
 
 /*
  * ⛔ STORAGE-REGLERNA PROVAS OCKSÅ (granskningen av PR 365, 0.101.0). `lagringsregelfragment({ bibliotek })` hade inget prov i något

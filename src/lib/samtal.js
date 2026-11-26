@@ -60,6 +60,21 @@ import { byggVia } from "./skapare.js";
 export const SAMTALSSLAG = /** @type {const} */ (["grupp", "personer", "agent", "projekt"]);
 
 /**
+ * ⛔ DIREKTSAMTALET (cllp/lifehub.app#946 skiva 1): två personer i samma hubb som inte behöver dela en grupp. CP 2026-11-23: "Kan vara en stor förening och jag vill skapa kontakt med en annan på
+ * marknad, men vi delar inte grupper." Ett `personer`-samtal hör till en grupp och kräver att båda är aktiva medlemmar i den, så det räcker inte.
+ *
+ * Nyckeln är `~direkt|<uidA>|<uidB>`, med uid:en sorterade: ett samtal per par, och deltagarna står i nyckeln. Därför prövar reglerna dem utan ett uppslag (`get`), och reglerna växer nästan inte
+ * (cllp/lifehub.app#949: regelfilen var för tung att kompilera). `~` finns aldrig först i en grupps id (`kravGruppUtanAvgransare`), så nyckeln kan inte vara ett personsamtal i en grupp.
+ *
+ * ⛔ EGNA FUNKTIONER OCH EN EGEN TYP (`direktnyckel`, `byggDirektsamtal`, `delaDirektnyckel`, `DirektSamtal`), inte ett femte slag i `SAMTALSSLAG`. Ett `Samtal` har alltid en grupp, och
+ * varje app som läser `samtal.groupId` fortsätter göra det. Direktsamtalet är ett samtal utan grupp, och det syns i typen.
+ *
+ * ⛔ BARA SERVERN SKAPAR ETT DIREKTSAMTAL. Om två som inte delar en grupp får skriva till varandra avgör en förfrågan och ett ja, och det prövar appens server. Reglerna släpper aldrig in en klient
+ * som skapar ett.
+ */
+export const DIREKTSAMTAL = "~direkt";
+
+/**
  * (0.215.0) Är samtalet ett rum för flera, gruppchatten eller ett projekts chatt? Ett sådant har inga deltagare, inget lås och ingen motpart: alla som läser ser vem som skrev, och omnämnanden gäller gruppens medlemmar.
  * ⛔ TRÅDAR FINNS BARA I GRUPPCHATTEN, och det avgör `slag === "grupp"` och inte den här: reglernas `opsIGruppchatten` släpper bara in gruppchatten.
  * @param {unknown} slag
@@ -179,6 +194,8 @@ function kravGruppUtanAvgransare(groupId, vem) {
   if (groupId.includes(SAMTALSAVGRANSARE)) {
     throw new Error(`${vem}: groupId "${groupId}" innehåller "${SAMTALSAVGRANSARE}", som är nyckelns avgränsare. Nyckeln hade blivit tvetydig.`);
   }
+  // ⛔ (#946) En grupp som börjar med `~` hade gett ett personsamtal samma form som ett direktsamtal.
+  if (groupId.startsWith("~")) throw new Error(`${vem}: groupId "${groupId}" börjar med "~", som är reserverat för direktsamtalen (${DIREKTSAMTAL}).`);
 }
 
 /**
@@ -516,6 +533,8 @@ export function delaSamtalsnyckel(id, groupId) {
   if (typeof id !== "string") return null;
   const delar = id.split(SAMTALSAVGRANSARE);
   if (delar.some((d) => d.trim() === "" || d !== d.trim())) return null;
+  // (#946) En nyckel som börjar med `~` är ett direktsamtal, eller ingenting, och hör inte till någon grupp. Den läses med `delaDirektnyckel`.
+  if (delar[0].startsWith("~")) return null;
   if (delar.length === 2 && delar[1] === GRUPPSAMTAL) return { groupId: delar[0], slag: "grupp" };
   if (delar[1] === PROJEKTSAMTAL) return delar.length === 3 && PROJEKTTAGGFORM.test(delar[2]) ? { groupId: delar[0], slag: "projekt", tagg: delar[2] } : null;
   if ((delar.length !== 3 && delar.length !== 4) || delar[1] === delar[2]) return null;
@@ -523,6 +542,54 @@ export function delaSamtalsnyckel(id, groupId) {
   if (!(delar[1] < delar[2])) return null;
   if (delar.length === 4) return AMNES_FORM.test(delar[3]) ? { groupId: delar[0], deltagare: [delar[1], delar[2]], amne: delar[3] } : null;
   return { groupId: delar[0], deltagare: [delar[1], delar[2]] };
+}
+
+/**
+ * (#946) Ett direktsamtal: två personer, ingen grupp. Skapas bara av appens server (se `DIREKTSAMTAL`).
+ * @typedef {object} DirektSamtal
+ * @property {string} id `~direkt|<a>|<b>`
+ * @property {"direkt"} slag
+ * @property {ReadonlyArray<string>} deltagare De två, sorterade.
+ * @property {number} skapad
+ * @property {string} skapadAv En av de två.
+ */
+
+/**
+ * (#946) Direktsamtalets nyckel: `~direkt|<a>|<b>`, med paret sorterat, så att samma två alltid får samma nyckel.
+ * @param {ReadonlyArray<string>} deltagare
+ * @returns {string}
+ */
+export function direktnyckel(deltagare) {
+  return [DIREKTSAMTAL, ...sorteradePar(deltagare, "direktnyckel")].join(SAMTALSAVGRANSARE);
+}
+
+/**
+ * (#946) Ett direktsamtal att spara, med nyckeln som id. Den som skapar det är en av de två.
+ * @param {{ deltagare: ReadonlyArray<string>, skapadAv: string, skapad?: number }} d
+ * @returns {Readonly<DirektSamtal>}
+ */
+export function byggDirektsamtal(d) {
+  const okanda = Object.keys(d ?? {}).filter((k) => k !== "deltagare" && k !== "skapadAv" && k !== "skapad");
+  if (okanda.length > 0) throw new Error(`byggDirektsamtal: fälten ${okanda.join(", ")} hör inte till ett direktsamtal. Det har ingen grupp, inget ämne och ingen tagg.`);
+  const skapadAv = kravUid(d.skapadAv, "byggDirektsamtal");
+  const skapad = d.skapad ?? Date.now();
+  if (!Number.isInteger(skapad)) throw new Error("byggDirektsamtal: skapad är millisekunder, ett heltal.");
+  const deltagare = sorteradePar(d.deltagare, "byggDirektsamtal");
+  if (!deltagare.includes(skapadAv)) throw new Error("byggDirektsamtal: den som skapar ett direktsamtal måste vara en av deltagarna.");
+  return Object.freeze({ id: direktnyckel(deltagare), slag: /** @type {const} */ ("direkt"), deltagare: Object.freeze(deltagare), skapad, skapadAv });
+}
+
+/**
+ * (#946) Ett direktsamtals två deltagare ur nyckeln `~direkt|<a>|<b>`, eller `null` när id:t inte är ett direktsamtal. Paret måste vara sorterat,
+ * som `direktnyckel` skriver det.
+ * @param {unknown} id
+ * @returns {{ slag: "direkt", deltagare: [string, string] } | null}
+ */
+export function delaDirektnyckel(id) {
+  if (typeof id !== "string") return null;
+  const delar = id.split(SAMTALSAVGRANSARE);
+  if (delar.length !== 3 || delar[0] !== DIREKTSAMTAL || delar.some((d) => d.trim() === "" || d !== d.trim())) return null;
+  return delar[1] < delar[2] ? { slag: "direkt", deltagare: [delar[1], delar[2]] } : null;
 }
 
 /**
