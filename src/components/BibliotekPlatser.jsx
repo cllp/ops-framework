@@ -338,12 +338,12 @@ export function PlatsInstallningar({ egna, jag, sprak }) {
   );
 }
 
-/** Raden "Ny plats" sist i växlaren. @param {{ onValj: () => void, sprak: string }} props */
-export function NyPlatsRad({ onValj, sprak }) {
+/** Raden "Ny plats" sist i växlaren. `iMeny` falskt (0.266.0) i panelen med platserna, som inte är en meny. @param {{ onValj: () => void, sprak: string, iMeny?: boolean }} props */
+export function NyPlatsRad({ onValj, sprak, iMeny = true }) {
   return (
     <button
       type="button"
-      role="menuitem"
+      role={iMeny ? "menuitem" : undefined}
       data-bibliotek-ny-plats-rad=""
       onClick={onValj}
       className={radKlass({ stor: true })}

@@ -10,7 +10,7 @@ const laddaMarkdownHtml = () => import("../lib/markdownhtml.js").then((m) => (ma
 import { blobBytes } from "../lib/blobbytes.js";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
-import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Link2, List as ListIkon, Mic, ExternalLink, X } from "lucide-react";
+import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Link2, List as ListIkon, Mic, ExternalLink } from "lucide-react";
 import { IKON_FOR } from "./ikonlexikon.js";
 import { GruppvalIkon, PanelIkon } from "./icons.jsx";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
@@ -350,6 +350,7 @@ const ORD_BIBLIOTEKLISTA = {
   dragFarInte: { sv: "Du får inte flytta den här posten hit.", en: "You may not move this item here." },
   dragSlappHar: { sv: "Släpp för att flytta till {namn}", en: "Drop to move to {namn}" },
   angra: { sv: "Ångra", en: "Undo" },
+  angrar: { sv: "Flyttar tillbaka…", en: "Moving back…" },
   agareJag: { sv: "jag", en: "me" },
   kopieradTill: { sv: "Kopierad till {namn}.", en: "Copied to {namn}." },
   namnEjSparat: { sv: "Namnet kunde inte sparas.", en: "The name could not be saved." },
@@ -1600,6 +1601,19 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
     setImportBesked("");
     if (typeof onPlats === "function") onPlats(v);
   };
+  /** Raden Ny plats och dess formulär, för väljaren och för panelen (0.266.0). */
+  const nyPlats = kanSkapaPlats && egnaPlatser
+    ? {
+        befintliga: egnaPlatser.platser.map((p) => ({ id: p.id, namn: p.namn })),
+        onNy: /** @type {NonNullable<typeof egnaPlatser.onNy>} */ (egnaPlatser.onNy),
+        onKlar: (/** @type {any} */ svar) => {
+          if (svar && typeof svar === "object" && typeof svar.plats === "string") {
+            setNyligen((n) => [...n, { id: svar.plats, namn: typeof svar.namn === "string" ? svar.namn : svar.plats }]);
+            bytPlats(svar.plats);
+          }
+        },
+      }
+    : null;
   // ⛔ MED `egnaPlatser.onNy` FINNS VÄXLAREN ÄVEN MED EN ENDA PLATS (0.155.0): annars hade en grupp utan Mitt bibliotek aldrig kunnat skapa sin första. Utan `egnaPlatser` är villkoret som förut.
   const platsValjare =
     (platserIVaxlaren.length >= 2 || (kanSkapaPlats && platserIVaxlaren.length >= 1)) && plats ? (
@@ -1607,21 +1621,11 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
         platser={platserIVaxlaren}
         plats={plats}
         onPlats={bytPlats}
-        ny={kanSkapaPlats && egnaPlatser
-          ? {
-              befintliga: egnaPlatser.platser.map((p) => ({ id: p.id, namn: p.namn })),
-              onNy: /** @type {NonNullable<typeof egnaPlatser.onNy>} */ (egnaPlatser.onNy),
-              onKlar: (svar) => {
-                if (svar && typeof svar === "object" && typeof svar.plats === "string") {
-                  setNyligen((n) => [...n, { id: svar.plats, namn: typeof svar.namn === "string" ? svar.namn : svar.plats }]);
-                  bytPlats(svar.plats);
-                }
-              },
-            }
-          : null}
+        ny={nyPlats}
       />
     ) : null;
-  const harPlatspanel = Boolean(platsValjare) && !inbaddad;
+  // ⛔ PANELEN FINNS BARA FRÅN `lg` (1024 px, `storSkarm`): under den är väljaren som förut, och knappen ritas inte.
+  const harPlatspanel = Boolean(platsValjare) && !inbaddad && storSkarm;
   const panelSyns = harPlatspanel && panelOppen && !detalj;
   const vaxlaPanel = () => {
     setPanelOppen((o) => {
@@ -1629,7 +1633,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       return !o;
     });
   };
-  const kanDra = panelSyns && storSkarm && finPekare && typeof onDela === "function";
+  const kanDra = panelSyns && finPekare && typeof onDela === "function";
   /** Ägaren på raden: "jag" för ens egen, annars namnet (`skaparensNamn`), tomt när det saknas. Bara på gruppens platser: i Mitt bibliotek är allt ens eget. */
   const agareFor = (/** @type {{ skapadAv?: unknown }} */ post) => {
     const uid = /** @type {any} */ (post.skapadAv)?.uid;
@@ -1661,17 +1665,21 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   }
   function angra() {
     const a = angraFlytt;
-    if (!a || typeof onDela !== "function") return;
-    setAngraFlytt(null);
+    if (!a || typeof onDela !== "function") return undefined;
     setStatus(listord("flyttarTill", sprak, { namn: a.franNamn }));
-    a.klar
+    // Knappen väntar på svaret (OpsButton med ett löfte): flytten dit först, sedan tillbaka.
+    return a.klar
       .then(() => onDela({ id: a.id, groupId: a.fran, satt: "flytta" }))
       .then(
         () => {
+          setAngraFlytt(null);
           setFlyttadeBort((d) => d.filter((x) => x !== a.id));
           setStatus(listord("flyttadTill", sprak, { namn: a.franNamn }));
         },
-        (e) => setStatus(e instanceof Error && e.message ? e.message : String(e)),
+        (e) => {
+          setAngraFlytt(null);
+          setStatus(e instanceof Error && e.message ? e.message : String(e));
+        },
       );
   }
   const platsKnapp = harPlatspanel ? (
@@ -1682,7 +1690,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
       aria-label={lord(panelOppen ? "doljPlatser" : "visaPlatser")}
       title={lord(panelOppen ? "doljPlatser" : "visaPlatser")}
       onClick={vaxlaPanel}
-      className={cx("hidden size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:inline-flex", panelOppen && "bg-raised text-ink")}
+      className={cx("inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", panelOppen && "bg-raised text-ink")}
     >
       <PanelIkon size={20} />
     </button>
@@ -1709,7 +1717,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const atgard =
     platsValjare || visaKnapp ? (
       <>
-        {platsValjare ? <div data-bibliotek-vaxlare="" className={cx("min-w-0", panelSyns && "lg:hidden")}>{platsValjare}</div> : null}
+        {platsValjare && !panelSyns ? platsValjare : null}
         {platsMeny}
         {platsKnapp}
         {visaKnapp ? <ModulLageKnapp ram={ram} activeHref={/** @type {string} */ (activeHref)} onNavigate={onNavigate} sprak={sprak} installningar={false} /> : null}
@@ -1909,7 +1917,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
             {angraFlytt ? (
               <div role="status" data-bibliotek-flyttad="" className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="min-w-0">{angraFlytt.text}</span>
-                <OpsButton variant="ghost" size="sm" onClick={angra}>{lord("angra")}</OpsButton>
+                <OpsButton variant="ghost" size="sm" busyLabel={lord("angrar")} onClick={angra}>{lord("angra")}</OpsButton>
               </div>
             ) : status ? <p role="status">{status}</p> : null}
           </div>
@@ -1934,6 +1942,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
           skalFor={(id) => (drar ? slappSkal(drar, id) : null)}
           onSlapp={(mal) => { if (drar) slappPa(drar, mal); }}
           visaTips={kanDra}
+          ny={nyPlats}
           sprak={sprak === "en" ? "en" : "sv"}
         />
       ) : null}
@@ -2368,25 +2377,26 @@ function useMedia(fraga) {
  * Panelen med platserna till höger (0.266.0, cllp/lifehub.app#988), som Chattinfo i chatten. Ett klick visar platsens filer, och den man står i är markerad.
  * Medan en rad dras lyser de platser upp där den får släppas, och de andra är dämpade med skälet som verktygstips. Platsen raden redan ligger på är varken eller.
  *
- * @param {{ platser: readonly { id: string, namn: string }[], plats: string, onPlats: (id: string) => void, onStang: () => void, drar: { id: string } | null, skalFor: (id: string) => string | null, onSlapp: (mal: { id: string, namn: string }) => void, visaTips: boolean, sprak: "sv" | "en" }} props
+ * @param {{ platser: readonly { id: string, namn: string }[], plats: string, onPlats: (id: string) => void, onStang: () => void, drar: { id: string } | null, skalFor: (id: string) => string | null, onSlapp: (mal: { id: string, namn: string }) => void, visaTips: boolean, sprak: "sv" | "en", ny?: { befintliga: ReadonlyArray<{ id: string, namn: string }>, onNy: NonNullable<import("./BibliotekPlatser.jsx").EgnaPlatser["onNy"]>, onKlar?: (svar: any) => void } | null }} props
  */
-function Platspanel({ platser, plats, onPlats, onStang, drar, skalFor, onSlapp, visaTips, sprak }) {
+function Platspanel({ platser, plats, onPlats, onStang, drar, skalFor, onSlapp, visaTips, sprak, ny = null }) {
   const o = (/** @type {keyof typeof ORD_BIBLIOTEKLISTA} */ k) => ordet(ORD_BIBLIOTEKLISTA, k, sprak);
   const [over, setOver] = useState(/** @type {string | null} */ (null));
+  const [skapar, setSkapar] = useState(false);
   useEffect(() => {
     if (!drar) setOver(null);
   }, [drar]);
   return (
-    <aside data-bibliotek-platspanel="" aria-label={o("platserRubrik")} className="sticky top-4 hidden w-64 shrink-0 flex-col gap-2 rounded-card border border-line bg-surface p-3 lg:flex">
+    <aside data-bibliotek-platspanel="" aria-label={o("platserRubrik")} className="sticky top-4 flex w-64 shrink-0 flex-col gap-2 rounded-card border border-line bg-surface p-3">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="m-0 text-sektion font-semibold uppercase tracking-wide text-ink-secondary">{o("platserRubrik")}</h2>
+        <h2 className="m-0 text-sektion uppercase tracking-wide text-ink-secondary">{o("platserRubrik")}</h2>
         <button
           type="button"
           aria-label={o("doljPlatser")}
           onClick={onStang}
           className="inline-flex size-9 cursor-pointer items-center justify-center rounded-full text-ink-muted hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          <X size={16} aria-hidden="true" />
+          <IKON_FOR.stang size={16} aria-hidden="true" />
         </button>
       </div>
       <ul className="m-0 flex list-none flex-col gap-1 p-0">
@@ -2434,6 +2444,23 @@ function Platspanel({ platser, plats, onPlats, onStang, drar, skalFor, onSlapp, 
           );
         })}
       </ul>
+      {/* ⛔ NY PLATS STÅR HÄR NÄR VÄLJAREN ÄR DOLD (0.266.0): annars hade raden försvunnit med väljaren. Samma formulär som i väljaren. */}
+      {ny ? (
+        skapar ? (
+          <NyPlatsFormular
+            befintliga={ny.befintliga}
+            onNy={ny.onNy}
+            sprak={sprak}
+            onAvbryt={() => setSkapar(false)}
+            onKlar={(svar) => {
+              setSkapar(false);
+              ny.onKlar?.(svar);
+            }}
+          />
+        ) : (
+          <NyPlatsRad sprak={sprak} iMeny={false} onValj={() => setSkapar(true)} />
+        )
+      ) : null}
       {visaTips ? <p data-platspanel-tips="" className="m-0 text-hjalp text-ink-muted">{o("dragTips")}</p> : null}
     </aside>
   );
