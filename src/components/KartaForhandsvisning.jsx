@@ -65,7 +65,8 @@ export function KartaForhandsvisning({ hamta, sokvag, post, namn = "" }) {
       kvar = false;
     };
   }, [sokvag, kanske]);
-  if (lage.lage === "text") return <TextForhandsvisning hamta={() => Promise.resolve(lage.blob)} sokvag={sokvag} namn={namn} />;
+  // ⛔ ANNAN JSON VISAS FORMATERAD (0.269.0, #884): med indrag, inte på en rad.
+  if (lage.lage === "text") return <TextForhandsvisning hamta={() => Promise.resolve(lage.blob)} sokvag={sokvag} namn={namn} json />;
   // En `.json` som kanske inte är en karta säger inte "Hämtar kartan.".
   if (lage.lage === "hamtar") return <div data-bibliotek-karta="hamtar" className="m-0 text-etikett text-ink-muted"><OpsVantar text={o(kanske === null ? "hamtarFil" : "hamtar")} /></div>;
   if (lage.lage === "stor") return <p role="status" data-bibliotek-karta="stor" className="m-0 text-etikett text-ink-muted">{o("stor")}</p>;

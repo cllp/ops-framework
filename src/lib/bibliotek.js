@@ -27,6 +27,7 @@ import { lankKalla } from "./lankkalla.js";
 import { ordet } from "./ord.js";
 import { lasGeojson } from "./karta.js";
 import { SIE_ANDELSER, SIE_MIME } from "./sie.js";
+import { KALENDERFIL_MIME, KONTAKTFIL_MIME } from "./kalenderfil.js";
 
 /**
  * Anteckning, länk, fil och lista. En fil är en post, och MIME avgör hur den visas.
@@ -470,6 +471,10 @@ export const FILMIME = /** @type {const} */ ([
   // SIE har ingen registrerad typ, och en `.se` fick därför tom typ och nekades. Nu ger ändelsen typen (`mimeUrFilnamn`), och detaljen visar filen tolkad (`SieForhandsvisning`).
   // Samma tak som text. Listan är regelns och Storage-regelns, så formatet nås först när reglerna är deployade.
   SIE_MIME,
+  // ⛔ KALENDER OCH KONTAKTER (0.269.0, cllp/lifehub.app#884 punkt 5, CP 2026-11-18: "Kör alla i ett svep"). En inbjudan (`.ics`) och en kontakt (`.vcf`) visas tolkade
+  // (`KalenderfilForhandsvisning`). Samma tak som text. Äldre program säger `text/x-vcard` eller `text/directory` (`MIMEALIAS`). Listan är regelns och Storage-regelns.
+  KALENDERFIL_MIME,
+  KONTAKTFIL_MIME,
 ]);
 
 /**
@@ -930,6 +935,10 @@ export function normaliseraMime(v) {
 
 /** @type {Record<string, string>} */
 const MIMEALIAS = {
+  // ⛔ (0.269.0, #884) Kontaktfiler från äldre program och från Android.
+  "text/x-vcard": KONTAKTFIL_MIME,
+  "text/directory": KONTAKTFIL_MIME,
+  "text/x-vcalendar": KALENDERFIL_MIME,
   "audio/x-wav": "audio/wav",
   "audio/wave": "audio/wav",
   "audio/vnd.wave": "audio/wav",
@@ -970,7 +979,7 @@ export function mimeUrFilnamn(namn) {
   const m = /\.([a-z0-9]+)$/i.exec(str(namn));
   const andelse = m ? m[1].toLowerCase() : "";
   // (0.133.0) m4a, mp3, aac och ogg: Safari och Android ger ofta tom typ för dem, och utan namnet blev en vald ljudfil "Formatet (tom) går inte att lägga in".
-  return ({ html: "text/html", htm: "text/html", md: "text/markdown", markdown: "text/markdown", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", json: "application/json", geojson: GEOJSON_MIME, docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", zip: ZIP_MIME, ...Object.fromEntries(SIE_ANDELSER.map((a) => [a, SIE_MIME])) })[andelse] ?? "";
+  return ({ html: "text/html", htm: "text/html", md: "text/markdown", markdown: "text/markdown", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", json: "application/json", geojson: GEOJSON_MIME, docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", zip: ZIP_MIME, ics: KALENDERFIL_MIME, ical: KALENDERFIL_MIME, vcf: KONTAKTFIL_MIME, vcard: KONTAKTFIL_MIME, ...Object.fromEntries(SIE_ANDELSER.map((a) => [a, SIE_MIME])) })[andelse] ?? "";
 }
 
 /**
@@ -1043,6 +1052,20 @@ export function arKartfil(post, text) {
  */
 export function arSieFil(post) {
   return normaliseraMime(post?.fil?.mime) === SIE_MIME || mimeUrFilnamn(post?.fil?.namn) === SIE_MIME;
+}
+
+/**
+ * Om en filpost är en kalenderfil eller kontaktfil som visas tolkad (0.269.0, cllp/lifehub.app#884): `"ics"`, `"vcf"` eller `null`. ⛔ ETT HEM (regel 2).
+ * Typen, eller ändelsen när filen lades in med en annan typ.
+ * @param {{ fil?: { namn?: unknown, mime?: unknown } } | null | undefined} post
+ * @returns {"ics" | "vcf" | null}
+ */
+export function kalenderfilSort(post) {
+  const typ = normaliseraMime(post?.fil?.mime);
+  const urNamn = mimeUrFilnamn(post?.fil?.namn);
+  if (typ === KALENDERFIL_MIME || urNamn === KALENDERFIL_MIME) return "ics";
+  if (typ === KONTAKTFIL_MIME || urNamn === KONTAKTFIL_MIME) return "vcf";
+  return null;
 }
 
 /**
