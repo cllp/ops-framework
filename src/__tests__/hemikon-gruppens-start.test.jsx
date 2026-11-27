@@ -58,12 +58,11 @@ describe("hemikonen med grupper.hem (0.227.0)", () => {
     expect(onValj).not.toHaveBeenCalled();
   });
 
-  it("⛔ raden Översikt står i växlaren när hem är given, och ett tryck på den går till Översikten", () => {
-    const onOversikt = vi.fn();
-    render(<Skal hem={{ onValj: () => {} }} oversikt={{ aktiv: false, onValj: onOversikt }} />);
+  it("⛔ växlaren har ingen rad Översikt när hem är given (0.267.0, lifehub.app#941): Översikten nås med den egna gruppens hus", () => {
+    render(<Skal hem={{ onValj: () => {} }} oversikt={{ aktiv: false, onValj: () => {} }} />);
     const ark = oppnaVaxlaren();
-    fireEvent.click(within(ark).getByRole("button", { name: "Översikt" }));
-    expect(onOversikt).toHaveBeenCalledTimes(1);
+    expect(within(ark).getByRole("button", { name: /Bolaget/ })).toBeTruthy();
+    expect(within(ark).queryByRole("button", { name: "Översikt" })).toBeNull();
   });
 
   it("appens eget namn, och engelska", () => {
@@ -74,7 +73,7 @@ describe("hemikonen med grupper.hem (0.227.0)", () => {
     expect(hemknapp().getAttribute("aria-label")).toBe("Group home");
   });
 
-  it("⛔ utan hem är huset Översikten, och växlaren har ändå raden Översikt (0.229.4, CP: \"men inte alltid\")", () => {
+  it("⛔ utan hem är huset Översikten, och växlaren har ingen rad Översikt (0.267.0, CP 2026-11-22: \"DEn skall ju bara finnas i headerraden\")", () => {
     const onOversikt = vi.fn();
     render(<Skal oversikt={{ aktiv: false, onValj: onOversikt }} />);
     const hus = within(huvud()).getByRole("button", { name: "Översikt" });
@@ -83,8 +82,7 @@ describe("hemikonen med grupper.hem (0.227.0)", () => {
     expect(onOversikt).toHaveBeenCalledTimes(1);
     const ark = oppnaVaxlaren();
     expect(within(ark).getByRole("button", { name: /Bolaget/ })).toBeTruthy();
-    fireEvent.click(within(ark).getByRole("button", { name: "Översikt" }));
-    expect(onOversikt).toHaveBeenCalledTimes(2);
+    expect(within(ark).queryByRole("button", { name: "Översikt" })).toBeNull();
   });
 
   it("i översikten är huset Översikten och markerat, också när appen ger hem", () => {
@@ -99,21 +97,14 @@ describe("hemikonen med grupper.hem (0.227.0)", () => {
     expect(onHem).not.toHaveBeenCalled();
   });
 
-  it("⛔ på dator (gruppanelen, från lg) står raden Översikt först i panelen med hem, och inte utan (CP: vägen går genom växlaren)", () => {
-    const onOversikt = vi.fn();
+  it("⛔ på dator (gruppanelen, från lg) står ingen rad Översikt, med eller utan hem (0.267.0, lifehub.app#941)", () => {
     const panel = () => /** @type {HTMLElement} */ (screen.getByRole("navigation", { name: "Mina grupper" }));
-    render(<Skal hem={{ onValj: () => {} }} oversikt={{ aktiv: false, onValj: onOversikt }} />);
-    const rad = within(panel()).getByRole("button", { name: "Översikt" });
-    // Först i panelen: före varje grupprad (chevronen överst är panelens egen kontroll).
-    const forstaGrupp = within(panel()).getByRole("button", { name: /Bolaget/ });
-    expect(rad.compareDocumentPosition(forstaGrupp) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(rad.querySelector('svg[class*="lucide-house"], svg[class*="lucide-home"]')).not.toBeNull();
-    fireEvent.click(rad);
-    expect(onOversikt).toHaveBeenCalledTimes(1);
+    render(<Skal hem={{ onValj: () => {} }} oversikt={{ aktiv: false, onValj: () => {} }} />);
+    expect(within(panel()).getByRole("button", { name: /Bolaget/ })).toBeTruthy();
+    expect(within(panel()).queryByRole("button", { name: "Översikt" })).toBeNull();
     cleanup();
-    render(<Skal oversikt={{ aktiv: false, onValj: onOversikt }} />);
-    // 0.229.4: också utan hem står raden i panelen, samma som i växlaren.
-    expect(within(panel()).getByRole("button", { name: "Översikt" })).toBeTruthy();
+    render(<Skal oversikt={{ aktiv: false, onValj: () => {} }} />);
+    expect(within(panel()).queryByRole("button", { name: "Översikt" })).toBeNull();
   });
 
   it("panelen infälld har raden som en ruta, och fel form på oversikt kastar", () => {

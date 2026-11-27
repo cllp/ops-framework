@@ -9,6 +9,15 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.267.0
+
+**Raden Översikt är borta ur Byt grupp och gruppanelen.** Brytande bara för en app som räknat med raden: Översikten nås med huset i den egna gruppen.
+
+### Ändrat
+- **Ingen rad Översikt i växlaren eller i gruppanelen** (cllp/lifehub.app#941). CP 2026-11-22: "översikten visas över grupplistan dubbelt. Den finnns både där och uppe i header raden. DEn skall ju bara finnas i headerraden tycker jag." Och 2026-11-27: "Översikten är ju redan på hem ikonernas hem. Behövs ingen till ikon. Hem knappen går till gruppens hem." Det ersätter 0.229.4, där raden alltid stod när `grupper.oversikt` fanns. `grupper.oversikt` styr fortfarande huset, och i översiktsläget (`aktiv`) står raden kvar vald i växlaren som förut, eftersom växlarens knapp där är hemikonen.
+
+---
+
 ## 0.266.0
 
 **Biblioteket får en panel med platserna, dra och släpp inom gruppen, och ägaren på raden. Spara som PDF skriver ut i dokumentets egen storlek. Toppraden mäts om när något i den växer.** Inget brytande.

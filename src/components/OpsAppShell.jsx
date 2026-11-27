@@ -2873,8 +2873,13 @@ function OpsAppShellRitad({
                     ⛔ 0.229.4: RADEN STÅR NU ALLTID NÄR `grupper.oversikt` FINNS. CP 2026-11-15, med två skärmbilder av Byt grupp: "I vissa lägen kommer
                     ikonen Overview upp ... men inte alltid." Appen ger `hem` bara utanför gruppens start, så raden kom och gick med sidan man stod på.
                     En rad som syns ibland läses som slump. Två vägar till Översikten (huset och raden) kostar mindre än en växlare som byter form. */}
+                {/* ⛔ 0.267.0: RADEN ÖVERSIKT ÄR BORTA UR VÄXLAREN (cllp/lifehub.app#941). CP 2026-11-22: "översikten visas över grupplistan dubbelt.
+                    Den finnns både där och uppe i header raden. DEn skall ju bara finnas i headerraden tycker jag." Och 2026-11-27: "Översikten är ju redan på
+                    hem ikonernas hem. Behövs ingen till ikon. Hem knappen går till gruppens hem." Översikten nås med huset i den egna gruppen, vars hem den är.
+                    Det ersätter 0.229.4 (raden alltid). I översiktsläget (`aktiv`) skickas `oversikt` in som förut: där är växlarens knapp hemikonen och
+                    behöver namnet, och raden står vald. */}
                 <OpsGruppvaxlare
-                  oversikt={grupper.oversikt}
+                  oversikt={iOversikt ? grupper.oversikt : undefined}
                   grupper={grupper.lista}
                   aktiv={grupper.aktiv}
                   onValj={grupper.onValj}
@@ -3207,8 +3212,7 @@ function OpsAppShellRitad({
         {grupper && !iOversikt ? (
           <div className="hidden shrink-0 lg:sticky lg:z-(--z-sticky-header) lg:top-[calc(var(--safe-top)+var(--topbar-height))] lg:block lg:h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px)] lg:pl-4 lg:pt-5">
             <OpsGruppanel
-              // ⛔ 0.227.0: från `lg` är panelen växlaren, och raden Översikt står här. 0.229.4: alltid när `grupper.oversikt` finns, samma som växlaren.
-              {...(grupper.oversikt ? { oversikt: { onValj: grupper.oversikt.onValj, etikett: oversiktEtikett } } : {})}
+              // ⛔ 0.267.0: ingen rad Översikt i panelen heller (cllp/lifehub.app#941), samma som växlaren. Panelen ritas bara utanför översiktsläget.
               grupper={grupper.lista}
               aktiv={grupper.aktiv}
               onValj={grupper.onValj}
