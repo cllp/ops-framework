@@ -80,14 +80,14 @@ describe("Hemikonen i en grupp (0.138.0)", () => {
     expect(onValj).not.toHaveBeenCalled();
   });
 
-  it("⛔ växlarens ark har raden Översikt också när hemikonen finns (0.229.4, ersätter 0.139.0): raden kom och gick med sidan", () => {
-    // CP 2026-11-15: "I vissa lägen kommer ikonen Overview upp vid grupp-byte vyn ovanför grupperna, men inte alltid."
+  it("⛔ växlarens ark har ingen rad Översikt när hemikonen finns (0.267.0, ersätter 0.229.4): Översikten står bara i huvudet", () => {
+    // CP 2026-11-22 (lifehub.app#941): "översikten visas över grupplistan dubbelt ... DEn skall ju bara finnas i headerraden tycker jag."
     render(<Skal />);
     expect(hemknappar()).toHaveLength(1);
     fireEvent.click(within(huvud()).getByRole("button", { name: /^Byt grupp, nu:/ }));
     const ark = screen.getByRole("dialog");
     expect(within(ark).getByRole("button", { name: /Bolaget/ })).toBeTruthy();
-    expect(within(ark).getByRole("button", { name: "Översikt" })).toBeTruthy();
+    expect(within(ark).queryByRole("button", { name: "Översikt" })).toBeNull();
   });
 
   it("⛔ hemikonen gör det raden Översikt gjorde, och den finns kvar i huvudet medan arket är öppet", () => {
