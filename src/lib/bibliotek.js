@@ -26,6 +26,7 @@ import { formatDagOchKlockslag } from "./format.js";
 import { lankKalla } from "./lankkalla.js";
 import { ordet } from "./ord.js";
 import { lasGeojson } from "./karta.js";
+import { SIE_ANDELSER, SIE_MIME } from "./sie.js";
 
 /**
  * Anteckning, länk, fil och lista. En fil är en post, och MIME avgör hur den visas.
@@ -465,6 +466,10 @@ export const FILMIME = /** @type {const} */ ([
   // inte i appen: det laddas ned och öppnas i enhetens egen app. Lagringen sparar det med `Content-Disposition: attachment` (`lagringsContentDisposition`), som HTML, så att en
   // direktlänk alltid laddar ned. Windows säger application/x-zip-compressed (`MIMEALIAS`), och en tom typ ges av ändelsen (`mimeUrFilnamn`).
   ZIP_MIME,
+  // ⛔ SIE (0.268.0, cllp/lifehub.app#884, CP 2026-11-18: "Jag skulle vilja kunna ha stöd för SIE filer i biblioteket och API:et"). Bokföringens exportformat, text i PC8.
+  // SIE har ingen registrerad typ, och en `.se` fick därför tom typ och nekades. Nu ger ändelsen typen (`mimeUrFilnamn`), och detaljen visar filen tolkad (`SieForhandsvisning`).
+  // Samma tak som text. Listan är regelns och Storage-regelns, så formatet nås först när reglerna är deployade.
+  SIE_MIME,
 ]);
 
 /**
@@ -965,7 +970,7 @@ export function mimeUrFilnamn(namn) {
   const m = /\.([a-z0-9]+)$/i.exec(str(namn));
   const andelse = m ? m[1].toLowerCase() : "";
   // (0.133.0) m4a, mp3, aac och ogg: Safari och Android ger ofta tom typ för dem, och utan namnet blev en vald ljudfil "Formatet (tom) går inte att lägga in".
-  return ({ html: "text/html", htm: "text/html", md: "text/markdown", markdown: "text/markdown", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", json: "application/json", geojson: GEOJSON_MIME, docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", zip: ZIP_MIME })[andelse] ?? "";
+  return ({ html: "text/html", htm: "text/html", md: "text/markdown", markdown: "text/markdown", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", json: "application/json", geojson: GEOJSON_MIME, docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", zip: ZIP_MIME, ...Object.fromEntries(SIE_ANDELSER.map((a) => [a, SIE_MIME])) })[andelse] ?? "";
 }
 
 /**
@@ -1029,6 +1034,15 @@ export function arKartfil(post, text) {
   if (mime !== "application/json") return false;
   if (typeof text !== "string") return null;
   return lasGeojson(text).ok;
+}
+
+/**
+ * Om en filpost är en SIE-fil och visas tolkad (0.268.0, cllp/lifehub.app#884). ⛔ ETT HEM (regel 2): detaljen frågar här. Typen `text/x-sie`, eller ändelsen när filen lades in
+ * med en annan typ (`text/plain` från en webbläsare som gissade, eller `application/octet-stream`).
+ * @param {{ fil?: { namn?: unknown, mime?: unknown } } | null | undefined} post
+ */
+export function arSieFil(post) {
+  return normaliseraMime(post?.fil?.mime) === SIE_MIME || mimeUrFilnamn(post?.fil?.namn) === SIE_MIME;
 }
 
 /**

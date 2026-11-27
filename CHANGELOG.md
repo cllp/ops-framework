@@ -9,6 +9,16 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.268.0
+
+**SIE-filer i Biblioteket.** Inget brytande. ⛔ Formatet nås i appen först när dess regler är omgenererade och deployade (`FILMIME` är regelns och Storage-regelns lista).
+
+### Tillagt
+- **En SIE-fil tas emot och visas tolkad** (cllp/lifehub.app#884). CP 2026-11-18: "Jag skulle vilja kunna ha stöd för SIE filer i biblioteket och API:et". En `.se`, `.si` eller `.sie` nekades förut redan vid uppladdningen, eftersom ändelsen var okänd och typen blev tom. Nu ger ändelsen typen `text/x-sie` (`SIE_MIME`, i `FILMIME` och `mimeUrFilnamn`), och detaljen visar `SieForhandsvisning`: företaget och organisationsnumret, räkenskapsåret och programmet överst, och flikarna Resultat (med årets resultat), Balans (ingående och utgående) och Verifikationer (de 200 senaste). Ladda ned står kvar under. Över 10 MB (`SIE_BYTE`) laddas filen ned i stället, och en fil som inte är SIE visas som text med en rad som säger det. `arSieFil` avgör, också för en `.se` som webbläsaren kallade `text/plain`.
+- **`tolkaSie` och `avkodaSie`** (`lib/sie.js`, också genom `ops-framework/node`), så att appens API läser samma tolkning. PC8 (CP437) enligt standarden, och UTF-8 när filen är giltig UTF-8. Belopp i öre, så att en summa inte avrundas fel. `#RTRANS` och `#BTRANS` läses inte, eftersom en `#RTRANS` i SIE 4 följs av samma `#TRANS`.
+
+---
+
 ## 0.267.0
 
 **Raden Översikt är borta ur Byt grupp och gruppanelen.** Brytande bara för en app som räknat med raden: Översikten nås med huset i den egna gruppen.
