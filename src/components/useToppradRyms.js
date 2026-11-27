@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /**
  * Ryms raden inte? Samma mått som mätningen (`scripts/huvudmeny-matt.mjs`, `hemikon-montage.mjs`): raden rullar i sidled, eller det som står längst ut
@@ -37,6 +37,9 @@ function rymsInte(rad) {
  * ⛔ INGEN DOLD OVERFLOW (regel 1). Raden får inte `overflow: hidden`, som hade klippt det som inte rymdes och gjort felet osynligt. Finns inga fler
  * appikoner att flytta och raden ändå rullar, gör kroken ingenting: då är felet någon annanstans, och `scripts/huvudmeny-matt.mjs` ska se det rött.
  *
+ * ⛔ OCH NÄR NÅGOT I RADEN BYTER STORLEK (0.266.0): en bild eller ett typsnitt som laddas efter renderingen gör raden bredare utan att någon
+ * rendering kommer. Kontrollerna i raden (`a`, `button`, `img`) iakttas, och ett storleksbyte ger en ny mätning.
+ *
  * ⛔ MÄTNINGEN BÖRJAR OM NÄR BREDDEN ÄNDRAS (en `ResizeObserver` på raden, till exempel när telefonen vrids) och när antalet appikoner ändras. Annars
  * hade ett tak från stående läge stått kvar i liggande. Däremellan krymper taket bara: en räknare som försvinner ger ingen ikon tillbaka förrän nästa
  * breddändring, och raden hoppar därför inte fram och tillbaka.
@@ -49,12 +52,21 @@ export function useToppradRyms(radRef, antal) {
   // Taket gäller den bredd och det antal det mättes vid. `bredd` är radens bredd nu, satt av en ResizeObserver; `null` innan den första gången hört av sig.
   const [lage, setLage] = useState(/** @type {{ antal: number, bredd: number, tak: number } | null} */ (null));
   const [bredd, setBredd] = useState(/** @type {number | null} */ (null));
+  // ⛔ ETT VARV PER STORLEKSBYTE I RADEN (0.266.0, cllp/lifehub.app#909, CP lade ärendet i Att göra igen 2026-11-26). Mätningen gjordes bara när skalet
+  // renderades. En ikon, en bild eller en räknare som byter storlek EFTER renderingen (gruppbilden och profilbilden som laddas, typsnittet som kommer,
+  // en räknare som får två siffror) ändrar inte radens egen bredd, så ingen ResizeObserver på raden hörde det, ingen ny rendering kom, och raden kunde
+  // rulla tills nästa rendering. Varje kontroll i raden iakttas nu, och ett storleksbyte är en ny rendering och en ny mätning.
+  const [, setVarv] = useState(0);
+  const barnIakttagare = useRef(/** @type {ResizeObserver | null} */ (null));
   const tak = lage && lage.antal === antal && (bredd === null || lage.bredd === bredd) ? lage.tak : null;
 
   // Ingen beroendelista: varje rendering kan ha ändrat vad som står i raden (en räknare, en ny åtgärd). setLage med samma värde gör ingen ny rendering.
   useLayoutEffect(() => {
     const rad = radRef.current;
     if (!rad || antal === 0) return;
+    // Kontrollerna kan bytas mellan renderingar (en ny app, en räknare), så de som finns nu iakttas här. Samma element två gånger är ingen ny iakttagelse.
+    const iakttagare = barnIakttagare.current;
+    if (iakttagare) for (const el of rad.querySelectorAll("a, button, img")) iakttagare.observe(el);
     if (!rymsInte(rad)) return;
     // Omslagen är `display: contents` (också långtryckets, `OpsHuvudmenyIkonVal`), så det är länken inuti som har en ruta, eller ingen när den är dold.
     const synliga = [...rad.querySelectorAll("[data-huvudmeny-plats]")].filter((omslag) => {
@@ -73,7 +85,14 @@ export function useToppradRyms(radRef, antal) {
     if (!rad || typeof ResizeObserver === "undefined") return undefined;
     const iakttagare = new ResizeObserver(() => setBredd(rad.clientWidth));
     iakttagare.observe(rad);
-    return () => iakttagare.disconnect();
+    const barn = new ResizeObserver(() => setVarv((v) => v + 1));
+    barnIakttagare.current = barn;
+    for (const el of rad.querySelectorAll("a, button, img")) barn.observe(el);
+    return () => {
+      iakttagare.disconnect();
+      barn.disconnect();
+      barnIakttagare.current = null;
+    };
   }, [radRef]);
 
   return tak;

@@ -9,6 +9,23 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.266.0
+
+**Biblioteket får en panel med platserna, dra och släpp inom gruppen, och ägaren på raden. Spara som PDF skriver ut i dokumentets egen storlek. Toppraden mäts om när något i den växer.** Inget brytande.
+
+### Tillagt
+- **Panelen Platser i `OpsBibliotek`** (cllp/lifehub.app#988). CP 2026-11-26: "en panel till höger som man kan fälla ut med de olika platserna ... precis som i chatt", och "Kör, väljaren försvinner om det framgår att man navigerar platser via panelen? och flytta inom gruppen." Från 1024 px står platserna i en panel till höger, med den man står i markerad och Ny plats sist. En knapp med panelikonen (som Chattinfo) fäller ihop och ut den, och valet minns per webbläsare. Medan panelen syns är väljaren borta. Under 1024 px finns ingen panel, och väljaren är som förut.
+- **Dra och släpp till en plats i panelen**, med mus eller styrplatta. Raden är flyttad i listan direkt, `onDela` (samma flytt som Flytta till) arbetar i bakgrunden, och raden "Flyttad till …" har Ångra. Ett nej från servern ger tillbaka raden med skälet. Samma regler som menyn: bara inom gruppen, bara den som får flytta dit (`farFlyttaTill`), aldrig en lista. Platser där raden inte får släppas är dämpade med skälet som verktygstips.
+- **Ägaren på raden** på gruppens platser: "jag" för ens egen, annars namnet (`skaparensNamn`). I Mitt bibliotek står ingen ägare.
+- `NyPlatsRad` tar `iMeny` (förval sant). I panelen är raden en vanlig knapp och inte ett menyval, och den är **samma streckade ruta som Skapa grupp**. CP 2026-11-27, med en skärmbild av Skapa grupp: "Kan man använda denna skapa ny modell för att skapa en ny plats för igenkänning? I biblioteket alltså."
+- **`skapaNyttKlass({ kollapsad })`** i `radKlass.js`: klassen för knappen som skapar något nytt i en lista. `OpsGruppanel` (Skapa grupp) och panelens Ny plats använder den, så att de två inte kan glida isär.
+
+### Rättat
+- **Spara som PDF av ett HTML-dokument** (cllp/lifehub.app#987). CP 2026-11-26 med Barnplan 2027: "Spara som pdf blir inget bra för de liggande formaten". Anpassa till bredd satte zoomen under 50 procent i rutan, och zoomen följde med till utskriften. Rutans skript tar bort zoomen vid `beforeprint` och sätter tillbaka den vid `afterprint`, och en ny skala som kommer under utskriften väntar till efteråt.
+- **Toppraden mäts om när en kontroll i den byter storlek** (cllp/lifehub.app#909). `useToppradRyms` mätte bara när skalet renderades, så en bild, ett typsnitt eller en räknare som växte efteråt kunde få raden att rulla. Kontrollerna i raden iakttas nu med en `ResizeObserver`.
+
+---
+
 ## 0.265.0
 
 **Kalendrarnas ikoner väljs i samma väljare som Mitt konto, ur hela katalogen.** CP 2026-11-26, med kalenderns åtta ikoner bredvid Mitt kontos väljare: "Vi har alldeles för få ikoner att välja mellan här. Skall det inte vara samma som mitt konto?"

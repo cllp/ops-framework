@@ -12,7 +12,7 @@ import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Check, File as FilIkon, FileText, Globe, Image as BildIkon, Link2, List as ListIkon, Mic, ExternalLink } from "lucide-react";
 import { IKON_FOR } from "./ikonlexikon.js";
-import { GruppvalIkon } from "./icons.jsx";
+import { GruppvalIkon, PanelIkon } from "./icons.jsx";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsHtmlDokumentLat } from "./OpsHtmlDokumentLat.jsx";
@@ -341,6 +341,17 @@ const ORD_BIBLIOTEKLISTA = {
   flyttarTill: { sv: "Flyttar till {namn}…", en: "Moving to {namn}…" },
   kopierarTill: { sv: "Kopierar till {namn}…", en: "Copying to {namn}…" },
   flyttadTill: { sv: "Flyttad till {namn}.", en: "Moved to {namn}." },
+  // (0.266.0, lifehub.app#988) Panelen med platserna, dra och släpp, och ägaren på raden.
+  platserRubrik: { sv: "Platser", en: "Places" },
+  visaPlatser: { sv: "Visa platserna", en: "Show places" },
+  doljPlatser: { sv: "Dölj platserna", en: "Hide places" },
+  dragTips: { sv: "Dra en rad hit för att flytta den inom gruppen.", en: "Drag a row here to move it within the group." },
+  dragBaraGruppen: { sv: "Dra och släpp flyttar bara inom gruppen.", en: "Drag and drop only moves within the group." },
+  dragFarInte: { sv: "Du får inte flytta den här posten hit.", en: "You may not move this item here." },
+  dragSlappHar: { sv: "Släpp för att flytta till {namn}", en: "Drop to move to {namn}" },
+  angra: { sv: "Ångra", en: "Undo" },
+  angrar: { sv: "Flyttar tillbaka…", en: "Moving back…" },
+  agareJag: { sv: "jag", en: "me" },
   kopieradTill: { sv: "Kopierad till {namn}.", en: "Copied to {namn}." },
   namnEjSparat: { sv: "Namnet kunde inte sparas.", en: "The name could not be saved." },
   // (0.254.0) Gästens namnbyte prövas här och inte med `inmatningsfel`, som kräver hela posten: gästen skickar bara rubriken.
@@ -739,6 +750,19 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const [laggPost, setLaggPost] = useState(/** @type {null | (import("../lib/bibliotek.js").Bibliotekspost & { id: string })} */ (null));
   // Poster som flyttas eller kopieras just nu, ur menyn. Deras flyttval visas inte förrän svaret kommit.
   const [flyttar, setFlyttar] = useState(/** @type {string[]} */ ([]));
+  // ══ ⛔ PANELEN MED PLATSERNA, DRA OCH SLÄPP (0.266.0, cllp/lifehub.app#988) ════════════════════════════════════════════════════════════════════
+  // CP 2026-11-26: "en panel till höger som man kan fälla ut med de olika platserna ... precis som i chatt, där man fäller ut chattinfo", och "Kör, väljaren
+  // försvinner om det framgår att man navigerar platser via panelen? och flytta inom gruppen." Panelen visar platserna och vilken man står i, och väljaren
+  // döljs från `lg` så länge panelen är öppen. Under `lg` finns ingen panel och väljaren är som förut. En rad som dras till en plats i panelen är flyttad
+  // direkt i listan, servern (`onDela`, samma flytt som Flytta till) arbetar i bakgrunden, och Ångra flyttar tillbaka. Säger servern nej kommer raden
+  // tillbaka med skälet. ⛔ SAMMA REGLER SOM MENYN: bara inom gruppen (`iSammaGrupp`), bara den som får flytta dit (`farFlyttaTill`), aldrig en lista.
+  // ⛔ DRA BARA MED MUS ELLER STYRPLATTA (`pointer: fine`): på en pekskärm krockar det med att rulla och med långtrycket, som redan har Flytta till.
+  const [panelOppen, setPanelOppen] = useState(() => lasPlatspanel());
+  const [drar, setDrar] = useState(/** @type {(import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} */ (null));
+  const [flyttadeBort, setFlyttadeBort] = useState(/** @type {string[]} */ ([]));
+  const [angraFlytt, setAngraFlytt] = useState(/** @type {{ id: string, fran: string, franNamn: string, text: string, klar: Promise<unknown> } | null} */ (null));
+  const finPekare = useMedia("(pointer: fine)");
+  const storSkarm = useMedia("(min-width: 1024px)");
   const [status, setStatus] = useState("");
   // (0.209.0, #706) Anteckningen vars PDF-ruta är öppen, och beskedet efter att en .md lagts in. Beskedet står i både listan och detaljen, eftersom appen kan öppna den nya posten direkt.
   const [pdfFor, setPdfFor] = useState(/** @type {(import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} */ (null));
@@ -1556,7 +1580,7 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   // vald faller tillbaka till Allt, härlett här och inte i ett eget tillstånd: en flik som inte syns kan inte heller vara vald.
   const synligaFlikar = flikLista.filter((f) => ("alltid" in f && f.alltid) || antal[f.id] > 0);
   const aktivFlik = synligaFlikar.some((f) => f.id === flik) ? flik : "alla";
-  const synliga = filtreraBibliotek(poster, { ...flikVal(aktivFlik), sok, taggar: valda });
+  const synliga = filtreraBibliotek(flyttadeBort.length > 0 ? poster.filter((p) => !flyttadeBort.includes(p.id)) : poster, { ...flikVal(aktivFlik), sok, taggar: valda });
   const installningar = Boolean(ram && modul && arInstallningslage(/** @type {string} */ (activeHref)));
   if (installningar && modul) {
     // ⛔ PLATSERNA UNDER KUGGHJULET (0.155.0): avsnittet Platser står först i "Egna inställningar", före appens egen slot. Utan `egnaPlatser` är `ram` som förut.
@@ -1573,9 +1597,23 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const bytPlats = (/** @type {string} */ v) => {
     setValdaTaggar([]);
     setStatus("");
+    setAngraFlytt(null);
     setImportBesked("");
     if (typeof onPlats === "function") onPlats(v);
   };
+  /** Raden Ny plats och dess formulär, för väljaren och för panelen (0.266.0). */
+  const nyPlats = kanSkapaPlats && egnaPlatser
+    ? {
+        befintliga: egnaPlatser.platser.map((p) => ({ id: p.id, namn: p.namn })),
+        onNy: /** @type {NonNullable<typeof egnaPlatser.onNy>} */ (egnaPlatser.onNy),
+        onKlar: (/** @type {any} */ svar) => {
+          if (svar && typeof svar === "object" && typeof svar.plats === "string") {
+            setNyligen((n) => [...n, { id: svar.plats, namn: typeof svar.namn === "string" ? svar.namn : svar.plats }]);
+            bytPlats(svar.plats);
+          }
+        },
+      }
+    : null;
   // ⛔ MED `egnaPlatser.onNy` FINNS VÄXLAREN ÄVEN MED EN ENDA PLATS (0.155.0): annars hade en grupp utan Mitt bibliotek aldrig kunnat skapa sin första. Utan `egnaPlatser` är villkoret som förut.
   const platsValjare =
     (platserIVaxlaren.length >= 2 || (kanSkapaPlats && platserIVaxlaren.length >= 1)) && plats ? (
@@ -1583,20 +1621,80 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
         platser={platserIVaxlaren}
         plats={plats}
         onPlats={bytPlats}
-        ny={kanSkapaPlats && egnaPlatser
-          ? {
-              befintliga: egnaPlatser.platser.map((p) => ({ id: p.id, namn: p.namn })),
-              onNy: /** @type {NonNullable<typeof egnaPlatser.onNy>} */ (egnaPlatser.onNy),
-              onKlar: (svar) => {
-                if (svar && typeof svar === "object" && typeof svar.plats === "string") {
-                  setNyligen((n) => [...n, { id: svar.plats, namn: typeof svar.namn === "string" ? svar.namn : svar.plats }]);
-                  bytPlats(svar.plats);
-                }
-              },
-            }
-          : null}
+        ny={nyPlats}
       />
     ) : null;
+  // ⛔ PANELEN FINNS BARA FRÅN `lg` (1024 px, `storSkarm`): under den är väljaren som förut, och knappen ritas inte.
+  const harPlatspanel = Boolean(platsValjare) && !inbaddad && storSkarm;
+  const panelSyns = harPlatspanel && panelOppen && !detalj;
+  const vaxlaPanel = () => {
+    setPanelOppen((o) => {
+      sparaPlatspanel(!o);
+      return !o;
+    });
+  };
+  const kanDra = panelSyns && finPekare && typeof onDela === "function";
+  /** Ägaren på raden: "jag" för ens egen, annars namnet (`skaparensNamn`), tomt när det saknas. Bara på gruppens platser: i Mitt bibliotek är allt ens eget. */
+  const agareFor = (/** @type {{ skapadAv?: unknown }} */ post) => {
+    const uid = /** @type {any} */ (post.skapadAv)?.uid;
+    if (jag && typeof uid === "string" && uid === jag.uid) return lord("agareJag");
+    return skaparensNamn(post.skapadAv, sprak);
+  };
+  /** Varför posten inte får släppas på platsen, eller `null` när den får det. `"samma"` är platsen den redan ligger på. */
+  const slappSkal = (/** @type {{ id: string, groupId: string, typ: string }} */ post, /** @type {string} */ malId) => {
+    if (malId === post.groupId) return "samma";
+    if (post.typ === "lista") return lord("listaFlytt");
+    if (!iSammaGrupp(post, malId)) return lord("dragBaraGruppen");
+    if (!farFlyttaTill(/** @type {any} */ (post), jag, malId)) return lord("dragFarInte");
+    return null;
+  };
+  const platsNamn = (/** @type {string} */ id) => platserIVaxlaren.find((p) => p.id === id)?.namn ?? id;
+  function slappPa(/** @type {import("../lib/bibliotek.js").Bibliotekspost & { id: string }} */ post, /** @type {{ id: string, namn: string }} */ mal) {
+    setDrar(null);
+    if (typeof onDela !== "function" || slappSkal(post, mal.id) !== null || flyttar.includes(post.id)) return;
+    setFlyttadeBort((d) => (d.includes(post.id) ? d : [...d, post.id]));
+    const text = listord("flyttadTill", sprak, { namn: mal.namn });
+    const klar = Promise.resolve().then(() => onDela({ id: post.id, groupId: mal.id, satt: "flytta" }));
+    setStatus("");
+    setAngraFlytt({ id: post.id, fran: post.groupId, franNamn: platsNamn(post.groupId), text, klar });
+    klar.catch((e) => {
+      setFlyttadeBort((d) => d.filter((x) => x !== post.id));
+      setAngraFlytt((a) => (a && a.id === post.id ? null : a));
+      setStatus(e instanceof Error && e.message ? e.message : String(e));
+    });
+  }
+  function angra() {
+    const a = angraFlytt;
+    if (!a || typeof onDela !== "function") return undefined;
+    setStatus(listord("flyttarTill", sprak, { namn: a.franNamn }));
+    // Knappen väntar på svaret (OpsButton med ett löfte): flytten dit först, sedan tillbaka.
+    return a.klar
+      .then(() => onDela({ id: a.id, groupId: a.fran, satt: "flytta" }))
+      .then(
+        () => {
+          setAngraFlytt(null);
+          setFlyttadeBort((d) => d.filter((x) => x !== a.id));
+          setStatus(listord("flyttadTill", sprak, { namn: a.franNamn }));
+        },
+        (e) => {
+          setAngraFlytt(null);
+          setStatus(e instanceof Error && e.message ? e.message : String(e));
+        },
+      );
+  }
+  const platsKnapp = harPlatspanel ? (
+    <button
+      type="button"
+      data-bibliotek-platspanel-knapp=""
+      aria-pressed={panelOppen}
+      aria-label={lord(panelOppen ? "doljPlatser" : "visaPlatser")}
+      title={lord(panelOppen ? "doljPlatser" : "visaPlatser")}
+      onClick={vaxlaPanel}
+      className={cx("inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", panelOppen && "bg-raised text-ink")}
+    >
+      <PanelIkon size={20} />
+    </button>
+  ) : null;
   // Menyn för en egen plats som visas just nu (Byt namn, Arkivera). Ritas bara för den som får ändra den.
   const aktuellEgenPlats = egnaPlatser && plats && arPlatsBibliotek(plats) ? egnaPlatser.platser.find((p) => p.plats === plats) ?? null : null;
   const platsMeny = egnaPlatser && aktuellEgenPlats ? (
@@ -1619,8 +1717,9 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   const atgard =
     platsValjare || visaKnapp ? (
       <>
-        {platsValjare}
+        {platsValjare && !panelSyns ? platsValjare : null}
         {platsMeny}
+        {platsKnapp}
         {visaKnapp ? <ModulLageKnapp ram={ram} activeHref={/** @type {string} */ (activeHref)} onNavigate={onNavigate} sprak={sprak} installningar={false} /> : null}
       </>
     ) : null;
@@ -1638,7 +1737,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
   return (
     <NedladdningKontext.Provider value={!utanNedladdning}>
     <Rot tillbaka={detalj ? undefined : listTillbaka}>
-      <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
+      <div data-bibliotek-ram="" className="flex min-w-0 w-full items-start gap-6">
+      <div data-bibliotek="" className="flex min-w-0 w-full flex-1 flex-col gap-4">
         {detalj ? (
           <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald ? medFyll(poster.find((p) => p.id === vald.id) ?? vald) : null} skapar={skaparTyp} startLage={startLage} onStang={stangDetalj} onSpara={onSpara} aktuellPost={aktuellPost} onLaddaUpp={onLaddaUpp} filUrl={filUrl} hamtaFil={hamtaFil} htmlVersioner={htmlVersioner} hamtaHtmlVersion={hamtaHtmlVersion} aterstallHtml={aterstallHtml} nyHtmlVersion={nyHtmlVersion} oppnaHtml={oppnaHtml} oppnaPdf={oppnaPdf} adressFor={adressFor} taggrad={vald && !skaparTyp ? (() => {
             // ⛔ TAGGARNA RITAS OCKSÅ I DETALJEN (0.153.0, ops-framework#460 punkt 3, lifehub.app QA-fynd 5): förut bara på listkortet, så den som öppnade en post såg inte vilka taggar den hade. Samma rad, samma rätt att ändra
@@ -1787,6 +1887,8 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
                         onOppna={() => oppnaMed(rad, "las")}
                         onMeta={togMeta}
                         onSpelaPaBegaran={spelaPaBegaran}
+                        agare={plats && !arMittBibliotek(plats) ? agareFor(rad) : ""}
+                        dra={kanDra && rad.typ !== "lista" ? { onStart: () => setDrar(rad), onSlut: () => setDrar(null) } : null}
                         taggrad={radTaggar.length > 0 || taggarFor === rad.id ? (
                           <OpsTaggRad
                             taggar={radTaggar}
@@ -1812,7 +1914,12 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
             {typeof repoLasare === "function" && !inbaddad && repoplatsForm(plats) ? (
               <BibliotekRepoLat key={plats} plats={plats} lasare={repoLasare} githubLasare={githubLasare} onLagg={onLaggRepoFil} />
             ) : null}
-            {status ? <p role="status">{status}</p> : null}
+            {angraFlytt ? (
+              <div role="status" data-bibliotek-flyttad="" className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="min-w-0">{angraFlytt.text}</span>
+                <OpsButton variant="ghost" size="sm" busyLabel={lord("angrar")} onClick={angra}>{lord("angra")}</OpsButton>
+              </div>
+            ) : status ? <p role="status">{status}</p> : null}
           </div>
         )}
         {/* (0.209.0, #706) Beskedet efter att en .md lagts in: i listan och i detaljen, eftersom appen kan öppna den nya posten direkt. Står tills nästa import eller ett byte av plats. */}
@@ -1824,6 +1931,21 @@ export function OpsBibliotek({ poster: posterProp, kalla, fel: felProp = null, t
             <OpsButton variant="secondary" onClick={() => setLjus("")}>{lord("stang")}</OpsButton>
           </div>
         ) : null}
+      </div>
+      {panelSyns && plats ? (
+        <Platspanel
+          platser={platserIVaxlaren}
+          plats={plats}
+          onPlats={bytPlats}
+          onStang={vaxlaPanel}
+          drar={kanDra ? drar : null}
+          skalFor={(id) => (drar ? slappSkal(drar, id) : null)}
+          onSlapp={(mal) => { if (drar) slappPa(drar, mal); }}
+          visaTips={kanDra}
+          ny={nyPlats}
+          sprak={sprak === "en" ? "en" : "sv"}
+        />
+      ) : null}
       </div>
       <OpsModal
         open={raderar !== null}
@@ -2209,6 +2331,141 @@ function Flikar({ flikar, antal }) {
   );
 }
 
+/** Dataöverföringens typ när en bibliotekspost dras till en plats i panelen (0.266.0, lifehub.app#988). */
+const BIBLIOTEKSPOST_DRAG = "application/x-ops-bibliotekspost";
+/** Nyckeln för om panelen med platserna är öppen. En bekvämlighet per webbläsare: saknas den är panelen öppen. */
+const PLATSPANEL_NYCKEL = "ops-bibliotek-platspanel";
+
+/** @returns {boolean} */
+function lasPlatspanel() {
+  try {
+    return globalThis.localStorage?.getItem(PLATSPANEL_NYCKEL) !== "stangd";
+  } catch {
+    return true;
+  }
+}
+
+/** @param {boolean} oppen */
+function sparaPlatspanel(oppen) {
+  try {
+    globalThis.localStorage?.setItem(PLATSPANEL_NYCKEL, oppen ? "oppen" : "stangd");
+  } catch {
+    // Privat läge eller spärrad lagring: panelen minns inte valet, men fungerar.
+  }
+}
+
+/**
+ * Svarar `matchMedia(fraga).matches` och följer ändringar. `false` där webbläsaren inte kan svara (jsdom utan `matchMedia`).
+ * @param {string} fraga
+ * @returns {boolean}
+ */
+function useMedia(fraga) {
+  const las = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(fraga).matches;
+  const [traff, setTraff] = useState(las);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const m = window.matchMedia(fraga);
+    const nar = () => setTraff(m.matches);
+    nar();
+    m.addEventListener?.("change", nar);
+    return () => m.removeEventListener?.("change", nar);
+  }, [fraga]);
+  return traff;
+}
+
+/**
+ * Panelen med platserna till höger (0.266.0, cllp/lifehub.app#988), som Chattinfo i chatten. Ett klick visar platsens filer, och den man står i är markerad.
+ * Medan en rad dras lyser de platser upp där den får släppas, och de andra är dämpade med skälet som verktygstips. Platsen raden redan ligger på är varken eller.
+ *
+ * @param {{ platser: readonly { id: string, namn: string }[], plats: string, onPlats: (id: string) => void, onStang: () => void, drar: { id: string } | null, skalFor: (id: string) => string | null, onSlapp: (mal: { id: string, namn: string }) => void, visaTips: boolean, sprak: "sv" | "en", ny?: { befintliga: ReadonlyArray<{ id: string, namn: string }>, onNy: NonNullable<import("./BibliotekPlatser.jsx").EgnaPlatser["onNy"]>, onKlar?: (svar: any) => void } | null }} props
+ */
+function Platspanel({ platser, plats, onPlats, onStang, drar, skalFor, onSlapp, visaTips, sprak, ny = null }) {
+  const o = (/** @type {keyof typeof ORD_BIBLIOTEKLISTA} */ k) => ordet(ORD_BIBLIOTEKLISTA, k, sprak);
+  const [over, setOver] = useState(/** @type {string | null} */ (null));
+  const [skapar, setSkapar] = useState(false);
+  useEffect(() => {
+    if (!drar) setOver(null);
+  }, [drar]);
+  return (
+    <aside data-bibliotek-platspanel="" aria-label={o("platserRubrik")} className="sticky top-4 flex w-64 shrink-0 flex-col gap-2 rounded-card border border-line bg-surface p-3">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="m-0 text-sektion uppercase tracking-wide text-ink-secondary">{o("platserRubrik")}</h2>
+        <button
+          type="button"
+          aria-label={o("doljPlatser")}
+          onClick={onStang}
+          className="inline-flex size-9 cursor-pointer items-center justify-center rounded-full text-ink-muted hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          <IKON_FOR.stang size={16} aria-hidden="true" />
+        </button>
+      </div>
+      <ul className="m-0 flex list-none flex-col gap-1 p-0">
+        {platser.map((p) => {
+          const skal = drar ? skalFor(p.id) : null;
+          const tillats = Boolean(drar) && skal === null;
+          const dampad = Boolean(drar) && skal !== null && skal !== "samma";
+          const aktuell = p.id === plats;
+          return (
+            <li key={p.id}>
+              <button
+                type="button"
+                data-platspanel-plats={p.id}
+                data-slapp={tillats ? "ja" : dampad ? "nej" : undefined}
+                aria-current={aktuell ? "true" : undefined}
+                aria-label={tillats ? listord("dragSlappHar", sprak, { namn: p.namn }) : undefined}
+                title={dampad ? /** @type {string} */ (skal) : undefined}
+                onClick={() => {
+                  if (!aktuell) onPlats(p.id);
+                }}
+                onDragOver={(e) => {
+                  if (!tillats) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  if (over !== p.id) setOver(p.id);
+                }}
+                onDragLeave={() => setOver((v) => (v === p.id ? null : v))}
+                onDrop={(e) => {
+                  if (!tillats) return;
+                  e.preventDefault();
+                  setOver(null);
+                  onSlapp(p);
+                }}
+                className={cx(
+                  radKlass({ stor: true, vald: aktuell }),
+                  tillats && "ring-1 ring-accent",
+                  over === p.id && "bg-accent-subtle text-ink",
+                  dampad && "opacity-50",
+                )}
+              >
+                <span className="min-w-0 flex-1 truncate">{p.namn}</span>
+                {aktuell ? <Check size={16} aria-hidden="true" className="shrink-0 text-accent" /> : null}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {/* ⛔ NY PLATS STÅR HÄR NÄR VÄLJAREN ÄR DOLD (0.266.0): annars hade raden försvunnit med väljaren. Samma formulär som i väljaren. */}
+      {ny ? (
+        skapar ? (
+          <NyPlatsFormular
+            befintliga={ny.befintliga}
+            onNy={ny.onNy}
+            sprak={sprak}
+            onAvbryt={() => setSkapar(false)}
+            onKlar={(svar) => {
+              setSkapar(false);
+              ny.onKlar?.(svar);
+            }}
+          />
+        ) : (
+          <NyPlatsRad sprak={sprak} iMeny={false} onValj={() => setSkapar(true)} />
+        )
+      ) : null}
+      {visaTips ? <p data-platspanel-tips="" className="m-0 text-hjalp text-ink-muted">{o("dragTips")}</p> : null}
+    </aside>
+  );
+}
+
 /**
  * Platsen som ett piller med väljarens ikon efter namnet, och en lista med platserna under (SessionStudios "My Library" i
  * appen). Den valda har en bock.
@@ -2379,9 +2636,9 @@ export function kortTyp(post, sprak = "sv") {
  *
  * ⛔ NÅLEN OCH STJÄRNAN (0.187.0): en nålad post bär en liten nål före rubriken (ikonen har texten `nalOrd` för skärmläsaren), och med `stjarna` sitter stjärnknappen till höger, före spelknappen. Utan dem ritas kortet som förut.
  *
- * @param {{ onSpelaPaBegaran?: (post: any) => void, nalad?: boolean, nalOrd?: string, stjarna?: { pa: boolean, etikett: string, onVaxla: () => Promise<unknown> } | null, post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, meny: import("./OpsAtgardsblad.jsx").Atgard[], svep: any[], onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: string }) => void, taggrad: import("react").ReactNode, delad?: boolean, vy?: string, github?: boolean }} props
+ * @param {{ onSpelaPaBegaran?: (post: any) => void, nalad?: boolean, nalOrd?: string, stjarna?: { pa: boolean, etikett: string, onVaxla: () => Promise<unknown> } | null, post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, lage: Adresslage, meny: import("./OpsAtgardsblad.jsx").Atgard[], svep: any[], onOppna: () => void, onMeta: (id: string, meta: { durationMs?: number, peaks?: string }) => void, taggrad: import("react").ReactNode, delad?: boolean, vy?: string, github?: boolean, agare?: string, dra?: { onStart: () => void, onSlut: () => void } | null }} props
  */
-function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad = false, vy = "", github = false, nalad = false, nalOrd = "", stjarna = null, onSpelaPaBegaran }) {
+function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad = false, vy = "", github = false, nalad = false, nalOrd = "", stjarna = null, onSpelaPaBegaran, agare = "", dra = null }) {
   const spelare = useSpelare();
   const farLaddaNed = useContext(NedladdningKontext);
   const ljud = arLjudpost(post);
@@ -2389,7 +2646,8 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
   const namn = ljud ? ljudRubrik(post) : kortRubrik(post);
   const forhands = forhandsText(post);
   const sprak = useOpsSprak();
-  const meta = kortMeta(post, sprak);
+  // (0.266.0, lifehub.app#988) Ägaren sist på metaraden, som kolumnen Ägare i Finder.
+  const meta = agare ? [...kortMeta(post, sprak), agare] : kortMeta(post, sprak);
   const skriverUt = ljud && utskriftLage(post, Date.now()).lage === "pagar";
   // Ljudet bär sin status i metaraden när adressen inte är klar: "Hämtar ljudet." eller felet. Aldrig tyst (regel 5).
   const [spelFel, setSpelFel] = useState("");
@@ -2400,7 +2658,20 @@ function BibliotekKort({ post, lage, meny, svep, onOppna, onMeta, taggrad, delad
   return (
     <OpsSvepRad kort atgarder={svep}>
       <OpsAtgardsblad kort namn={namn} poster={meny}>
-        <div data-bibliotek-kort={ljud ? "ljud" : bild ? "bild" : post.typ === "fil" ? "dokument" : post.typ} className="relative flex min-w-0 flex-1 items-center gap-3">
+        <div
+          data-bibliotek-kort={ljud ? "ljud" : bild ? "bild" : post.typ === "fil" ? "dokument" : post.typ}
+          data-bibliotek-dragbar={dra ? "" : undefined}
+          // ⛔ DRA TILL EN PLATS I PANELEN (0.266.0, lifehub.app#988). Bara när listan ger `dra` (panelen syns, mus eller styrplatta). Typen är vår egen, så en länk som
+          // dras ut ur fönstret inte bär postens id, och panelen tar bara emot just den.
+          draggable={dra ? true : undefined}
+          onDragStart={dra ? (e) => {
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData(BIBLIOTEKSPOST_DRAG, post.id);
+            dra.onStart();
+          } : undefined}
+          onDragEnd={dra ? () => dra.onSlut() : undefined}
+          className={cx("relative flex min-w-0 flex-1 items-center gap-3", dra && "cursor-grab active:cursor-grabbing")}
+        >
           {/* ⛔ ETT TRYCK PÅ EN MUSIKLÄNK ÖPPNAR LÅTEN DIREKT (0.128.0, CP 2026-10-20), i en ny flik. Det är en riktig länk och inte en knapp som anropar `window.open`: då fungerar den med
               mellanklick, långtryck och Spotifys egna app (en universell länk i iOS), och en popup-spärr kan inte stoppa den. Detaljen nås ur menyn ("Visa detaljer"). */}
           {oppnasDirekt(post) ? (

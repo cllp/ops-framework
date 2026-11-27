@@ -91,6 +91,26 @@ describe("rutans zoomskript", () => {
     expect(lasesVid[0]).toBe("1");
   });
 
+  /*
+   * ⛔ UTSKRIFTEN I DOKUMENTETS EGEN STORLEK (0.266.0, CP 2026-11-26: "Spara som pdf blir inget bra för de liggande formaten"). Anpassa till bredd hade satt zoomen till
+   * 0,47, och den följde med till utskriften: Barnplan 2027 fyllde knappt halva den liggande sidan. Rött före: zoomen stod kvar på 0,47 under utskriften.
+   */
+  it("⛔ zoomen tas bort när utskriften börjar och sätts tillbaka efteråt, också om en ny skala kom under tiden", () => {
+    const { parent, style, skicka } = kor();
+    skicka("message", { source: parent, data: { typ: HTML_ZOOMMEDDELANDE, skala: 0.47 } });
+    expect(style.zoom).toBe("0.47");
+    skicka("beforeprint", {});
+    expect(style.zoom).toBe("");
+    // Rutan mäts om under utskriften och appen skickar en ny skala: den väntar till efteråt.
+    skicka("message", { source: parent, data: { typ: HTML_ZOOMMEDDELANDE, skala: 0.3 } });
+    expect(style.zoom).toBe("");
+    skicka("afterprint", {});
+    expect(style.zoom).toBe("0.3");
+    // Efter utskriften gäller zoomen som vanligt igen.
+    skicka("message", { source: parent, data: { typ: HTML_ZOOMMEDDELANDE, skala: 0.5 } });
+    expect(style.zoom).toBe("0.5");
+  });
+
   it("⛔ zoomen sätts bara för ett meddelande från parent, med känd typ och en skala inom gränserna", () => {
     const { parent, style, skicka } = kor();
     skicka("message", { source: parent, data: { typ: HTML_ZOOMMEDDELANDE, skala: 0.2 } });
