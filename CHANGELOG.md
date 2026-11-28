@@ -17,6 +17,9 @@ anteckningar är en version ingen kan välja att hoppa över.
 - **En `.eml` tas emot och visas tolkad** (cllp/lifehub.app#884 punkt 4, CP 2026-11-18: "Kör alla i ett svep"). Typen `message/rfc822` (`MEJLFIL_MIME`) står i `FILMIME` och `mimeUrFilnamn`, och `arMejlfil` avgör. Detaljen visar `MejlfilForhandsvisning`: Från, Till, Kopia, Datum och Ämne, sedan texten och sist bilagornas namn och storlek, med Ladda ned under. ⛔ Text och aldrig HTML: ett mejl med bara en HTML-del visas som text med en rad som säger det, så ingen bild hämtas och ingenting i mejlet körs. Bilagorna listas men sparas inte här, och `.msg` (Outlook, binärt) tas inte emot. ⛔ Ett mejl sparas alltid som bilaga (`BILAGAMIME`, som HTML och zip), så att en direktlänk laddar ned det och Storage-regeln nekar det utan `Content-Disposition: attachment`.
 - **`tolkaEml`, `avkodaRubrik` och `htmlSomText`** (`lib/mejlfil.js`, också genom `ops-framework/node`). Kodade ord (RFC 2047) i base64 och quoted-printable, delar i multipart rekursivt (högst `MEJL_DJUP`), och varje del avkodad med sin egen teckenkodning.
 
+### Ändrat
+- **SIE, kalenderfil och mejl hämtas när de visas** (`BibliotekFilvisningLat`). Mätt 2026-11-28 vid lifehub.app:s ompinning till 0.268.0: med de tre förhandsvisningarna statiskt importerade i `OpsBibliotek` växte appens JS före första vyn med 1 636 byte gzip över taket. Samma väg som `OpsPdfVisningLat`, med Försök igen om hämtningen faller. Typerna står i `lib/filtyper.js`, så att `lib/bibliotek.js` inte drar in tolkarna i startfilen, och `sie.js`, `kalenderfil.js` och `mejlfil.js` exporterar dem vidare därifrån. `check:delbarhet` mäter att `SieForhandsvisning`, `tolkaSie`, `KalenderfilForhandsvisning`, `tolkaIcs`, `MejlfilForhandsvisning` och `tolkaEml` ligger utanför startfilen: rött före ändringen, grönt med den. Startfilen med `OpsBibliotek` gick från 584 001 till 568 476 tecken i provets bygge.
+
 ---
 
 ## 0.269.0

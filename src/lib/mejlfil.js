@@ -20,8 +20,8 @@
 /** Hur djupt nästlade delar läses. Ett mejl med fler nivåer är trasigt eller fientligt. */
 export const MEJL_DJUP = 8;
 
-/** Typen ett sparat mejl har. */
-export const MEJLFIL_MIME = "message/rfc822";
+// Typen står i `filtyper.js`, så att Bibliotekets startfil inte drar in tolken (0.270.0).
+export { MEJLFIL_MIME } from "./filtyper.js";
 
 /** @param {Uint8Array} bytes */
 const latin1 = (bytes) => {

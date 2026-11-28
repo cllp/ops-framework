@@ -19,9 +19,8 @@ import { OpsHtmlDokumentLat } from "./OpsHtmlDokumentLat.jsx";
 import { OpsPdfVisningLat } from "./OpsPdfVisningLat.jsx";
 import { TextForhandsvisning } from "./TextForhandsvisning.jsx";
 import { KartaForhandsvisning } from "./KartaForhandsvisning.jsx";
-import { SieForhandsvisning } from "./SieForhandsvisning.jsx";
-import { KalenderfilForhandsvisning } from "./KalenderfilForhandsvisning.jsx";
-import { MejlfilForhandsvisning } from "./MejlfilForhandsvisning.jsx";
+// ⛔ LATA (0.270.0): SIE, kalenderfil och mejl hämtas när en sådan fil visas. Statiskt importerade lade de 1 636 byte gzip i lifehub.app:s startfil.
+import { KalenderfilForhandsvisningLat, MejlfilForhandsvisningLat, SieForhandsvisningLat } from "./BibliotekFilvisningLat.jsx";
 import { htmlVyAdress } from "../lib/htmldokument.js";
 import { arPdfDokument, arPdfMime, pdfVyAdress } from "../lib/pdfvisning.js";
 import { lasFilbytes } from "../data/filbytes.js";
@@ -3281,7 +3280,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
   if (typeof hamtaFil === "function" && arSieFil(post) && post.fil?.sokvag) {
     return (
       <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
-        <SieForhandsvisning hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} />
+        <SieForhandsvisningLat hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} />
         <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
           <Filnamn>{rad}</Filnamn>
         </FilMedLaddaNed>
@@ -3292,7 +3291,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
   if (typeof hamtaFil === "function" && arMejlfil(post) && post.fil?.sokvag) {
     return (
       <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
-        <MejlfilForhandsvisning hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} />
+        <MejlfilForhandsvisningLat hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} />
         <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
           <Filnamn>{rad}</Filnamn>
         </FilMedLaddaNed>
@@ -3304,7 +3303,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
   if (typeof hamtaFil === "function" && kalenderfil && post.fil?.sokvag) {
     return (
       <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
-        <KalenderfilForhandsvisning hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} sort={kalenderfil} />
+        <KalenderfilForhandsvisningLat hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} sort={kalenderfil} />
         <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
           <Filnamn>{rad}</Filnamn>
         </FilMedLaddaNed>

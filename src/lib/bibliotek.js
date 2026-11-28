@@ -26,9 +26,7 @@ import { formatDagOchKlockslag } from "./format.js";
 import { lankKalla } from "./lankkalla.js";
 import { ordet } from "./ord.js";
 import { lasGeojson } from "./karta.js";
-import { SIE_ANDELSER, SIE_MIME } from "./sie.js";
-import { KALENDERFIL_MIME, KONTAKTFIL_MIME } from "./kalenderfil.js";
-import { MEJLFIL_MIME } from "./mejlfil.js";
+import { KALENDERFIL_MIME, KONTAKTFIL_MIME, MEJLFIL_MIME, SIE_ANDELSER, SIE_MIME } from "./filtyper.js";
 
 /**
  * Anteckning, länk, fil och lista. En fil är en post, och MIME avgör hur den visas.

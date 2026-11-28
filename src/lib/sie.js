@@ -233,8 +233,5 @@ export function tolkaSie(text) {
   return { ok: true, sie };
 }
 
-/** Ändelserna en SIE-fil har: `.se` (typ 1 till 4), `.si` (typ 4i) och `.sie`. */
-export const SIE_ANDELSER = Object.freeze(["se", "si", "sie"]);
-
-/** MIME en SIE-fil får i Biblioteket. SIE har ingen registrerad typ, så det här är vår (0.268.0). */
-export const SIE_MIME = "text/x-sie";
+// Typerna står i `filtyper.js`, så att Bibliotekets startfil inte drar in tolken (0.270.0).
+export { SIE_ANDELSER, SIE_MIME } from "./filtyper.js";
