@@ -19,8 +19,8 @@ import { OpsHtmlDokumentLat } from "./OpsHtmlDokumentLat.jsx";
 import { OpsPdfVisningLat } from "./OpsPdfVisningLat.jsx";
 import { TextForhandsvisning } from "./TextForhandsvisning.jsx";
 import { KartaForhandsvisning } from "./KartaForhandsvisning.jsx";
-import { SieForhandsvisning } from "./SieForhandsvisning.jsx";
-import { KalenderfilForhandsvisning } from "./KalenderfilForhandsvisning.jsx";
+// ⛔ LATA (0.270.0): SIE, kalenderfil och mejl hämtas när en sådan fil visas. Statiskt importerade lade de 1 636 byte gzip i lifehub.app:s startfil.
+import { KalenderfilForhandsvisningLat, MejlfilForhandsvisningLat, SieForhandsvisningLat } from "./BibliotekFilvisningLat.jsx";
 import { htmlVyAdress } from "../lib/htmldokument.js";
 import { arPdfDokument, arPdfMime, pdfVyAdress } from "../lib/pdfvisning.js";
 import { lasFilbytes } from "../data/filbytes.js";
@@ -34,7 +34,7 @@ import { githubDokument } from "../lib/githubdokument.js";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
 import { ID_FORM } from "../lib/katalog.js";
-import { ARKIVTAGG, POSTIDFORM, arArkiverad, kortRubrik, avkodaTextfil, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, farFlyttaTill, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeForFil, arKartfil, arSieFil, kalenderfilSort, filadressFel, filSort, filtreraBibliotek, rubrikUrFilnamn, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
+import { ARKIVTAGG, POSTIDFORM, arArkiverad, kortRubrik, avkodaTextfil, NALTAGG, arNalad, ADRESSFORM, BIBLIOTEKTYPER, BILDFORM, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, uppladdningAvbruten, uppladdningenAvbrytsKl, allaTaggar, arDelbar, arLjudpost, arMittBibliotek, farAndra, farFlyttaTill, normaliseraTaggar, anteckningsrubrikNu, beskrivObjektbibliotek, arHtmlMime, arPlatsBibliotek, gruppForPlats, filInmatningsfel, LJUDFIL_ACCEPT, ljudfilFel, mimeForFil, arKartfil, arSieFil, kalenderfilSort, arMejlfil, filadressFel, filSort, filtreraBibliotek, rubrikUrFilnamn, inmatningsfel, ljudDatum, ljudRubrik, normaliseraAdress, normaliseraMime, trimSomRegeln } from "../lib/bibliotek.js";
 import { OpsTaggFilter, OpsTaggRad, menyPilar } from "./OpsTaggar.jsx";
 
 export { menyPilar, OpsTaggFilter as TaggFilter };
@@ -3280,7 +3280,18 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
   if (typeof hamtaFil === "function" && arSieFil(post) && post.fil?.sokvag) {
     return (
       <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
-        <SieForhandsvisning hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} />
+        <SieForhandsvisningLat hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} />
+        <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
+          <Filnamn>{rad}</Filnamn>
+        </FilMedLaddaNed>
+      </div>
+    );
+  }
+  // ⛔ ETT SPARAT MEJL VISAS TOLKAT (0.270.0, cllp/lifehub.app#884 punkt 4): rubrikerna, texten och bilagornas namn, som text och aldrig som HTML. Vad som är ett mejl avgör `arMejlfil`.
+  if (typeof hamtaFil === "function" && arMejlfil(post) && post.fil?.sokvag) {
+    return (
+      <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
+        <MejlfilForhandsvisningLat hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} />
         <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
           <Filnamn>{rad}</Filnamn>
         </FilMedLaddaNed>
@@ -3292,7 +3303,7 @@ function FilVisning({ post, lage, kopplad, onLjus, onMeta, onRadera, hamtaFil, v
   if (typeof hamtaFil === "function" && kalenderfil && post.fil?.sokvag) {
     return (
       <div data-bibliotek-fil="" className="flex min-w-0 flex-col gap-2">
-        <KalenderfilForhandsvisning hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} sort={kalenderfil} />
+        <KalenderfilForhandsvisningLat hamta={hamtaFil} sokvag={post.fil.sokvag} namn={post.rubrik ?? namn} sort={kalenderfil} />
         <FilMedLaddaNed adress={adress} namn={namn} hamta={hamtaFil} sokvag={post.fil?.sokvag}>
           <Filnamn>{rad}</Filnamn>
         </FilMedLaddaNed>

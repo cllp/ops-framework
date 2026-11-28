@@ -91,6 +91,9 @@ const SKALEN = [
   // (0.209.1, lifehub.app#706) Tolkningen av en .md och anteckningen som HTML-sida används bara när någon lägger in en .md eller laddar ned som HTML eller PDF. 0.209.0 importerade dem
   // statiskt, och appens `check:jsstorlek` växte med 4 kB. Modulerna läses in med en dynamisk import i `OpsBibliotek`.
   { skal: "OpsBibliotek", lata: ["markdownSomHtml", "markdownSomAnteckning"], via: "import(\"../lib/markdownhtml.js\") och import(\"../lib/anteckningsfil.js\")" },
+  // 0.270.0 (cllp/lifehub.app#884): SIE, kalenderfil och mejl ritas bara i detaljen för en sådan fil. 0.268.0 importerade SIE statiskt, och med de två andra hade lifehub.app:s startfil
+  // vuxit med 1 636 byte gzip över taket. Tolkarna följer med vyerna.
+  { skal: "OpsBibliotek", lata: ["SieForhandsvisning", "tolkaSie", "KalenderfilForhandsvisning", "tolkaIcs", "MejlfilForhandsvisning", "tolkaEml"], via: "BibliotekFilvisningLat" },
   // (0.223.0, #570) MapLibre ritas bara när en karta visas. Startfilen importerar `OpsKarta`, inte vyn och inte paketet.
   { skal: "OpsKarta", lata: ["OpsKartaVy"], via: "OpsKarta", paket: ["maplibre-gl"] },
   // 0.237.1: årsvyn (cllp/lifehub.app#874) hamnade i appens startfil i 0.237.0, 3 119 byte gzip över lifehub.app:s tak. Den hämtas när den öppnas.

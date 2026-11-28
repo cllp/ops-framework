@@ -191,7 +191,5 @@ export function tolkaVcf(text) {
   return { ok: true, kontakter };
 }
 
-/** Kalenderfilens MIME i Biblioteket. ⛔ INTE `ICS_MIME` i `node/ics.js`: den är bilagans typ i ett mejl, med teckenkodningen, och hör till en annan väg. */
-export const KALENDERFIL_MIME = "text/calendar";
-/** Kontaktfilens MIME (RFC 6350). Äldre program säger `text/x-vcard` eller `text/directory` (`MIMEALIAS`). */
-export const KONTAKTFIL_MIME = "text/vcard";
+// Typerna står i `filtyper.js`, så att Bibliotekets startfil inte drar in tolken (0.270.0).
+export { KALENDERFIL_MIME, KONTAKTFIL_MIME } from "./filtyper.js";

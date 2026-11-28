@@ -26,8 +26,7 @@ import { formatDagOchKlockslag } from "./format.js";
 import { lankKalla } from "./lankkalla.js";
 import { ordet } from "./ord.js";
 import { lasGeojson } from "./karta.js";
-import { SIE_ANDELSER, SIE_MIME } from "./sie.js";
-import { KALENDERFIL_MIME, KONTAKTFIL_MIME } from "./kalenderfil.js";
+import { KALENDERFIL_MIME, KONTAKTFIL_MIME, MEJLFIL_MIME, SIE_ANDELSER, SIE_MIME } from "./filtyper.js";
 
 /**
  * Anteckning, länk, fil och lista. En fil är en post, och MIME avgör hur den visas.
@@ -475,6 +474,9 @@ export const FILMIME = /** @type {const} */ ([
   // (`KalenderfilForhandsvisning`). Samma tak som text. Äldre program säger `text/x-vcard` eller `text/directory` (`MIMEALIAS`). Listan är regelns och Storage-regelns.
   KALENDERFIL_MIME,
   KONTAKTFIL_MIME,
+  // ⛔ SPARADE MEJL (0.270.0, cllp/lifehub.app#884 punkt 4). En `.eml` visas tolkad, som text och aldrig som HTML (`MejlfilForhandsvisning`). Samma tak som en fil.
+  // `.msg` (Outlook) tas inte emot: den är ett binärt format som inte visas, och ingen har bett om att ladda ned den härifrån. Listan är regelns och Storage-regelns.
+  MEJLFIL_MIME,
 ]);
 
 /**
@@ -602,9 +604,10 @@ export const HTML_DISPOSITIONSMONSTER = "^attachment(;.*)?$";
 
 /**
  * Formaten som alltid laddas upp som en bilaga (`Content-Disposition: attachment`), och som Storage-regeln nekar utan den: HTML (0.156.0), som kan köra kod, och zip (0.234.0), som
- * aldrig ska öppnas av webbläsaren som något annat än en nedladdning.
+ * aldrig ska öppnas av webbläsaren som något annat än en nedladdning. ⛔ OCH ETT SPARAT MEJL (0.270.0, #884): det kan bära HTML och bilder från nätet, och en direktlänk ska ladda ned det,
+ * aldrig låta webbläsaren rita det. I appen visas det som text (`MejlfilForhandsvisning`).
  */
-export const BILAGAMIME = /** @type {const} */ ([HTML_MIME, ZIP_MIME]);
+export const BILAGAMIME = /** @type {const} */ ([HTML_MIME, ZIP_MIME, MEJLFIL_MIME]);
 
 /** Mönstret Storage-regeln känner en bilaga på (`BILAGAMIME`), med eller utan parametrar efter typen. */
 export function bilagaContentTypeMonster() {
@@ -624,7 +627,7 @@ export function bilagaContentTypeMonster() {
 export function lagringsContentDisposition(mime, namn) {
   const m = normaliseraMime(mime);
   if (!(/** @type {readonly string[]} */ (BILAGAMIME)).includes(m)) return undefined;
-  const ren = str(namn).replace(/[\u0000-\u001f\u007f]/g, "").replace(/[\\/]/g, "_") || (m === ZIP_MIME ? "arkiv.zip" : "dokument.html");
+  const ren = str(namn).replace(/[\u0000-\u001f\u007f]/g, "").replace(/[\\/]/g, "_") || (m === ZIP_MIME ? "arkiv.zip" : m === MEJLFIL_MIME ? "mejl.eml" : "dokument.html");
   const ascii = ren.replace(/[^A-Za-z0-9._ -]/g, "_");
   const utf8 = encodeURIComponent(ren).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
   return `attachment; filename="${ascii}"; filename*=UTF-8''${utf8}`;
@@ -979,7 +982,7 @@ export function mimeUrFilnamn(namn) {
   const m = /\.([a-z0-9]+)$/i.exec(str(namn));
   const andelse = m ? m[1].toLowerCase() : "";
   // (0.133.0) m4a, mp3, aac och ogg: Safari och Android ger ofta tom typ för dem, och utan namnet blev en vald ljudfil "Formatet (tom) går inte att lägga in".
-  return ({ html: "text/html", htm: "text/html", md: "text/markdown", markdown: "text/markdown", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", json: "application/json", geojson: GEOJSON_MIME, docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", zip: ZIP_MIME, ics: KALENDERFIL_MIME, ical: KALENDERFIL_MIME, vcf: KONTAKTFIL_MIME, vcard: KONTAKTFIL_MIME, ...Object.fromEntries(SIE_ANDELSER.map((a) => [a, SIE_MIME])) })[andelse] ?? "";
+  return ({ html: "text/html", htm: "text/html", md: "text/markdown", markdown: "text/markdown", wav: "audio/wav", wave: "audio/wav", aif: "audio/aiff", aiff: "audio/aiff", flac: "audio/flac", m4a: "audio/mp4", mp3: "audio/mpeg", aac: "audio/aac", ogg: "audio/ogg", oga: "audio/ogg", mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", json: "application/json", geojson: GEOJSON_MIME, docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", zip: ZIP_MIME, ics: KALENDERFIL_MIME, ical: KALENDERFIL_MIME, vcf: KONTAKTFIL_MIME, vcard: KONTAKTFIL_MIME, eml: MEJLFIL_MIME, ...Object.fromEntries(SIE_ANDELSER.map((a) => [a, SIE_MIME])) })[andelse] ?? "";
 }
 
 /**
@@ -1066,6 +1069,14 @@ export function kalenderfilSort(post) {
   if (typ === KALENDERFIL_MIME || urNamn === KALENDERFIL_MIME) return "ics";
   if (typ === KONTAKTFIL_MIME || urNamn === KONTAKTFIL_MIME) return "vcf";
   return null;
+}
+
+/**
+ * Om en filpost är ett sparat mejl som visas tolkat (0.270.0, cllp/lifehub.app#884 punkt 4). ⛔ ETT HEM (regel 2). Typen, eller ändelsen `.eml`.
+ * @param {{ fil?: { namn?: unknown, mime?: unknown } } | null | undefined} post
+ */
+export function arMejlfil(post) {
+  return normaliseraMime(post?.fil?.mime) === MEJLFIL_MIME || mimeUrFilnamn(post?.fil?.namn) === MEJLFIL_MIME;
 }
 
 /**
