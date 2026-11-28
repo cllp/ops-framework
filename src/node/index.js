@@ -55,6 +55,8 @@ export { STANDARDKALENDER_ID, STANDARDKALENDER_NAMN, standardGruppkalender } fro
  */
 export { createHandelsefilerService, createPlatsfilerService } from "./handelsefiler.js";
 export { arDelbar } from "../lib/bibliotek.js";
+// ⛔ SIE (0.268.0, cllp/lifehub.app#884): appens API läser en SIE-fil med samma tolkning som Bibliotekets förhandsvisning (regel 2).
+export { SIE_ANDELSER, SIE_MIME, avkodaSie, sieDatum, sieFalt, sieOre, tolkaSie } from "../lib/sie.js";
 /*
  * ⛔ HTML-DOKUMENT (0.156.0, cllp/ops-framework#472). Servern som läser ett HTML-dokument som text, skriver en ny version, listar versionerna och återställer skriver med Admin SDK och lagringen är appens, så tjänsten ligger här.
  * Modellen och de rena funktionerna är desamma som klientens och exporteras även här, så att en nodfunktion inte behöver dra in React för dem.
