@@ -9,6 +9,16 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.270.0
+
+**Sparade mejl i Biblioteket.** Inget brytande. ⛔ Formatet nås i appen först när dess regler är omgenererade och deployade.
+
+### Tillagt
+- **En `.eml` tas emot och visas tolkad** (cllp/lifehub.app#884 punkt 4, CP 2026-11-18: "Kör alla i ett svep"). Typen `message/rfc822` (`MEJLFIL_MIME`) står i `FILMIME` och `mimeUrFilnamn`, och `arMejlfil` avgör. Detaljen visar `MejlfilForhandsvisning`: Från, Till, Kopia, Datum och Ämne, sedan texten och sist bilagornas namn och storlek, med Ladda ned under. ⛔ Text och aldrig HTML: ett mejl med bara en HTML-del visas som text med en rad som säger det, så ingen bild hämtas och ingenting i mejlet körs. Bilagorna listas men sparas inte här, och `.msg` (Outlook, binärt) tas inte emot. ⛔ Ett mejl sparas alltid som bilaga (`BILAGAMIME`, som HTML och zip), så att en direktlänk laddar ned det och Storage-regeln nekar det utan `Content-Disposition: attachment`.
+- **`tolkaEml`, `avkodaRubrik` och `htmlSomText`** (`lib/mejlfil.js`, också genom `ops-framework/node`). Kodade ord (RFC 2047) i base64 och quoted-printable, delar i multipart rekursivt (högst `MEJL_DJUP`), och varje del avkodad med sin egen teckenkodning.
+
+---
+
 ## 0.269.0
 
 **Kalender- och kontaktfiler i Biblioteket, och JSON med indrag.** Inget brytande. ⛔ Formaten nås i appen först när dess regler är omgenererade och deployade.

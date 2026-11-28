@@ -52,7 +52,7 @@ describe("⛔ zip i biblioteket", () => {
     expect(uppladdat[0].contentType).toBe("application/zip");
     expect(uppladdat[0].contentDisposition).toBe("attachment; filename=\"Bilder.zip\"; filename*=UTF-8''Bilder.zip");
     expect(lagringsContentDisposition("application/zip", "")).toMatch(/^attachment; filename="arkiv.zip"/);
-    expect(REGEL()).toContain("request.resource.contentType.matches('^(text/html|application/zip).*') || (request.resource.contentDisposition != null");
+    expect(REGEL()).toContain("request.resource.contentType.matches('^(text/html|application/zip|message/rfc822).*') || (request.resource.contentDisposition != null");
     // En delad länk till ett arkiv är också en bilaga, med eller utan nedladdning.
     expect(delningsDisposition("Bilder.zip", false, "application/zip")).toMatch(/^attachment/);
     expect(delningsDisposition("a.pdf", false, "application/pdf")).toBe("inline");
