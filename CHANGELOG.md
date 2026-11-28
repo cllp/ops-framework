@@ -9,6 +9,19 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.269.0
+
+**Kalender- och kontaktfiler i Biblioteket, och JSON med indrag.** Inget brytande. ⛔ Formaten nås i appen först när dess regler är omgenererade och deployade.
+
+### Tillagt
+- **En `.ics` och en `.vcf` tas emot och visas tolkade** (cllp/lifehub.app#884 punkt 5, CP 2026-11-18: "Kör alla i ett svep"). Typerna `text/calendar` (`KALENDERFIL_MIME`) och `text/vcard` (`KONTAKTFIL_MIME`) står i `FILMIME` och `mimeUrFilnamn`, och `text/x-vcard`, `text/directory` och `text/x-vcalendar` blir dem (`MIMEALIAS`). Detaljen visar `KalenderfilForhandsvisning`: händelserna (datum, tid, händelse, plats, och om den återkommer eller är inställd) och kontakterna (namn, organisation, telefon, e-post) i en tabell, med Ladda ned under. Numret och adressen är text, aldrig `tel:` eller `mailto:`. En tid i UTC räknas om till svensk tid, och en tid i en annan zon bär zonen. `kalenderfilSort` avgör. Ingen import till en kalender här: det är ett eget steg som skriver data.
+- **`tolkaIcs`, `tolkaVcf`, `kalenderRader`, `kalenderText` och `kalenderTid`** (`lib/kalenderfil.js`, också genom `ops-framework/node`). Raderna vecklas ut enligt RFC 5545 och 6350, ett larms egen text (`VALARM`) blandas inte med händelsens, och quoted-printable (vCard 2.1) avkodas som UTF-8.
+
+### Ändrat
+- **En JSON-fil som inte är en karta visas med indrag** (#884 punkt 6), i stället för på en rad. En avkortad fil och en som inte är giltig JSON visas som den står.
+
+---
+
 ## 0.268.0
 
 **SIE-filer i Biblioteket.** Inget brytande. ⛔ Formatet nås i appen först när dess regler är omgenererade och deployade (`FILMIME` är regelns och Storage-regelns lista).

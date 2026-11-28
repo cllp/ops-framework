@@ -28,9 +28,14 @@ import { OpsVantar } from "./OpsVantar.jsx";
  * En .md som är för lång för en anteckning läggs in som fil (`text/markdown`). Med `markdown` ritas texten med `OpsMarkdown` i stället för i `<pre>`, med samma hämtning, samma avkodning och samma tak
  * (`TEXTFORHANDS_BYTE`): en lång fil visar sin början och raden om att resten finns i filen. Ingen HTML passerar en sträng (`OpsMarkdown`), så en markdownfil kan inte köra något.
  *
- * @param {{ hamta: (sokvag: string) => Promise<Blob>, sokvag: string, namn: string, markdown?: boolean }} props
+ * ══ ⛔ EN JSON-FIL VISAS FORMATERAD (0.269.0, cllp/lifehub.app#884 punkt 6) ════════════════════════════════════════════════
+ *
+ * Med `json` visas en hel fil som går att läsa som JSON med indrag (`formateraJson`), i stället för på en enda rad. En avkortad fil, och en som inte är giltig
+ * JSON, visas som den står: att formatera halva filen hade visat något annat än filen.
+ *
+ * @param {{ hamta: (sokvag: string) => Promise<Blob>, sokvag: string, namn: string, markdown?: boolean, json?: boolean }} props
  */
-export function TextForhandsvisning({ hamta, sokvag, namn, markdown = false }) {
+export function TextForhandsvisning({ hamta, sokvag, namn, markdown = false, json = false }) {
   const sprak = useOpsSprak();
   const o = (/** @type {keyof typeof ORD_BIBLIOTEKTEXT} */ k) => ordet(ORD_BIBLIOTEKTEXT, k, sprak);
   const [lage, setLage] = useState(/** @type {{ lage: "hamtar" } | { lage: "klar", text: string, avkortad: boolean } | { lage: "fel", fel: string }} */ ({ lage: "hamtar" }));
@@ -46,7 +51,8 @@ export function TextForhandsvisning({ hamta, sokvag, namn, markdown = false }) {
         const avkortad = blob.size > TEXTFORHANDS_BYTE;
         const del = avkortad ? blob.slice(0, TEXTFORHANDS_BYTE) : blob;
         const bytes = new Uint8Array(await blobBytes(del));
-        if (kvar) setLage({ lage: "klar", text: avkodaTextfil(bytes, avkortad), avkortad });
+        const text = avkodaTextfil(bytes, avkortad);
+        if (kvar) setLage({ lage: "klar", text: json && !avkortad ? formateraJson(text) : text, avkortad });
       })
       .catch((e) => {
         if (kvar) setLage({ lage: "fel", fel: filadressFel(e) });
@@ -54,7 +60,7 @@ export function TextForhandsvisning({ hamta, sokvag, namn, markdown = false }) {
     return () => {
       kvar = false;
     };
-  }, [sokvag]);
+  }, [sokvag, json]);
   if (lage.lage === "hamtar") return <div data-bibliotek-text="hamtar" className="m-0 text-etikett text-ink-muted"><OpsVantar text={o("hamtar")} /></div>;
   if (lage.lage === "fel") {
     return (
@@ -87,6 +93,18 @@ export function TextForhandsvisning({ hamta, sokvag, namn, markdown = false }) {
       ) : null}
     </div>
   );
+}
+
+/**
+ * JSON med två blankstegs indrag, eller texten som den står när den inte är giltig JSON. REN.
+ * @param {string} text
+ */
+export function formateraJson(text) {
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2);
+  } catch {
+    return text;
+  }
 }
 
 /**

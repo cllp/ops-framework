@@ -54,7 +54,8 @@ describe("en karta också när filen inte sades vara application/geo+json (#765)
   it("⛔ en .json som inte är GeoJSON visas som text, aldrig som en länk", async () => {
     const { container, hamtaFil } = visa(filpost("resa.json", "application/json", ANNAN_JSON), ANNAN_JSON);
     await waitFor(() => expect(container.querySelector("[data-bibliotek-text=klar]")).not.toBeNull());
-    expect(container.querySelector("[data-bibliotek-text=klar]")?.textContent).toBe(ANNAN_JSON);
+    // ⛔ MED INDRAG SEDAN 0.269.0 (cllp/lifehub.app#884 punkt 6): samma innehåll, inte längre på en rad.
+    expect(container.querySelector("[data-bibliotek-text=klar]")?.textContent).toBe(JSON.stringify(JSON.parse(ANNAN_JSON), null, 2));
     expect(container.querySelector("[data-karta-stub]")).toBeNull();
     // Byten hämtades en gång: textrutan får dem som redan lästs.
     expect(hamtaFil).toHaveBeenCalledTimes(1);
